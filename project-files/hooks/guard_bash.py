@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import posixpath
 import re
 import shlex
 import subprocess
@@ -19,6 +20,13 @@ SKIPPING = {"commit", "push", "merge", "rebase", "cherry-pick"}
 GLOBAL_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 COMMIT_VALUE_FLAGS = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--template"}
 COMMIT_VALUE_LETTERS = "mFCct"
+HOOKS_PATH_MESSAGE = (
+    "Overriding core.hooksPath skips the project's commit checks. Fix what the "
+    "hook reports instead; if the hook itself is wrong, tell the user."
+)
+SHELLS = {"sh", "bash", "zsh"}
+SHELL_KEYWORDS = {"then", "do", "else", "elif", "!", "time", "if", "while", "until"}
+MAX_DEPTH = 2
 ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 
 
@@ -45,6 +53,7 @@ def _newlines_to_semicolons(command: str) -> str:
 
 def split_segments(command: str) -> list[list[str]] | None:
     """Token lists per `&&`/`||`/`;`/`|`/newline segment; None if unparseable."""
+    command = command.replace("\\\n", "")  # line continuations
     lexer = shlex.shlex(
         _newlines_to_semicolons(command), posix=True, punctuation_chars=True
     )
@@ -55,28 +64,66 @@ def split_segments(command: str) -> list[list[str]] | None:
         return None
     segments: list[list[str]] = [[]]
     for token in tokens:
-        if set(token) <= set("&|;"):
+        if set(token) <= set("&|;()") or token in ("{", "}"):
             segments.append([])
         else:
             segments[-1].append(token)
     return [s for s in segments if s]
 
 
-def git_invocation(segment: list[str]) -> tuple[str, list[str]] | None:
-    """(subcommand, args after it) if the segment runs git, else None."""
+def strip_prefix(segment: list[str]) -> list[str]:
+    """Drop leading keywords, env assignments and command/exec/env wrappers."""
     i = 0
-    while i < len(segment) and ENV_ASSIGNMENT.match(segment[i]):
+    after_env = False
+    while i < len(segment):
+        tok = segment[i]
+        if tok == "env":
+            after_env = True
+        elif tok in SHELL_KEYWORDS or tok in ("command", "exec"):
+            after_env = False
+        elif ENV_ASSIGNMENT.match(tok) or (after_env and tok.startswith("-")):
+            pass
+        else:
+            break
         i += 1
-    if i < len(segment) and segment[i] in ("command", "exec"):
-        i += 1
-    if i >= len(segment) or segment[i] != "git":
+    return segment[i:]
+
+
+def git_invocation(segment: list[str]) -> tuple[str, list[str], bool] | None:
+    """(subcommand, args after it, core.hooksPath overridden) for a git segment."""
+    if not segment or posixpath.basename(segment[0]) != "git":
         return None
-    i += 1
+    hooks_override = False
+    i = 1
     while i < len(segment) and segment[i].startswith("-"):
-        i += 2 if segment[i] in GLOBAL_OPTIONS_WITH_VALUE else 1
+        arg = segment[i]
+        if arg == "-c" and i + 1 < len(segment):
+            config = segment[i + 1]
+        elif arg.startswith("-c") and not arg.startswith("--"):
+            config = arg[2:]
+        else:
+            config = ""
+        if config.lower().startswith("core.hookspath"):
+            hooks_override = True
+        i += 2 if arg in GLOBAL_OPTIONS_WITH_VALUE else 1
     if i >= len(segment):
         return None
-    return segment[i], segment[i + 1 :]
+    return segment[i], segment[i + 1 :], hooks_override
+
+
+def shell_script(segment: list[str]) -> str | None:
+    """The script string of `sh -c "…"` / `eval "…"`, if the segment is one."""
+    if not segment:
+        return None
+    name = posixpath.basename(segment[0])
+    if name == "eval":
+        return " ".join(segment[1:]) or None
+    if name in SHELLS:
+        for k, arg in enumerate(segment[1:], start=1):
+            is_flag = arg.startswith("-") and not arg.startswith("--")
+            if is_flag and arg.endswith("c") and k + 1 < len(segment):
+                return segment[k + 1]
+    return None
 
 
 def option_args(sub: str, args: list[str]) -> list[str]:
@@ -122,12 +169,26 @@ def pushed_branches(root: Path) -> str:
     return ", ".join(line.strip() for line in proc.stdout.splitlines() if line.strip())
 
 
+def check_command(command: str, root: Path, depth: int = 0) -> None:
+    segments = split_segments(command)
+    if segments is None:
+        return
+    for segment in segments:
+        segment = strip_prefix(segment)
+        script = shell_script(segment)
+        if script is not None and depth < MAX_DEPTH:
+            check_command(script, root, depth + 1)
+        check_segment(segment, root)
+
+
 def check_segment(segment: list[str], root: Path) -> None:
     invocation = git_invocation(segment)
     if invocation is None:
         return
-    sub, raw_args = invocation
+    sub, raw_args, hooks_override = invocation
     args = option_args(sub, raw_args)
+    if hooks_override and sub in SKIPPING:
+        _common.block(HOOKS_PATH_MESSAGE)
     if sub in SKIPPING:
         if "--no-verify" in args:
             _common.block(NO_VERIFY_MESSAGE)
@@ -170,11 +231,7 @@ def main() -> None:
         command = tool_input.get("command")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     if not isinstance(command, str):
         sys.exit(0)
-    segments = split_segments(command)
-    if segments is None:
-        sys.exit(0)
-    for segment in segments:
-        check_segment(segment, root)
+    check_command(command, root)
     sys.exit(0)
 
 

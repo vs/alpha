@@ -6,6 +6,7 @@ import pytest
 from .conftest import Project
 
 NO_VERIFY = "--no-verify skips the project's commit checks."
+HOOKS_PATH = "Overriding core.hooksPath skips the project's commit checks."
 
 
 def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
@@ -35,6 +36,30 @@ def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
         ("ls | git push -f", "-f"),
         ("echo hi\ngit push -f", "-f"),
         ("true || command git commit --no-verify", NO_VERIFY),
+        ("git push \\\n--force", "--force"),
+        ("git commit \\\n--no-verify -m x", NO_VERIFY),
+        ("  git push \\\n    --force", "--force"),
+        ("  git commit \\\n    --no-verify -m x", NO_VERIFY),
+        ("(git push -f)", "-f"),
+        ("(cd a && git push -f)", "-f"),
+        ("if x; then git push -f; fi", "-f"),
+        ("if git push -f; then echo; fi", "-f"),
+        ("{ git push -f; }", "-f"),
+        ("echo $(git push -f)", "-f"),
+        ("! git push -f", "-f"),
+        ("time git push -f", "-f"),
+        ("for i in 1; do git push -f; done", "-f"),
+        ("/usr/bin/git push -f", "-f"),
+        ("env FOO=1 git push -f", "-f"),
+        ("env -i /usr/bin/git commit --no-verify", NO_VERIFY),
+        ("bash -c 'git push -f'", "-f"),
+        ('sh -c "cd a && git commit --no-verify"', NO_VERIFY),
+        ("bash -lc 'git push -f'", "-f"),
+        ("eval 'git push -f'", "-f"),
+        ("bash -c \"sh -c 'git push -f'\"", "-f"),
+        ("git -c core.hooksPath=/dev/null commit -m x", HOOKS_PATH),
+        ("git -c core.hookspath=x push", HOOKS_PATH),
+        ("git -ccore.hooksPath=x rebase main", HOOKS_PATH),
     ],
 )
 def test_blocked(project: Project, command: str, needle: str) -> None:
@@ -58,6 +83,11 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
         "git commit -m 'unbalanced",
         "git push origin main -- +weird",
         "",
+        "git -c user.name=x commit -m y",
+        "git -c core.hooksPath=x status",
+        "bash -c 'echo git push -f'",
+        "bash script.sh",
+        "echo $(date)",
     ],
 )
 def test_allowed(project: Project, command: str) -> None:
