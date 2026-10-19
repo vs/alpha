@@ -665,7 +665,7 @@ def test_matches_double_star():  # matches("api/src/x/y.py", ["api/src/**/*.py"]
     - Write principles (`docs/principles.toml`), docs (Task 7), component files (Task 5), and `.claude/settings.json` (Task 14).
     - Copy `project-files/hooks/*.py` → `.claude/alpha/hooks/`, the skill → `.claude/skills/commit/SKILL.md`, the agent → `.claude/agents/committer.md`, and the githook → `.claude/alpha/githooks/commit-msg` (exec bit preserved).
     - Write `.gitignore`: `.claude/alpha/state/`, plus `.venv/`, `__pycache__/`, `.pytest_cache/` for python components, plus `node_modules/`, `dist/`, `coverage/` for typescript components, each prefixed by the component path when not `.`.
-    - Add a top-level `manifest` key to `.claude/alpha/project.json`: `{"kit_version", "generated_at" (ISO date), "defaults": {"path", "live", "commit": <git HEAD of source or null>}, "files": {relpath: sha256}}`.
+    - Add a top-level `manifest` key to `.claude/alpha/project.json`: `{"kit_version", "generated_at" (ISO date), "defaults": {"path", "live", "commit": <git HEAD of source or null>}, "files": {relpath: sha256}}` covering every generated file except `project.json` itself.
     - Return the sorted relpaths.
   - `bootstrap(target: Path, principles: dict) -> None`: per component, run the recipe `bootstrap` then `setup` then `test`. On failure, raise `GenerateError` with the command, its last 40 lines of output, and `Fix the toolchain (is uv/pnpm installed?) and rerun "alpha bootstrap <target>"`.
   - `commit_skeleton(target: Path, principles: dict, trailers: list[str]) -> list[str]`. It runs `git init -b main` (if `.git` is absent) and `git config core.hooksPath .claude/alpha/githooks`. Then it commits in this order, returning the hashes:
