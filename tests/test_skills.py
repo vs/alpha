@@ -2,6 +2,7 @@
 
 import argparse
 import re
+import tomllib
 import types
 import typing
 from dataclasses import is_dataclass
@@ -20,15 +21,16 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "git-history": ("git", ("git",)),
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
-USER_INVOKED = [*AREA_SKILLS, "new-project"]
-ALL_SKILLS = ["grilling", *USER_INVOKED]
+ALL_SKILLS = ["grilling", *AREA_SKILLS, "new-project"]
+CLI_SKILLS = [*AREA_SKILLS, "new-project"]
+ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 AREA_SECTIONS = [
+    "Before you start",
     "Purpose",
     "Fields this area settles",
     "Questions",
     "Writing the answers",
     "Check",
-    "Calling this skill directly",
 ]
 
 
@@ -68,8 +70,9 @@ def _options(parser: argparse.ArgumentParser) -> set[str]:
 
 
 def _calls(skill: str) -> list[str]:
-    """Every CLI invocation in a skill: the text after the binary up to `."""
-    return re.findall(rf"{re.escape(CLI)} ([^`\n]*)", _text(skill))
+    """Every CLI invocation in a skill's body: the text after the binary up to `."""
+    body = _text(skill).split("\n---\n", 1)[1]  # skip allowed-tools
+    return re.findall(rf"{re.escape(CLI)} ([^`\n]*)", body)
 
 
 def _unwrap(hint: object) -> tuple[object, bool]:
@@ -129,16 +132,49 @@ def test_frontmatter_names_and_describes_the_skill(skill: str):
     assert len(meta.get("description", "")) > 40
 
 
-@pytest.mark.parametrize("skill", USER_INVOKED)
-def test_area_skills_and_entry_point_are_user_invoked_only(skill: str):
-    assert _frontmatter(skill).get("disable-model-invocation") == "true"
+def test_only_the_entry_point_is_user_invoked_only():
+    assert _frontmatter("new-project").get("disable-model-invocation") == "true"
 
 
-def test_grilling_is_model_invocable_and_credits_its_source():
-    assert "disable-model-invocation" not in _frontmatter("grilling")
+@pytest.mark.parametrize("skill", ["grilling", *AREA_SKILLS])
+def test_skills_new_project_calls_stay_model_invocable(skill: str):
+    assert "disable-model-invocation" not in _frontmatter(skill)
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_descriptions_only_trigger_inside_an_interview(skill: str):
+    description = _frontmatter(skill)["description"]
+    assert "Use only inside an alpha project interview (/alpha:new-project)" in (
+        description
+    )
+
+
+@pytest.mark.parametrize("skill", CLI_SKILLS)
+def test_cli_calls_are_pre_approved(skill: str):
+    assert _frontmatter(skill).get("allowed-tools") == ALLOWED_CLI
+
+
+def test_grilling_credits_its_source_with_the_full_license():
     text = _text("grilling")
-    assert re.search(r"<!--.*mattpocock/skills.*MIT.*-->", text, re.S)
+    credit = re.search(r"<!--(.*?)-->", text, re.S)
+    assert credit and "mattpocock/skills" in credit.group(1)
+    assert "Permission is hereby granted, free of charge" in credit.group(1)
+    assert 'THE SOFTWARE IS PROVIDED "AS IS"' in credit.group(1)
+
+
+def test_grilling_override_protocol_reads_the_exit_codes():
+    text = _text("grilling")
     assert "Make this the default for future projects too?" in text
+    for code in ("exits 0", "exits 4", "exits 3"):
+        assert code in text
+    assert "<target>/.claude/alpha/project.json" in text
+
+
+def test_every_kind_has_a_recommended_stack():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    stacks: dict[str, str] = kit["stacks"]
+    assert answers.KINDS <= set(stacks)
+    assert {stacks[kind] for kind in answers.KINDS} <= answers.STACKS
 
 
 @pytest.mark.parametrize("skill", ALL_SKILLS)
@@ -187,9 +223,11 @@ def test_skills_use_every_cli_command_the_interview_needs():
 
 
 @pytest.mark.parametrize("skill", AREA_SKILLS)
-def test_area_skill_has_every_section(skill: str):
+def test_area_skill_has_every_section_in_order(skill: str):
     for title in AREA_SECTIONS:
         assert _section(skill, title).strip(), f"{skill}: '## {title}' is empty"
+    titles = re.findall(r"^## (.+)$", _text(skill), re.M)
+    assert titles == AREA_SECTIONS
 
 
 @pytest.mark.parametrize("skill", AREA_SKILLS)
@@ -216,8 +254,9 @@ def test_area_checks_its_own_area(skill: str):
     assert check in _text(skill)
 
 
-def test_new_project_runs_the_areas_in_order():
+def test_new_project_invokes_the_area_skills_in_order():
     text = _text("new-project")
-    order = [text.index(f"/skills/{skill}/SKILL.md") for skill in AREA_SKILLS]
+    order = [text.index(f"`alpha:{skill}`") for skill in AREA_SKILLS]
     assert order == sorted(order)
+    assert "SKILL.md" not in text, "invoke area skills, don't read their files"
     assert "$ARGUMENTS" in text

@@ -1,18 +1,25 @@
 ---
 name: components
-description: Settle a new project's components and stacks in the alpha interview - which parts exist, their kind, language, folder and traits, the repo layout, and whether they talk to each other. Use during /alpha:new-project after identity, or directly to redo this area of an interview in progress.
-disable-model-invocation: true
+description: Settle a new project's components and stacks in the alpha interview - which parts exist, their kind, language, folder and traits, the repo layout, and whether they talk to each other. Use only inside an alpha project interview (/alpha:new-project) or when the user asks to revisit the components of a project alpha is setting up.
+allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
 # Components and stacks
+
+## Before you start
+
+`<target>` is the folder `/alpha:new-project` is working in; when the user calls this skill directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`. Check it first:
+
+- No project.json: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
+- project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project (e.g. adding a component) arrives in a later version of alpha, and stop.
+- `areas.identity` isn't `"done"`: tell the user identity comes first and to run `/alpha:new-project`, and stop.
+- Otherwise go on. When the user called this skill directly, use the current answers as the recommendations, and when you finish, tell them to run `/alpha:new-project` to continue.
 
 ## Purpose
 
 Decide which parts the project is made of (a backend, a web frontend, a CLI, an ML pipeline, …), what each is written in, where it lives, and a few plain traits per part. These answers decide which test runner, linter and type checker each part gets, and which principles apply to it. Every later area applies to every component.
 
 alpha v0.1 sets up **Python** and **TypeScript** only. Say so plainly when you ask about stacks; other stacks arrive in a later version.
-
-The target folder is the one `/alpha:new-project` is working in; when you are called directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`.
 
 ## Fields this area settles
 
@@ -40,7 +47,7 @@ Round 1:
 
 Round 2 (needs the component list):
 - **Layout** - with one component, recommend `single`; with more, `monorepo` is required. Rule: `single` means exactly one component, at path `"."`.
-- **Stack per component** - recommend `defaults.stacks[kind]`. A kind with no entry there: `frontend` and `mobile` use `defaults.stacks.web`; `library` and `worker` use `defaults.stacks.backend`. Offer only `python` and `typescript`. If the user wants another language, explain that v0.1 can't set it up yet, and ask them to pick one of the two or stop here.
+- **Stack per component** - recommend `defaults.stacks[kind]`. Offer only `python` and `typescript`. If the user wants another language, explain that v0.1 can't set it up yet, and ask them to pick one of the two or stop here.
 - **Talk to each other** - ask only when there is more than one component: "Do these components call each other?" Explain: yes turns on the "Contracts are the source of truth" principle, so their interfaces are defined once (e.g. OpenAPI) and checked. With one component, set `components_talk` to `false` without asking.
 
 Round 3 (needs the layout):
@@ -53,11 +60,11 @@ Round 3 (needs the layout):
   - *Machine learning* - adds reproducibility rules for seeds, data versions and experiment configs.
   - *Non-trivial logic* - keeps business rules pure, with side effects at the edges, so they're easy to test.
 
-When a stack differs from the default for its kind, follow the grilling skill's override protocol (key `stacks.<kind>`).
+When a stack differs from `defaults.stacks[kind]`, follow the grilling skill's override protocol (key `stacks.<kind>`, e.g. `stacks.backend`).
 
 ## Writing the answers
 
-1. Read `<target>/.claude/alpha/project.json`. If it doesn't exist, see "Calling this skill directly".
+1. Read `<target>/.claude/alpha/project.json`.
 2. Set `areas.components` to `"in_progress"` when you start asking.
 3. When the user confirms the area, write `layout`, `components_talk` and the `components` list using the Write or Edit tool. Each component is `{"name", "path", "kind", "stack", "traits": {"has_ui", "deployed", "network_calls", "persisted_data", "ml", "nontrivial_logic"}}`, with every trait `true` or `false`. Keep the exact field names, keep the rest of the file as it is, and keep it valid JSON.
 4. Add one `decisions[]` entry, replacing any earlier one with `"area": "components"`:
@@ -71,10 +78,3 @@ Run:
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json --area components`
 
 It prints `ok`, or one problem with its fix. Fix project.json (ask the user when the fix needs a decision) and re-run until it prints `ok`.
-
-## Calling this skill directly
-
-- No `<target>/.claude/alpha/project.json`: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
-- project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project (e.g. adding a component) arrives in a later version of alpha, and stop.
-- `areas.identity` isn't `"done"`: tell the user identity comes first and to run `/alpha:new-project`, and stop.
-- Otherwise an interview is in progress: run this area with the current answers as the recommendations, then tell the user to run `/alpha:new-project` to continue.

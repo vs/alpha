@@ -1,16 +1,22 @@
 ---
 name: identity
-description: Settle a new project's identity in the alpha interview - name, value proposition, target users, requirements with acceptance checks, license and copyright. Use during /alpha:new-project, or directly to redo this area of an interview in progress.
-disable-model-invocation: true
+description: Settle a new project's identity in the alpha interview - value proposition, name, target users, requirements with acceptance checks, license and copyright. Use only inside an alpha project interview (/alpha:new-project) or when the user asks to revisit the identity of a project alpha is setting up.
+allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
 # Identity
 
+## Before you start
+
+`<target>` is the folder `/alpha:new-project` is working in; when the user calls this skill directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`. Check it first:
+
+- No project.json: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
+- project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project arrives in a later version of alpha, and stop.
+- Otherwise go on. When the user called this skill directly, use the current answers as the recommendations, and when you finish, tell them to run `/alpha:new-project` to continue.
+
 ## Purpose
 
-Pin down what the project is and who it's for before any technical choice: its name, the problem it solves, its users, and a short list of requirements, each turned into an acceptance check (Given/When/Then) that tests will later trace back to. Also settle the license and copyright holder. Every later area builds on these answers.
-
-The target folder is the one `/alpha:new-project` is working in; when you are called directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`.
+Pin down what the project is and who it's for before any technical choice: the problem it solves, its name, its users, and a short list of requirements, each turned into an acceptance check (Given/When/Then) that tests will later trace back to. Also settle the license and copyright holder. Every later area builds on these answers.
 
 ## Fields this area settles
 
@@ -34,27 +40,28 @@ Run these with the `alpha:grilling` skill (invoke it with the Skill tool and fol
 
 Look up first (facts, never ask): the target folder's name, and `git config user.name`.
 
-Round 1 (independent of each other):
-- **Name** - recommend a name from what the user has said, else from the folder name.
-- **Value proposition** - draft one from what the user has said; if they've said nothing, ask openly.
+Round 1:
+- **Value proposition** - what does the project do, and why does that matter? Draft one from what the user has said; if they've said nothing, ask openly.
+
+Round 2 (needs the value proposition):
+- **Name** - recommend a name that fits the value proposition, or the folder's name if it already reads as one.
 - **Target users** - draft from the value proposition and what the user said.
+- **Domain jargon** - "Does this domain have its own vocabulary that newcomers would trip over?" Explain: yes turns on the "One vocabulary" principle, which keeps a glossary and the same names across code, docs and UI. Recommend no unless the value proposition uses specialist terms.
 - **License** - recommend `defaults.identity.license`. Explain the three choices in one line each: MIT (anyone may reuse it, with credit), Apache-2.0 (like MIT, plus an explicit patent grant), Proprietary (all rights reserved). If the user has their own license text, set `license_file` to its absolute path and `license` to its short name.
 - **Copyright holder** - recommend the `git config user.name` value.
-- **Domain jargon** - "Does this domain have its own vocabulary that newcomers would trip over?" Explain: yes turns on the "One vocabulary" principle, which keeps a glossary and the same names across code, docs and UI. Recommend no unless the value proposition uses specialist terms.
 
-Round 2 (needs the name and value proposition):
+Round 3 (needs the name, value proposition and users):
 - **Slug** - recommend the name in lowercase with hyphens.
 - **Requirements** - ask for the technical requirements: what must the product do for its users? Recommend a short list (3 to 7) drafted from the value proposition and target users.
 
-Round 3 (needs the requirements):
+Round 4 (needs the requirements):
 - **Acceptance checks** - turn each requirement into one Given/When/Then check, and propose all of them in one question. Explain: tests will later trace back to these checks, so each must describe something observable that a test can verify. Rework any the user rejects until they agree.
 
-When an answer differs from `defaults.identity.license`, follow the grilling skill's override protocol (key `identity.license`).
+When the license differs from `defaults.identity.license`, follow the grilling skill's override protocol (key `identity.license`).
 
 ## Writing the answers
 
-1. Read `<target>/.claude/alpha/project.json`. If it doesn't exist, create `<target>/.claude/alpha/` and start the file as:
-   `{"schema": 1, "areas": {"identity": "pending", "components": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}`
+1. Read `<target>/.claude/alpha/project.json`.
 2. Set `areas.identity` to `"in_progress"` when you start asking.
 3. When the user confirms the area, write the whole `identity` object with every field above, using the Write or Edit tool. Keep the exact field names, keep the rest of the file as it is, and keep it valid JSON.
 4. Add one `decisions[]` entry, replacing any earlier one with `"area": "identity"`:
@@ -68,9 +75,3 @@ Run:
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json --area identity`
 
 It prints `ok`, or one problem with its fix. Fix project.json (ask the user when the fix needs a decision) and re-run until it prints `ok`.
-
-## Calling this skill directly
-
-- No `<target>/.claude/alpha/project.json`: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
-- project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project arrives in a later version of alpha, and stop.
-- Otherwise an interview is in progress: run this area with the current answers as the recommendations, then tell the user to run `/alpha:new-project` to continue.

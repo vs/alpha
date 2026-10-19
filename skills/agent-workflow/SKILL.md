@@ -1,18 +1,25 @@
 ---
 name: agent-workflow
-description: Settle how agents' work gets reviewed in a new alpha project - review mode, size thresholds that trigger a review, and extra risky paths. Use during /alpha:new-project after git-history, or directly to redo this area of an interview in progress.
-disable-model-invocation: true
+description: Settle how agents' work gets reviewed in a new alpha project - review mode, size thresholds that trigger a review, and extra risky paths. Use only inside an alpha project interview (/alpha:new-project) or when the user asks to revisit the agent workflow of a project alpha is setting up.
+allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
 # Agent workflow
+
+## Before you start
+
+`<target>` is the folder `/alpha:new-project` is working in; when the user calls this skill directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`. Check it first:
+
+- No project.json: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
+- project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project arrives in a later version of alpha, and stop.
+- `areas.git` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
+- Otherwise go on. When the user called this skill directly, use the current answers as the recommendations, and when you finish, tell them to run `/alpha:new-project` to continue.
 
 ## Purpose
 
 Decide when the agents' changes get a judgment-based review against the project's principles: after every task, or in batches once a change grows past a size threshold or touches a risky path. The cheap mechanical checks (hooks on every edit, stop and commit) are always on and need no answers here.
 
 The principles reviewer itself arrives in a later version of alpha. Tell the user so: these settings are recorded in the principles file now, and the reviewer will read them when it lands.
-
-The target folder is the one `/alpha:new-project` is working in; when you are called directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`.
 
 ## Fields this area settles
 
@@ -41,7 +48,7 @@ When an answer differs from a default, follow the grilling skill's override prot
 
 ## Writing the answers
 
-1. Read `<target>/.claude/alpha/project.json`. If it doesn't exist, see "Calling this skill directly".
+1. Read `<target>/.claude/alpha/project.json`.
 2. Set `areas.agent_workflow` to `"in_progress"` when you start asking.
 3. When the user confirms the area, write the `agent_workflow` object `{"review_mode", "max_lines", "max_files", "extra_risk_paths"}` using the Write or Edit tool. Keep the exact field names, keep the rest of the file as it is, and keep it valid JSON.
 4. Add one `decisions[]` entry, replacing any earlier one with `"area": "agent_workflow"`:
@@ -55,10 +62,3 @@ Run:
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json --area agent_workflow`
 
 It prints `ok`, or one problem with its fix. Fix project.json (ask the user when the fix needs a decision) and re-run until it prints `ok`.
-
-## Calling this skill directly
-
-- No `<target>/.claude/alpha/project.json`: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
-- project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project arrives in a later version of alpha, and stop.
-- `areas.git` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
-- Otherwise an interview is in progress: run this area with the current answers as the recommendations, then tell the user to run `/alpha:new-project` to continue.

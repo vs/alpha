@@ -23,6 +23,10 @@ ml = "python"
 web = "typescript"
 cli = "python"
 backend = "python"
+frontend = "typescript"
+mobile = "typescript"
+library = "python"
+worker = "python"
 
 [[principles]]
 id = "simplest-architecture"
