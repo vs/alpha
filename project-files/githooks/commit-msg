@@ -1,0 +1,2 @@
+#!/bin/sh
+exec python3 "$(git rev-parse --show-toplevel)/.claude/alpha/hooks/commit_msg.py" "$1"
