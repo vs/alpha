@@ -1,17 +1,180 @@
-"""PreToolUse hook for Bash: git guardrails. Task 9 fills this in."""
+"""PreToolUse hook for Bash: blocks --no-verify, force-push and pushed amends."""
 
+from __future__ import annotations
+
+import re
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
 
+NO_VERIFY_MESSAGE = (
+    "--no-verify skips the project's commit checks. Fix what the hook reports "
+    "instead; if the hook itself is wrong, tell the user."
+)
+SKIPPING = {"commit", "push", "merge", "rebase", "cherry-pick"}
+GLOBAL_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+COMMIT_VALUE_FLAGS = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--template"}
+COMMIT_VALUE_LETTERS = "mFCct"
+ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _newlines_to_semicolons(command: str) -> str:
+    """Replace newlines outside quotes with `;` so they split segments."""
+    out: list[str] = []
+    quote = ""
+    escaped = False
+    for ch in command:
+        if escaped:
+            escaped = False
+        elif ch == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            if ch == quote:
+                quote = ""
+        elif ch in "'\"":
+            quote = ch
+        elif ch == "\n":
+            ch = ";"
+        out.append(ch)
+    return "".join(out)
+
+
+def split_segments(command: str) -> list[list[str]] | None:
+    """Token lists per `&&`/`||`/`;`/`|`/newline segment; None if unparseable."""
+    lexer = shlex.shlex(
+        _newlines_to_semicolons(command), posix=True, punctuation_chars=True
+    )
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return None
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if set(token) <= set("&|;"):
+            segments.append([])
+        else:
+            segments[-1].append(token)
+    return [s for s in segments if s]
+
+
+def git_invocation(segment: list[str]) -> tuple[str, list[str]] | None:
+    """(subcommand, args after it) if the segment runs git, else None."""
+    i = 0
+    while i < len(segment) and ENV_ASSIGNMENT.match(segment[i]):
+        i += 1
+    if i < len(segment) and segment[i] in ("command", "exec"):
+        i += 1
+    if i >= len(segment) or segment[i] != "git":
+        return None
+    i += 1
+    while i < len(segment) and segment[i].startswith("-"):
+        i += 2 if segment[i] in GLOBAL_OPTIONS_WITH_VALUE else 1
+    if i >= len(segment):
+        return None
+    return segment[i], segment[i + 1 :]
+
+
+def option_args(sub: str, args: list[str]) -> list[str]:
+    """Args before `--`, minus the values of commit's value-taking flags."""
+    kept: list[str] = []
+    skip = False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg == "--":
+            break
+        else:
+            kept.append(arg)
+            skip = sub == "commit" and arg in COMMIT_VALUE_FLAGS
+    return kept
+
+
+def short_flags(arg: str, sub: str) -> str:
+    """Letters of a short-flag cluster, up to a flag that takes a value."""
+    if not arg.startswith("-") or arg.startswith("--") or len(arg) < 2:
+        return ""
+    letters = arg[1:]
+    if sub == "commit":
+        for k, ch in enumerate(letters):
+            if ch in COMMIT_VALUE_LETTERS:
+                return letters[: k + 1]
+    return letters
+
+
+def pushed_branches(root: Path) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "branch", "-r", "--contains", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return ", ".join(line.strip() for line in proc.stdout.splitlines() if line.strip())
+
+
+def check_segment(segment: list[str], root: Path) -> None:
+    invocation = git_invocation(segment)
+    if invocation is None:
+        return
+    sub, raw_args = invocation
+    args = option_args(sub, raw_args)
+    if sub in SKIPPING:
+        if "--no-verify" in args:
+            _common.block(NO_VERIFY_MESSAGE)
+        if sub == "commit" and any("n" in short_flags(a, sub) for a in args):
+            _common.block(NO_VERIFY_MESSAGE)
+    if sub == "push":
+        for arg in args:
+            forced = (
+                arg in ("--force", "--force-if-includes")
+                or arg.startswith("--force-with-lease")
+                or (len(arg) > 1 and arg.startswith("+"))
+                or "f" in short_flags(arg, sub)
+            )
+            if forced:
+                _common.block(
+                    f"git push {arg} can overwrite history on the remote. Push "
+                    "normally after making a new commit instead, or ask the user "
+                    "to run the forced push themselves."
+                )
+    if sub == "commit" and "--amend" in args:
+        branches = pushed_branches(root)
+        if branches:
+            _common.block(
+                f"HEAD is already pushed ({branches}); amending rewrites shared "
+                "history. Make a new commit instead."
+            )
+
 
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
-    if _common.load_principles(_common.project_root(inp)) is None:
+    root = _common.project_root(inp)
+    if _common.load_principles(root) is None:
         sys.exit(0)
+    if inp.get("tool_name") != "Bash":
+        sys.exit(0)
+    tool_input: object = inp.get("tool_input")
+    command: object = None
+    if isinstance(tool_input, dict):
+        command = tool_input.get("command")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    if not isinstance(command, str):
+        sys.exit(0)
+    segments = split_segments(command)
+    if segments is None:
+        sys.exit(0)
+    for segment in segments:
+        check_segment(segment, root)
     sys.exit(0)
 
 
