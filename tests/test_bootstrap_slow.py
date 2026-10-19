@@ -3,16 +3,11 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from helpers import git
 
 from alpha.generate import bootstrap
 from alpha.gitops import commit_skeleton
 from alpha.recipes import load_recipe
-
-
-def git(cwd: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
-    ).stdout
 
 
 @pytest.mark.slow
@@ -48,5 +43,7 @@ def test_bootstrap_runs_green(
                 capture_output=True,
                 text=True,
             )
-            assert done.returncode == 0, f"{command}: {done.stdout}{done.stderr}"
+            output = done.stdout + done.stderr
+            assert done.returncode == 0, f"{command}: {output}"
+            assert "deprecat" not in output.lower(), f"{command}: {output}"
     assert git(tmp_path, "status", "--porcelain") == ""

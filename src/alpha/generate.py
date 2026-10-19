@@ -4,6 +4,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import sys
 import tomllib
 from datetime import date
 from pathlib import Path
@@ -55,6 +56,7 @@ def _gitignore(principles: dict[str, Any]) -> str:
     lines = [
         ".claude/alpha/state/",
         ".claude/settings.local.json",
+        ".DS_Store",
         ".claude/alpha/hooks/__pycache__/",
     ]
     for c in principles["components"]:
@@ -74,6 +76,14 @@ def _copies(plugin_root: Path) -> dict[str, Path]:
     out[".claude/agents/committer.md"] = files / "agents/committer.md"
     out[".claude/alpha/githooks/commit-msg"] = files / "githooks/commit-msg"
     return out
+
+
+def _display_path(path: Path) -> str:
+    """The path with the home directory shown as ~, so no username is committed."""
+    try:
+        return f"~/{path.relative_to(Path.home()).as_posix()}"
+    except ValueError:
+        return str(path)
 
 
 def _source_commit(source: Source) -> str | None:
@@ -140,7 +150,7 @@ def generate(
         "kit_version": VERSION,
         "generated_at": (today or date.today()).isoformat(),
         "defaults": {
-            "path": str(source.path),
+            "path": _display_path(source.path),
             "live": source.live,
             "commit": _source_commit(source),
         },
@@ -189,6 +199,7 @@ def bootstrap(target: Path, principles: dict[str, Any]) -> None:
             c["commands"]["test"],
         ]
         for command in commands:
+            print(f"alpha: {c['name']}: {command}", file=sys.stderr, flush=True)
             done = subprocess.run(
                 command,
                 shell=True,

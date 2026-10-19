@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from conftest import TODAY, place_answers
+from helpers import TODAY, place_answers
 
 from alpha import VERSION
 from alpha.answers import AnswersError
@@ -68,7 +68,17 @@ def test_missing_answers_file_is_explained(tmp_path: Path):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_manifest_records_kit_defaults_and_hashes(tmp_path: Path, generate_scenario):
+def source_head() -> str | None:
+    done = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True
+    )
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def test_manifest_records_kit_defaults_and_hashes(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))  # ROOT is not under it
     original = json.loads(
         (ROOT / "evals/scenarios/web-ts-plus-python-api.json").read_text()
     )
@@ -77,18 +87,27 @@ def test_manifest_records_kit_defaults_and_hashes(tmp_path: Path, generate_scena
     m = data.pop("manifest")
     assert data == original  # the interview answers are preserved as they were
     assert list(data) == list(original)
-    head = subprocess.run(
-        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True
-    ).stdout.strip()
     assert m["kit_version"] == VERSION
     assert m["generated_at"] == "2026-10-19"
-    assert m["defaults"] == {"path": str(ROOT), "live": True, "commit": head}
+    assert m["defaults"] == {"path": str(ROOT), "live": True, "commit": source_head()}
     assert list(m["files"]) == sorted(m["files"])
     assert set(m["files"]) == set(files) - {PROJECT_JSON}
     assert (tmp_path / PROJECT_JSON).read_text().endswith("}\n")
 
 
-def test_manifest_commit_is_null_for_bundled_defaults(tmp_path: Path):
+def test_manifest_abbreviates_the_home_directory(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("HOME", str(ROOT.parent))
+    generate_scenario(tmp_path, "python-ml-single")
+    m = json.loads((tmp_path / PROJECT_JSON).read_text())["manifest"]
+    assert m["defaults"]["path"] == f"~/{ROOT.name}"
+
+
+def test_manifest_commit_is_null_for_bundled_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     place_answers(tmp_path, "python-ml-single")
     generate(tmp_path, ROOT, Source(ROOT, False, "no checkout"), 2026, TODAY)
     m = json.loads((tmp_path / PROJECT_JSON).read_text())["manifest"]
@@ -100,6 +119,7 @@ def test_gitignore_prefixes_component_paths(tmp_path: Path, generate_scenario):
     assert (tmp_path / ".gitignore").read_text() == (
         ".claude/alpha/state/\n"
         ".claude/settings.local.json\n"
+        ".DS_Store\n"
         ".claude/alpha/hooks/__pycache__/\n"
         "api/**/.venv/\n"
         "api/**/__pycache__/\n"
@@ -115,6 +135,7 @@ def test_gitignore_for_root_component(tmp_path: Path, generate_scenario):
     assert (tmp_path / ".gitignore").read_text() == (
         ".claude/alpha/state/\n"
         ".claude/settings.local.json\n"
+        ".DS_Store\n"
         ".claude/alpha/hooks/__pycache__/\n"
         ".venv/\n"
         "__pycache__/\n"
@@ -170,14 +191,17 @@ def fake_tools(tmp_path: Path, exit_codes: dict[str, int]) -> Path:
 
 
 def test_bootstrap_runs_bootstrap_setup_test_per_component(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    generate_scenario,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     project = tmp_path / "proj"
     project.mkdir()
     generate_scenario(project, "web-ts-plus-python-api")
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
     bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
-    assert (tmp_path / "tools.log").read_text().splitlines() == [
+    expected = [
         "api: uv add --dev pytest ruff pyright",
         "api: uv sync",
         "api: uv run pytest",
@@ -185,6 +209,10 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
         "web: pnpm install",
         "web: pnpm vitest run",
     ]
+    assert (tmp_path / "tools.log").read_text().splitlines() == expected
+    out = capsys.readouterr()
+    assert out.err.splitlines() == [f"alpha: {line}" for line in expected]
+    assert out.out == ""
 
 
 def test_bootstrap_failure_names_command_output_and_fix(
@@ -290,3 +318,52 @@ def test_answers_still_load_after_the_manifest_is_added(
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     out = run_cli("answers", "check", str(tmp_path / PROJECT_JSON))
     assert out.returncode == 0, out.stderr
+
+
+def edit_principles(target: Path, edit) -> None:
+    from alpha.principles import render_principles
+
+    path = target / "docs/principles.toml"
+    data = tomllib.loads(path.read_text())
+    edit(data)
+    path.write_text(render_principles(data))
+
+
+def assert_explained(out: subprocess.CompletedProcess[str], *needles: str) -> None:
+    assert out.returncode == 1
+    assert "Traceback" not in out.stderr
+    for needle in needles:
+        assert needle in out.stderr
+
+
+def test_cli_bootstrap_explains_unknown_stack(tmp_path: Path, generate_scenario):
+    generate_scenario(tmp_path, "python-ml-single")
+    edit_principles(tmp_path, lambda d: d["components"][0].update(stack="rust"))
+    out = run_cli("bootstrap", str(tmp_path))
+    assert_explained(
+        out, 'No recipe for stack "rust"', "Use one of: python, typescript"
+    )
+
+
+def test_cli_bootstrap_explains_missing_principles_key(
+    tmp_path: Path, generate_scenario
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    edit_principles(tmp_path, lambda d: d["components"][0]["commands"].pop("setup"))
+    out = run_cli("bootstrap", str(tmp_path))
+    assert_explained(
+        out,
+        "docs/principles.toml is missing 'setup'",
+        "git checkout docs/principles.toml",
+    )
+
+
+def test_cli_generate_explains_write_failure(tmp_path: Path):
+    project = tmp_path / "proj"
+    place_answers(project, "python-ml-single")
+    project.chmod(0o555)  # docs/ cannot be created
+    try:
+        out = run_cli("generate", str(project), env={"ALPHA_SOURCE": str(ROOT)})
+    finally:
+        project.chmod(0o755)
+    assert_explained(out, f"Could not write {project / 'docs'}", "permissions")

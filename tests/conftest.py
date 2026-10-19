@@ -1,25 +1,14 @@
-import shutil
 from collections.abc import Callable
-from datetime import date
 from pathlib import Path
 
 import pytest
+from helpers import TODAY, place_answers
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import generate
 
-SCENARIOS = PLUGIN_ROOT / "evals" / "scenarios"
-TODAY = date(2026, 10, 19)
-
 GenerateScenario = Callable[[Path, str], list[str]]
-
-
-def place_answers(target: Path, scenario: str) -> Path:
-    dest = target / ".claude" / "alpha" / "project.json"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(SCENARIOS / f"{scenario}.json", dest)
-    return dest
 
 
 @pytest.fixture

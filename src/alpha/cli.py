@@ -7,7 +7,14 @@ from datetime import date
 from pathlib import Path
 
 from alpha import VERSION, answers, defaults, toml_write
-from alpha.generate import GenerateError, bootstrap, generate, load_project_principles
+from alpha.generate import (
+    PRINCIPLES_TOML,
+    PROJECT_JSON,
+    GenerateError,
+    bootstrap,
+    generate,
+    load_project_principles,
+)
 from alpha.gitops import commit_skeleton
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -88,37 +95,75 @@ def _answers(args: argparse.Namespace) -> int:
     return 0
 
 
+def _generate(target: Path) -> None:
+    source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+    if not source.live:
+        print(f"warning: using bundled kit defaults ({source.reason})", file=sys.stderr)
+    files = generate(target, PLUGIN_ROOT, source, date.today().year)
+    print(f"Generated {len(files)} files in {target}.")
+    print(f'Next: "alpha bootstrap {target}".')
+
+
+def _bootstrap(target: Path) -> None:
+    principles = load_project_principles(target)
+    bootstrap(target, principles)
+    names = ", ".join(c["name"] for c in principles["components"])
+    print(f"Bootstrapped {names}: toolchains installed, tests green.")
+
+
+def _commit_skeleton(target: Path, trailers: list[str]) -> None:
+    hashes = commit_skeleton(target, load_project_principles(target), trailers)
+    print(f"Committed {len(hashes)} commits in {target}:")
+    if hashes:
+        log = subprocess.run(
+            ["git", "-C", str(target), "show", "-s", "--format=%h %s", *hashes],
+            capture_output=True,
+            text=True,
+        )
+        print(log.stdout, end="")
+
+
 def _project(args: argparse.Namespace) -> int:
     target: Path = args.target
+    generating = args.command == "generate"
+    rerun = f'"alpha {args.command} {target}"'
     try:
-        if args.command == "generate":
-            source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
-            if not source.live:
-                print(
-                    f"warning: using bundled kit defaults ({source.reason})",
-                    file=sys.stderr,
-                )
-            files = generate(target, PLUGIN_ROOT, source, date.today().year)
-            print(f"Generated {len(files)} files in {target}.")
-            print(f'Next: "alpha bootstrap {target}".')
+        if generating:
+            _generate(target)
         elif args.command == "bootstrap":
-            principles = load_project_principles(target)
-            bootstrap(target, principles)
-            names = ", ".join(c["name"] for c in principles["components"])
-            print(f"Bootstrapped {names}: toolchains installed, tests green.")
+            _bootstrap(target)
         else:
-            principles = load_project_principles(target)
-            hashes = commit_skeleton(target, principles, args.trailer)
-            print(f"Committed {len(hashes)} commits in {target}:")
-            if hashes:
-                log = subprocess.run(
-                    ["git", "-C", str(target), "show", "-s", "--format=%h %s", *hashes],
-                    capture_output=True,
-                    text=True,
-                )
-                print(log.stdout, end="")
+            _commit_skeleton(target, args.trailer)
     except (GenerateError, answers.AnswersError, defaults.DefaultsError) as e:
         print(e, file=sys.stderr)
+        return 1
+    except ValueError as e:  # e.g. a stack without a recipe
+        where = "the interview answers" if generating else PRINCIPLES_TOML
+        print(f"{where}: {e}", file=sys.stderr)
+        return 1
+    except KeyError as e:  # a hand-edited file lost a required entry
+        if generating:
+            print(
+                f"The kit defaults are missing {e}. Check them with "
+                '"alpha defaults show", restore defaults/defaults.toml, then retry.',
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"{PRINCIPLES_TOML} is missing {e}. Restore it with "
+                f'"git checkout {PRINCIPLES_TOML}" or regenerate, then rerun {rerun}.',
+                file=sys.stderr,
+            )
+        return 1
+    except OSError as e:
+        verb, cleanup = ("access", "")
+        if generating:
+            verb, cleanup = ("write", ", empty the folder except " + PROJECT_JSON)
+        print(
+            f"Could not {verb} {e.filename or target}: {e.strerror or e}. Check "
+            f"permissions and free space{cleanup}, then rerun {rerun}.",
+            file=sys.stderr,
+        )
         return 1
     return 0
 

@@ -9,12 +9,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from helpers import git
 
 from alpha.generate import GenerateError
 from alpha.gitops import commit_skeleton
 from alpha.principles import render_principles
 
-ROOT_FILES = {
+STANDARD_ROOT = {
     "README.md",
     "LICENSE",
     "CONTRIBUTING.md",
@@ -22,11 +23,10 @@ ROOT_FILES = {
     ".gitignore",
     "docs",
     ".claude",
-    "api",
-    "web",
-    "pyproject.toml",
-    "uv.lock",
-    "tests",
+}
+ROOT_ENTRIES = {  # what each scenario may add at the root: its components
+    "python-ml-single": STANDARD_ROOT | {"pyproject.toml", "tests"},
+    "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web"},
 }
 SCENARIOS = ["python-ml-single", "web-ts-plus-python-api"]
 TRAILER = "Co-Authored-By: T <t@t>"
@@ -49,12 +49,6 @@ def script_of(command: str) -> str:
     match = re.search(r'"\$CLAUDE_PROJECT_DIR"/(\S+\.py)$', command)
     assert match, command
     return match.group(1)
-
-
-def git(cwd: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
-    ).stdout.strip()
 
 
 def git_log_subjects(cwd: Path) -> list[str]:
@@ -81,8 +75,8 @@ def test_scenario_skeleton(tmp_path: Path, scenario: str, generate_scenario):
         assert f in files
     assert files == sorted(files)
     assert all((tmp_path / f).is_file() for f in files)
-    root_entries = {p.name for p in tmp_path.iterdir()} - {".git"}
-    assert root_entries <= ROOT_FILES  # nothing kit-specific at the root
+    root_entries = {p.name for p in tmp_path.iterdir()}
+    assert root_entries == ROOT_ENTRIES[scenario]  # nothing kit-specific at the root
     assert not any("/src/" in f or f.startswith("src/") for f in files)
     s = json.loads((tmp_path / ".claude/settings.json").read_text())
     for cmd in hook_commands(s):
@@ -177,3 +171,16 @@ def test_commit_skeleton_goes_through_the_real_commit_msg_hook(
     with pytest.raises(GenerateError, match=r'unknown type "docs"') as err:
         commit_skeleton(tmp_path, data, [])
     assert "alpha commit-skeleton" in str(err.value)
+
+
+@pytest.mark.parametrize("scenario", SCENARIOS)
+def test_ds_store_is_never_committed(
+    tmp_path: Path, scenario: str, generate_scenario, git_env
+):
+    (tmp_path / ".DS_Store").write_text("")
+    (tmp_path / ".claude" / "alpha").mkdir(parents=True)
+    (tmp_path / ".claude" / "alpha" / ".DS_Store").write_text("")
+    generate_scenario(tmp_path, scenario)
+    commit_skeleton(tmp_path, principles_of(tmp_path), [])
+    assert ".DS_Store" not in git(tmp_path, "ls-files")
+    assert git(tmp_path, "status", "--porcelain") == ""
