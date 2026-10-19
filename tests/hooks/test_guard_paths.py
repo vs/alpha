@@ -164,3 +164,20 @@ def test_block_wins_over_weakening(project: Project) -> None:
     )
     assert proc.returncode == 2
     assert proc.stdout == ""
+
+
+def test_identifier_lookalikes_pass(project: Project) -> None:
+    for new in (
+        "sys.exit(1)",
+        "os._exit(0)",
+        "exit(0)",
+        "wait.skip(x)",
+        "latest.skip(1)",
+    ):
+        assert edit(project, "api/a.py", "x", new).stdout == "", new
+
+
+def test_test_skip_calls_at_identifier_boundary_ask(project: Project) -> None:
+    assert "xit(" in reason(edit(project, "web/a.ts", "x", "xit('a', f)"))
+    assert "it.skip(" in reason(edit(project, "web/a.ts", "x", "a\n  it.skip('a')"))
+    assert "test.skip(" in reason(edit(project, "web/a.ts", "x", "test.skip('a')"))

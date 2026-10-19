@@ -13,31 +13,35 @@ import _common  # noqa: E402
 
 TOOLS = {"Edit", "Write", "MultiEdit"}
 # (label shown to the user, regex counting its occurrences)
-WEAKENING: list[tuple[str, re.Pattern[str]]] = [
-    (label, re.compile(re.escape(label)))
-    for label in (
-        "@pytest.mark.skip",
-        "pytest.skip(",
-        "@unittest.skip",
-        "it.skip(",
-        "test.skip(",
-        "describe.skip(",
-        "xit(",
-        "# type: ignore",
-        "# pyright: ignore",
-        "# noqa",
-        "biome-ignore",
-        "eslint-disable",
-        "@ts-ignore",
-        "@ts-expect-error",
-        '"strict": false',
-        'typeCheckingMode = "basic"',
-        'typeCheckingMode = "off"',
-    )
-] + [
-    ("except Exception: pass", re.compile(r"except\s+Exception\s*:\s*pass\b")),
-    ("except: pass", re.compile(r"except\s*:\s*pass\b")),
-]
+WEAKENING: list[tuple[str, re.Pattern[str]]] = (
+    [
+        (label, re.compile(re.escape(label)))
+        for label in (
+            "@pytest.mark.skip",
+            "pytest.skip(",
+            "@unittest.skip",
+            "# type: ignore",
+            "# pyright: ignore",
+            "# noqa",
+            "biome-ignore",
+            "eslint-disable",
+            "@ts-ignore",
+            "@ts-expect-error",
+            '"strict": false',
+            'typeCheckingMode = "basic"',
+            'typeCheckingMode = "off"',
+        )
+    ]
+    + [
+        # JS/TS runner calls must be standalone identifiers (not sys.exit(, wait.skip()
+        (label, re.compile(r"(?<![\w.$])" + re.escape(label)))
+        for label in ("it.skip(", "test.skip(", "describe.skip(", "xit(")
+    ]
+    + [
+        ("except Exception: pass", re.compile(r"except\s+Exception\s*:\s*pass\b")),
+        ("except: pass", re.compile(r"except\s*:\s*pass\b")),
+    ]
+)
 
 
 def protected_message(rel: str, principles: dict[str, Any]) -> str:
