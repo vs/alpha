@@ -211,3 +211,16 @@ def first_word(command: str) -> str:
     except ValueError:
         words = command.split()
     return words[0] if words else command
+
+
+def read_baseline(root: Path) -> str | None:
+    """Commit SHA recorded as the session baseline, if any."""
+    try:
+        text = state_path(root, "session-base").read_text().strip()
+    except OSError:
+        return None
+    return text or None
+
+
+def write_baseline(root: Path, sha: str) -> None:
+    state_path(root, "session-base").write_text(sha + "\n")

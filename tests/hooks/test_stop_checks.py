@@ -87,8 +87,10 @@ def test_source_and_tests_pass_and_reset_counter(project: Project) -> None:
     project.write(".claude/alpha/state/stop-blocks", '{"count": 2}')
     project.write("api/src/app.py", "x = 1\n")
     project.write("api/tests/test_app.py", "x = 1\n")
+    project.set_commands("api", test=marker_cmd("t.marker"))
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
+    assert (project.root / "api" / "t.marker").exists()
     assert counter(project) == 0
 
 
@@ -99,7 +101,9 @@ def test_manifest_without_dependency_log_blocks(project: Project) -> None:
     assert "Dependency manifest changed (api/pyproject.toml) without an entry" in text
     assert "docs/dependencies.md" in text
     project.write("docs/dependencies.md", "- httpx\n")
-    assert run(project).stdout == ""
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+    assert counter(project) == 0
 
 
 def test_docs_drift_with_hand_set_docs_map(project: Project) -> None:
@@ -113,7 +117,9 @@ def test_docs_drift_with_hand_set_docs_map(project: Project) -> None:
     assert "api/src/a.py changed but docs/api.md did not." in text
     assert "Principle docs-with-code" in text
     project.write("docs/api.md", "doc\n")
-    assert run(project).stdout == ""
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+    assert counter(project) == 0
 
 
 def test_failing_test_blocks_with_tail(project: Project) -> None:
@@ -152,10 +158,13 @@ def test_missing_tool_gives_setup_hint(project: Project) -> None:
 
 def test_only_affected_components_run(project: Project) -> None:
     project.set_commands("web", test=marker_cmd("w.marker"))
+    project.set_commands("api", test=marker_cmd("a.marker"))
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
-    assert run(project).stdout == ""
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+    assert (project.root / "api" / "a.marker").exists()
     assert not (project.root / "web" / "w.marker").exists()
 
 
@@ -166,7 +175,8 @@ def test_three_blocks_then_gives_up(project: Project) -> None:
         reason(run(project))
         assert counter(project) == n
     proc = run(project)
-    assert proc.returncode == 0 and proc.stdout == ""
+    assert proc.returncode == 0
+    assert json.loads(proc.stdout)["systemMessage"] == proc.stderr.rstrip("\n")
     assert proc.stderr.startswith(
         "alpha: checks still failing after 3 attempts; stopping so the user can decide:"
     )
@@ -190,3 +200,72 @@ def test_timeout_raises_timed_out(project: Project, monkeypatch: Any) -> None:
     monkeypatch.setattr(stop_checks, "TIMEOUT", 1)
     out = stop_checks.run_step("sleep 5", project.root)
     assert out[0] == "timeout"
+
+
+def test_added_content_cannot_spoof_diff_headers(project: Project) -> None:
+    project.write("a.txt", "x\n")
+    commit_all(project)
+    project.write("a.txt", f"x\n++ b/zzz\n++ foo\nkey = {AWS_KEY}\n")
+    text = reason(run(project))
+    assert "a.txt:4" in text and "zzz" not in text
+
+
+def test_sk_pattern_ignores_kebab_words(project: Project) -> None:
+    commit_all(project)
+    project.write("a.md", "risk-based-authentication-flow and task-12-brief-name-x\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+    project.write("b.txt", "k = sk-proj-" + "a" * 24 + "\n")
+    assert "b.txt:1" in reason(run(project))
+
+
+def test_commit_after_baseline_still_checked(project: Project) -> None:
+    project.write("README.md", "hi\n")
+    commit_all(project)
+    base = project.git("rev-parse", "HEAD").stdout.strip()
+    project.write("api/src/app.py", "x = 1\n")
+    commit_all(project)
+    project.write(".claude/alpha/state/session-base", base)
+    text = reason(run(project))
+    assert "api: source changed (api/src/app.py)" in text
+
+
+def test_clean_run_updates_baseline(project: Project) -> None:
+    commit_all(project)
+    head = project.git("rev-parse", "HEAD").stdout.strip()
+    proc = run(project)
+    assert proc.returncode == 0
+    path = project.root / ".claude" / "alpha" / "state" / "session-base"
+    assert path.read_text().strip() == head
+
+
+def test_non_ancestor_baseline_falls_back_to_head(project: Project) -> None:
+    commit_all(project)
+    project.write(".claude/alpha/state/session-base", "0" * 40)
+    project.write("api/src/app.py", "x = 1\n")
+    assert "tests-first-class" in reason(run(project))
+
+
+def test_readme_only_change_runs_nothing(project: Project) -> None:
+    project.set_commands("api", test=marker_cmd("t.marker"))
+    project.write("api/README.md", "a\n")
+    commit_all(project)
+    project.write("api/README.md", "b\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+    assert not (project.root / "api" / "t.marker").exists()
+
+
+def test_budget_exhausted_skips_steps(project: Project, monkeypatch: Any) -> None:
+    import stop_checks
+
+    project.set_commands("api", typecheck=STUB, test=STUB)
+    comp = project.principles()["components"][0]
+    monkeypatch.setattr(stop_checks, "BUDGET", 0)
+    problems = stop_checks.command_problems(comp, project.root, 0.0)
+    assert len(problems) == 2
+    assert (
+        "api: typecheck skipped \u2014 alpha's 0s check budget ran out."
+        in (problems[0])
+    )
+    assert "Run it by hand: " + STUB in problems[0]
