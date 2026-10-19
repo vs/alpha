@@ -1,0 +1,55 @@
+---
+name: git-history
+description: Settle a new project's git history rules in the alpha interview - commit convention, commit scopes and branching model. Use during /alpha:new-project after components, or directly to redo this area of an interview in progress.
+disable-model-invocation: true
+---
+
+# Git history
+
+## Purpose
+
+Decide how the project's history reads: the commit message convention, the scopes a commit may name, and how work reaches the main branch. A git `commit-msg` hook enforces the convention and scopes for everyone who commits, so a clean, readable history is checked, not hoped for.
+
+The target folder is the one `/alpha:new-project` is working in; when you are called directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`.
+
+## Fields this area settles
+
+- `git.convention` - `"conventional"` (the only convention alpha v0.1 enforces).
+- `git.scopes` - the scopes a commit may name, e.g. `["api", "web"]`.
+- `git.branching` - `"trunk"` or `"feature-branches"`.
+- `areas.git` - `"in_progress"` while you work, `"done"` at the end.
+- `decisions[]` - one entry with `"area": "git"`.
+
+## Questions
+
+Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds. All three are independent, so ask them in one round.
+
+- **Convention** - recommend `defaults.git.convention`. Explain in plain words: every commit reads `type(scope): Description`, e.g. `feat(api): Add image upload`; the description is at most 50 characters, imperative, starts with a capital letter, and has no trailing period; body lines wrap at 72. The allowed types are `defaults.git.types`. Say plainly that v0.1 enforces conventional commits only; if the user wants another convention, explain it can't be enforced yet and ask them to accept conventional or stop here.
+- **Scopes** - recommend the component names from `components[].name` (the kit's default). Explain: a scope says which part a commit touches, and the hook rejects scopes not on this list; a commit may also leave the scope out. The user may add extra scopes (e.g. `deps`).
+- **Branching** - recommend `defaults.git.branching`. Explain the two choices in one line each: `trunk` (small commits straight to the main branch, each leaving the checks green) and `feature-branches` (short-lived branches merged through pull requests).
+
+When an answer differs from a default, follow the grilling skill's override protocol (keys `git.convention`, `git.branching`; scopes differ per project, so a changed scope list is recorded in the decision without asking).
+
+## Writing the answers
+
+1. Read `<target>/.claude/alpha/project.json`. If it doesn't exist, see "Calling this skill directly".
+2. Set `areas.git` to `"in_progress"` when you start asking.
+3. When the user confirms the area, write the `git` object `{"convention", "scopes", "branching"}` using the Write or Edit tool. Keep the exact field names, keep the rest of the file as it is, and keep it valid JSON.
+4. Add one `decisions[]` entry, replacing any earlier one with `"area": "git"`:
+   `{"area": "git", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "Conventional commits on trunk"); `context` is who commits and why the history matters; `decision` names the convention, scopes and branching; `consequences` says what the hook will reject, plus any defaults wish from the override protocol.
+5. Set `areas.git` to `"done"`.
+
+## Check
+
+Run:
+
+`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json --area git`
+
+It prints `ok`, or one problem with its fix. Fix project.json (ask the user when the fix needs a decision) and re-run until it prints `ok`.
+
+## Calling this skill directly
+
+- No `<target>/.claude/alpha/project.json`: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
+- project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project arrives in a later version of alpha, and stop.
+- `areas.components` isn't `"done"`: tell the user components come first and to run `/alpha:new-project`, and stop.
+- Otherwise an interview is in progress: run this area with the current answers as the recommendations, then tell the user to run `/alpha:new-project` to continue.
