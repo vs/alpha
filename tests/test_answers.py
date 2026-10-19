@@ -234,3 +234,32 @@ def test_cli_answers_check(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     assert cli.main(["answers", "check", str(p)]) == 1
     assert "areas.git" in capsys.readouterr().err
     assert cli.main(["answers", "check", str(p), "--area", "identity"]) == 0
+
+
+def test_relative_license_file_resolves_against_project_root(tmp_path: Path):
+    meta = tmp_path / ".claude" / "alpha"
+    meta.mkdir(parents=True)
+    d = valid()
+    d["identity"]["license"] = "Custom"
+    d["identity"]["license_file"] = "LICENSE.custom"
+    path = meta / "project.json"
+    path.write_text(json.dumps(d))
+    resolved = tmp_path.resolve() / "LICENSE.custom"
+    with pytest.raises(AnswersError) as e:
+        load_answers(path)
+    assert f"identity.license_file: {resolved} does not exist" in str(e.value)
+    resolved.write_text("custom")
+    assert load_answers(path).identity
+
+
+@pytest.mark.parametrize("field", ["slug", "name"])
+def test_trailing_newline_rejected(tmp_path: Path, field: str):
+    d = valid()
+    if field == "slug":
+        d["identity"]["slug"] = "api\n"
+        match = r"identity\.slug"
+    else:
+        d["components"][0]["name"] = "api\n"
+        match = r"components\[0\]\.name"
+    with pytest.raises(AnswersError, match=match):
+        check(tmp_path, d)

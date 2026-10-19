@@ -17,7 +17,7 @@ _STATUSES = ("done", "in_progress", "pending")
 _LAYOUTS = ("monorepo", "single")
 _CHANGES = ("tighten", "loosen", "drop")
 _REVIEW_MODES = ("batched", "every-task")
-_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
+_NAME = re.compile(r"[a-z][a-z0-9-]*")
 _TRAITS = (
     "has_ui",
     "deployed",
@@ -204,11 +204,16 @@ def _strs(d: Mapping[str, Any], key: str, where: str) -> tuple[str, ...]:
     return tuple(out)
 
 
+def _project_root(answers_path: Path) -> Path:
+    """Project root for an answers file at <root>/.claude/alpha/project.json."""
+    return answers_path.resolve().parent.parent.parent
+
+
 def _identity(raw: object, base: Path) -> Identity:
     where = "identity"
     d = _obj(raw, where)
     slug = _str(d, "slug", where)
-    if not _NAME.match(slug):
+    if not _NAME.fullmatch(slug):
         raise _fail(
             "identity.slug",
             f"{slug!r} is not a valid slug",
@@ -230,10 +235,11 @@ def _identity(raw: object, base: Path) -> Identity:
         raise _fail("identity.license_file", "must be a path or null", "Use a path")
     license_ = _str(d, "license", where)
     if license_file is not None:
-        if not (base / license_file).is_file():
+        resolved = base / license_file  # an absolute license_file wins
+        if not resolved.is_file():
             raise _fail(
                 "identity.license_file",
-                f"{license_file} does not exist",
+                f"{resolved} does not exist",
                 "Point it at an existing file, or set it to null and pick MIT, "
                 "Apache-2.0 or Proprietary",
             )
@@ -261,7 +267,7 @@ def _component(raw: object, i: int) -> Component:
     where = f"components[{i}]"
     d = _obj(raw, where)
     name = _str(d, "name", where)
-    if not _NAME.match(name):
+    if not _NAME.fullmatch(name):
         raise _fail(
             f"{where}.name",
             f"{name!r} is not a valid name",
@@ -453,7 +459,7 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     def active(area: str) -> bool:
         return area in require_areas or areas[area] == "done"
 
-    base = path.parent
+    base = _project_root(path)
     identity = (
         _identity(_get(top, "identity", ""), base) if active("identity") else None
     )
