@@ -297,6 +297,11 @@ the builder's, with these constraints:
   are **copied into the project** (e.g. under `.claude/`), not referenced
   from the installed plugin. A fresh clone works on any machine, in CI, and
   for collaborators, with no plugin installed.
+- **Nothing kit-specific at the root, no placeholder sources (user
+  decision).** Everything alpha owns (hooks, git hooks, interview answers,
+  manifest, local state) lives under `.claude/alpha/`. Components get only
+  their manifests, lockfiles, tool configs, and a setup test, with no `src/`
+  files until real code is written.
 - **Kit metadata**: which kit version generated the project, and the
   interview state, so the project can be compared with later kit defaults
   on request.

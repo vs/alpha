@@ -4,7 +4,7 @@
 
 **Goal:** A Claude Code plugin, `alpha`, whose `/alpha:new-project` skill interviews the user (identity, components and stack, git, agent workflow) and turns an empty folder into a committed, self-enforcing skeleton for Python and/or TypeScript components.
 
-**Architecture:** Skills are prompt-driven and own the conversation. They write the user's decisions into `.alpha/answers.json` in the target folder. A deterministic Python CLI (`bin/alpha`, stdlib only) validates the answers, merges them with the user's live defaults and the stack recipes, and renders every file. Enforcement scripts are copied into the project, so generated projects never depend on the installed kit.
+**Architecture:** Skills are prompt-driven and own the conversation. They write the user's decisions into `.claude/alpha/project.json` in the target folder. A deterministic Python CLI (`bin/alpha`, stdlib only) validates the answers, merges them with the user's live defaults and the stack recipes, and renders every file. Enforcement scripts are copied into the project, so generated projects never depend on the installed kit.
 
 **Tech Stack:** Python ≥ 3.11 stdlib (`tomllib`, `argparse`, `string.Template`, `subprocess`), pytest + ruff + pyright (strict) for the kit's own development via `uv`, Claude Code plugin format (skills, hooks), git.
 
@@ -14,8 +14,9 @@
 
 ## Global Constraints
 
-- Generated projects contain **no app code**. Skeleton files only: config, docs, test wiring, enforcement, and a package placeholder (`__init__.py`, `export {};`).
-- `alpha generate` runs only on an **empty folder**, where empty means containing nothing except `.alpha/` and `.DS_Store`.
+- Generated projects contain **no app code and no placeholder source files**. Skeleton files only: config, docs, test wiring (a strictness-checking setup test per component), enforcement.
+- **Nothing kit-specific at the project root.** Everything alpha owns lives under `.claude/alpha/` (hooks, git hooks, `project.json`, `state/`). Root files are only the standard ones: README.md, LICENSE, CONTRIBUTING.md, CLAUDE.md, .gitignore, plus `docs/` and component folders.
+- `alpha generate` runs only on an **empty folder**, where empty means containing nothing except `.DS_Store` and a `.claude/` folder whose only content is `alpha/project.json` (the interview in progress).
 - Every error message the kit or its hooks emits states **what went wrong and how to fix it** (spec §2, "Fail fast, fail helpfully").
 - Kit runtime and project hooks: Python stdlib only, **Python ≥ 3.11**. On older Python, print `alpha needs Python 3.11+ (found X.Y). Install a newer one with "brew install python" or "uv python install 3.12", then retry.` and exit 1. Hooks exit 0 with that message on stderr, so they never brick a session.
 - Generated projects are **self-contained**: hooks, the commit skill, and the committer agent are copied under the project's `.claude/`, never referenced from the plugin.
@@ -29,7 +30,7 @@
 
 ## Review Focus
 
-1. **A non-empty target folder.** It may contain `.git`, a stray README, or `.DS_Store`. `generate` must refuse, list the offending entries, and say how to proceed, but must accept `.alpha/` and `.DS_Store`. (Test in Task 15.)
+1. **A non-empty target folder.** It may contain `.git`, a stray README, or `.DS_Store`. `generate` must refuse, list the offending entries, and say how to proceed, but must accept `.DS_Store` and `.claude/alpha/project.json`. (Test in Task 15.)
 2. **A missing or malformed `docs/principles.toml`** after the user hand-edits it. Every hook must print the file, the TOML error line, and a fix hint, and must not raise a traceback or block every tool call. (Test in Task 8.)
 3. **A Stop hook loop.** If tests keep failing, Claude is blocked on every stop forever. Cap consecutive blocks at 3. After that, allow the stop, but the message must say checks are still failing. (Test in Task 12.)
 4. **Merge, revert, `fixup!`, and `squash!` commit messages** must pass `commit-msg`. (Test in Task 13.)
@@ -69,7 +70,7 @@ project-files/hooks/post_edit.py      PostToolUse Edit|Write|MultiEdit
 project-files/hooks/stop_checks.py    Stop
 project-files/hooks/commit_msg.py     git commit-msg
 project-files/hooks/session_start.py  SessionStart
-project-files/githooks/commit-msg     sh shim → commit_msg.py
+project-files/githooks/commit-msg     sh shim → commit_msg.py (installed to .claude/alpha/githooks/)
 project-files/skills/commit/SKILL.md  ported /commit
 project-files/agents/committer.md     ported committer agent
 skills/grilling/SKILL.md
@@ -90,10 +91,11 @@ Generated project layout (paths used by every task):
 README.md  LICENSE  CONTRIBUTING.md  CLAUDE.md  .gitignore
 docs/principles.toml  docs/product.md  docs/architecture.md  docs/dependencies.md
 docs/decisions/NNNN-<slug>.md
-.claude/settings.json  .claude/alpha/hooks/*.py  .claude/skills/commit/SKILL.md  .claude/agents/committer.md
-.githooks/commit-msg
-.alpha/answers.json  .alpha/manifest.json  .alpha/state/   (state/ is gitignored)
-<component.path>/...  (recipe files)
+.claude/settings.json  .claude/skills/commit/SKILL.md  .claude/agents/committer.md
+.claude/alpha/hooks/*.py  .claude/alpha/githooks/commit-msg
+.claude/alpha/project.json   (interview answers + generation manifest)
+.claude/alpha/state/         (gitignored)
+<component.path>/...  (recipe files: manifests, lockfile, tool configs, tests/setup test; no src/)
 ```
 
 ---
@@ -272,7 +274,7 @@ def test_set_default_refuses_when_not_live(tmp_path):  # DefaultsError mentionin
 
 **Interfaces:**
 - Produces: frozen dataclasses mirroring the JSON below (`Answers`, `Identity`, `Requirement`, `Component`, `Traits`, `GitPrefs`, `AgentWorkflow`, `Override`, `Decision`). `AREAS = ("identity", "components", "git", "agent_workflow")`. `load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers` raises `AnswersError(f"{json.path}: {problem}. {how to fix}")`. `KINDS = {"backend", "frontend", "cli", "mobile", "ml", "library", "worker"}`. `STACKS = {"python", "typescript"}`.
-- `.alpha/answers.json` contract (exact; the skills write it, Task 4 parses it):
+- `.claude/alpha/project.json` contract (exact; the skills write it, Task 4 parses it, Task 15 adds a top-level `manifest` key that `load_answers` ignores):
 
 ```json
 {
@@ -287,7 +289,7 @@ def test_set_default_refuses_when_not_live(tmp_path):  # DefaultsError mentionin
   "layout": "monorepo",
   "components_talk": true,
   "components": [{
-    "name": "api", "path": "api", "kind": "backend", "stack": "python", "package": "pico_api",
+    "name": "api", "path": "api", "kind": "backend", "stack": "python",
     "traits": {"has_ui": false, "deployed": true, "network_calls": true, "persisted_data": true, "ml": false, "nontrivial_logic": true}
   }],
   "git": {"convention": "conventional", "scopes": ["api", "web"], "branching": "trunk"},
@@ -302,7 +304,6 @@ def test_set_default_refuses_when_not_live(tmp_path):  # DefaultsError mentionin
   - `slug` and component `name` match `^[a-z][a-z0-9-]*$`. Names are unique.
   - `path` is relative, has no `..`, and paths don't nest in each other. `layout == "single"` requires exactly one component with `path == "."`.
   - `stack` is in STACKS, otherwise: `"<stack> is not supported yet; alpha 0.1 supports python and typescript. Pick one, or wait for the generic-stack recipe (plan 2)"`.
-  - Python components need `package` matching `^[a-z_][a-z0-9_]*$`.
   - `license` is "MIT", "Apache-2.0", or "Proprietary", or `license_file` points to an existing file.
   - An override `change` is one of tighten/loosen/drop. loosen and drop need a non-empty `reason`. `principle` must exist in defaults (checked in Task 6, not here). `scope` is `"project"` or `"component:<name>"` with an existing name.
   - `review_mode` is batched or every-task. `max_lines` and `max_files` are > 0.
@@ -326,23 +327,23 @@ def test_unsupported_stack_mentions_supported_ones(tmp_path):  # stack "go" → 
 
 ### Task 5: Stack recipes for Python and TypeScript
 
-**Files:** Create `recipes/python.toml`, `recipes/python/{pyproject.toml,init.py,test_setup.py}.tmpl`, `recipes/typescript.toml`, `recipes/typescript/{package.json,tsconfig.json,biome.json,index.ts,setup.test.ts}.tmpl`, `src/alpha/recipes.py`. Test: `tests/test_recipes.py`.
+**Files:** Create `recipes/python.toml`, `recipes/python/{pyproject.toml,test_setup.py}.tmpl`, `recipes/typescript.toml`, `recipes/typescript/{package.json,tsconfig.json,biome.json,setup.test.ts}.tmpl`, `src/alpha/recipes.py`. Test: `tests/test_recipes.py`.
 
 **Interfaces:**
-- Produces: `@dataclass(frozen=True) class Recipe: stack: str; bootstrap: list[str]; commands: dict[str, str]; lockfiles: list[str]; manifests: list[str]; source_globs: list[str]; test_globs: list[str]; allow: list[str]; files: dict[str, str]` (output relpath → template name). `load_recipe(stack: str) -> Recipe`. `render_component(component: Component, project_slug: str) -> dict[str, str]` returns paths relative to the project root (component path joined). Templates use `string.Template` with `$name`, `$package`, `$slug`.
+- Produces: `@dataclass(frozen=True) class Recipe: stack: str; bootstrap: list[str]; commands: dict[str, str]; lockfiles: list[str]; manifests: list[str]; source_globs: list[str]; test_globs: list[str]; allow: list[str]; files: dict[str, str]` (output relpath → template name). `load_recipe(stack: str) -> Recipe`. `render_component(component: Component, project_slug: str) -> dict[str, str]` returns paths relative to the project root (component path joined). Templates use `string.Template` with `$name`, `$slug`.
 - `commands` keys (exact, used by hooks and CLAUDE.md): `setup`, `test`, `lint`, `format`, `typecheck`, `format_file`, `lint_file`. `{file}` is substituted by hooks. All commands run with cwd = component path.
 - Python: bootstrap `uv add --dev pytest ruff pyright`. setup `uv sync`. test `uv run pytest`. lint `uv run ruff check`. format `uv run ruff format`. typecheck `uv run pyright`. format_file `uv run ruff format {file}`. lint_file `uv run ruff check {file}`. lockfiles `["uv.lock"]`. manifests `["pyproject.toml"]`. source_globs `["src/**/*.py"]`. test_globs `["tests/**/*.py"]`. allow `["Bash(uv run:*)", "Bash(uv sync:*)", "Bash(uv add:*)"]`.
-  - `pyproject.toml.tmpl`: name `$slug-$name` and `requires-python = ">=3.12"`. Strict pyright, ruff select as in Task 1. Pytest `testpaths = ["tests"]`. Src layout `src/$package/__init__.py`.
+  - `pyproject.toml.tmpl`: name `$slug-$name` and `requires-python = ">=3.12"`. Strict pyright, ruff select as in Task 1. Pytest `testpaths = ["tests"]`. `[tool.uv] package = false` so no `src/` package is needed until real code exists. No pyright `include` list (defaults to the component root, so `tests/` is checked now and `src/` once it appears).
 - TypeScript: bootstrap `pnpm add -D typescript vitest @biomejs/biome @types/node`. setup `pnpm install`. test `pnpm vitest run`. lint `pnpm biome lint .`. format `pnpm biome format --write .`. typecheck `pnpm tsc --noEmit`. format_file `pnpm biome format --write {file}`. lint_file `pnpm biome lint {file}`. lockfiles `["pnpm-lock.yaml"]`. manifests `["package.json"]`. source_globs `["src/**/*.ts", "src/**/*.tsx"]`. test_globs `["tests/**/*.ts", "**/*.test.ts", "**/*.test.tsx"]`. allow `["Bash(pnpm vitest:*)", "Bash(pnpm biome:*)", "Bash(pnpm tsc:*)", "Bash(pnpm install:*)", "Bash(pnpm add:*)"]`.
-  - `tsconfig.json.tmpl`: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `module`/`moduleResolution` `NodeNext`, includes `src` and `tests`. `src/index.ts` is `export {};`.
-- Setup tests test the setup, not app behavior. Python `tests/test_setup.py` asserts `pyproject.toml` has `tool.pyright.typeCheckingMode == "strict"` and that `import $package` works. TS `tests/setup.test.ts` asserts the parsed `tsconfig.json` has `compilerOptions.strict === true` and `noUncheckedIndexedAccess === true`.
+  - `tsconfig.json.tmpl`: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `module`/`moduleResolution` `NodeNext`, includes `src` and `tests` (a missing `src/` is fine because `tests/` provides input). No `src/` files are generated.
+- Setup tests test the setup, not app behavior. Python `tests/test_setup.py` asserts `pyproject.toml` has `tool.pyright.typeCheckingMode == "strict"`. TS `tests/setup.test.ts` asserts the parsed `tsconfig.json` has `compilerOptions.strict === true` and `noUncheckedIndexedAccess === true`.
 
 - [ ] **Step 1: Write failing tests**
 
 ```python
 def test_python_component_files():
-    files = render_component(py_component(path="api", package="pico_api"), "pico")
-    assert set(files) == {"api/pyproject.toml", "api/src/pico_api/__init__.py", "api/tests/test_setup.py"}
+    files = render_component(py_component(path="api"), "pico")
+    assert set(files) == {"api/pyproject.toml", "api/tests/test_setup.py"}   # no src/ placeholders
     pp = tomllib.loads(files["api/pyproject.toml"])
     assert pp["tool"]["pyright"]["typeCheckingMode"] == "strict" and pp["project"]["name"] == "pico-api"
 def test_typescript_component_files():
@@ -457,7 +458,7 @@ def test_output_parses_and_is_deterministic():
 - Produces: `render_docs(a: Answers, principles: dict, year: int) -> dict[str, str]` with exactly these keys: `README.md`, `LICENSE`, `CONTRIBUTING.md`, `CLAUDE.md`, `docs/product.md`, `docs/architecture.md`, `docs/dependencies.md`, and `docs/decisions/NNNN-<slug>.md` for each decision in answer order (numbered from 0001), followed by one per override.
 - Content requirements (the tests check these):
   - **CLAUDE.md**: under 150 lines. Sections `## Principles` (one line per *active* principle: `- **{title}**: {statement}`, and a pointer that `docs/principles.toml` is the source of truth with parameters), `## Commands` (a table per component with setup/test/lint/format/typecheck; `run` reads "add when the entry point exists"), `## Definition of done` (the five items of spec §6 `definition-of-done`), `## Commits` (convention, scopes, "use the commit skill"), `## Docs` (links).
-  - **CONTRIBUTING.md**: one-time setup (`git config core.hooksPath .githooks`, then per-component setup), the commit convention with types and scopes, the 50/72 rules, and the branching model.
+  - **CONTRIBUTING.md**: one-time setup (`git config core.hooksPath .claude/alpha/githooks`, then per-component setup), the commit convention with types and scopes, the 50/72 rules, and the branching model.
   - **docs/product.md**: name, value proposition, target users, and a requirements table `| ID | Requirement | Acceptance check |`.
   - **docs/architecture.md**: layout, a components table (name, path, kind, stack, traits), whether components talk, and the tool choices per stack.
   - **docs/dependencies.md**: the dependency log, seeded with one row per recipe dev tool: `| Dependency | Component | Why | Added |`.
@@ -496,7 +497,7 @@ def test_product_md_requirements_table():            # "| R1 |" row with the acc
   - `changed_files(root: Path) -> list[str]`: tracked changes vs HEAD plus untracked (`git status --porcelain=v1 -z`), handling no-commits repos and paths with spaces.
   - `matches(rel_path: str, globs: list[str]) -> bool`: `**` aware (`fnmatch` on path parts, or `PurePath.full_match` on 3.13+ with a fallback).
   - `block(message: str) -> NoReturn`: stderr + exit 2.
-  - `state_path(root: Path, name: str) -> Path`: `root/.alpha/state/name`, creating the dir.
+  - `state_path(root: Path, name: str) -> Path`: `root/.claude/alpha/state/name`, creating the dir.
 
 - [ ] **Step 1: Write failing tests**
 
@@ -617,7 +618,7 @@ def test_matches_double_star():  # matches("api/src/x/y.py", ["api/src/**/*.py"]
   - Each failure prints `commit-msg: <rule broken>. Example: "feat(api): Add token refresh"` and exits 1.
   - If there's no principles file, use the default types and allow any scope.
 - `githooks/commit-msg`: `#!/bin/sh` → `exec python3 "$(git rev-parse --show-toplevel)/.claude/alpha/hooks/commit_msg.py" "$1"`.
-- `session_start.py`: collects warnings (`git config core.hooksPath` != `.githooks` → `Run: git config core.hooksPath .githooks`; Python < 3.11 → the guard message; principles malformed → that message). It prints `{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "alpha: <warnings>"}}` only when there are warnings.
+- `session_start.py`: collects warnings (`git config core.hooksPath` != `.claude/alpha/githooks` → `Run: git config core.hooksPath .claude/alpha/githooks`; Python < 3.11 → the guard message; principles malformed → that message). It prints `{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "alpha: <warnings>"}}` only when there are warnings.
 
 - [ ] **Step 1: Write failing tests**: valid examples (`feat(api): Add token refresh`, `docs: Add design doc`), each rule's rejection (`feat: add x` lowercase, `feat: Added x`, `feat: Add x.`, a 51-char description, `feet: Add x`), `Merge branch 'x'`, `Revert "feat: X"`, `fixup! feat: X` pass, an unknown scope fails and lists the scopes, a trailer line > 72 passes, and session_start warns on an unset hooksPath and stays silent when set.
 - [ ] **Step 2:** Run. Expected: FAIL.
@@ -659,17 +660,17 @@ def test_matches_double_star():  # matches("api/src/x/y.py", ["api/src/**/*.py"]
 - Consumes: Tasks 3–7 and 14, and `project-files/`.
 - Produces:
   - `generate(target: Path, plugin_root: Path, source: Source, year: int) -> list[str]`:
-    - **Empty check.** If anything besides `.alpha` and `.DS_Store` exists, raise `GenerateError("<target> is not empty (found: a, b, …). alpha v0.1 starts projects only in empty folders. Choose a new folder, or move these files out first.")`.
-    - Load `target/.alpha/answers.json` (all areas) and the defaults.
+    - **Empty check.** If anything besides `.DS_Store` and `.claude/alpha/project.json` exists, raise `GenerateError("<target> is not empty (found: a, b, …). alpha v0.1 starts projects only in empty folders. Choose a new folder, or move these files out first.")`.
+    - Load `target/.claude/alpha/project.json` (all areas) and the defaults.
     - Write principles (`docs/principles.toml`), docs (Task 7), component files (Task 5), and `.claude/settings.json` (Task 14).
-    - Copy `project-files/hooks/*.py` → `.claude/alpha/hooks/`, the skill → `.claude/skills/commit/SKILL.md`, the agent → `.claude/agents/committer.md`, and the githook → `.githooks/commit-msg` (exec bit preserved).
-    - Write `.gitignore`: `.alpha/state/`, plus `.venv/`, `__pycache__/`, `.pytest_cache/` for python components, plus `node_modules/`, `dist/`, `coverage/` for typescript components, each prefixed by the component path when not `.`.
-    - Write `.alpha/manifest.json`: `{"kit_version", "generated_at" (ISO date), "defaults": {"path", "live", "commit": <git HEAD of source or null>}, "files": {relpath: sha256}}`.
+    - Copy `project-files/hooks/*.py` → `.claude/alpha/hooks/`, the skill → `.claude/skills/commit/SKILL.md`, the agent → `.claude/agents/committer.md`, and the githook → `.claude/alpha/githooks/commit-msg` (exec bit preserved).
+    - Write `.gitignore`: `.claude/alpha/state/`, plus `.venv/`, `__pycache__/`, `.pytest_cache/` for python components, plus `node_modules/`, `dist/`, `coverage/` for typescript components, each prefixed by the component path when not `.`.
+    - Add a top-level `manifest` key to `.claude/alpha/project.json`: `{"kit_version", "generated_at" (ISO date), "defaults": {"path", "live", "commit": <git HEAD of source or null>}, "files": {relpath: sha256}}`.
     - Return the sorted relpaths.
   - `bootstrap(target: Path, principles: dict) -> None`: per component, run the recipe `bootstrap` then `setup` then `test`. On failure, raise `GenerateError` with the command, its last 40 lines of output, and `Fix the toolchain (is uv/pnpm installed?) and rerun "alpha bootstrap <target>"`.
-  - `commit_skeleton(target: Path, principles: dict, trailers: list[str]) -> list[str]`. It runs `git init -b main` (if `.git` is absent) and `git config core.hooksPath .githooks`. Then it commits in this order, returning the hashes:
-    1. `docs: Add product brief, principles and decisions` (README.md, LICENSE, CONTRIBUTING.md, docs/, .alpha/answers.json, .alpha/manifest.json, .gitignore).
-    2. `chore: Add Claude Code settings and guardrails` (CLAUDE.md, .claude/, .githooks/).
+  - `commit_skeleton(target: Path, principles: dict, trailers: list[str]) -> list[str]`. It runs `git init -b main` (if `.git` is absent) and `git config core.hooksPath .claude/alpha/githooks`. Then it commits in this order, returning the hashes:
+    1. `docs: Add product brief, principles and decisions` (README.md, LICENSE, CONTRIBUTING.md, docs/, .gitignore).
+    2. `chore: Add Claude Code settings and guardrails` (CLAUDE.md, .claude/).
     3. One per component: `build(<name>): Set up <stack> toolchain and tests` (the component path, including lockfiles).
 
     Messages carry the trailers after a blank line. Commits go through the real `commit-msg` hook, so the messages must pass it.
@@ -687,11 +688,15 @@ def test_accepts_alpha_dir_and_ds_store(tmp_path): ...
 def test_scenario_skeleton(tmp_path, scenario):
     files = generate_scenario(tmp_path, scenario)
     for f in ["CLAUDE.md", "docs/principles.toml", ".claude/settings.json", ".claude/alpha/hooks/stop_checks.py",
-              ".claude/skills/commit/SKILL.md", ".githooks/commit-msg", ".alpha/manifest.json"]:
+              ".claude/skills/commit/SKILL.md", ".claude/alpha/githooks/commit-msg", ".claude/alpha/project.json"]:
         assert f in files
+    root_entries = {p.name for p in tmp_path.iterdir()} - {".git"}
+    assert root_entries <= {"README.md", "LICENSE", "CONTRIBUTING.md", "CLAUDE.md", ".gitignore", "docs", ".claude", "api", "web",
+                            "pyproject.toml", "uv.lock", "tests"}   # nothing kit-specific at the root
+    assert not any("/src/" in f or f.startswith("src/") for f in files)    # no placeholder sources
     s = json.loads((tmp_path / ".claude/settings.json").read_text())
     for cmd in hook_commands(s): assert (tmp_path / script_of(cmd)).exists()
-    m = json.loads((tmp_path / ".alpha/manifest.json").read_text())
+    m = json.loads((tmp_path / ".claude/alpha/project.json").read_text())["manifest"]
     assert all(sha256(tmp_path / p) == h for p, h in m["files"].items())
 def test_generated_guard_blocks_no_verify(tmp_path):  # run copied guard_bash.py inside generated project → exit 2
 def test_commit_skeleton_groups_and_trailers(tmp_path):
@@ -734,17 +739,17 @@ def test_bootstrap_runs_green(tmp_path, scenario):  # generate + bootstrap; lock
   - uses `grilling`,
   - writes its section plus one `decisions[]` entry,
   - sets `areas.<area> = "done"`,
-  - runs `alpha answers check .alpha/answers.json --area <area>` and fixes anything it reports.
+  - runs `alpha answers check .claude/alpha/project.json --area <area>` and fixes anything it reports.
 
   Area specifics:
   - **identity**: turns requirements into acceptance checks with the user (Given/When/Then).
-  - **components**: per component, asks kind, stack (recommend from `defaults.stacks[kind]`), path, package, and the six traits; also `components_talk` when there's more than one; supports only python/typescript in v0.1 and says so.
+  - **components**: per component, asks kind, stack (recommend from `defaults.stacks[kind]`), path, and the six traits; also `components_talk` when there's more than one; supports only python/typescript in v0.1 and says so.
   - **git-history**: convention, scopes (default = component names), branching.
   - **agent-workflow**: review mode (`batched` / `every-task`), thresholds, extra risk paths, explaining each threshold in one line.
 
   Called directly on an already-generated project, an area skill says that extending projects arrives in plan 2 and stops.
 - **`new-project`** (`disable-model-invocation: true`; the user runs `/alpha:new-project [folder]`):
-  1. Resolve the target folder (argument or cwd), and run the empty check by listing it. If `.alpha/answers.json` exists, resume and report which areas are done.
+  1. Resolve the target folder (argument or cwd), and run the empty check by listing it. If `.claude/alpha/project.json` exists, resume and report which areas are done.
   2. Run `alpha defaults show` and tell the user whether defaults are live or bundled.
   3. Run the areas in order identity → components → git-history → agent-workflow, never skipping one.
   4. Show a summary of all answers and wait for confirmation.
