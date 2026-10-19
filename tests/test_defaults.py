@@ -142,6 +142,51 @@ def test_set_default_merges_with_existing_overrides_and_parses_values(tmp_path: 
     assert got["protected"]["paths"] == ["a", "b"]
 
 
+def reject_commits(repo: Path) -> None:
+    """Make every commit in repo fail through a pre-commit hook."""
+    hooks = repo.parent / "hooks"
+    hooks.mkdir()
+    hook = hooks / "pre-commit"
+    hook.write_text("#!/bin/sh\necho 'rejected by test hook' >&2\nexit 1\n")
+    hook.chmod(0o755)
+    git(repo, "config", "core.hooksPath", str(hooks))
+
+
+def test_set_default_commits_only_its_own_files(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    (src.path / "unrelated.txt").write_text("staged work in progress\n")
+    git(src.path, "add", "unrelated.txt")
+    set_default(src, "review.max_lines", "400", "demo", "r", [], date(2026, 10, 19))
+    committed = git(src.path, "show", "--name-only", "--format=", "HEAD").split()
+    assert sorted(committed) == ["defaults/CHANGELOG.md", "defaults/overrides.toml"]
+    assert git(src.path, "status", "--porcelain") == "A  unrelated.txt"
+
+
+@pytest.mark.parametrize("repo", [True, False], ids=["commit-fails", "no-repo"])
+def test_set_default_restores_files_when_git_fails(tmp_path: Path, repo: bool):
+    src = make_source(tmp_path / "src", repo=repo)
+    if repo:
+        reject_commits(src.path)
+    files = [src.path / "defaults/overrides.toml", src.path / "defaults/CHANGELOG.md"]
+    before = [f.read_text() for f in files]
+    with pytest.raises(DefaultsError, match="retry"):
+        set_default(src, "review.max_lines", "400", "demo", "r", [], date.today())
+    assert [f.read_text() for f in files] == before
+    if repo:
+        assert git(src.path, "status", "--porcelain") == ""
+
+
+def test_set_default_removes_a_new_overrides_file_when_git_fails(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    git(src.path, "rm", "-q", "defaults/overrides.toml")
+    git(src.path, "commit", "-q", "-m", "chore: Drop overrides")
+    reject_commits(src.path)
+    with pytest.raises(DefaultsError):
+        set_default(src, "review.max_lines", "400", "demo", "r", [], date.today())
+    assert not (src.path / "defaults/overrides.toml").exists()
+    assert git(src.path, "status", "--porcelain") == ""
+
+
 def test_set_default_refuses_when_not_live(tmp_path: Path):
     with pytest.raises(DefaultsError, match="decision log"):
         set_default(
@@ -178,12 +223,30 @@ def test_cli_show_json_and_set(tmp_path: Path):
     assert git(src.path, "rev-parse", "HEAD").startswith(done.stdout.strip())
 
 
-def test_cli_set_not_live_exits_3(tmp_path: Path):
+def test_cli_set_not_live_exits_4(tmp_path: Path):
     env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}
     done = run_cli(
         *("defaults", "set", "--key", "a.b", "--value", "1"),
         *("--project", "p", "--reason", "r"),
         env=env,
     )
-    assert done.returncode == 3
+    assert done.returncode == 4
     assert "decision log" in done.stderr
+
+
+def test_cli_set_git_failure_exits_3_and_explains(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    reject_commits(src.path)
+    env = {
+        "ALPHA_SOURCE": str(src.path),
+        "HOME": str(tmp_path),
+        "PATH": "/usr/bin:/bin",
+    }
+    done = run_cli(
+        *("defaults", "set", "--key", "review.max_lines", "--value", "300"),
+        *("--project", "demo", "--reason", "why"),
+        env=env,
+    )
+    assert done.returncode == 3
+    assert "git commit failed" in done.stderr
+    assert "retry" in done.stderr

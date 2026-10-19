@@ -36,6 +36,10 @@ class DefaultsError(Exception):
     pass
 
 
+class SourceNotLive(DefaultsError):
+    """Only the bundled defaults are available, so nothing can be saved."""
+
+
 @dataclass(frozen=True)
 class Source:
     path: Path
@@ -126,15 +130,17 @@ def set_default(
     today: date,
 ) -> str:
     if not source.live:
-        raise DefaultsError(
+        raise SourceNotLive(
             "Cannot change kit defaults: no alpha source checkout is available "
             f"({source.reason}). Record the wish in the project's decision log "
             "instead, or set ALPHA_SOURCE and retry."
         )
     overrides_path = source.path / _OVERRIDES
-    data: dict[str, Any] = (
-        tomllib.loads(overrides_path.read_text()) if overrides_path.is_file() else {}
-    )
+    changelog = source.path / _CHANGELOG
+    before = {
+        f: f.read_text() if f.is_file() else None for f in (overrides_path, changelog)
+    }
+    data: dict[str, Any] = tomllib.loads(before[overrides_path] or "")
     *parents, leaf = key.split(".")
     table: dict[str, Any] = data
     for part in parents:
@@ -144,15 +150,29 @@ def set_default(
             table[part] = child
         table = cast("dict[str, Any]", child)
     table[leaf] = _parse_value(value)
-    overrides_path.write_text(_OVERRIDES_HEADER + toml_write.dumps(data))
-
-    changelog = source.path / _CHANGELOG
-    with changelog.open("a") as f:
-        f.write(f"- {today} · {key} = {value} · from {project} · {reason}\n")
-
-    _git(source.path, "add", _OVERRIDES, _CHANGELOG)
     message = f"chore(defaults): Set {leaf}"
     if trailers:
         message += "\n\n" + "\n".join(trailers)
-    _git(source.path, "commit", "-q", "-m", message)
+    try:
+        overrides_path.write_text(_OVERRIDES_HEADER + toml_write.dumps(data))
+        with changelog.open("a") as f:
+            f.write(f"- {today} · {key} = {value} · from {project} · {reason}\n")
+        _git(source.path, "add", _OVERRIDES, _CHANGELOG)
+        _git(source.path, "commit", "-q", "-m", message, "--", _OVERRIDES, _CHANGELOG)
+    except (DefaultsError, OSError):
+        _restore(source.path, before)
+        raise
     return _git(source.path, "rev-parse", "--short", "HEAD")
+
+
+def _restore(repo: Path, before: dict[Path, str | None]) -> None:
+    """Put the defaults files back as they were and unstage them (best effort)."""
+    for path, text in before.items():
+        if text is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_text(text)
+    subprocess.run(
+        ["git", "-C", str(repo), "reset", "-q", "--", _OVERRIDES, _CHANGELOG],
+        capture_output=True,
+    )

@@ -71,6 +71,9 @@ def _defaults(args: argparse.Namespace) -> int:
             )
             return 0
         merged = defaults.load_defaults(source)
+    except defaults.SourceNotLive as e:
+        print(e, file=sys.stderr)
+        return 4
     except defaults.DefaultsError as e:
         print(e, file=sys.stderr)
         return 3
