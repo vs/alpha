@@ -1,9 +1,13 @@
+import io
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 import _common
 import pytest
 
-from .conftest import Project
+from .conftest import HOOKS, STUB, Project
 
 
 def test_malformed_principles_explains_and_exits_zero(project: Project):
@@ -77,3 +81,93 @@ def test_project_root_precedence(monkeypatch: pytest.MonkeyPatch, tmp_path: Any)
     assert _common.project_root({"cwd": "/elsewhere"}) == tmp_path
     monkeypatch.delenv("CLAUDE_PROJECT_DIR")
     assert str(_common.project_root({"cwd": "/elsewhere"})) == "/elsewhere"
+
+
+def test_changed_files_reports_non_git_dir(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    assert _common.changed_files(tmp_path) == []
+    err = capsys.readouterr().err
+    assert "could not list changes" in err and "git init" in err
+
+
+def test_changed_files_reports_missing_git(
+    project: Project,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setenv("PATH", str(project.root / "nowhere"))
+    assert _common.changed_files(project.root) == []
+    err = capsys.readouterr().err
+    assert "could not run git" in err and "git is installed" in err
+
+
+def test_read_input_malformed_and_non_object(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    for raw in ("{nope", "[1, 2]"):
+        monkeypatch.setattr(sys, "stdin", io.StringIO(raw))
+        assert _common.read_input() == {}
+    assert capsys.readouterr().err.count("alpha: hook input") == 2
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    assert _common.read_input() == {}
+
+
+def test_malformed_stdin_does_not_crash_hook(project: Project):
+    r = subprocess.run(
+        [sys.executable, str(HOOKS / "guard_bash.py")],
+        cwd=project.root,
+        input="{nope",
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0 and "Traceback" not in r.stderr
+
+
+def test_fixture_commands_are_stubs_and_unknown_component_rejected(project: Project):
+    for comp in project.principles()["components"]:
+        assert comp["commands"] and set(comp["commands"].values()) == {STUB}
+    project.set_commands("api", test="echo hi")
+    assert project.principles()["components"][0]["commands"]["test"] == "echo hi"
+    with pytest.raises(KeyError, match="api"):
+        project.set_commands("nope", test="x")
+
+
+def test_project_root_falls_back_to_payload_cwd(project: Project, tmp_path: Path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    r = project.run_hook(
+        "guard_bash.py",
+        {"cwd": str(project.root)},
+        cwd=other,
+        env={"CLAUDE_PROJECT_DIR": None},
+    )
+    assert r.returncode == 0
+    project.write("docs/principles.toml", "schema = = 1")
+    r = project.run_hook(
+        "guard_bash.py",
+        {"cwd": str(project.root)},
+        cwd=other,
+        env={"CLAUDE_PROJECT_DIR": None},
+    )
+    assert "not valid TOML" in r.stderr
+
+
+def test_rel_to_root(tmp_path: Path):
+    root = tmp_path / "proj"
+    (root / "src").mkdir(parents=True)
+    assert _common.rel_to_root(root, str(root / "src" / "a.py")) == "src/a.py"
+    assert _common.rel_to_root(root, "src/a.py") == "src/a.py"
+    assert _common.rel_to_root(root, str(tmp_path / "other.py")) is None
+    assert _common.rel_to_root(root, "../other.py") is None
+
+
+def test_rel_to_root_resolves_symlinks(tmp_path: Path):
+    real = tmp_path / "real"
+    (real / "src").mkdir(parents=True)
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    # root given via the symlink, path via the real location (and vice versa),
+    # like /var vs /private/var on macOS
+    assert _common.rel_to_root(link, str(real / "src" / "a.py")) == "src/a.py"
+    assert _common.rel_to_root(real, str(link / "src" / "a.py")) == "src/a.py"

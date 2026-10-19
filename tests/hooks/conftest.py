@@ -21,6 +21,9 @@ FIXTURE = REPO / "tests" / "fixtures" / "answers_valid.json"
 sys.path.insert(0, str(HOOKS))
 
 
+STUB = 'python3 -c "import sys; sys.exit(0)"'
+
+
 class Project:
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -46,19 +49,32 @@ class Project:
     def set_commands(self, component: str, **commands: str) -> None:
         """Override a component's commands, e.g. test="python3 -c ..."."""
         data = self.principles()
+        known = [c["name"] for c in data["components"]]
+        if component not in known:
+            raise KeyError(f"unknown component {component!r}; known: {known}")
         for comp in data["components"]:
             if comp["name"] == component:
                 comp["commands"].update(commands)
         self.write_principles(data)
 
     def run_hook(
-        self, script: str, payload: dict[str, Any]
+        self,
+        script: str,
+        payload: dict[str, Any],
+        cwd: Path | None = None,
+        env: dict[str, str | None] | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        env = {**os.environ, "CLAUDE_PROJECT_DIR": str(self.root)}
+        """Run a hook; env values override, and a None value removes the variable."""
+        full: dict[str, str] = {**os.environ, "CLAUDE_PROJECT_DIR": str(self.root)}
+        for key, value in (env or {}).items():
+            if value is None:
+                full.pop(key, None)
+            else:
+                full[key] = value
         return subprocess.run(
             [sys.executable, str(HOOKS / script)],
-            cwd=self.root,
-            env=env,
+            cwd=cwd or self.root,
+            env=full,
             input=json.dumps(payload),
             capture_output=True,
             text=True,
@@ -72,5 +88,8 @@ def project(tmp_path: Path) -> Project:
     p.git("config", "user.name", "Test")
     p.git("config", "user.email", "test@example.com")
     defaults = load_defaults(Source(PLUGIN_ROOT, True, ""))
-    p.write_principles(build_principles(defaults, load_answers(FIXTURE), "0.1.0"))
+    data = build_principles(defaults, load_answers(FIXTURE), "0.1.0")
+    for comp in data["components"]:  # never let a hook test run real tooling
+        comp["commands"] = dict.fromkeys(comp["commands"], STUB)
+    p.write_principles(data)
     return p

@@ -32,8 +32,19 @@ def read_input() -> dict[str, Any]:
     raw = sys.stdin.read()
     if not raw.strip():
         return {}
-    data = json.loads(raw)
-    return data if isinstance(data, dict) else {}  # pyright: ignore[reportUnknownVariableType]
+    try:
+        data = json.loads(raw)
+    except ValueError as e:
+        print(
+            f"alpha: hook input is not valid JSON ({e}); ignoring it. "
+            "Check the hook wiring in .claude/settings.json.",
+            file=sys.stderr,
+        )
+        return {}
+    if not isinstance(data, dict):
+        print("alpha: hook input is not a JSON object; ignoring it.", file=sys.stderr)
+        return {}
+    return data  # pyright: ignore[reportUnknownVariableType]
 
 
 def project_root(inp: dict[str, Any]) -> Path:
@@ -83,14 +94,25 @@ def component_for(rel_path: str, principles: dict[str, Any]) -> dict[str, Any] |
 
 def changed_files(root: Path) -> list[str]:
     """Tracked changes vs HEAD plus untracked files, minus alpha's own state dir."""
-    out = subprocess.run(
-        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout
-    entries = out.split("\0")
+    fix = "Make sure this is a git repository (git init) and git is installed."
+    try:
+        proc = subprocess.run(
+            ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as e:
+        print(f"alpha: could not run git in {root}: {e}. {fix}", file=sys.stderr)
+        return []
+    if proc.returncode != 0:
+        print(
+            f"alpha: could not list changes in {root}: {proc.stderr.strip()}. {fix}",
+            file=sys.stderr,
+        )
+        return []
+    entries = proc.stdout.split("\0")
     files: list[str] = []
     i = 0
     while i < len(entries):
@@ -120,6 +142,18 @@ def _match_parts(path: list[str], pat: list[str]) -> bool:
 def matches(rel_path: str, globs: list[str]) -> bool:
     parts = rel_path.split("/")
     return any(_match_parts(parts, g.split("/")) for g in globs)
+
+
+def rel_to_root(root: Path, path: str) -> str | None:
+    """POSIX path of `path` (absolute, or relative to root) under root, else None."""
+    base = root.resolve()
+    p = Path(path)
+    try:
+        return (
+            (p if p.is_absolute() else base / p).resolve().relative_to(base).as_posix()
+        )
+    except ValueError:
+        return None
 
 
 def block(message: str) -> NoReturn:
