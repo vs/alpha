@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "areas": {
+    "identity": "done",
+    "components": "done",
+    "git": "done",
+    "agent_workflow": "done"
+  },
+  "identity": {
+    "name": "Pico Trust",
+    "slug": "pico-trust",
+    "value_proposition": "Hide short trust signals inside ordinary images so they survive re-sharing.",
+    "target_users": "Journalists and fact-checkers who publish photos and need provenance to travel with them.",
+    "requirements": [
+      {
+        "id": "R1",
+        "text": "A user can embed a signed trust payload into an image.",
+        "acceptance": "Given a PNG and a payload, when the user embeds it, then the returned image decodes back to the same payload."
+      },
+      {
+        "id": "R2",
+        "text": "A user can verify an image from the browser.",
+        "acceptance": "Given an embedded image, when the user opens it in the web app, then the app shows the payload and whether it is intact."
+      }
+    ],
+    "license": "MIT",
+    "license_file": null,
+    "copyright_holder": "Semyon Vadishev",
+    "domain_jargon": false
+  },
+  "layout": "monorepo",
+  "components_talk": true,
+  "components": [
+    {
+      "name": "api",
+      "path": "api",
+      "kind": "backend",
+      "stack": "python",
+      "traits": {
+        "has_ui": false,
+        "deployed": true,
+        "network_calls": true,
+        "persisted_data": true,
+        "ml": false,
+        "nontrivial_logic": true
+      }
+    },
+    {
+      "name": "web",
+      "path": "web",
+      "kind": "frontend",
+      "stack": "typescript",
+      "traits": {
+        "has_ui": true,
+        "deployed": true,
+        "network_calls": true,
+        "persisted_data": false,
+        "ml": false,
+        "nontrivial_logic": false
+      }
+    }
+  ],
+  "git": {
+    "convention": "conventional",
+    "scopes": ["api", "web"],
+    "branching": "trunk"
+  },
+  "agent_workflow": {
+    "review_mode": "batched",
+    "max_lines": 200,
+    "max_files": 5,
+    "extra_risk_paths": []
+  },
+  "overrides": [
+    {
+      "principle": "observability",
+      "scope": "component:api",
+      "change": "loosen",
+      "params": {},
+      "reason": "The api is a single-process prototype; structured logs are enough until it is deployed beyond one host."
+    }
+  ],
+  "decisions": [
+    {
+      "area": "identity",
+      "title": "Product identity",
+      "context": "The project needed a name, audience and testable requirements before any code.",
+      "decision": "Pico Trust targets journalists, with two acceptance-tested requirements.",
+      "consequences": "Features outside R1 and R2 need a new requirement first."
+    },
+    {
+      "area": "components",
+      "title": "Python api plus TypeScript web",
+      "context": "Image processing is easiest in Python; verification needs a browser UI.",
+      "decision": "A monorepo with an api (python) and a web (typescript) component.",
+      "consequences": "Two toolchains to maintain; the api contract is the integration point."
+    },
+    {
+      "area": "git",
+      "title": "Conventional commits on trunk",
+      "context": "A solo maintainer with agents committing needs a predictable history.",
+      "decision": "Conventional commits scoped by component, committed straight to trunk.",
+      "consequences": "The commit-msg hook rejects messages that break the convention."
+    },
+    {
+      "area": "agent_workflow",
+      "title": "Batched review",
+      "context": "Reviewing every task is slow; unreviewed large diffs are risky.",
+      "decision": "Batched review with a 200 line / 5 file threshold.",
+      "consequences": "Agents stop for review once a batch crosses either limit."
+    }
+  ]
+}

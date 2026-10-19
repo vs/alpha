@@ -5,7 +5,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from alpha import VERSION, defaults, toml_write
+from alpha import VERSION, answers, defaults, toml_write
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -24,6 +24,16 @@ def build_parser() -> argparse.ArgumentParser:
     dset.add_argument("--project", required=True, help="project that prompted this")
     dset.add_argument("--reason", required=True, help="why the default changes")
     dset.add_argument("--trailer", action="append", default=[], help="commit trailer")
+    a = sub.add_parser("answers", help="work with the interview answers file")
+    asub = a.add_subparsers(dest="answers_command", required=True)
+    check = asub.add_parser("check", help="validate an answers file")
+    check.add_argument("path", type=Path, help="usually .claude/alpha/project.json")
+    check.add_argument(
+        "--area",
+        action="append",
+        choices=answers.AREAS,
+        help="only require this area to be done (repeatable)",
+    )
     return parser
 
 
@@ -58,6 +68,16 @@ def _defaults(args: argparse.Namespace) -> int:
     return 0
 
 
+def _answers(args: argparse.Namespace) -> int:
+    try:
+        answers.load_answers(args.path, args.area or answers.AREAS)
+    except answers.AnswersError as e:
+        print(e, file=sys.stderr)
+        return 1
+    print("ok")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "version":
@@ -65,6 +85,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "defaults":
         return _defaults(args)
+    if args.command == "answers":
+        return _answers(args)
     return 2  # unreachable: argparse rejects unknown commands
 
 
