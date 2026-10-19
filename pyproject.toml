@@ -1,0 +1,30 @@
+[project]
+name = "alpha-kit"
+version = "0.1.0"
+description = "Interview-driven skeletons for new projects, with principles agents must follow"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = ["slow: needs network and stack tools"]
+addopts = "-m 'not slow'"
+
+[tool.pyright]
+include = ["src", "project-files/hooks", "tests"]
+typeCheckingMode = "standard"
+strict = ["src", "project-files/hooks"]
+extraPaths = ["src", "project-files/hooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+extend-exclude = ["docs", ".superpowers"]
