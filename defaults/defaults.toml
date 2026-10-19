@@ -1,0 +1,277 @@
+schema = 1
+
+[review]
+mode = "batched"          # or "every-task"
+max_lines = 200
+max_files = 5
+exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]
+risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/principles.toml"]
+
+[protected]
+paths = [".env", ".env.*", "**/*.pem", "**/*.key"]   # recipes add their lockfiles
+
+[git]
+convention = "conventional"
+types = ["feat", "fix", "docs", "style", "refactor", "test", "build", "chore", "perf", "ci", "revert"]
+branching = "trunk"
+
+[identity]
+license = "MIT"
+
+[stacks]
+ml = "python"
+web = "typescript"
+cli = "python"
+backend = "python"
+
+[[principles]]
+id = "simplest-architecture"
+title = "Simplest sufficient architecture"
+statement = "As simple as possible, as complex as the problem requires."
+rationale = "Every extra layer is a cost paid on each future change, so structure must be earned by a real requirement."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "fail-helpfully"
+title = "Fail fast, fail helpfully"
+statement = "Detect errors as early as possible. Every error message describes the problem and tells the user how to proceed."
+rationale = "Early detection keeps bugs cheap, and an actionable message saves the reader from guessing the fix."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "tests-first-class"
+title = "Tests are as important as the core"
+statement = "Test design and writing get the same effort and intensity as the logic. Tests trace back to acceptance checks."
+rationale = "Untrusted tests make every change risky; tying them to acceptance checks keeps them meaningful."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "visual-system"
+title = "A deliberate visual system"
+statement = "The UI is built from the declared set of visual tools, not ad-hoc styles."
+rationale = "A declared set of tokens and components keeps the interface consistent and cheap to change."
+applies = ["has_ui"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "docs-with-code"
+title = "Docs move with the code"
+statement = "A change to public behavior updates the docs in the same change."
+rationale = "Docs updated later are docs that drift; keeping them in the same change keeps them true."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "build-hosting-upfront"
+title = "Build and hosting are decided up front"
+statement = "Build and hosting are decided up front and runnable in CI."
+rationale = "Late build and deploy decisions force rework, and a pipeline that runs from day one catches breakage immediately."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "validate-at-edges"
+title = "Validate at the edges, trust the inside"
+statement = "External input is parsed into typed data once, at the boundary."
+rationale = "Parsing once at the boundary means inner code can rely on its types instead of re-checking everywhere."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "strict-types"
+title = "Strict types"
+statement = "TypeScript `strict`, Python type-checked in strict mode."
+rationale = "Strict type checking turns whole classes of runtime bugs into immediate, local errors."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "pure-core"
+title = "Logic in the middle, side effects at the edges"
+statement = "Business logic is kept pure and in the middle; side effects live at the edges."
+rationale = "Pure logic is trivial to test and reason about, and isolated side effects are easy to fake or replace."
+applies = ["nontrivial_logic"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "no-dead-code"
+title = "No dead code"
+statement = "No commented-out code, no speculative options."
+rationale = "Unused code still has to be read and maintained, and version control already remembers what was removed."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "contracts"
+title = "Contracts are the source of truth"
+statement = "Interfaces are defined once (OpenAPI/JSON Schema/protobuf). Clients and checks are generated from them."
+rationale = "A single contract prevents components from drifting apart, and generated clients cannot disagree with it."
+applies = ["communicating_components"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "one-vocabulary"
+title = "One vocabulary"
+statement = "A glossary, and consistent names across code, docs, and UI."
+rationale = "The same concept under different names causes misunderstandings between components, people, and agents."
+applies = ["multi_component", "domain_jargon"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "one-command"
+title = "One command each to set up, test, and run"
+statement = "One command each to set up, test, and run, per component, on a fresh machine."
+rationale = "If getting started takes guesswork, contributors and CI both stumble; one command per step removes it."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "reproducible"
+title = "Reproducible"
+statement = "Pinned dependencies and lockfiles. For ML: seeds, data versions, recorded experiment configs."
+rationale = "Results and builds that cannot be repeated cannot be trusted or debugged."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "env-config"
+title = "Config from the environment"
+statement = "Deployed components take their configuration from the environment."
+rationale = "The same build must run in every environment, and secrets and settings must not be baked into code."
+applies = ["deployed"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "timeouts"
+title = "Every external call has a timeout and a failure path"
+statement = "Every external call has a timeout and a failure path. Retries only on safe-to-repeat operations."
+rationale = "Calls without limits hang whole systems, and blind retries of unsafe operations cause duplicate effects."
+applies = ["network_calls"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "observability"
+title = "Observability"
+statement = "Structured logs, correlated across components."
+rationale = "Deployed systems fail where nobody is watching, so they must explain themselves through logs that can be followed across components."
+applies = ["deployed"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "perf-budgets"
+title = "Performance budgets"
+statement = "Performance budgets set in the interview are enforced."
+rationale = "A budget that is written down and checked stops slow regressions from accumulating unnoticed."
+applies = ["budgets_set"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "accessibility"
+title = "Accessibility"
+statement = "Every UI is usable with keyboard and assistive technology."
+rationale = "Accessibility is far cheaper to build in from the start than to retrofit, and it widens who can use the product."
+applies = ["has_ui"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "safe-migrations"
+title = "Safe migrations"
+statement = "Every schema change is a migration, reversible where possible."
+rationale = "Persisted data outlives code, so changes to it must be repeatable and recoverable."
+applies = ["persisted_data"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "no-secrets"
+title = "No secrets in the repo"
+statement = "Secrets come from the environment or a secret store."
+rationale = "A committed secret is leaked for good, since history keeps it even after deletion."
+applies = ["always"]
+checked_by = ["reviewer", "hook:stop_checks"]
+core = true
+
+[[principles]]
+id = "dependency-reasons"
+title = "Every new dependency has a recorded reason"
+statement = "Every new dependency has a recorded reason and is pinned."
+rationale = "Each dependency is a long-term liability; recording why it exists lets it be questioned and removed later."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "clean-history"
+title = "Clean, readable history"
+statement = "Each commit is one logical change, passes checks on its own, and has a message that explains why."
+rationale = "Readable history makes review, bisecting, and reverting practical."
+applies = ["always"]
+checked_by = ["reviewer", "hook:commit_msg"]
+core = true
+
+[[principles]]
+id = "evidence-before-done"
+title = "Evidence before \"done\""
+statement = "No claim of success without running the check that shows it."
+rationale = "Unverified claims of success are the most common source of broken handoffs."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "never-weaken-checks"
+title = "Never weaken a check to pass it"
+statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. If a check is wrong, raise it with the user."
+rationale = "A check bent to pass proves nothing; a wrong check is a decision for the user, not a shortcut for the agent."
+applies = ["always"]
+checked_by = ["reviewer", "hook:guard_paths"]
+core = true
+
+[[principles]]
+id = "stay-in-scope"
+title = "Stay in scope"
+statement = "No drive-by refactors inside a task."
+rationale = "Unrelated changes bloat review and hide the real change in the diff."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "ask-when-ambiguous"
+title = "Ask when ambiguous"
+statement = "Ask when a requirement is ambiguous, and record the answer in the decision log."
+rationale = "A guess that turns out wrong costs more than a question, and a recorded answer is never asked twice."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "definition-of-done"
+title = "Definition of done"
+statement = "Tests written and passing, types and lint clean, docs updated, committed per the history principle, reviewer passed."
+rationale = "One shared checklist for done keeps completion from being a matter of opinion."
+applies = ["always"]
+checked_by = ["reviewer", "hook:stop_checks"]
+core = true
