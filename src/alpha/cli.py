@@ -1,11 +1,14 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
 
 from alpha import VERSION, answers, defaults, toml_write
+from alpha.generate import GenerateError, bootstrap, generate, load_project_principles
+from alpha.gitops import commit_skeleton
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -34,6 +37,13 @@ def build_parser() -> argparse.ArgumentParser:
         choices=answers.AREAS,
         help="only require this area to be done (repeatable)",
     )
+    gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
+    gen.add_argument("target", type=Path, help="folder holding the interview answers")
+    boot = sub.add_parser("bootstrap", help="install toolchains and run the tests")
+    boot.add_argument("target", type=Path, help="a generated project")
+    cs = sub.add_parser("commit-skeleton", help="commit the skeleton in groups")
+    cs.add_argument("target", type=Path, help="a generated project")
+    cs.add_argument("--trailer", action="append", default=[], help="commit trailer")
     return parser
 
 
@@ -78,6 +88,41 @@ def _answers(args: argparse.Namespace) -> int:
     return 0
 
 
+def _project(args: argparse.Namespace) -> int:
+    target: Path = args.target
+    try:
+        if args.command == "generate":
+            source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+            if not source.live:
+                print(
+                    f"warning: using bundled kit defaults ({source.reason})",
+                    file=sys.stderr,
+                )
+            files = generate(target, PLUGIN_ROOT, source, date.today().year)
+            print(f"Generated {len(files)} files in {target}.")
+            print(f'Next: "alpha bootstrap {target}".')
+        elif args.command == "bootstrap":
+            principles = load_project_principles(target)
+            bootstrap(target, principles)
+            names = ", ".join(c["name"] for c in principles["components"])
+            print(f"Bootstrapped {names}: toolchains installed, tests green.")
+        else:
+            principles = load_project_principles(target)
+            hashes = commit_skeleton(target, principles, args.trailer)
+            print(f"Committed {len(hashes)} commits in {target}:")
+            if hashes:
+                log = subprocess.run(
+                    ["git", "-C", str(target), "show", "-s", "--format=%h %s", *hashes],
+                    capture_output=True,
+                    text=True,
+                )
+                print(log.stdout, end="")
+    except (GenerateError, answers.AnswersError, defaults.DefaultsError) as e:
+        print(e, file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "version":
@@ -87,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         return _defaults(args)
     if args.command == "answers":
         return _answers(args)
+    if args.command in ("generate", "bootstrap", "commit-skeleton"):
+        return _project(args)
     return 2  # unreachable: argparse rejects unknown commands
 
 

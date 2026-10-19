@@ -1,0 +1,205 @@
+"""Generate a project skeleton from the interview answers, then bootstrap it."""
+
+import hashlib
+import json
+import shutil
+import subprocess
+import tomllib
+from datetime import date
+from pathlib import Path
+from typing import Any, cast
+
+from alpha import VERSION
+from alpha.answers import load_answers
+from alpha.defaults import Source, load_defaults
+from alpha.principles import build_principles, render_principles
+from alpha.recipes import load_recipe, render_component
+from alpha.render.claude_settings import render_settings
+from alpha.render.docs import render_docs
+
+PROJECT_JSON = ".claude/alpha/project.json"
+PRINCIPLES_TOML = "docs/principles.toml"
+_ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
+_ALLOWED_DIRS = frozenset({".claude", ".claude/alpha"})
+_IGNORES = {
+    "python": [".venv/", "__pycache__/", ".pytest_cache/"],
+    "typescript": ["node_modules/", "dist/", "coverage/"],
+}
+_TAIL_LINES = 40
+
+
+class GenerateError(Exception):
+    pass
+
+
+def _unexpected(target: Path) -> list[str]:
+    """Entries that make the target non-empty, relative to it."""
+    found: list[str] = []
+
+    def walk(folder: Path) -> None:
+        for entry in folder.iterdir():
+            rel = entry.relative_to(target).as_posix()
+            if entry.name == ".DS_Store":
+                continue
+            if rel in _ALLOWED_DIRS and entry.is_dir() and not entry.is_symlink():
+                walk(entry)
+            elif rel not in _ALLOWED_FILES or not entry.is_file():
+                found.append(rel)
+
+    walk(target)
+    return sorted(found)
+
+
+def _gitignore(principles: dict[str, Any]) -> str:
+    # Hooks run with python3, which leaves bytecode next to them.
+    lines = [
+        ".claude/alpha/state/",
+        ".claude/settings.local.json",
+        ".claude/alpha/hooks/__pycache__/",
+    ]
+    for c in principles["components"]:
+        for entry in _IGNORES.get(c["stack"], []):
+            # "**/" keeps the any-depth match the unprefixed pattern has.
+            lines.append(entry if c["path"] == "." else f"{c['path']}/**/{entry}")
+    return "\n".join(lines) + "\n"
+
+
+def _copies(plugin_root: Path) -> dict[str, Path]:
+    files = plugin_root / "project-files"
+    out = {
+        f".claude/alpha/hooks/{p.name}": p
+        for p in sorted((files / "hooks").glob("*.py"))
+    }
+    out[".claude/skills/commit/SKILL.md"] = files / "skills/commit/SKILL.md"
+    out[".claude/agents/committer.md"] = files / "agents/committer.md"
+    out[".claude/alpha/githooks/commit-msg"] = files / "githooks/commit-msg"
+    return out
+
+
+def _source_commit(source: Source) -> str | None:
+    if not source.live:
+        return None
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(source.path), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def generate(
+    target: Path,
+    plugin_root: Path,
+    source: Source,
+    year: int,
+    today: date | None = None,
+) -> list[str]:
+    """Write the skeleton into an empty target; return the sorted relpaths."""
+    if not target.is_dir():
+        raise GenerateError(
+            f"{target} is not a folder. Create it and run the alpha interview "
+            "there first."
+        )
+    extra = _unexpected(target)
+    if extra:
+        raise GenerateError(
+            f"{target} is not empty (found: {', '.join(extra)}). alpha v0.1 starts "
+            "projects only in empty folders. Choose a new folder, or move these "
+            "files out first."
+        )
+    answers_path = target / PROJECT_JSON
+    a = load_answers(answers_path)
+    principles = build_principles(load_defaults(source), a, VERSION)
+
+    # Render everything before writing anything, so a failure leaves no debris.
+    texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
+    texts.update(render_docs(a, principles, year, root=target))
+    for c in a.components:
+        texts.update(render_component(c, principles["project"]["slug"]))
+    texts[".claude/settings.json"] = (
+        json.dumps(render_settings(principles), indent=2) + "\n"
+    )
+    texts[".gitignore"] = _gitignore(principles)
+    copies = _copies(plugin_root)
+
+    for rel, text in texts.items():
+        path = target / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    for rel, src in copies.items():
+        path = target / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(src, path)  # keeps the exec bit of the git hook
+
+    generated = sorted([*texts, *copies])
+    data = cast(dict[str, Any], json.loads(answers_path.read_text(encoding="utf-8")))
+    data["manifest"] = {
+        "kit_version": VERSION,
+        "generated_at": (today or date.today()).isoformat(),
+        "defaults": {
+            "path": str(source.path),
+            "live": source.live,
+            "commit": _source_commit(source),
+        },
+        "files": {
+            rel: hashlib.sha256((target / rel).read_bytes()).hexdigest()
+            for rel in generated
+        },
+    }
+    answers_path.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    return sorted([*generated, PROJECT_JSON])
+
+
+def load_project_principles(target: Path) -> dict[str, Any]:
+    path = target / PRINCIPLES_TOML
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except OSError:
+        raise GenerateError(
+            f'{path} not found. Run "alpha generate {target}" first, in a folder '
+            "that holds the interview answers."
+        ) from None
+    except tomllib.TOMLDecodeError as e:
+        raise GenerateError(
+            f"{path} is not valid TOML ({e}). Fix the syntax, then retry."
+        ) from None
+
+
+def bootstrap(target: Path, principles: dict[str, Any]) -> None:
+    """Per component: install the toolchain, then run setup and the tests."""
+    fix = (
+        "Fix the toolchain (is uv/pnpm installed?) and rerun "
+        f'"alpha bootstrap {target}"'
+    )
+    for c in principles["components"]:
+        cwd = target / c["path"]
+        if not cwd.is_dir():
+            raise GenerateError(
+                f'Component "{c["name"]}" folder {cwd} is missing. Fix its path in '
+                f"{PRINCIPLES_TOML}, or regenerate the skeleton in an empty folder."
+            )
+        commands = [
+            *load_recipe(c["stack"]).bootstrap,
+            c["commands"]["setup"],
+            c["commands"]["test"],
+        ]
+        for command in commands:
+            done = subprocess.run(
+                command,
+                shell=True,
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            if done.returncode != 0:
+                tail = "\n".join(done.stdout.splitlines()[-_TAIL_LINES:])
+                raise GenerateError(
+                    f'"{command}" failed in {cwd} (exit {done.returncode}). '
+                    f"Last lines of its output:\n{tail}\n{fix}"
+                )

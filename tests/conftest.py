@@ -1,0 +1,45 @@
+import shutil
+from collections.abc import Callable
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
+from alpha.generate import generate
+
+SCENARIOS = PLUGIN_ROOT / "evals" / "scenarios"
+TODAY = date(2026, 10, 19)
+
+GenerateScenario = Callable[[Path, str], list[str]]
+
+
+def place_answers(target: Path, scenario: str) -> Path:
+    dest = target / ".claude" / "alpha" / "project.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(SCENARIOS / f"{scenario}.json", dest)
+    return dest
+
+
+@pytest.fixture
+def generate_scenario() -> GenerateScenario:
+    """Copy a scenario's answers into a folder and generate the skeleton there."""
+
+    def run(target: Path, scenario: str) -> list[str]:
+        place_answers(target, scenario)
+        return generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+
+    return run
+
+
+@pytest.fixture
+def git_env(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """Isolate git from the user's config and give commits a fixed identity."""
+    config = tmp_path_factory.mktemp("gitconfig") / "config"
+    config.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    for role in ("AUTHOR", "COMMITTER"):
+        monkeypatch.setenv(f"GIT_{role}_NAME", "Test")
+        monkeypatch.setenv(f"GIT_{role}_EMAIL", "test@example.com")

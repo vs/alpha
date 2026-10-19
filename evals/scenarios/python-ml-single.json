@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "areas": {
+    "identity": "done",
+    "components": "done",
+    "git": "done",
+    "agent_workflow": "done"
+  },
+  "identity": {
+    "name": "Leaf Lens",
+    "slug": "leaf-lens",
+    "value_proposition": "Spot common houseplant diseases from a single leaf photo.",
+    "target_users": "Hobby gardeners who want a quick second opinion before treating a plant.",
+    "requirements": [
+      {
+        "id": "R1",
+        "text": "A user can classify a leaf photo into a known disease or healthy.",
+        "acceptance": "Given a labelled validation set, when the model classifies it, then top-1 accuracy is at least 85%."
+      }
+    ],
+    "license": "Apache-2.0",
+    "license_file": null,
+    "copyright_holder": "Semyon Vadishev",
+    "domain_jargon": false
+  },
+  "layout": "single",
+  "components_talk": false,
+  "components": [
+    {
+      "name": "ml",
+      "path": ".",
+      "kind": "ml",
+      "stack": "python",
+      "traits": {
+        "has_ui": false,
+        "deployed": false,
+        "network_calls": false,
+        "persisted_data": false,
+        "ml": true,
+        "nontrivial_logic": true
+      }
+    }
+  ],
+  "git": {
+    "convention": "conventional",
+    "scopes": [
+      "ml"
+    ],
+    "branching": "trunk"
+  },
+  "agent_workflow": {
+    "review_mode": "every-task",
+    "max_lines": 200,
+    "max_files": 5,
+    "extra_risk_paths": [
+      "data/**"
+    ]
+  },
+  "overrides": [],
+  "decisions": [
+    {
+      "area": "identity",
+      "title": "Product identity",
+      "context": "The project needed a name, audience and a measurable requirement before any code.",
+      "decision": "Leaf Lens targets hobby gardeners, with one accuracy-tested requirement.",
+      "consequences": "Features outside R1 need a new requirement first."
+    },
+    {
+      "area": "components",
+      "title": "One Python ML package",
+      "context": "The product is a model plus its evaluation; there is no UI yet.",
+      "decision": "A single Python component at the repository root.",
+      "consequences": "A UI later means switching to a monorepo layout."
+    },
+    {
+      "area": "git",
+      "title": "Conventional commits on trunk",
+      "context": "A solo maintainer with agents committing needs a predictable history.",
+      "decision": "Conventional commits scoped by component, committed straight to trunk.",
+      "consequences": "The commit-msg hook rejects messages that break the convention."
+    },
+    {
+      "area": "agent_workflow",
+      "title": "Review every task",
+      "context": "Model and data changes are easy to get subtly wrong.",
+      "decision": "Review after every task, and treat data/ as a risk path.",
+      "consequences": "Slower iteration in exchange for earlier review."
+    }
+  ]
+}
