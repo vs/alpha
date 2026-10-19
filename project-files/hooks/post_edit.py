@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import os
 import shlex
-import signal
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,50 +12,12 @@ import _common  # noqa: E402
 
 TOOLS = {"Edit", "Write", "MultiEdit"}
 TIMEOUT = 60
-TAIL_LINES = 60
-NOT_FOUND = 127
-
-
-class TimedOut(Exception):
-    pass
+TimedOut = _common.TimedOut
+NOT_FOUND = _common.NOT_FOUND
 
 
 def run_command(command: str, cwd: Path) -> tuple[int, str]:
-    """(exit code, combined output). Raises TimedOut after TIMEOUT seconds."""
-    try:
-        proc = subprocess.Popen(
-            command,
-            shell=True,
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
-        )
-    except OSError as err:
-        return NOT_FOUND, str(err)
-    try:
-        out, _ = proc.communicate(timeout=TIMEOUT)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except OSError:
-            proc.kill()
-        proc.communicate()
-        raise TimedOut from None
-    return proc.returncode, out
-
-
-def tail(output: str) -> str:
-    return "\n".join(output.rstrip("\n").splitlines()[-TAIL_LINES:])
-
-
-def first_word(command: str) -> str:
-    try:
-        words = shlex.split(command)
-    except ValueError:
-        words = command.split()
-    return words[0] if words else command
+    return _common.run_command(command, cwd, TIMEOUT)
 
 
 def main() -> None:
@@ -109,7 +68,7 @@ def main() -> None:
         if code == NOT_FOUND:
             setup = commands.get("setup") or "the component's setup step"
             _common.block(
-                f"{first_word(command)} is not installed for component {name}. "
+                f"{_common.first_word(command)} is not installed for component {name}. "
                 f"Run its setup command: {setup}"
             )
         if code != 0:
@@ -118,7 +77,7 @@ def main() -> None:
                 if key == "format_file"
                 else f"Fix the lint errors above in {rel}."
             )
-            _common.block(f"{tail(output)}\n{advice}")
+            _common.block(f"{_common.tail(output)}\n{advice}")
     sys.exit(0)
 
 

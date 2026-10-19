@@ -9,12 +9,20 @@ from __future__ import annotations
 import fnmatch
 import json
 import os
+import shlex
+import signal
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, NoReturn
 
 STATE_DIR = ".claude/alpha/state"
+NOT_FOUND = 127
+TAIL_LINES = 60
+
+
+class TimedOut(Exception):
+    pass
 
 
 def check_python() -> None:
@@ -165,3 +173,41 @@ def state_path(root: Path, name: str) -> Path:
     directory = root / STATE_DIR
     directory.mkdir(parents=True, exist_ok=True)
     return directory / name
+
+
+def run_command(command: str, cwd: Path, timeout: float) -> tuple[int, str]:
+    """(exit code, combined output). Raises TimedOut after `timeout` seconds."""
+    try:
+        proc = subprocess.Popen(
+            command,
+            shell=True,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+    except OSError as err:
+        return NOT_FOUND, str(err)
+    try:
+        out, _ = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            proc.kill()
+        proc.communicate()
+        raise TimedOut from None
+    return proc.returncode, out
+
+
+def tail(output: str) -> str:
+    return "\n".join(output.rstrip("\n").splitlines()[-TAIL_LINES:])
+
+
+def first_word(command: str) -> str:
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        words = command.split()
+    return words[0] if words else command
