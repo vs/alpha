@@ -1,0 +1,28 @@
+stack = "typescript"
+bootstrap = ["pnpm add -D typescript vitest @biomejs/biome @types/node"]
+lockfiles = ["pnpm-lock.yaml"]
+manifests = ["package.json"]
+source_globs = ["src/**/*.ts", "src/**/*.tsx"]
+test_globs = ["tests/**/*.ts", "**/*.test.ts", "**/*.test.tsx"]
+allow = [
+  "Bash(pnpm vitest:*)",
+  "Bash(pnpm biome:*)",
+  "Bash(pnpm tsc:*)",
+  "Bash(pnpm install:*)",
+  "Bash(pnpm add:*)",
+]
+
+[commands]
+setup = "pnpm install"
+test = "pnpm vitest run"
+lint = "pnpm biome lint ."
+format = "pnpm biome format --write ."
+typecheck = "pnpm tsc --noEmit"
+format_file = "pnpm biome format --write {file}"
+lint_file = "pnpm biome lint {file}"
+
+[files]
+"package.json" = "package.json.tmpl"
+"tsconfig.json" = "tsconfig.json.tmpl"
+"biome.json" = "biome.json.tmpl"
+"tests/setup.test.ts" = "setup.test.ts.tmpl"

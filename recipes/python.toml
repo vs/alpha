@@ -1,0 +1,20 @@
+stack = "python"
+bootstrap = ["uv add --dev pytest ruff pyright"]
+lockfiles = ["uv.lock"]
+manifests = ["pyproject.toml"]
+source_globs = ["src/**/*.py"]
+test_globs = ["tests/**/*.py"]
+allow = ["Bash(uv run:*)", "Bash(uv sync:*)", "Bash(uv add:*)"]
+
+[commands]
+setup = "uv sync"
+test = "uv run pytest"
+lint = "uv run ruff check"
+format = "uv run ruff format"
+typecheck = "uv run pyright"
+format_file = "uv run ruff format {file}"
+lint_file = "uv run ruff check {file}"
+
+[files]
+"pyproject.toml" = "pyproject.toml.tmpl"
+"tests/test_setup.py" = "test_setup.py.tmpl"
