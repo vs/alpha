@@ -19,6 +19,7 @@ class Recipe:
     manifests: list[str]
     source_globs: list[str]
     test_globs: list[str]
+    exclude_globs: list[str]
     allow: list[str]
     files: dict[str, str]  # output relpath -> template name
 
@@ -39,6 +40,7 @@ def load_recipe(stack: str) -> Recipe:
         manifests=data["manifests"],
         source_globs=data["source_globs"],
         test_globs=data["test_globs"],
+        exclude_globs=data["exclude_globs"],
         allow=data["allow"],
         files=data["files"],
     )

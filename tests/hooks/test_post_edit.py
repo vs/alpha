@@ -128,3 +128,14 @@ def test_timeout_blocks_naming_command(project: Project, monkeypatch: Any) -> No
     except post_edit.TimedOut:
         code = "timeout"
     assert code == "timeout"
+
+
+def test_flat_layout_file_is_formatted(project: Project) -> None:
+    project.set_commands("api", format_file=marker_cmd("fmt.marker") + " {file}")
+    assert run(project, "api/main.py").returncode == 0
+    assert (project.root / "api" / "fmt.marker").read_text() == "main.py|"
+
+
+def test_vendored_file_is_not_formatted(project: Project) -> None:
+    project.set_commands("api", format_file=LINT_FAIL)
+    assert run(project, "api/.venv/lib/site.py").returncode == 0

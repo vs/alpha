@@ -111,6 +111,7 @@ def build_principles(
                 "manifests": [_prefixed(c.path, m) for m in recipe.manifests],
                 "source_globs": [_prefixed(c.path, g) for g in recipe.source_globs],
                 "test_globs": [_prefixed(c.path, g) for g in recipe.test_globs],
+                "exclude_globs": [_prefixed(c.path, g) for g in recipe.exclude_globs],
                 "commands": dict(recipe.commands),
             }
         )

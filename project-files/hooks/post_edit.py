@@ -41,10 +41,7 @@ def main() -> None:
     comp = _common.component_for(rel, principles)
     if comp is None:
         sys.exit(0)
-    globs: list[str] = list(comp.get("source_globs", [])) + list(
-        comp.get("test_globs", [])
-    )
-    if not _common.matches(rel, globs):
+    if not (_common.is_source(rel, comp) or _common.is_test(rel, comp)):
         sys.exit(0)
     commands: dict[str, Any] = comp.get("commands", {})
     base = str(comp.get("path", ".")).strip("/")

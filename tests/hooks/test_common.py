@@ -1,5 +1,6 @@
 import ast
 import io
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -9,7 +10,12 @@ import _common
 import pytest
 from helpers import union_annotations
 
-from .conftest import HOOKS, OLD_PYTHON, STUB, Project
+from alpha.answers import load_answers
+from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source, load_defaults
+from alpha.principles import build_principles
+
+from .conftest import FIXTURE, HOOKS, OLD_PYTHON, STUB, Project
 
 
 def test_malformed_principles_explains_and_exits_zero(project: Project):
@@ -219,3 +225,60 @@ def test_principle_applies_follows_active_and_components():
 def test_unknown_principle_applies_for_forward_compatibility():
     assert _common.principle_applies({}, "new-principle", "api")
     assert _common.principle_applies(principles_with(), "x", None)
+
+
+def root_component_principles(tmp_path: Path) -> dict[str, Any]:
+    data = json.loads(FIXTURE.read_text())
+    data["layout"] = "single"
+    data["components"] = data["components"][:1]
+    data["components"][0]["path"] = "."
+    data["overrides"] = []
+    path = tmp_path / ".claude" / "alpha" / "project.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(data))
+    defaults = load_defaults(Source(PLUGIN_ROOT, True, ""))
+    return build_principles(defaults, load_answers(path), "0.1.0")
+
+
+@pytest.mark.parametrize(
+    ("rel", "kind"),
+    [
+        ("api/main.py", "source"),
+        ("api/app/main.py", "source"),
+        ("api/src/pkg/core.py", "source"),
+        ("api/tests/test_app.py", "test"),
+        ("api/test_main.py", "test"),
+        ("api/app/conftest.py", "test"),
+        ("api/.venv/lib/site.py", None),
+        ("api/app/__pycache__/main.py", None),
+        ("api/build/lib/main.py", None),
+        ("api/README.md", None),
+        ("web/app/page.tsx", "source"),
+        ("web/src/index.ts", "source"),
+        ("web/tests/setup.test.ts", "test"),
+        ("web/app/page.test.tsx", "test"),
+        ("web/node_modules/zod/index.ts", None),
+        ("web/dist/index.ts", None),
+        ("web/vitest.config.ts", None),
+    ],
+)
+def test_source_is_every_stack_file_minus_tests_and_generated(
+    project: Project, rel: str, kind: str | None
+):
+    comp = _common.component_for(rel, project.principles())
+    assert comp is not None
+    got = (
+        "source"
+        if _common.is_source(rel, comp)
+        else "test"
+        if _common.is_test(rel, comp)
+        else None
+    )
+    assert got == kind
+
+
+def test_root_component_ignores_dot_dirs(tmp_path: Path):
+    comp = root_component_principles(tmp_path)["components"][0]
+    assert _common.is_source("main.py", comp)
+    assert not _common.is_source(".claude/alpha/hooks/stop_checks.py", comp)
+    assert not _common.is_test(".claude/alpha/hooks/stop_checks.py", comp)

@@ -183,6 +183,26 @@ def matches(rel_path: str, globs: list[str]) -> bool:
     return any(_match_parts(parts, g.split("/")) for g in globs)
 
 
+def _globs(comp: dict[str, Any], key: str) -> list[str]:
+    return [str(g) for g in comp.get(key, [])]
+
+
+def is_test(rel_path: str, comp: dict[str, Any]) -> bool:
+    """A test file of the component (per its test_globs, minus exclude_globs)."""
+    return matches(rel_path, _globs(comp, "test_globs")) and not matches(
+        rel_path, _globs(comp, "exclude_globs")
+    )
+
+
+def is_source(rel_path: str, comp: dict[str, Any]) -> bool:
+    """A code file of the component: matches source_globs, not a test, not excluded."""
+    return (
+        matches(rel_path, _globs(comp, "source_globs"))
+        and not matches(rel_path, _globs(comp, "test_globs"))
+        and not matches(rel_path, _globs(comp, "exclude_globs"))
+    )
+
+
 def rel_to_root(root: Path, path: str) -> str | None:
     """POSIX path of `path` (absolute, or relative to root) under root, else None."""
     base = root.resolve()

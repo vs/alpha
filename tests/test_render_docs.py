@@ -72,6 +72,15 @@ def test_claude_md_has_commands_per_component(tmp_path: Path):
     assert "add when the entry point exists" in commands
 
 
+def test_claude_md_says_where_code_and_tests_live(tmp_path: Path):
+    md = render(load(tmp_path))["CLAUDE.md"]
+    commands = md.split("## Commands")[1].split("\n## ")[0]
+    assert "Code: `api/**/*.py`" in commands
+    assert "Tests: `api/tests/**/*.py`" in commands
+    assert "Code: `web/**/*.ts`, `web/**/*.tsx`" in commands
+    assert "`web/**/node_modules/**`" in commands
+
+
 def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
     out = render(load(tmp_path))
     assert set(out) == {

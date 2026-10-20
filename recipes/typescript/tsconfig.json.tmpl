@@ -10,5 +10,6 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["src", "tests"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist", "build", "coverage", "**/*.config.ts", "**/*.config.mts"]
 }

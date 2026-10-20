@@ -2,8 +2,19 @@ stack = "typescript"
 bootstrap = ["pnpm add -D typescript vitest @biomejs/biome @types/node"]
 lockfiles = ["pnpm-lock.yaml"]
 manifests = ["package.json"]
-source_globs = ["src/**/*.ts", "src/**/*.tsx"]
-test_globs = ["tests/**/*.ts", "**/*.test.ts", "**/*.test.tsx"]
+# Source is every .ts/.tsx file in the component, minus tests and excluded files.
+source_globs = ["**/*.ts", "**/*.tsx"]
+test_globs = ["tests/**/*.ts", "tests/**/*.tsx", "**/*.test.ts", "**/*.test.tsx"]
+# Dot-dirs, generated or vendored code, and tool config files.
+exclude_globs = [
+  "**/.*/**",
+  "**/node_modules/**",
+  "**/dist/**",
+  "**/build/**",
+  "**/coverage/**",
+  "**/*.config.ts",
+  "**/*.config.mts",
+]
 allow = [
   "Bash(pnpm vitest:*)",
   "Bash(pnpm biome:*)",

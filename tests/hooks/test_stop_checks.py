@@ -328,3 +328,21 @@ def test_dropped_strict_types_and_done_skip_commands(project: Project) -> None:
     project.write("api/tests/test_a.py", "x\n")
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_flat_layout_source_is_checked(project: Project) -> None:
+    project.set_commands("api", typecheck=FAIL)
+    commit_all(project)
+    project.write("api/main.py", "x: int = 'no'\n")
+    text = reason(run(project))
+    assert "api: source changed (api/main.py) but no tests changed." in text
+    assert "api: typecheck failed" in text
+
+
+def test_vendored_files_are_not_source(project: Project) -> None:
+    project.set_commands("api", typecheck=FAIL, test=FAIL)
+    commit_all(project)
+    project.write("api/.venv/lib/site.py", "x = 1\n")
+    project.write("api/build/lib/main.py", "x = 1\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""

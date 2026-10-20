@@ -65,9 +65,18 @@ def _license(a: Answers, year: int, root: Path) -> str:
     return Template(text).safe_substitute(year=year, holder=ident.copyright_holder)
 
 
-def _command_table(c: Component, commands: dict[str, str]) -> list[str]:
+def _ticked(globs: list[str]) -> str:
+    return ", ".join(f"`{g}`" for g in globs)
+
+
+def _command_table(c: Component, comp: dict[str, Any]) -> list[str]:
+    commands: dict[str, str] = comp["commands"]
     rows = [
         f"### {c.name} ({c.stack}, `{c.path}/`)",
+        "",
+        f"Code: {_ticked(comp['source_globs'])}. "
+        f"Tests: {_ticked(comp['test_globs'])}. "
+        f"Not checked: {_ticked(comp['exclude_globs'])}.",
         "",
         "| Step | Command |",
         "|---|---|",
@@ -96,7 +105,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     ]
     for comp in principles["components"]:
         c = next(x for x in a.components if x.name == comp["name"])
-        lines += _command_table(c, comp["commands"]) + [""]
+        lines += _command_table(c, comp) + [""]
     lines += ["## Definition of done", ""]
     lines += [f"{i}. {item}" for i, item in enumerate(_DONE, 1)]
     lines += [

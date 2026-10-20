@@ -64,7 +64,8 @@ def test_cli_only_project_has_no_visual_system(tmp_path: Path):
     out = build_principles(D, variant(tmp_path, cli_only), "0.1.0")
     assert principle(out, "visual-system")["active"] is False
     assert principle(out, "contracts")["active"] is False
-    assert out["components"][0]["source_globs"] == ["src/**/*.py"]
+    assert out["components"][0]["source_globs"] == ["**/*.py"]
+    assert "**/.*/**" in out["components"][0]["exclude_globs"]
     assert "uv.lock" in out["protected"]["paths"]
 
 

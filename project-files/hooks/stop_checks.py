@@ -266,11 +266,8 @@ def find_problems(
         if not _common.principle_applies(principles, "tests-first-class", name):
             continue
         files = by_comp[name]
-        src = [
-            f for f in files if _common.matches(f, list(comp.get("source_globs", [])))
-        ]
-        tests = list(comp.get("test_globs", []))
-        if src and not any(_common.matches(f, tests) for f in files):
+        src = [f for f in files if _common.is_source(f, comp)]
+        if src and not any(_common.is_test(f, comp) for f in files):
             problems.append(
                 f"{comp.get('name')}: source changed ({', '.join(src)}) but no tests "
                 "changed. Principle tests-first-class: add or update tests."
@@ -309,12 +306,13 @@ def find_problems(
 
     deadline = time.monotonic() + BUDGET
     for comp in components:
-        relevant = (
-            list(comp.get("source_globs", []))
-            + list(comp.get("test_globs", []))
-            + list(comp.get("manifests", []))
-        )
-        if any(_common.matches(f, relevant) for f in by_comp[str(comp.get("name"))]):
+        manifests = [str(m) for m in comp.get("manifests", [])]
+        if any(
+            _common.is_source(f, comp)
+            or _common.is_test(f, comp)
+            or _common.matches(f, manifests)
+            for f in by_comp[str(comp.get("name"))]
+        ):
             problems.extend(command_problems(comp, principles, root, deadline))
     return problems
 

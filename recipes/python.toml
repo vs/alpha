@@ -2,8 +2,11 @@ stack = "python"
 bootstrap = ["uv add --dev pytest ruff pyright"]
 lockfiles = ["uv.lock"]
 manifests = ["pyproject.toml"]
-source_globs = ["src/**/*.py"]
-test_globs = ["tests/**/*.py"]
+# Source is every .py file in the component, minus tests and excluded files.
+source_globs = ["**/*.py"]
+test_globs = ["tests/**/*.py", "**/test_*.py", "**/*_test.py", "**/conftest.py"]
+# Dot-dirs (.venv, .claude, caches) and generated or vendored code.
+exclude_globs = ["**/.*/**", "**/__pycache__/**", "**/build/**", "**/dist/**"]
 allow = ["Bash(uv run:*)", "Bash(uv sync:*)", "Bash(uv add:*)"]
 
 [commands]
