@@ -64,6 +64,19 @@ class Project:
                 comp["commands"].update(commands)
         self.write_principles(data)
 
+    def drop_principle(self, principle: str, component: str | None = None) -> None:
+        """Drop a principle project-wide, or for one component only."""
+        data = self.principles()
+        found = [p for p in data["principles"] if p["id"] == principle]
+        if not found:
+            raise KeyError(f"unknown principle {principle!r}")
+        for p in found:
+            if component is None:
+                p["active"] = False
+            else:
+                p["components"] = [n for n in p["components"] if n != component]
+        self.write_principles(data)
+
     def run_hook(
         self,
         script: str,

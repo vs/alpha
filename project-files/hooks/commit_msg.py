@@ -152,6 +152,8 @@ def main() -> None:
     principles = _common.load_principles(toplevel())
     types, scopes = DEFAULT_TYPES, None
     if principles is not None:
+        if not _common.principle_applies(principles, "clean-history"):
+            sys.exit(0)
         git = principles.get("git", {})
         types = [str(t) for t in git.get("types", DEFAULT_TYPES)]
         scopes = [str(s) for s in git.get("scopes", [])]

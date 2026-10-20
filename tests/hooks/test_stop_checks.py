@@ -260,12 +260,71 @@ def test_budget_exhausted_skips_steps(project: Project, monkeypatch: Any) -> Non
     import stop_checks
 
     project.set_commands("api", typecheck=STUB, test=STUB)
-    comp = project.principles()["components"][0]
+    data = project.principles()
     monkeypatch.setattr(stop_checks, "BUDGET", 0)
-    problems = stop_checks.command_problems(comp, project.root, 0.0)
+    problems = stop_checks.command_problems(
+        data["components"][0], data, project.root, 0.0
+    )
     assert len(problems) == 2
     assert (
         "api: typecheck skipped \u2014 alpha's 0s check budget ran out."
         in (problems[0])
     )
     assert "Run it by hand: " + STUB in problems[0]
+
+
+def test_dropped_tests_first_class_does_not_block(project: Project) -> None:
+    project.drop_principle("tests-first-class")
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_tests_first_class_dropped_for_one_component(project: Project) -> None:
+    project.drop_principle("tests-first-class", component="api")
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")
+    project.write("web/src/app.ts", "x\n")
+    text = reason(run(project))
+    assert "web: source changed" in text
+    assert "api: source changed" not in text
+
+
+def test_dropped_dependency_reasons_does_not_block(project: Project) -> None:
+    project.drop_principle("dependency-reasons", component="api")
+    commit_all(project)
+    project.write("api/pyproject.toml", "[project]\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_dropped_no_secrets_does_not_block(project: Project) -> None:
+    project.drop_principle("no-secrets")
+    commit_all(project)
+    project.write("notes.txt", f"key = {AWS_KEY}\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_dropped_docs_with_code_does_not_block(project: Project) -> None:
+    data = project.principles()
+    data["docs_map"] = {"api/src/**/*.py": ["docs/api.md"]}
+    project.write_principles(data)
+    project.drop_principle("docs-with-code")
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_dropped_strict_types_and_done_skip_commands(project: Project) -> None:
+    project.set_commands("api", typecheck=FAIL, test=FAIL)
+    project.drop_principle("strict-types", component="api")
+    project.drop_principle("definition-of-done", component="api")
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""

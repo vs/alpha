@@ -14,7 +14,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 STATE_DIR = ".claude/alpha/state"
 NOT_FOUND = 127
@@ -89,6 +89,30 @@ def load_principles(root: Path) -> dict[str, Any] | None:
             file=sys.stderr,
         )
         sys.exit(0)
+
+
+def principle_applies(
+    principles: dict[str, Any], principle_id: str, component: str | None = None
+) -> bool:
+    """Whether a principle's checks run for a component, or project-wide (None).
+
+    Follows the principle's `active` flag and its `components` list, so dropping
+    or scoping a principle in docs/principles.toml switches its checks off. An id
+    the file doesn't list applies, so newer hooks keep checking older projects.
+    """
+    for entry in principles.get("principles", []):
+        if not isinstance(entry, dict):
+            continue
+        p = cast("dict[str, Any]", entry)
+        if p.get("id") != principle_id:
+            continue
+        if p.get("active", True) is False:
+            return False
+        names = p.get("components")
+        if component is None or not isinstance(names, list):
+            return True
+        return component in cast("list[Any]", names)
+    return True
 
 
 def component_for(rel_path: str, principles: dict[str, Any]) -> dict[str, Any] | None:

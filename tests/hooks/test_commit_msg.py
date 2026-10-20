@@ -139,3 +139,10 @@ def test_shim_blocks_a_bad_commit_end_to_end(project: Project) -> None:
         env=env,
     )
     assert good.returncode == 0, good.stdout + good.stderr
+
+
+def test_dropped_clean_history_accepts_any_message(project: Project) -> None:
+    assert run_msg(project, "wip stuff\n").returncode == 1
+    project.drop_principle("clean-history")
+    result = run_msg(project, "wip stuff\n")
+    assert result.returncode == 0, result.stderr

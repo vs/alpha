@@ -111,6 +111,10 @@ def main() -> None:
     globs: list[str] = list(principles.get("protected", {}).get("paths", []))
     if _common.matches(rel, globs):
         _common.block(protected_message(rel, principles))
+    comp = _common.component_for(rel, principles)
+    name = None if comp is None else str(comp.get("name"))
+    if not _common.principle_applies(principles, "never-weaken-checks", name):
+        sys.exit(0)
     old, new = texts(str(tool), args, root / rel)
     found = weakened(old, new)
     if found:

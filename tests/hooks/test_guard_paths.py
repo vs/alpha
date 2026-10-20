@@ -181,3 +181,11 @@ def test_test_skip_calls_at_identifier_boundary_ask(project: Project) -> None:
     assert "xit(" in reason(edit(project, "web/a.ts", "x", "xit('a', f)"))
     assert "it.skip(" in reason(edit(project, "web/a.ts", "x", "a\n  it.skip('a')"))
     assert "test.skip(" in reason(edit(project, "web/a.ts", "x", "test.skip('a')"))
+
+
+def test_dropped_never_weaken_checks_does_not_ask(project: Project) -> None:
+    project.drop_principle("never-weaken-checks", component="api")
+    proc = edit(project, "api/src/app.py", "x = 1", "x = 1  # noqa")
+    assert proc.returncode == 0 and proc.stdout == ""
+    proc = edit(project, "web/src/app.ts", "x", "x // biome-ignore")
+    assert "biome-ignore" in reason(proc)

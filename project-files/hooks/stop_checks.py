@@ -151,11 +151,21 @@ def added_lines(
     return found
 
 
-def secret_problems(root: Path, changed: list[str], base: str | None) -> list[str]:
+def component_name(rel: str, principles: dict[str, Any]) -> str | None:
+    comp = _common.component_for(rel, principles)
+    return None if comp is None else str(comp.get("name"))
+
+
+def secret_problems(
+    root: Path, principles: dict[str, Any], changed: list[str], base: str | None
+) -> list[str]:
     problems: list[str] = []
     seen: set[tuple[str, int]] = set()
     for rel, number, text in added_lines(root, changed, base):
         if (rel, number) in seen:
+            continue
+        name = component_name(rel, principles)
+        if not _common.principle_applies(principles, "no-secrets", name):
             continue
         if any(p.search(text) for p in SECRET_PATTERNS):
             seen.add((rel, number))
@@ -177,13 +187,21 @@ def run_step(command: str, cwd: Path, timeout: float | None = None) -> tuple[str
     return ("ok" if code == 0 else "failed"), output
 
 
-def command_problems(comp: dict[str, Any], root: Path, deadline: float) -> list[str]:
+# The principle each command run at Stop checks.
+COMMAND_PRINCIPLES = {"typecheck": "strict-types", "test": "definition-of-done"}
+
+
+def command_problems(
+    comp: dict[str, Any], principles: dict[str, Any], root: Path, deadline: float
+) -> list[str]:
     commands: dict[str, Any] = comp.get("commands", {})
     base = str(comp.get("path", ".")).strip("/")
     cwd = root if base in ("", ".") else root / base
     name = str(comp.get("name", base))
     problems: list[str] = []
-    for key in ("typecheck", "test"):
+    for key, principle in COMMAND_PRINCIPLES.items():
+        if not _common.principle_applies(principles, principle, name):
+            continue
         command = commands.get(key)
         if not isinstance(command, str) or not command:
             continue
@@ -231,7 +249,7 @@ def write_count(path: Path, count: int) -> None:
 def find_problems(
     root: Path, principles: dict[str, Any], changed: list[str], base: str | None
 ) -> list[str]:
-    problems = secret_problems(root, changed, base)
+    problems = secret_problems(root, principles, changed, base)
     components: list[dict[str, Any]] = []
     by_comp: dict[str, list[str]] = {}
     for rel in changed:
@@ -244,7 +262,10 @@ def find_problems(
         by_comp.setdefault(key, []).append(rel)
 
     for comp in components:
-        files = by_comp[str(comp.get("name"))]
+        name = str(comp.get("name"))
+        if not _common.principle_applies(principles, "tests-first-class", name):
+            continue
+        files = by_comp[name]
         src = [
             f for f in files if _common.matches(f, list(comp.get("source_globs", [])))
         ]
@@ -257,6 +278,9 @@ def find_problems(
 
     if DEPENDENCY_LOG not in changed:
         for comp in components:
+            name = str(comp.get("name"))
+            if not _common.principle_applies(principles, "dependency-reasons", name):
+                continue
             manifests = list(comp.get("manifests", []))
             for rel in by_comp[str(comp.get("name"))]:
                 if rel in manifests:
@@ -268,7 +292,14 @@ def find_problems(
     docs_map: dict[str, Any] = principles.get("docs_map", {})
     for glob, docs in docs_map.items():
         doc_list = [str(d) for d in docs]
-        hit = [f for f in changed if _common.matches(f, [glob])]
+        hit = [
+            f
+            for f in changed
+            if _common.matches(f, [glob])
+            and _common.principle_applies(
+                principles, "docs-with-code", component_name(f, principles)
+            )
+        ]
         if hit and not any(d in changed for d in doc_list):
             for rel in hit:
                 problems.append(
@@ -284,7 +315,7 @@ def find_problems(
             + list(comp.get("manifests", []))
         )
         if any(_common.matches(f, relevant) for f in by_comp[str(comp.get("name"))]):
-            problems.extend(command_problems(comp, root, deadline))
+            problems.extend(command_problems(comp, principles, root, deadline))
     return problems
 
 

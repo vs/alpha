@@ -195,3 +195,27 @@ def test_other_hooks_are_silent_no_ops_on_old_python(
     assert result.returncode == 0
     assert result.stdout == ""
     assert "alpha needs Python 3.11+ (found 3.9)" in result.stderr
+
+
+def principles_with(**entries: dict[str, Any]) -> dict[str, Any]:
+    return {"principles": [{"id": k, **v} for k, v in entries.items()]}
+
+
+def test_principle_applies_follows_active_and_components():
+    data = principles_with(
+        on={"active": True, "components": ["api", "web"]},
+        off={"active": False, "components": []},
+        scoped={"active": True, "components": ["web"]},
+    )
+    assert _common.principle_applies(data, "on", "api")
+    assert _common.principle_applies(data, "on", None)
+    assert not _common.principle_applies(data, "off", "api")
+    assert not _common.principle_applies(data, "off", None)
+    assert _common.principle_applies(data, "scoped", "web")
+    assert not _common.principle_applies(data, "scoped", "api")
+    assert _common.principle_applies(data, "scoped", None)
+
+
+def test_unknown_principle_applies_for_forward_compatibility():
+    assert _common.principle_applies({}, "new-principle", "api")
+    assert _common.principle_applies(principles_with(), "x", None)
