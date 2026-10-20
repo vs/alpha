@@ -20,11 +20,14 @@ Folder argument: `$ARGUMENTS`
 
 ## 2. Start or resume
 
-- If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`), then continue with the first area that isn't done.
-- Otherwise write `<target>/.claude/alpha/project.json` as:
-  `{"schema": 1, "areas": {"identity": "pending", "components": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}`
+Write and update project.json only with the Write or Edit tool, never with a shell command. Claude Code asks for approval before every change under `.claude/`, so say so first.
 
-Write and update project.json only with the Write or Edit tool, never with a shell command. Before the first write, tell the user: "Claude Code asks for approval before every change under `.claude/`, so you'll be asked each time I save your answers to `.claude/alpha/project.json`. When the target is the current folder, you can allow edits to its `.claude` folder for the whole session." If the user declines a write, stop and tell them that running `/alpha:new-project <target>` again picks up from the last saved answer.
+1. Tell the user, in its own sentence before any tool call: "Claude Code asks for approval before every change under `.claude/`, so you'll be asked each time I save your answers to `.claude/alpha/project.json`. When the target is the current folder, you can allow edits to its `.claude` folder for the whole session."
+2. If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`), then continue with the first area that isn't done.
+3. Otherwise write `<target>/.claude/alpha/project.json` as:
+   `{"schema": 1, "areas": {"identity": "pending", "components": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}`
+
+If the user declines a write, stop and tell them that running `/alpha:new-project <target>` again picks up from the last saved answer.
 
 ## 3. Load the kit defaults
 
