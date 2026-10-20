@@ -34,6 +34,20 @@ def _check(target: Path, *args: str) -> str:
     return done.stdout.strip()
 
 
+def _check_identity(target: Path) -> None:
+    """Fail before committing when git would have to guess the author."""
+    for role in ("AUTHOR", "COMMITTER"):
+        done = _git(target, "-c", "user.useConfigOnly=true", "var", f"GIT_{role}_IDENT")
+        if done.returncode != 0:
+            raise GenerateError(
+                "git doesn't know who you are, so the skeleton's commits would "
+                "carry a guessed author (like you@your-mac.local). Set your "
+                'identity with git config --global user.name "Your Name" and '
+                'git config --global user.email "you@example.com", then rerun '
+                f'"alpha commit-skeleton {target}".'
+            )
+
+
 def commit_skeleton(
     target: Path, principles: dict[str, Any], trailers: list[str]
 ) -> list[str]:
@@ -41,6 +55,7 @@ def commit_skeleton(
     if not (target / ".git").exists():
         _check(target, "init", "-q", "-b", "main")
     _check(target, "config", "core.hooksPath", HOOKS_PATH)
+    _check_identity(target)
     groups = [
         ("docs: Add product brief, principles and decisions", _DOCS),
         ("chore: Add Claude Code settings and guardrails", _CLAUDE),

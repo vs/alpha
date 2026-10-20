@@ -173,6 +173,25 @@ def test_commit_skeleton_goes_through_the_real_commit_msg_hook(
     assert "alpha commit-skeleton" in str(err.value)
 
 
+def test_commit_skeleton_refuses_a_guessed_git_identity(
+    tmp_path: Path, generate_scenario, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    # No user.name/user.email anywhere: git would otherwise guess one from
+    # the login and host name (e.g. you@your-mac.local) and commit with it.
+    for var in ("NAME", "EMAIL"):
+        for role in ("AUTHOR", "COMMITTER"):
+            monkeypatch.delenv(f"GIT_{role}_{var}")
+    monkeypatch.delenv("EMAIL", raising=False)
+    generate_scenario(tmp_path, "python-ml-single")
+    with pytest.raises(GenerateError) as err:
+        commit_skeleton(tmp_path, principles_of(tmp_path), [])
+    message = str(err.value)
+    assert "git config --global user.name" in message
+    assert "git config --global user.email" in message
+    assert "alpha commit-skeleton" in message
+    assert git(tmp_path, "rev-list", "--all") == ""  # nothing committed
+
+
 @pytest.mark.parametrize("scenario", SCENARIOS)
 def test_ds_store_is_never_committed(
     tmp_path: Path, scenario: str, generate_scenario, git_env
