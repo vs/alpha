@@ -292,3 +292,9 @@ def test_grilling_saves_overrides_with_answers_write():
     protocol = _section("grilling", "When the user overrides a default")
     assert f"{CLI} answers write <target> --json" in protocol
     assert "<<" not in protocol
+
+
+def test_new_project_saves_summary_changes_with_one_line_json():
+    summary = _section("new-project", "5. Summary and confirmation")
+    assert f"{CLI} answers write <target> --json '" in summary
+    assert "<<" not in summary
