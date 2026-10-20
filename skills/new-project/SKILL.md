@@ -20,14 +20,16 @@ Folder argument: `$ARGUMENTS`
 
 ## 2. Start or resume
 
-Write and update project.json only with the Write or Edit tool, never with a shell command. Claude Code asks for approval before every change under `.claude/`, so say so first.
+Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>` (a JSON object on stdin; each key sent replaces that key in project.json), never by editing the file. If Claude Code asks to allow it, tell the user that choosing "don't ask again" covers every later save.
 
-1. Tell the user, in its own sentence before any tool call: "Claude Code asks for approval before every change under `.claude/`, so you'll be asked each time I save your answers to `.claude/alpha/project.json`. When the target is the current folder, you can allow edits to its `.claude` folder for the whole session."
-2. If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`), then continue with the first area that isn't done.
-3. Otherwise write `<target>/.claude/alpha/project.json` as:
-   `{"schema": 1, "areas": {"identity": "pending", "components": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}`
+- If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`), then continue with the first area that isn't done.
+- Otherwise create it:
 
-If the user declines a write, stop and tell them that running `/alpha:new-project <target>` again picks up from the last saved answer.
+  ```
+  "${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> <<'JSON'
+  {"schema": 1, "areas": {"identity": "pending", "components": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}
+  JSON
+  ```
 
 ## 3. Load the kit defaults
 
@@ -54,7 +56,7 @@ Before each area, tell the user in one line which area comes next and what it se
 
 Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
 
-If the user wants a change, update project.json (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
+If the user wants a change, save it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>` (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
 
 ## 6. Generate, bootstrap, commit
 

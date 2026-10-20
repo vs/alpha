@@ -61,12 +61,22 @@ When the license differs from `defaults.identity.license`, follow the grilling s
 
 ## Writing the answers
 
+Save every change with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>`, passing one JSON object in a quoted heredoc:
+
+```
+"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> <<'JSON'
+{"areas": {…every area, with "identity": "in_progress"…}}
+JSON
+```
+
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+
 1. Read `<target>/.claude/alpha/project.json`.
-2. Set `areas.identity` to `"in_progress"` when you start asking.
-3. When the user confirms the area, write the whole `identity` object with every field above, using the Write or Edit tool. Keep the exact field names, keep the rest of the file as it is, and keep it valid JSON.
-4. Add one `decisions[]` entry, replacing any earlier one with `"area": "identity"`:
+2. When you start asking, save `areas` with `identity` set to `"in_progress"`.
+3. When the user confirms the area, save the whole `identity` object with every field above. Keep the exact field names.
+4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "identity"`:
    `{"area": "identity", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` is a short name (e.g. "Product identity"); `context` is the problem and audience; `decision` is the name, users and the requirement ids; `consequences` says what this rules in or out (e.g. "Features outside R1-R3 need a new requirement first"), plus any defaults wish from the override protocol.
-5. Set `areas.identity` to `"done"`.
+5. In the same call, save `areas` with `identity` set to `"done"`.
 
 ## Check
 

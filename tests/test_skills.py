@@ -216,7 +216,8 @@ def test_cli_calls_name_real_subcommands_and_options(skill: str):
 
 def test_skills_use_every_cli_command_the_interview_needs():
     calls = [" ".join(c.split()[:2]) for s in ALL_SKILLS for c in _calls(s)]
-    needed = ["defaults show", "defaults set", "answers check", "generate"]
+    needed = ["defaults show", "defaults set", "answers check", "answers write"]
+    needed += ["generate"]
     needed += ["bootstrap", "commit-skeleton"]
     for command in needed:
         assert any(c == command or c.startswith(command) for c in calls), command
@@ -262,12 +263,29 @@ def test_new_project_invokes_the_area_skills_in_order():
     assert "$ARGUMENTS" in text
 
 
-def test_new_project_prepares_the_user_for_claude_folder_prompts():
-    # Claude Code always asks before writes under .claude/ (a protected
-    # path; allow rules can't pre-approve them), and a shell write there is
-    # refused outright, so the state file must go through the Write tool and
-    # the user must know the approval prompts are coming.
+def test_new_project_saves_through_the_cli_and_says_what_to_approve():
+    # Claude Code asks before every Write/Edit under .claude/ (allow rules
+    # can't pre-approve those), so answers are saved with one Bash command
+    # the user can allow once.
     start = _section("new-project", "2. Start or resume")
-    assert "Write or Edit tool" in start
-    assert "never with a shell command" in start
-    assert "approv" in start and "`.claude/`" in start
+    assert f"{CLI} answers write <target>" in start
+    assert "don't ask again" in start
+
+
+@pytest.mark.parametrize("skill", ALL_SKILLS)
+def test_skills_never_save_answers_with_the_file_tools(skill: str):
+    text = _text(skill)
+    assert "Write or Edit tool" not in text
+    assert "Write tool" not in text.replace("never with the Write tool", "")
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_saves_its_answers_with_answers_write(skill: str):
+    section = _section(skill, "Writing the answers")
+    assert f"{CLI} answers write <target>" in section
+    assert "<<'JSON'" in section
+
+
+def test_grilling_saves_overrides_with_answers_write():
+    protocol = _section("grilling", "When the user overrides a default")
+    assert f"{CLI} answers write <target>" in protocol

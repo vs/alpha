@@ -48,12 +48,22 @@ When an answer differs from a default, follow the grilling skill's override prot
 
 ## Writing the answers
 
+Save every change with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>`, passing one JSON object in a quoted heredoc:
+
+```
+"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> <<'JSON'
+{"areas": {…every area, with "agent_workflow": "in_progress"…}}
+JSON
+```
+
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+
 1. Read `<target>/.claude/alpha/project.json`.
-2. Set `areas.agent_workflow` to `"in_progress"` when you start asking.
-3. When the user confirms the area, write the `agent_workflow` object `{"review_mode", "max_lines", "max_files", "extra_risk_paths"}` using the Write or Edit tool. Keep the exact field names, keep the rest of the file as it is, and keep it valid JSON.
-4. Add one `decisions[]` entry, replacing any earlier one with `"area": "agent_workflow"`:
+2. When you start asking, save `areas` with `agent_workflow` set to `"in_progress"`.
+3. When the user confirms the area, save the `agent_workflow` object `{"review_mode", "max_lines", "max_files", "extra_risk_paths"}`. Keep the exact field names.
+4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "agent_workflow"`:
    `{"area": "agent_workflow", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "Batched review"); `context` weighs review speed against unreviewed risk; `decision` gives the mode and thresholds; `consequences` says when agents stop for review, plus any defaults wish from the override protocol.
-5. Set `areas.agent_workflow` to `"done"`.
+5. In the same call, save `areas` with `agent_workflow` set to `"done"`.
 
 ## Check
 

@@ -67,7 +67,7 @@ Never ask the user for anything you can look up: installed tool versions, `git c
 
 When the user's answer differs from a kit default:
 
-1. Record it. Ask for the reason if the user hasn't given one.
+1. Record it. Ask for the reason if the user hasn't given one. Save with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>` (a JSON object in a quoted heredoc, `<<'JSON'`), sending `overrides` or `decisions` whole.
    - A change to a principle goes in `overrides[]` as `{"principle", "scope", "change", "params", "reason"}`: `principle` is an id from `defaults.principles[].id`; `scope` is `"project"` or `"component:<name>"`; `change` is `"tighten"`, `"loosen"` or `"drop"`; `params` holds any changed parameters (`{}` if none); `reason` is required for `loosen` and `drop`.
    - Any other setting goes in the current area's `decisions[]` entry: name the default in `context` and the choice in `decision`.
 2. Ask exactly: "Make this the default for future projects too?"

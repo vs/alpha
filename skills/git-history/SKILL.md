@@ -39,12 +39,22 @@ When an answer differs from a default, follow the grilling skill's override prot
 
 ## Writing the answers
 
+Save every change with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>`, passing one JSON object in a quoted heredoc:
+
+```
+"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> <<'JSON'
+{"areas": {…every area, with "git": "in_progress"…}}
+JSON
+```
+
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+
 1. Read `<target>/.claude/alpha/project.json`.
-2. Set `areas.git` to `"in_progress"` when you start asking.
-3. When the user confirms the area, write the `git` object `{"convention", "scopes", "branching"}` using the Write or Edit tool. Keep the exact field names, keep the rest of the file as it is, and keep it valid JSON.
-4. Add one `decisions[]` entry, replacing any earlier one with `"area": "git"`:
+2. When you start asking, save `areas` with `git` set to `"in_progress"`.
+3. When the user confirms the area, save the `git` object `{"convention", "scopes", "branching"}`. Keep the exact field names.
+4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "git"`:
    `{"area": "git", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "Conventional commits on trunk"); `context` is who commits and why the history matters; `decision` names the convention, scopes and branching; `consequences` says what the hook will reject, plus any defaults wish from the override protocol.
-5. Set `areas.git` to `"done"`.
+5. In the same call, save `areas` with `git` set to `"done"`.
 
 ## Check
 
