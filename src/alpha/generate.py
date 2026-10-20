@@ -126,7 +126,8 @@ def generate(
 
     # Render everything before writing anything, so a failure leaves no debris.
     texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
-    texts.update(render_docs(a, principles, year, root=target))
+    today = today or date.today()
+    texts.update(render_docs(a, principles, year, today, root=target))
     for c in a.components:
         texts.update(render_component(c, principles["project"]["slug"]))
     texts[".claude/settings.json"] = (
@@ -148,7 +149,7 @@ def generate(
     data = cast(dict[str, Any], json.loads(answers_path.read_text(encoding="utf-8")))
     data["manifest"] = {
         "kit_version": VERSION,
-        "generated_at": (today or date.today()).isoformat(),
+        "generated_at": today.isoformat(),
         "defaults": {
             "path": _display_path(source.path),
             "live": source.live,

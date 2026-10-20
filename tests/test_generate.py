@@ -175,6 +175,12 @@ def test_override_decision_file_matches_principles(tmp_path: Path, generate_scen
     assert f'override_decision = "{path}"' in principles
 
 
+def test_decision_records_carry_the_full_date(tmp_path: Path, generate_scenario):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    for record in sorted((tmp_path / "docs/decisions").glob("*.md")):
+        assert "\nDate: 2026-10-19\n" in record.read_text(), record.name
+
+
 def fake_tools(tmp_path: Path, exit_codes: dict[str, int]) -> Path:
     """Put logging stand-ins for uv and pnpm first on PATH."""
     bin_dir = tmp_path / "fakebin"

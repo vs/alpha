@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from helpers import TODAY
+
 from alpha.answers import Answers, load_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
@@ -24,7 +26,7 @@ def load(tmp_path: Path, mutate: Any = None) -> Answers:
 
 
 def render(a: Answers) -> dict[str, str]:
-    return render_docs(a, build_principles(D, a, "0.1.0"), 2026)
+    return render_docs(a, build_principles(D, a, "0.1.0"), 2026, TODAY)
 
 
 def cli_only(data: dict[str, Any]) -> None:

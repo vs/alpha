@@ -1,6 +1,7 @@
 """Render the project's prose files: README, LICENSE, CONTRIBUTING, CLAUDE.md, docs."""
 
 import re
+from datetime import date
 from pathlib import Path
 from string import Template
 from typing import Any
@@ -259,13 +260,13 @@ def _dependencies(a: Answers, year: int) -> str:
 def _decision(
     number: int,
     title: str,
-    year: int,
+    day: date,
     context: str,
     decision: str,
     cons: str,
     extra: str = "",
 ) -> str:
-    head = f"# {number:04d}. {title}\n\nDate: {year}\nStatus: accepted\n"
+    head = f"# {number:04d}. {title}\n\nDate: {day.isoformat()}\nStatus: accepted\n"
     if extra:
         head += extra + "\n"
     return (
@@ -275,7 +276,11 @@ def _decision(
 
 
 def render_docs(
-    a: Answers, principles: dict[str, Any], year: int, root: Path = Path()
+    a: Answers,
+    principles: dict[str, Any],
+    year: int,
+    today: date,
+    root: Path = Path(),
 ) -> dict[str, str]:
     out = {
         "README.md": _readme(a, principles),
@@ -288,7 +293,7 @@ def render_docs(
     }
     for i, d in enumerate(a.decisions, 1):
         out[f"docs/decisions/{i:04d}-{_slug(d.title)}.md"] = _decision(
-            i, d.title, year, d.context, d.decision, d.consequences
+            i, d.title, today, d.context, d.decision, d.consequences
         )
     first = len(a.decisions) + 1
     for i, path in override_decision_paths(a, first).items():
@@ -296,7 +301,7 @@ def render_docs(
         out[path] = _decision(
             first + i,
             f"Override {o.principle}",
-            year,
+            today,
             o.reason,
             f"{o.change.capitalize()} {o.principle} for {o.scope}.",
             "See docs/principles.toml for the resulting parameters.",
