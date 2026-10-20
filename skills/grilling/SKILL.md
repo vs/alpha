@@ -1,6 +1,7 @@
 ---
 name: grilling
 description: Interview the user in rounds about a decision tree, recommending an answer for every question from the alpha kit defaults. Use whenever an alpha interview area asks the user to settle decisions, or the user wants their thinking about a project stress-tested.
+allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
 <!--

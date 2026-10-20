@@ -22,7 +22,7 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
 ALL_SKILLS = ["grilling", *AREA_SKILLS, "new-project"]
-CLI_SKILLS = [*AREA_SKILLS, "new-project"]
+CLI_SKILLS = ALL_SKILLS  # every skill calls the CLI
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 AREA_SECTIONS = [
     "Before you start",
