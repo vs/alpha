@@ -11,14 +11,13 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha import VERSION
-from alpha.answers import load_answers
+from alpha.answers import PROJECT_JSON, load_answers
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
 from alpha.recipes import load_recipe, render_component
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
 
-PROJECT_JSON = ".claude/alpha/project.json"
 PRINCIPLES_TOML = "docs/principles.toml"
 _ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
 _ALLOWED_DIRS = frozenset({".claude", ".claude/alpha"})

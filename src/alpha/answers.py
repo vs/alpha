@@ -1,12 +1,15 @@
 """Interview answers (.claude/alpha/project.json): model and validation."""
 
 import json
+import os
 import re
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
+PROJECT_JSON = ".claude/alpha/project.json"
 AREAS: tuple[str, ...] = ("identity", "components", "git", "agent_workflow")
 KINDS: frozenset[str] = frozenset(
     {"backend", "frontend", "cli", "mobile", "ml", "library", "worker"}
@@ -496,3 +499,77 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     return Answers(
         1, areas, identity, layout, talk, comps, git, workflow, overrides, decisions
     )
+
+
+def write_answers(target: Path, text: str) -> Path:
+    """Merge the top-level keys of a JSON object into the target's answers file.
+
+    Each key given replaces that key in the file; the others stay as they are.
+    The file and its folders are created when missing, and the new file
+    replaces the old one in a single step, so a failed write leaves it intact.
+    """
+    try:
+        update: object = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise _fail(
+            "stdin",
+            f"not valid JSON ({e.msg} at line {e.lineno})",
+            "Fix the syntax and pass the object in a quoted heredoc (<<'JSON') "
+            "so the shell leaves it alone",
+        ) from None
+    if not isinstance(update, dict):
+        raise _fail(
+            "stdin",
+            f"expected a JSON object, got {type(update).__name__}",
+            'Send the keys to save as one object, e.g. {"layout": "single"}',
+        )
+    for key in cast(dict[str, Any], update):
+        if key == "manifest":
+            raise _fail(
+                key,
+                "is written by alpha generate, not by the interview",
+                "Leave it out",
+            )
+        if key not in _TOP_KEYS:
+            raise _fail(
+                key,
+                "unknown key",
+                f"Remove it; allowed keys are "
+                f"{', '.join(sorted(_TOP_KEYS - {'manifest'}))}",
+            )
+    path = target / PROJECT_JSON
+    data: dict[str, Any] = {}
+    if path.exists():
+        try:
+            current: object = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            raise _fail(
+                str(path),
+                f"can't merge into it, it's not valid JSON ({e})",
+                "Fix the file by hand, or delete it to start the interview over",
+            ) from None
+        if not isinstance(current, dict):
+            raise _fail(
+                str(path),
+                "can't merge into it, it's not a JSON object",
+                "Fix the file by hand, or delete it to start the interview over",
+            )
+        data = cast(dict[str, Any], current)
+    data.update(cast(dict[str, Any], update))
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".project.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+            os.replace(tmp, path)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
+    except OSError as e:
+        raise _fail(
+            str(path),
+            f"could not save it ({e.strerror or e})",
+            "Check the folder's permissions and free space, then retry",
+        ) from None
+    return path

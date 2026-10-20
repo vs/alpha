@@ -44,6 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
         choices=answers.AREAS,
         help="only require this area to be done (repeatable)",
     )
+    awrite = asub.add_parser(
+        "write", help="merge a JSON object from stdin into the answers file"
+    )
+    awrite.add_argument("target", type=Path, help="the folder being set up")
     gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
     boot = sub.add_parser("bootstrap", help="install toolchains and run the tests")
@@ -89,6 +93,14 @@ def _defaults(args: argparse.Namespace) -> int:
 
 
 def _answers(args: argparse.Namespace) -> int:
+    if args.answers_command == "write":
+        try:
+            answers.write_answers(args.target, sys.stdin.read())
+        except answers.AnswersError as e:
+            print(e, file=sys.stderr)
+            return 3
+        print("ok")
+        return 0
     try:
         answers.load_answers(args.path, args.area or answers.AREAS)
     except answers.AnswersError as e:

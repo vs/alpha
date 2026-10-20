@@ -1,4 +1,5 @@
 import copy
+import io
 import json
 from pathlib import Path
 from typing import Any
@@ -263,3 +264,99 @@ def test_trailing_newline_rejected(tmp_path: Path, field: str):
         match = r"components\[0\]\.name"
     with pytest.raises(AnswersError, match=match):
         check(tmp_path, d)
+
+
+def answers_write(
+    target: Path,
+    stdin: str,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[int, str, str]:
+    monkeypatch.setattr("sys.stdin", io.StringIO(stdin))
+    code = cli.main(["answers", "write", str(target)])
+    out, err = capsys.readouterr()
+    return code, out, err
+
+
+START = {"schema": 1, "areas": dict.fromkeys(AREAS, "pending"), "decisions": []}
+
+
+def test_answers_write_creates_the_file_and_its_folders(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    code, out, err = answers_write(tmp_path, json.dumps(START), capsys, monkeypatch)
+    assert (code, out.strip(), err) == (0, "ok", "")
+    saved = tmp_path / ".claude" / "alpha" / "project.json"
+    assert json.loads(saved.read_text()) == START
+    assert saved.read_text().endswith("}\n")
+
+
+def test_answers_write_replaces_only_the_keys_it_is_given(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    answers_write(tmp_path, json.dumps(START), capsys, monkeypatch)
+    areas = {**START["areas"], "identity": "in_progress"}
+    update = {"areas": areas, "layout": "monorepo"}
+    code, _, err = answers_write(tmp_path, json.dumps(update), capsys, monkeypatch)
+    assert code == 0, err
+    saved = json.loads((tmp_path / ".claude/alpha/project.json").read_text())
+    assert saved == {**START, **update}
+    assert list(tmp_path.joinpath(".claude/alpha").iterdir()) == [
+        tmp_path / ".claude/alpha/project.json"
+    ]  # no temp files left behind
+
+
+@pytest.mark.parametrize(
+    ("stdin", "problem", "fix"),
+    [
+        ("[1, 2]", "a JSON object", "{"),
+        ("{", "not valid JSON", "quoted heredoc"),
+        ('{"colour": 1}', "colour: unknown key", "allowed keys are"),
+        ('{"manifest": {}}', "manifest", "alpha generate"),
+    ],
+)
+def test_answers_write_rejects_bad_input_and_keeps_the_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    stdin: str,
+    problem: str,
+    fix: str,
+):
+    answers_write(tmp_path, json.dumps(START), capsys, monkeypatch)
+    saved = tmp_path / ".claude/alpha/project.json"
+    before = saved.read_text()
+    code, out, err = answers_write(tmp_path, stdin, capsys, monkeypatch)
+    assert code == 3 and out == ""
+    assert problem in err and fix in err
+    assert saved.read_text() == before
+
+
+def test_answers_write_refuses_to_merge_into_a_broken_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    saved = tmp_path / ".claude/alpha/project.json"
+    saved.parent.mkdir(parents=True)
+    saved.write_text("{oops")
+    code, _, err = answers_write(tmp_path, '{"layout": "single"}', capsys, monkeypatch)
+    assert code == 3
+    assert str(saved) in err and "not valid JSON" in err and "Fix" in err
+    assert saved.read_text() == "{oops"
+
+
+def test_answers_write_keeps_the_old_file_when_the_write_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    answers_write(tmp_path, json.dumps(START), capsys, monkeypatch)
+    saved = tmp_path / ".claude/alpha/project.json"
+    before = saved.read_text()
+
+    def fail(src: object, dst: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr("os.replace", fail)
+    code, _, err = answers_write(tmp_path, '{"layout": "single"}', capsys, monkeypatch)
+    assert code == 3
+    assert "No space left on device" in err and "retry" in err
+    assert saved.read_text() == before
+    assert list(saved.parent.iterdir()) == [saved]
