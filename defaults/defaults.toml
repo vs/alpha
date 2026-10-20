@@ -52,7 +52,7 @@ title = "Tests are as important as the core"
 statement = "Test design and writing get the same effort and intensity as the logic. Tests trace back to acceptance checks."
 rationale = "Untrusted tests make every change risky; tying them to acceptance checks keeps them meaningful."
 applies = ["always"]
-checked_by = ["reviewer"]
+checked_by = ["reviewer", "hook:stop_checks"]
 core = true
 
 [[principles]]
@@ -70,7 +70,7 @@ title = "Docs move with the code"
 statement = "A change to public behavior updates the docs in the same change."
 rationale = "Docs updated later are docs that drift; keeping them in the same change keeps them true."
 applies = ["always"]
-checked_by = ["reviewer"]
+checked_by = ["reviewer", "hook:stop_checks"]
 core = true
 
 [[principles]]
@@ -97,7 +97,7 @@ title = "Strict types"
 statement = "TypeScript `strict`, Python type-checked in strict mode."
 rationale = "Strict type checking turns whole classes of runtime bugs into immediate, local errors."
 applies = ["always"]
-checked_by = ["reviewer"]
+checked_by = ["reviewer", "hook:stop_checks"]
 core = true
 
 [[principles]]
@@ -223,7 +223,7 @@ title = "Every new dependency has a recorded reason"
 statement = "Every new dependency has a recorded reason and is pinned."
 rationale = "Each dependency is a long-term liability; recording why it exists lets it be questioned and removed later."
 applies = ["always"]
-checked_by = ["reviewer"]
+checked_by = ["reviewer", "hook:stop_checks"]
 core = true
 
 [[principles]]

@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -86,6 +87,32 @@ def test_catalog_has_all_core_principles():
         "**/openapi*.yml",
         "**/openapi*.json",
     ]
+
+
+def hook_checks() -> set[tuple[str, str]]:
+    """(principle id, hook:<script>) for every principle a hook gates on."""
+    hooks = ROOT / "project-files" / "hooks"
+    sys.path.insert(0, str(hooks))
+    import stop_checks
+
+    found = {(p, "hook:stop_checks") for p in stop_checks.COMMAND_PRINCIPLES.values()}
+    call = re.compile(r'principle_applies\(\s*\w+,\s*"([a-z-]+)"')
+    for script in hooks.glob("*.py"):
+        found |= {(p, f"hook:{script.stem}") for p in call.findall(script.read_text())}
+    return found
+
+
+def test_checked_by_names_the_hooks_that_check_each_principle():
+    d = load_defaults(Source(ROOT, True, ""))
+    listed = {
+        (p["id"], who)
+        for p in d["principles"]
+        for who in p["checked_by"]
+        if who.startswith("hook:")
+    }
+    assert listed == hook_checks()
+    unreviewed = [p["id"] for p in d["principles"] if "reviewer" not in p["checked_by"]]
+    assert unreviewed == []
 
 
 def test_overrides_layer_wins(tmp_path: Path):
