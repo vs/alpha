@@ -260,3 +260,14 @@ def test_new_project_invokes_the_area_skills_in_order():
     assert order == sorted(order)
     assert "SKILL.md" not in text, "invoke area skills, don't read their files"
     assert "$ARGUMENTS" in text
+
+
+def test_new_project_prepares_the_user_for_claude_folder_prompts():
+    # Claude Code always asks before writes under .claude/ (a protected
+    # path; allow rules can't pre-approve them), and a shell write there is
+    # refused outright, so the state file must go through the Write tool and
+    # the user must know the approval prompts are coming.
+    start = _section("new-project", "2. Start or resume")
+    assert "Write or Edit tool" in start
+    assert "never with a shell command" in start
+    assert "approv" in start and "`.claude/`" in start
