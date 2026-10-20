@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
@@ -19,6 +20,7 @@ MAX_BLOCKS = 3
 MAX_SCAN_BYTES = 1_000_000
 SNIFF_BYTES = 8192
 DEPENDENCY_LOG = "docs/dependencies.md"
+HASH_CONTENT_BYTES = 1_000_000
 SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -191,22 +193,90 @@ def run_step(command: str, cwd: Path, timeout: float | None = None) -> tuple[str
 COMMAND_PRINCIPLES = {"typecheck": "strict-types", "test": "definition-of-done"}
 
 
+def tree_hash(root: Path, comp: dict[str, Any]) -> str | None:
+    """Hash of the component's files (tracked and untracked, not ignored)."""
+    base = str(comp.get("path", ".")).strip("/")
+    args = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    if base not in ("", "."):
+        args += ["--", base]
+    try:
+        proc = subprocess.run(args, cwd=root, capture_output=True, check=False)
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    excluded = [str(g) for g in comp.get("exclude_globs", [])]
+    digest = hashlib.sha256()
+    for rel in sorted(set(proc.stdout.decode(errors="replace").split("\0"))):
+        if not rel or is_state(rel) or _common.matches(rel, excluded):
+            continue
+        digest.update(rel.encode() + b"\0")
+        path = root / rel
+        try:
+            info = path.stat()
+            if info.st_size <= HASH_CONTENT_BYTES:
+                digest.update(hashlib.sha256(path.read_bytes()).digest())
+            else:
+                digest.update(f"{info.st_size}:{info.st_mtime_ns}".encode())
+        except OSError:
+            digest.update(b"-")  # deleted from the working tree
+    return digest.hexdigest()
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
+
+
 def command_problems(
     comp: dict[str, Any], principles: dict[str, Any], root: Path, deadline: float
 ) -> list[str]:
+    """Typecheck and test results, reused while the component's files and
+    commands are unchanged since the last run."""
+    commands: dict[str, Any] = comp.get("commands", {})
+    name = str(comp.get("name", comp.get("path", ".")))
+    steps = {
+        key: command
+        for key, principle in COMMAND_PRINCIPLES.items()
+        if _common.principle_applies(principles, principle, name)
+        and isinstance(command := commands.get(key), str)
+        and command
+    }
+    if not steps:
+        return []
+    files = tree_hash(root, comp)
+    key = None if files is None else json.dumps([files, steps], sort_keys=True)
+    cache_path = _common.state_path(root, "stop-cache.json")
+    cache = read_json(cache_path)
+    hit: object = cache.get(name)
+    if key is not None and isinstance(hit, dict):
+        entry = cast("dict[str, Any]", hit)
+        if entry.get("key") == key and isinstance(entry.get("problems"), list):
+            return [str(p) for p in cast("list[Any]", entry["problems"])]
+    problems, complete = run_steps(comp, steps, root, deadline)
+    if key is not None and complete:
+        cache[name] = {"key": key, "problems": problems}
+        cache_path.write_text(json.dumps(cache))
+    return problems
+
+
+def run_steps(
+    comp: dict[str, Any], steps: dict[str, str], root: Path, deadline: float
+) -> tuple[list[str], bool]:
+    """(problems, whether every step ran to completion)."""
     commands: dict[str, Any] = comp.get("commands", {})
     base = str(comp.get("path", ".")).strip("/")
     cwd = root if base in ("", ".") else root / base
     name = str(comp.get("name", base))
     problems: list[str] = []
-    for key, principle in COMMAND_PRINCIPLES.items():
-        if not _common.principle_applies(principles, principle, name):
-            continue
-        command = commands.get(key)
-        if not isinstance(command, str) or not command:
-            continue
+    complete = True
+    for key, command in steps.items():
         remaining = deadline - time.monotonic()
         if remaining <= 0:
+            complete = False
             problems.append(
                 f"{name}: {key} skipped \u2014 alpha's {BUDGET}s check budget ran "
                 f"out. Run it by hand: {command}"
@@ -217,11 +287,13 @@ def command_problems(
         if status == "ok":
             continue
         if status == "timeout":
+            complete = False
             problems.append(
                 f"{name}: {key} took longer than {int(timeout)}s ({command}). Run it "
                 "by hand to see why, or tell the user."
             )
         elif status == "missing":
+            complete = False  # installing the tool doesn't change the files
             setup = commands.get("setup") or "the component's setup step"
             problems.append(
                 f"{_common.first_word(command)} is not installed for component "
@@ -231,7 +303,7 @@ def command_problems(
             problems.append(
                 f"{name}: {key} failed ({command}):\n{_common.tail(output)}"
             )
-    return problems
+    return problems, complete
 
 
 def read_count(path: Path) -> int:
@@ -317,6 +389,13 @@ def find_problems(
     return problems
 
 
+def flag(text: str) -> NoReturn:
+    """Let Claude stop, showing the problems to the user instead of blocking."""
+    print(json.dumps({"systemMessage": text}))
+    print(text, file=sys.stderr)
+    sys.exit(0)
+
+
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
@@ -328,23 +407,33 @@ def main() -> None:
     changed = changed_since(root, base)
     counter = _common.state_path(root, "stop-blocks")
     problems = find_problems(root, principles, changed, base) if changed else []
+    accepted = _common.state_path(root, "stop-accepted")
     if not problems:
         write_count(counter, 0)
+        accepted.unlink(missing_ok=True)
         head = head_sha(root)
         if head is not None:
             _common.write_baseline(root, head)
         sys.exit(0)
     listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
+    fingerprint = hashlib.sha256(listing.encode()).hexdigest()
+    try:
+        given_up = accepted.read_text().strip() == fingerprint
+    except OSError:
+        given_up = False
+    if given_up:
+        flag(
+            "alpha: still open; the user was told after 3 attempts, so alpha won't "
+            f"block on these again until they change:\n{listing}"
+        )
     count = read_count(counter)
     if count >= MAX_BLOCKS:
         write_count(counter, 0)
-        text = (
+        accepted.write_text(fingerprint + "\n")
+        flag(
             "alpha: checks still failing after 3 attempts; stopping so the user can "
             f"decide:\n{listing}"
         )
-        print(json.dumps({"systemMessage": text}))
-        print(text, file=sys.stderr)
-        sys.exit(0)
     write_count(counter, count + 1)
     print(
         json.dumps(

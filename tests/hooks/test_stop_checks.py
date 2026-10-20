@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from typing import Any
 
@@ -346,3 +347,94 @@ def test_vendored_files_are_not_source(project: Project) -> None:
     project.write("api/build/lib/main.py", "x = 1\n")
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
+
+
+def give_up(project: Project) -> None:
+    for _ in range(3):
+        reason(run(project))
+    proc = run(project)
+    assert (
+        "checks still failing after 3 attempts"
+        in json.loads(proc.stdout)["systemMessage"]
+    )
+
+
+def test_same_findings_after_give_up_only_flag(project: Project) -> None:
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")
+    give_up(project)
+    for _ in range(2):
+        proc = run(project)
+        assert proc.returncode == 0
+        out = json.loads(proc.stdout)
+        assert "decision" not in out
+        assert out["systemMessage"].startswith("alpha: still open")
+        assert "tests-first-class" in out["systemMessage"]
+        assert counter(project) == 0
+
+
+def test_changed_findings_after_give_up_block_again(project: Project) -> None:
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")
+    give_up(project)
+    project.write("notes.txt", f"key = {AWS_KEY}\n")
+    text = reason(run(project))
+    assert "notes.txt:1" in text
+    assert counter(project) == 1
+
+
+def test_fixed_findings_clear_the_accepted_set(project: Project) -> None:
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")
+    give_up(project)
+    project.write("api/tests/test_app.py", "x = 1\n")
+    assert run(project).stdout == ""
+    (project.root / "api/tests/test_app.py").unlink()
+    reason(run(project))  # the same finding as before blocks again
+
+
+def test_unchanged_tree_reuses_command_results(project: Project) -> None:
+    # Markers go outside the component: files it creates would change its tree.
+    fail_and_mark = (
+        "python3 -c \"open('../t.marker', 'a').write('x'); raise SystemExit(1)\""
+    )
+    project.set_commands("api", test=fail_and_mark)
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    first = reason(run(project))
+    second = reason(run(project))
+    assert first == second and "api: test failed" in first
+    marker = project.root / "t.marker"
+    assert marker.read_text() == "x"
+    project.write("api/src/a.py", "y\n")
+    reason(run(project))
+    assert marker.read_text() == "xx"
+
+
+def test_changed_command_is_rerun(project: Project) -> None:
+    project.set_commands("api", test=marker_cmd("../t.marker"))
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    assert run(project).stdout == ""
+    assert run(project).stdout == ""
+    marker = project.root / "t.marker"
+    assert marker.read_text() == "x"
+    project.set_commands("api", test=FAIL)
+    assert "api: test failed" in reason(run(project))
+
+
+def test_missing_tool_is_not_cached(project: Project) -> None:
+    project.set_commands("api", test="definitely-not-a-tool-xyz")
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    assert "is not installed" in reason(run(project))
+    bin_dir = project.root / "bin"
+    tool = project.write("bin/definitely-not-a-tool-xyz", "#!/bin/sh\nexit 0\n")
+    tool.chmod(0o755)
+    proc = project.run_hook(
+        "stop_checks.py", PAYLOAD, env={"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+    )
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
