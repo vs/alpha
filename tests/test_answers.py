@@ -310,7 +310,7 @@ def test_answers_write_replaces_only_the_keys_it_is_given(
     ("stdin", "problem", "fix"),
     [
         ("[1, 2]", "a JSON object", "{"),
-        ("{", "not valid JSON", "quoted heredoc"),
+        ("{", "not valid JSON", "one line in single quotes"),
         ('{"colour": 1}', "colour: unknown key", "allowed keys are"),
         ('{"manifest": {}}', "manifest", "alpha generate"),
     ],
@@ -360,3 +360,16 @@ def test_answers_write_keeps_the_old_file_when_the_write_fails(
     assert "No space left on device" in err and "retry" in err
     assert saved.read_text() == before
     assert list(saved.parent.iterdir()) == [saved]
+
+
+def test_answers_write_takes_the_object_as_one_argument(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    # A heredoc makes the command multi-line, and Claude Code then prompts
+    # even when the alpha CLI is allowed; a one-line --json call matches.
+    update = {"schema": 1, "identity": {"target_users": "Editors' desks"}}
+    text = json.dumps(update)
+    assert cli.main(["answers", "write", str(tmp_path), "--json", text]) == 0
+    saved = json.loads((tmp_path / ".claude/alpha/project.json").read_text())
+    assert saved == update
+    assert capsys.readouterr().out.strip() == "ok"

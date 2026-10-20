@@ -512,14 +512,14 @@ def write_answers(target: Path, text: str) -> Path:
         update: object = json.loads(text)
     except json.JSONDecodeError as e:
         raise _fail(
-            "stdin",
+            "input",
             f"not valid JSON ({e.msg} at line {e.lineno})",
-            "Fix the syntax and pass the object in a quoted heredoc (<<'JSON') "
-            "so the shell leaves it alone",
+            "Fix the syntax: pass one object on one line in single quotes, "
+            "writing each ' inside it as '\\''",
         ) from None
     if not isinstance(update, dict):
         raise _fail(
-            "stdin",
+            "input",
             f"expected a JSON object, got {type(update).__name__}",
             'Send the keys to save as one object, e.g. {"layout": "single"}',
         )

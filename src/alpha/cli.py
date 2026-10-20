@@ -48,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
         "write", help="merge a JSON object from stdin into the answers file"
     )
     awrite.add_argument("target", type=Path, help="the folder being set up")
+    awrite.add_argument("--json", help="the JSON object to merge (default: stdin)")
     gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
     boot = sub.add_parser("bootstrap", help="install toolchains and run the tests")
@@ -95,7 +96,8 @@ def _defaults(args: argparse.Namespace) -> int:
 def _answers(args: argparse.Namespace) -> int:
     if args.answers_command == "write":
         try:
-            answers.write_answers(args.target, sys.stdin.read())
+            text = args.json if args.json is not None else sys.stdin.read()
+            answers.write_answers(args.target, text)
         except answers.AnswersError as e:
             print(e, file=sys.stderr)
             return 3
