@@ -562,6 +562,9 @@ def write_answers(target: Path, text: str) -> Path:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+            # mkstemp makes the file owner-only; keep the mode the file had,
+            # or the one any other new file would get.
+            os.chmod(tmp, _mode_for(path))
             os.replace(tmp, path)
         except BaseException:
             Path(tmp).unlink(missing_ok=True)
@@ -573,3 +576,11 @@ def write_answers(target: Path, text: str) -> Path:
             "Check the folder's permissions and free space, then retry",
         ) from None
     return path
+
+
+def _mode_for(path: Path) -> int:
+    if path.exists():
+        return path.stat().st_mode & 0o777
+    umask = os.umask(0)
+    os.umask(umask)
+    return 0o666 & ~umask

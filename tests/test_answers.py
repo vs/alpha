@@ -1,6 +1,7 @@
 import copy
 import io
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -373,3 +374,48 @@ def test_answers_write_takes_the_object_as_one_argument(
     saved = json.loads((tmp_path / ".claude/alpha/project.json").read_text())
     assert saved == update
     assert capsys.readouterr().out.strip() == "ok"
+
+
+def test_answers_write_keeps_the_usual_file_mode(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    old = os.umask(0o022)
+    try:
+        answers_write(tmp_path, json.dumps(START), capsys, monkeypatch)
+        saved = tmp_path / ".claude/alpha/project.json"
+        assert saved.stat().st_mode & 0o777 == 0o644
+        saved.chmod(0o664)
+        answers_write(tmp_path, '{"layout": "single"}', capsys, monkeypatch)
+        assert saved.stat().st_mode & 0o777 == 0o664
+    finally:
+        os.umask(old)
+
+
+class _Terminal(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+@pytest.mark.parametrize(
+    ("stdin", "problem"),
+    [
+        (_Terminal(), "no answers given"),
+        (
+            io.TextIOWrapper(io.BytesIO(b'{"layout": "\xff"}'), encoding="utf-8"),
+            "UTF-8",
+        ),
+    ],
+)
+def test_answers_write_explains_missing_or_unreadable_input(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    stdin: io.TextIOBase,
+    problem: str,
+):
+    monkeypatch.setattr("sys.stdin", stdin)
+    code = cli.main(["answers", "write", str(tmp_path)])
+    out, err = capsys.readouterr()
+    assert code == 3 and out == ""
+    assert problem in err and "--json" in err
+    assert not (tmp_path / ".claude").exists()

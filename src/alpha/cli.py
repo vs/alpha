@@ -93,11 +93,24 @@ def _defaults(args: argparse.Namespace) -> int:
     return 0
 
 
+def _answers_input(given: str | None) -> str:
+    if given is not None:
+        return given
+    how = "Pass the answers as one argument: answers write <target> --json '{...}'"
+    if sys.stdin.isatty():
+        raise answers.AnswersError(f"input: no answers given. {how}")
+    try:
+        return sys.stdin.read()
+    except UnicodeDecodeError:
+        raise answers.AnswersError(
+            f"input: the answers aren't valid UTF-8 text. {how}"
+        ) from None
+
+
 def _answers(args: argparse.Namespace) -> int:
     if args.answers_command == "write":
         try:
-            text = args.json if args.json is not None else sys.stdin.read()
-            answers.write_answers(args.target, text)
+            answers.write_answers(args.target, _answers_input(args.json))
         except answers.AnswersError as e:
             print(e, file=sys.stderr)
             return 3
