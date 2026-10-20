@@ -84,17 +84,36 @@ def test_records_head_as_baseline_silently(project: Project) -> None:
     ).read_text().strip() == sha
 
 
-def test_baseline_updates_on_every_start(project: Project) -> None:
-    commit(project)
-    start(project, source="startup")
+def baseline(project: Project) -> str:
+    return (project.root / ".claude/alpha/state/session-base").read_text().strip()
+
+
+def commit_b(project: Project) -> str:
     project.write("b.txt", "b")
     project.git("add", "b.txt")
     project.git("commit", "-q", "-m", "feat: Add b")
-    head = project.git("rev-parse", "HEAD").stdout.strip()
-    start(project, source="compact")
-    assert (
-        project.root / ".claude/alpha/state/session-base"
-    ).read_text().strip() == head
+    return project.git("rev-parse", "HEAD").stdout.strip()
+
+
+def test_baseline_moves_on_startup(project: Project) -> None:
+    commit(project)
+    start(project, source="startup")
+    head = commit_b(project)
+    start(project, source="startup")
+    assert baseline(project) == head
+
+
+@pytest.mark.parametrize("source", ["resume", "compact", "clear"])
+def test_baseline_and_counter_kept_within_a_session(
+    project: Project, source: str
+) -> None:
+    first = commit(project)
+    start(project, source="startup")
+    commit_b(project)
+    counter = project.write(".claude/alpha/state/stop-blocks", '{"count": 2}')
+    start(project, source=source)
+    assert baseline(project) == first
+    assert json.loads(Path(counter).read_text()) == {"count": 2}
 
 
 def test_no_baseline_without_commits(project: Project) -> None:

@@ -1,4 +1,4 @@
-"""SessionStart hook: setup warnings, session baseline, stop-counter reset."""
+"""SessionStart hook: setup warnings; a new session gets a new Stop baseline."""
 
 from __future__ import annotations
 
@@ -79,10 +79,13 @@ def main() -> None:
     problem = principles_problem(principles)
     if problem:
         warnings.append(problem)
-    head = git_out(root, "rev-parse", "--verify", "-q", "HEAD")
-    if head:
-        _common.write_baseline(root, head)
-    _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
+    # A new session starts a new baseline. Resume, compact and clear continue
+    # the same work, so commits made earlier in it are still checked at Stop.
+    if inp.get("source") == "startup" or _common.read_baseline(root) is None:
+        head = git_out(root, "rev-parse", "--verify", "-q", "HEAD")
+        if head:
+            _common.write_baseline(root, head)
+        _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
     if warnings:
         text = "alpha: " + " ".join(warnings)
         print(
