@@ -1,3 +1,7 @@
+"""Python version guard. Keep it Python 3.9-compatible: the shim runs it first."""
+
+from __future__ import annotations
+
 MIN_PYTHON = (3, 11)
 
 
