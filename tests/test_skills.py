@@ -268,7 +268,8 @@ def test_new_project_saves_through_the_cli_and_says_what_to_approve():
     # can't pre-approve those), so answers are saved with one Bash command
     # the user can allow once.
     start = _section("new-project", "2. Start or resume")
-    assert f"{CLI} answers write <target>" in start
+    assert f"{CLI} answers write <target> --json '" in start
+    assert "<<" not in start
     assert "don't ask again" in start
 
 
@@ -282,10 +283,12 @@ def test_skills_never_save_answers_with_the_file_tools(skill: str):
 @pytest.mark.parametrize("skill", AREA_SKILLS)
 def test_area_saves_its_answers_with_answers_write(skill: str):
     section = _section(skill, "Writing the answers")
-    assert f"{CLI} answers write <target>" in section
-    assert "<<'JSON'" in section
+    # One line: a multi-line (heredoc) command isn't covered by allowed-tools.
+    assert f"{CLI} answers write <target> --json '" in section
+    assert "<<" not in section
 
 
 def test_grilling_saves_overrides_with_answers_write():
     protocol = _section("grilling", "When the user overrides a default")
-    assert f"{CLI} answers write <target>" in protocol
+    assert f"{CLI} answers write <target> --json" in protocol
+    assert "<<" not in protocol

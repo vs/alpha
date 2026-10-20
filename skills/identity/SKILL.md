@@ -61,13 +61,9 @@ When the license differs from `defaults.identity.license`, follow the grilling s
 
 ## Writing the answers
 
-Save every change with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>`, passing one JSON object in a quoted heredoc:
+Save every change with one call, the JSON object on one line in single quotes (write each `'` inside it as `'\''`):
 
-```
-"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> <<'JSON'
-{"areas": {…every area, with "identity": "in_progress"…}}
-JSON
-```
+`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "identity": "in_progress"…}}'`
 
 Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
 

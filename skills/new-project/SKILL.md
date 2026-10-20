@@ -20,16 +20,11 @@ Folder argument: `$ARGUMENTS`
 
 ## 2. Start or resume
 
-Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>` (a JSON object on stdin; each key sent replaces that key in project.json), never by editing the file. If Claude Code asks to allow it, tell the user that choosing "don't ask again" covers every later save.
+Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` (one line; each top-level key sent replaces that key in project.json), never by editing the file. If Claude Code asks to allow it, tell the user that choosing "don't ask again" covers every later save.
 
 - If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`), then continue with the first area that isn't done.
 - Otherwise create it:
-
-  ```
-  "${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> <<'JSON'
-  {"schema": 1, "areas": {"identity": "pending", "components": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}
-  JSON
-  ```
+  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
 
 ## 3. Load the kit defaults
 
