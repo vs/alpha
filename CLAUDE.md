@@ -22,6 +22,8 @@ claude --plugin-dir /Users/vs/workspace/alpha
 /alpha:new-project ~/code/my-new-project
 ```
 
+Optional: to stop Claude Code asking before each alpha CLI call during the interview, add `"Bash(/Users/vs/workspace/alpha/bin/alpha *)"` to `permissions.allow` in `~/.claude/settings.json` (for an installed plugin, use the `bin/alpha` path the prompt shows).
+
 Install it for every session later with `claude plugin marketplace add /Users/vs/workspace/alpha`, then `claude plugin install alpha@alpha-local`. `claude plugin validate .claude-plugin/marketplace.json` checks the manifests.
 
 Kit tests: `uv run pytest` runs the fast suite. `uv run pytest -m slow` also bootstraps real projects with uv and pnpm (needs both installed and network access).
@@ -32,6 +34,6 @@ A scripted `claude -p --plugin-dir` run answered the `web-ts-plus-python-api` sc
 
 - Verified: four grouped commits (docs, chore, build(api), build(web)) with only the session's trailer; `uv run pytest`, `pyright`, `pnpm vitest run` and `pnpm tsc --noEmit` pass; nothing kit-specific at the root and no `src/` placeholders; decision 0004 and `docs/principles.toml` record `max_lines = 100`; the kit's `defaults/` stayed unchanged.
 - Hooks in the generated project: `git commit --no-verify` is blocked; `# type: ignore` gets an "ask" (a denial in `-p` mode, where nobody can answer it); a source file without a test makes Stop block (three times, then it gives up with a message); edited files are formatted and linted.
-- Claude Code always asks before writes under `.claude/`, and allow rules or a PreToolUse "allow" can't pre-approve them. Each save of `.claude/alpha/project.json` asks the user; when the target is the current folder, the prompt offers to allow `.claude` edits for the session. In `-p` mode the interview only runs with a `--permission-prompt-tool` that approves those writes.
-- A skill's `allowed-tools` pre-approve the alpha CLI only in the turn the skill was invoked in; later turns ask for each `bin/alpha` call unless you allow it.
+- Claude Code always asks before Write/Edit under `.claude/` (allow rules and PreToolUse "allow" can't pre-approve it), which cost an approval per save. The skills now save through `alpha answers write <target> --json '…'` instead: one-line Bash calls, so at most a Bash approval with "don't ask again". A multi-line heredoc form was still prompted; the one-line form is not yet confirmed live.
+- A skill's `allowed-tools` pre-approve the alpha CLI only in the turn the skill was invoked in; later turns ask for each `bin/alpha` call unless you add the optional rule above.
 - Without a git identity, `alpha commit-skeleton` now stops and says how to set one instead of committing as `you@host.local`.
