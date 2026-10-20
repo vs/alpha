@@ -25,14 +25,21 @@ class TimedOut(Exception):
     pass
 
 
+def python_problem() -> str | None:
+    """The guard message when this python3 is too old for the hooks, else None."""
+    if sys.version_info >= (3, 11):  # noqa: UP036 (hooks run on whatever python3 exists)
+        return None
+    found = "{}.{}".format(*sys.version_info[:2])
+    return (
+        f"alpha needs Python 3.11+ (found {found}). Install a newer one with "
+        '"brew install python" or "uv python install 3.12", then retry.'
+    )
+
+
 def check_python() -> None:
-    if sys.version_info < (3, 11):  # noqa: UP036 (hooks run on whatever python3 exists)
-        found = "{}.{}".format(*sys.version_info[:2])
-        print(
-            f"alpha needs Python 3.11+ (found {found}). Install a newer one with "
-            '"brew install python" or "uv python install 3.12", then retry.',
-            file=sys.stderr,
-        )
+    problem = python_problem()
+    if problem:
+        print(problem, file=sys.stderr)
         sys.exit(0)
 
 

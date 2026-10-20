@@ -24,7 +24,7 @@ def git_out(root: Path, *args: str) -> str | None:
 
 
 def principles_problem(path: Path) -> str | None:
-    import tomllib  # lazy: absent on 3.9, and check_python() has exited by then
+    import tomllib  # lazy: absent on 3.9, and main() has returned by then
 
     try:
         with path.open("rb") as f:
@@ -40,12 +40,35 @@ def principles_problem(path: Path) -> str | None:
     return None
 
 
+def old_python_warning(problem: str) -> None:
+    """Tell the user and Claude that the hooks are off; must run on Python 3.9."""
+    text = (
+        f"alpha: the project's hooks are off. {problem} Until then nothing checks "
+        "commits, protected files or work before stopping; restart the session "
+        "once python3 is 3.11+."
+    )
+    print(
+        json.dumps(
+            {
+                "systemMessage": text,
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": text,
+                },
+            }
+        )
+    )
+
+
 def main() -> None:
-    _common.check_python()
     inp = _common.read_input()
     root = _common.project_root(inp)
     principles = root / "docs" / "principles.toml"
     if not principles.is_file():
+        sys.exit(0)
+    problem = _common.python_problem()
+    if problem:
+        old_python_warning(problem)
         sys.exit(0)
     warnings: list[str] = []
     if (root / HOOKS_PATH / "commit-msg").is_file():

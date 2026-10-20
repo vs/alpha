@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
 
-from .conftest import Project
+import pytest
+from helpers import old_python
+
+from .conftest import OLD_PYTHON, Project
 
 HOOKS_PATH = ".claude/alpha/githooks"
 
@@ -103,3 +106,32 @@ def test_resets_stop_blocks_counter(project: Project) -> None:
     counter = project.write(".claude/alpha/state/stop-blocks", '{"count": 2}')
     start(project)
     assert json.loads(Path(counter).read_text()) == {"count": 0}
+
+
+def test_old_python_warns_that_hooks_are_off(project: Project) -> None:
+    result = project.run_hook(
+        "session_start.py", {"hook_event_name": "SessionStart"}, python=OLD_PYTHON
+    )
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    text = data["hookSpecificOutput"]["additionalContext"]
+    assert data["systemMessage"] == text
+    assert "alpha needs Python 3.11+ (found 3.9)" in text
+    assert "uv python install 3.12" in text
+    assert "hooks are off" in text
+
+
+def test_old_python_is_silent_outside_alpha_projects(project: Project) -> None:
+    (project.root / "docs" / "principles.toml").unlink()
+    result = project.run_hook("session_start.py", {}, python=OLD_PYTHON)
+    assert result.returncode == 0 and result.stdout == ""
+
+
+def test_real_old_python_warns_that_hooks_are_off(project: Project) -> None:
+    exe = old_python()
+    if exe is None:
+        pytest.skip("no python3 older than 3.11 on this machine")
+    result = project.run_hook("session_start.py", {}, python=[exe])
+    assert result.returncode == 0, result.stderr
+    text = json.loads(result.stdout)["systemMessage"]
+    assert "alpha needs Python 3.11+ (found 3." in text

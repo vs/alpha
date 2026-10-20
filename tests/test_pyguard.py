@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from helpers import old_python
+from helpers import old_python, union_annotations
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.pyguard import check_python
@@ -26,35 +26,6 @@ def test_old_python_gets_fix_hint():
 
 def test_new_python_passes():
     assert check_python((3, 11)) is None
-
-
-def union_annotations(tree: ast.Module) -> list[int]:
-    """Lines whose annotations use `X | Y`, which 3.9 evaluates at runtime."""
-    lazy = any(
-        isinstance(node, ast.ImportFrom)
-        and node.module == "__future__"
-        and any(a.name == "annotations" for a in node.names)
-        for node in tree.body
-    )
-    if lazy:
-        return []
-    annotations: list[ast.expr] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            args = node.args
-            every = [*args.posonlyargs, *args.args, *args.kwonlyargs]
-            every += [a for a in (args.vararg, args.kwarg) if a is not None]
-            annotations += [a.annotation for a in every if a.annotation is not None]
-            if node.returns is not None:
-                annotations.append(node.returns)
-        elif isinstance(node, ast.AnnAssign):
-            annotations.append(node.annotation)
-    return [
-        sub.lineno
-        for ann in annotations
-        for sub in ast.walk(ann)
-        if isinstance(sub, ast.BinOp) and isinstance(sub.op, ast.BitOr)
-    ]
 
 
 @pytest.mark.parametrize("path", GUARDED, ids=lambda p: p.name)

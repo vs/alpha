@@ -22,6 +22,13 @@ sys.path.insert(0, str(HOOKS))
 
 
 STUB = 'python3 -c "import sys; sys.exit(0)"'
+# Runs a script as if on Python 3.9, for machines without an old interpreter.
+OLD_PYTHON = [
+    sys.executable,
+    "-c",
+    "import runpy, sys; sys.version_info = (3, 9, 6, 'final', 0); "
+    "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')",
+]
 
 
 class Project:
@@ -63,8 +70,12 @@ class Project:
         payload: dict[str, Any],
         cwd: Path | None = None,
         env: dict[str, str | None] | None = None,
+        python: list[str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        """Run a hook; env values override, and a None value removes the variable."""
+        """Run a hook; env values override, and a None value removes the variable.
+
+        `python` replaces the interpreter command, e.g. OLD_PYTHON.
+        """
         full: dict[str, str] = {**os.environ, "CLAUDE_PROJECT_DIR": str(self.root)}
         for key, value in (env or {}).items():
             if value is None:
@@ -72,7 +83,7 @@ class Project:
             else:
                 full[key] = value
         return subprocess.run(
-            [sys.executable, str(HOOKS / script)],
+            [*(python or [sys.executable]), str(HOOKS / script)],
             cwd=cwd or self.root,
             env=full,
             input=json.dumps(payload),

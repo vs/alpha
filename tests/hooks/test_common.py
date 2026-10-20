@@ -1,3 +1,4 @@
+import ast
 import io
 import subprocess
 import sys
@@ -6,8 +7,9 @@ from typing import Any
 
 import _common
 import pytest
+from helpers import union_annotations
 
-from .conftest import HOOKS, STUB, Project
+from .conftest import HOOKS, OLD_PYTHON, STUB, Project
 
 
 def test_malformed_principles_explains_and_exits_zero(project: Project):
@@ -171,3 +173,25 @@ def test_rel_to_root_resolves_symlinks(tmp_path: Path):
     # like /var vs /private/var on macOS
     assert _common.rel_to_root(link, str(real / "src" / "a.py")) == "src/a.py"
     assert _common.rel_to_root(real, str(link / "src" / "a.py")) == "src/a.py"
+
+
+@pytest.mark.parametrize("hook", sorted(HOOKS.glob("*.py")), ids=lambda p: p.name)
+def test_hooks_parse_and_import_on_python_3_9(hook: Path):
+    tree = ast.parse(hook.read_text(), str(hook), feature_version=(3, 9))
+    assert union_annotations(tree) == [], f"{hook}: needs lazy annotations"
+
+
+@pytest.mark.parametrize(
+    ("script", "payload"),
+    [
+        ("guard_bash.py", {"tool_name": "Bash", "tool_input": {"command": "ls"}}),
+        ("stop_checks.py", {"hook_event_name": "Stop"}),
+    ],
+)
+def test_other_hooks_are_silent_no_ops_on_old_python(
+    project: Project, script: str, payload: dict[str, Any]
+):
+    result = project.run_hook(script, payload, python=OLD_PYTHON)
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert "alpha needs Python 3.11+ (found 3.9)" in result.stderr
