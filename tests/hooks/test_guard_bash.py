@@ -65,6 +65,8 @@ def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
         ("git config --global core.hooksPath ~/hooks", HOOKS_CONFIG),
         ("git config --local core.hookspath x", HOOKS_CONFIG),
         ("git config --unset core.hooksPath", HOOKS_CONFIG),
+        ("git config core.hooksPath --unset", HOOKS_CONFIG),
+        ("git config core.hooksPath --unset-all", HOOKS_CONFIG),
         ("git config --unset-all core.hooksPath", HOOKS_CONFIG),
         ("git config unset core.hooksPath", HOOKS_CONFIG),
         ("git config set core.hooksPath x", HOOKS_CONFIG),

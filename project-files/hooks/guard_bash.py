@@ -237,7 +237,8 @@ def changes_hooks_path(args: list[str]) -> bool:
     if not keys:
         return False
     before = set(args[: keys[0]])
-    if before & CONFIG_UNSETS:
+    # git accepts options on either side of the key.
+    if set(args) & CONFIG_UNSETS:
         return True
     values = [a for a in args[keys[0] + 1 :] if not a.startswith("-")]
     if before & CONFIG_READS or not values:
