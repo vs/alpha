@@ -35,7 +35,7 @@ _BRANCHING = {
 
 
 def _slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "decision"
 
 
 def _bootstrap_tools(stack: str) -> list[str]:
@@ -249,7 +249,7 @@ def _architecture(a: Answers) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _dependencies(a: Answers, year: int) -> str:
+def _dependencies(a: Answers, today: date) -> str:
     lines = [
         "# Dependencies",
         "",
@@ -260,7 +260,7 @@ def _dependencies(a: Answers, year: int) -> str:
     ]
     for c in a.components:
         lines += [
-            f"| {t} | {c.name} | {_WHY.get(t, 'Tooling')} | {year} |"
+            f"| {t} | {c.name} | {_WHY.get(t, 'Tooling')} | {today.isoformat()} |"
             for t in _bootstrap_tools(c.stack)
         ]
     return "\n".join(lines) + "\n"
@@ -298,7 +298,7 @@ def render_docs(
         "CLAUDE.md": _claude_md(a, principles),
         "docs/product.md": _product(a),
         "docs/architecture.md": _architecture(a),
-        "docs/dependencies.md": _dependencies(a, year),
+        "docs/dependencies.md": _dependencies(a, today),
     }
     for i, d in enumerate(a.decisions, 1):
         out[f"docs/decisions/{i:04d}-{_slug(d.title)}.md"] = _decision(

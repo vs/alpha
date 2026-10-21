@@ -169,3 +169,16 @@ def test_contributing_and_readme(tmp_path: Path):
     r = out["README.md"]
     assert r.startswith("# Pico Trust")
     assert "uv sync" in r and "pnpm install" in r and "pnpm vitest run" in r
+
+
+def test_dependencies_md_dates_each_row_in_full(tmp_path: Path):
+    md = render(load(tmp_path))["docs/dependencies.md"]
+    assert f"| pytest | api | Test runner | {TODAY.isoformat()} |" in md
+
+
+def test_decision_title_without_ascii_letters_gets_a_name(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["decisions"][0]["title"] = "製品の方向性"
+
+    out = render(load(tmp_path, mutate))
+    assert "docs/decisions/0001-decision.md" in out

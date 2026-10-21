@@ -189,3 +189,7 @@ def test_output_parses_and_is_deterministic():
     assert parsed["docs_map"] == {}
     assert parsed["components"][0]["commands"]["test"] == "uv run pytest"
     assert parsed["project"] == {"name": "Pico Trust", "slug": "pico-trust"}
+
+
+def test_branching_is_recorded():
+    assert build_principles(D, A, "0.1.0")["git"]["branching"] == "trunk"

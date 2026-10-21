@@ -166,6 +166,7 @@ def build_principles(
             "convention": a.git.convention,
             "types": list(defaults["git"]["types"]),
             "scopes": list(a.git.scopes),
+            "branching": a.git.branching,
         },
         "docs_map": {},  # filled by plan 2's documentation area
         "components": components,
