@@ -21,6 +21,7 @@ _LAYOUTS = ("monorepo", "single")
 _CHANGES = ("tighten", "loosen", "drop")
 _REVIEW_MODES = ("batched", "every-task")
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
+_SCOPE = re.compile(r"[a-z0-9-]+")  # what the commit-msg hook accepts
 _TRAITS = (
     "has_ui",
     "deployed",
@@ -341,11 +342,16 @@ def _components(raw: object, layout: str) -> tuple[Component, ...]:
 
 def _git(raw: object) -> GitPrefs:
     d = _obj(raw, "git")
-    return GitPrefs(
-        _str(d, "convention", "git"),
-        _strs(d, "scopes", "git"),
-        _str(d, "branching", "git"),
-    )
+    scopes = _strs(d, "scopes", "git")
+    for i, scope in enumerate(scopes):
+        if not _SCOPE.fullmatch(scope):
+            raise _fail(
+                f"git.scopes[{i}]",
+                f"{scope!r} can't be a commit scope",
+                "Use only lowercase letters, digits and hyphens, e.g. "
+                '"api" or "deps"; the commit-msg hook rejects anything else',
+            )
+    return GitPrefs(_str(d, "convention", "git"), scopes, _str(d, "branching", "git"))
 
 
 def _workflow(raw: object) -> AgentWorkflow:

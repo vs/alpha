@@ -419,3 +419,21 @@ def test_answers_write_explains_missing_or_unreadable_input(
     assert code == 3 and out == ""
     assert problem in err and "--json" in err
     assert not (tmp_path / ".claude").exists()
+
+
+@pytest.mark.parametrize("scope", ["Bad Scope", "API", "", "deps/x"])
+def test_scope_must_use_commit_scope_syntax(tmp_path: Path, scope: str):
+    data = valid()
+    data["git"]["scopes"] = ["api", "web", scope]
+    with pytest.raises(AnswersError) as err:
+        check(tmp_path, data)
+    message = str(err.value)
+    assert message.startswith(f"git.scopes[2]: {scope!r} can't be a commit scope")
+    assert "lowercase letters, digits and hyphens" in message
+
+
+def test_scopes_may_differ_from_component_names(tmp_path: Path):
+    data = valid()
+    data["git"]["scopes"] = ["backend", "frontend", "deps"]
+    a = check(tmp_path, data)
+    assert a.git and a.git.scopes == ("backend", "frontend", "deps")
