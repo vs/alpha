@@ -6,12 +6,13 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
 
 TOOLS = {"Edit", "Write", "MultiEdit"}
+PRINCIPLES = "docs/principles.toml"
 # (label shown to the user, regex counting its occurrences)
 WEAKENING: list[tuple[str, re.Pattern[str]]] = (
     [
@@ -90,6 +91,22 @@ def weakened(old: str, new: str) -> list[str]:
     ]
 
 
+def ask(reason: str) -> NoReturn:
+    """Let the user decide on this edit, telling them why."""
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "ask",
+                    "permissionDecisionReason": reason,
+                }
+            }
+        )
+    )
+    sys.exit(0)
+
+
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
@@ -111,6 +128,12 @@ def main() -> None:
     globs: list[str] = list(principles.get("protected", {}).get("paths", []))
     if _common.matches(rel, globs):
         _common.block(protected_message(rel, principles))
+    if rel == PRINCIPLES:
+        ask(
+            f"{PRINCIPLES} is the project's single source of truth: every alpha "
+            "check reads its principles, commands, globs and protected paths. "
+            "Approve only if the user asked for this change."
+        )
     comp = _common.component_for(rel, principles)
     name = None if comp is None else str(comp.get("name"))
     if not _common.principle_applies(principles, "never-weaken-checks", name):
@@ -118,20 +141,9 @@ def main() -> None:
     old, new = texts(str(tool), args, root / rel)
     found = weakened(old, new)
     if found:
-        reason = (
+        ask(
             f"This edit weakens a check ({', '.join(found)}). Principle "
             "never-weaken-checks: fix the cause instead, or approve if you are sure."
-        )
-        print(
-            json.dumps(
-                {
-                    "hookSpecificOutput": {
-                        "hookEventName": "PreToolUse",
-                        "permissionDecision": "ask",
-                        "permissionDecisionReason": reason,
-                    }
-                }
-            )
         )
     sys.exit(0)
 

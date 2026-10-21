@@ -196,3 +196,17 @@ def test_nested_env_files_blocked(project: Project) -> None:
         proc = run(project, "Write", {"file_path": str(project.root / rel)})
         assert proc.returncode == 2, rel
         assert f"{rel} is protected." in proc.stderr
+
+
+def test_principles_file_edit_asks(project: Project) -> None:
+    proc = edit(project, "docs/principles.toml", 'test = "x"', 'test = "true"')
+    assert proc.returncode == 0
+    text = reason(proc)
+    assert "docs/principles.toml" in text
+    assert "single source of truth" in text
+    write = run(
+        project,
+        "Write",
+        {"file_path": str(project.root / "docs/principles.toml"), "content": ""},
+    )
+    assert "single source of truth" in reason(write)
