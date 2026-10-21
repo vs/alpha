@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -251,6 +252,25 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
     out = capsys.readouterr()
     assert out.err.splitlines() == [f"alpha: {line}" for line in expected]
     assert out.out == ""
+
+
+def test_bootstrap_refreshes_the_manifest_hashes(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir()
+    for tool, action in (("uv", "echo '# added' >> pyproject.toml"), ("pnpm", ":")):
+        (bin_dir / tool).write_text(f"#!/bin/sh\n{action}\n")
+        (bin_dir / tool).chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    files = json.loads((project / PROJECT_JSON).read_text())["manifest"]["files"]
+    assert "api/pyproject.toml" in files
+    for rel, digest in files.items():
+        assert hashlib.sha256((project / rel).read_bytes()).hexdigest() == digest, rel
 
 
 def test_bootstrap_failure_names_command_output_and_fix(

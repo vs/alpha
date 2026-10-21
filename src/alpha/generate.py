@@ -160,15 +160,33 @@ def generate(
             "live": source.live,
             "commit": _source_commit(source),
         },
-        "files": {
-            rel: hashlib.sha256((target / rel).read_bytes()).hexdigest()
-            for rel in generated
-        },
+        "files": _hashes(target, generated),
     }
-    answers_path.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    _write_json(answers_path, data)
     return sorted([*generated, PROJECT_JSON])
+
+
+def _hashes(target: Path, rels: list[str]) -> dict[str, str]:
+    return {
+        rel: hashlib.sha256((target / rel).read_bytes()).hexdigest() for rel in rels
+    }
+
+
+def _write_json(path: Path, data: dict[str, Any]) -> None:
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+
+
+def refresh_manifest(target: Path) -> None:
+    """Rehash the generated files, which bootstrap's package managers change."""
+    path = target / PROJECT_JSON
+    try:
+        data = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
+        files = cast(dict[str, str], data["manifest"]["files"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return  # no manifest to keep in step (e.g. a hand-made project)
+    present = [rel for rel in files if (target / rel).is_file()]
+    data["manifest"]["files"] = _hashes(target, present)
+    _write_json(path, data)
 
 
 def load_project_principles(target: Path) -> dict[str, Any]:
@@ -187,7 +205,10 @@ def load_project_principles(target: Path) -> dict[str, Any]:
 
 
 def bootstrap(target: Path, principles: dict[str, Any]) -> None:
-    """Per component: install the toolchain, then run setup and the tests."""
+    """Per component: install the toolchain, then run setup and the tests.
+
+    Then rehash the manifest, so it matches the files commit-skeleton commits.
+    """
     fix = (
         "Fix the toolchain (is uv/pnpm installed?) and rerun "
         f'"alpha bootstrap {target}"'
@@ -220,3 +241,4 @@ def bootstrap(target: Path, principles: dict[str, Any]) -> None:
                     f'"{command}" failed in {cwd} (exit {done.returncode}). '
                     f"Last lines of its output:\n{tail}\n{fix}"
                 )
+    refresh_manifest(target)
