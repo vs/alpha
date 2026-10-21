@@ -15,8 +15,8 @@ _DENY = [
     "Bash(git push --force:*)",
     "Bash(git push -f:*)",
     "Bash(rm -rf:*)",
-    "Read(./.env)",
-    "Read(./.env.*)",
+    "Read(**/.env)",
+    "Read(**/.env.*)",
     "Read(**/*.pem)",
     "Read(**/*.key)",
 ]

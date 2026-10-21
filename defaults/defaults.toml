@@ -8,7 +8,7 @@ exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]
 risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/principles.toml"]
 
 [protected]
-paths = [".env", ".env.*", "**/*.pem", "**/*.key"]   # recipes add their lockfiles
+paths = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]   # recipes add their lockfiles
 
 [git]
 convention = "conventional"

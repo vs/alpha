@@ -33,8 +33,8 @@ def test_deny_list_exact():
         "Bash(git push --force:*)",
         "Bash(git push -f:*)",
         "Bash(rm -rf:*)",
-        "Read(./.env)",
-        "Read(./.env.*)",
+        "Read(**/.env)",
+        "Read(**/.env.*)",
         "Read(**/*.pem)",
         "Read(**/*.key)",
     ]

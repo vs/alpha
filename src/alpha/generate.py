@@ -57,6 +57,12 @@ def _gitignore(principles: dict[str, Any]) -> str:
         ".claude/settings.local.json",
         ".DS_Store",
         ".claude/alpha/hooks/__pycache__/",
+        # Secrets live in .env files at any depth; the example documents them.
+        ".env",
+        ".env.*",
+        "**/.env",
+        "**/.env.*",
+        "!.env.example",
     ]
     for c in principles["components"]:
         for entry in _IGNORES.get(c["stack"], []):

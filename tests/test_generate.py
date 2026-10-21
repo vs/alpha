@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from helpers import TODAY, place_answers
+from helpers import TODAY, git, place_answers
 
 from alpha import VERSION
 from alpha.answers import AnswersError
@@ -121,6 +121,11 @@ def test_gitignore_prefixes_component_paths(tmp_path: Path, generate_scenario):
         ".claude/settings.local.json\n"
         ".DS_Store\n"
         ".claude/alpha/hooks/__pycache__/\n"
+        ".env\n"
+        ".env.*\n"
+        "**/.env\n"
+        "**/.env.*\n"
+        "!.env.example\n"
         "api/**/.venv/\n"
         "api/**/__pycache__/\n"
         "api/**/.pytest_cache/\n"
@@ -137,10 +142,37 @@ def test_gitignore_for_root_component(tmp_path: Path, generate_scenario):
         ".claude/settings.local.json\n"
         ".DS_Store\n"
         ".claude/alpha/hooks/__pycache__/\n"
+        ".env\n"
+        ".env.*\n"
+        "**/.env\n"
+        "**/.env.*\n"
+        "!.env.example\n"
         ".venv/\n"
         "__pycache__/\n"
         ".pytest_cache/\n"
     )
+
+
+@pytest.mark.parametrize(
+    ("rel", "ignored"),
+    [
+        (".env", True),
+        (".env.local", True),
+        ("api/.env", True),
+        ("api/.env.production", True),
+        (".env.example", False),
+        ("api/.env.example", False),
+    ],
+)
+def test_gitignore_ignores_env_files_but_not_the_example(
+    tmp_path: Path, generate_scenario, git_env, rel: str, ignored: bool
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    git(tmp_path, "init", "-q")
+    done = subprocess.run(
+        ["git", "check-ignore", "-q", "--no-index", rel], cwd=tmp_path
+    )
+    assert (done.returncode == 0) == ignored
 
 
 def test_copies_hook_scripts_tools_and_executable_githook(

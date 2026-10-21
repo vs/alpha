@@ -189,3 +189,10 @@ def test_dropped_never_weaken_checks_does_not_ask(project: Project) -> None:
     assert proc.returncode == 0 and proc.stdout == ""
     proc = edit(project, "web/src/app.ts", "x", "x // biome-ignore")
     assert "biome-ignore" in reason(proc)
+
+
+def test_nested_env_files_blocked(project: Project) -> None:
+    for rel in ("api/.env", "web/config/.env.local"):
+        proc = run(project, "Write", {"file_path": str(project.root / rel)})
+        assert proc.returncode == 2, rel
+        assert f"{rel} is protected." in proc.stderr

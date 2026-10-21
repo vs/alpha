@@ -151,7 +151,7 @@ def test_lockfiles_become_protected():
     paths = build_principles(D, A, "0.1.0")["protected"]["paths"]
     assert "api/uv.lock" in paths
     assert "web/pnpm-lock.yaml" in paths
-    assert ".env" in paths
+    assert "**/.env" in paths
 
 
 def test_review_settings_come_from_answers(tmp_path: Path):
