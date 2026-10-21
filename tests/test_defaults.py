@@ -277,3 +277,69 @@ def test_cli_set_git_failure_exits_3_and_explains(tmp_path: Path):
     assert done.returncode == 3
     assert "git commit failed" in done.stderr
     assert "retry" in done.stderr
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "expected"),
+    [
+        ("review.nope", "1", '"review.nope" is not a kit default'),
+        ("principles.x", "1", '"principles.x" is not a kit default'),
+        ("review", "1", '"review" is a table of settings'),
+        ("principles", "[]", '"principles" is a table of settings'),
+        ("review.max_lines", "lots", "review.max_lines must be a whole number"),
+        ("review.max_lines", "true", "review.max_lines must be a whole number"),
+        ("review.mode", "3", "review.mode must be text"),
+        ("review.exclude", "docs/**", "review.exclude must be a list of text"),
+        ("review.exclude", "[1, 2]", "review.exclude must be a list of text"),
+    ],
+)
+def test_set_default_rejects_unknown_keys_and_wrong_types(
+    tmp_path: Path, key: str, value: str, expected: str
+):
+    src = make_source(tmp_path / "src", repo=True)
+    head = git(src.path, "rev-parse", "HEAD")
+    files = [src.path / "defaults/overrides.toml", src.path / "defaults/CHANGELOG.md"]
+    before = [f.read_text() for f in files]
+    with pytest.raises(DefaultsError) as e:
+        set_default(src, key, value, "demo", "r", [], date(2026, 10, 19))
+    assert str(e.value).startswith(expected)
+    assert "review.max_lines" in str(e.value) or "--value" in str(e.value)
+    assert [f.read_text() for f in files] == before
+    assert git(src.path, "rev-parse", "HEAD") == head
+    assert git(src.path, "status", "--porcelain") == ""
+
+
+def test_cli_set_rejects_an_unknown_key_with_exit_3(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    env = {
+        "ALPHA_SOURCE": str(src.path),
+        "HOME": str(tmp_path),
+        "PATH": "/usr/bin:/bin",
+    }
+    done = run_cli(
+        *("defaults", "set", "--key", "review.nope", "--value", "1"),
+        *("--project", "p", "--reason", "r"),
+        env=env,
+    )
+    assert done.returncode == 3
+    assert "Traceback" not in done.stderr
+    assert '"review.nope" is not a kit default' in done.stderr
+
+
+@pytest.mark.parametrize("name", ["defaults.toml", "overrides.toml"])
+def test_malformed_defaults_are_explained(tmp_path: Path, name: str):
+    src = make_source(tmp_path / "src", repo=True)
+    (src.path / "defaults" / name).write_text("review = [oops\n")
+    with pytest.raises(DefaultsError) as e:
+        load_defaults(src)
+    assert str(e.value).startswith(f"{src.path / 'defaults' / name} is not valid TOML")
+    assert f"git -C {src.path} checkout defaults/{name}" in str(e.value)
+    env = {
+        "ALPHA_SOURCE": str(src.path),
+        "HOME": str(tmp_path),
+        "PATH": "/usr/bin:/bin",
+    }
+    shown = run_cli("defaults", "show", env=env)
+    assert shown.returncode == 3
+    assert "Traceback" not in shown.stderr
+    assert "is not valid TOML" in shown.stderr

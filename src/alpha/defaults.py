@@ -86,11 +86,21 @@ def _merge(base: dict[str, Any], over: Mapping[str, Any]) -> dict[str, Any]:
     return base
 
 
+def _load_toml(source: Source, name: str) -> dict[str, Any]:
+    path = source.path / name
+    try:
+        return tomllib.loads(path.read_text())
+    except tomllib.TOMLDecodeError as e:
+        raise DefaultsError(
+            f"{path} is not valid TOML ({e}). Fix the syntax, or restore it with "
+            f'"git -C {source.path} checkout {name}", then retry.'
+        ) from None
+
+
 def load_defaults(source: Source) -> dict[str, Any]:
-    merged = tomllib.loads((source.path / _DEFAULTS).read_text())
-    overrides = source.path / _OVERRIDES
-    if overrides.is_file():
-        _merge(merged, tomllib.loads(overrides.read_text()))
+    merged = _load_toml(source, _DEFAULTS)
+    if (source.path / _OVERRIDES).is_file():
+        _merge(merged, _load_toml(source, _OVERRIDES))
     for principle in merged.get("principles", []):
         for condition in principle.get("applies", []):
             if condition not in CONDITIONS:
@@ -106,6 +116,74 @@ def _parse_value(value: str) -> object:
         return tomllib.loads(f"v = {value}")["v"]
     except tomllib.TOMLDecodeError:
         return value
+
+
+def _is_table_array(value: object) -> bool:
+    return isinstance(value, list) and any(
+        isinstance(v, dict) for v in cast("list[Any]", value)
+    )
+
+
+def _settings(data: Mapping[str, Any], prefix: str = "") -> list[str]:
+    """Dotted keys of the single settings `defaults set` may change."""
+    keys: list[str] = []
+    for name, value in data.items():
+        key = f"{prefix}{name}"
+        if isinstance(value, dict):
+            keys += _settings(cast("dict[str, Any]", value), key + ".")
+        elif not _is_table_array(value) and key != "schema":
+            keys.append(key)
+    return keys
+
+
+def _kind(value: object) -> str:
+    if isinstance(value, bool):
+        return "true or false"
+    if isinstance(value, int):
+        return "a whole number"
+    if isinstance(value, float):
+        return "a number"
+    if isinstance(value, str):
+        return "text"
+    if isinstance(value, list):
+        items = cast("list[Any]", value)
+        return "a list of text" if items and isinstance(items[0], str) else "a list"
+    return type(value).__name__
+
+
+def _same_kind(current: object, new: object) -> bool:
+    if type(current) is not type(new):
+        return False
+    if isinstance(current, list) and current:
+        first: object = cast("list[object]", current)[0]
+        return all(type(v) is type(first) for v in cast("list[object]", new))
+    return True
+
+
+def _check_setting(merged: dict[str, Any], key: str, value: object) -> None:
+    """Refuse keys that aren't single kit settings, and values of another type."""
+    settable = f"Settings you can set: {', '.join(_settings(merged))}."
+    unknown = DefaultsError(f'"{key}" is not a kit default. {settable}')
+    *parents, leaf = key.split(".")
+    table = merged
+    for part in parents:
+        child: object = table.get(part)
+        if not isinstance(child, dict):
+            raise unknown
+        table = cast("dict[str, Any]", child)
+    if leaf not in table:
+        raise unknown
+    current: object = table[leaf]
+    if isinstance(current, dict) or _is_table_array(current):
+        raise DefaultsError(
+            f'"{key}" is a table of settings, not one setting. {settable}'
+        )
+    if not _same_kind(current, value):
+        example = toml_write.dumps({"v": current}).removeprefix("v = ").strip()
+        raise DefaultsError(
+            f"{key} must be {_kind(current)}, like its current value {example}. "
+            f"Pass e.g. --value '{example}'."
+        )
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -135,6 +213,8 @@ def set_default(
             f"({source.reason}). Record the wish in the project's decision log "
             "instead, or set ALPHA_SOURCE and retry."
         )
+    parsed = _parse_value(value)
+    _check_setting(load_defaults(source), key, parsed)
     overrides_path = source.path / _OVERRIDES
     changelog = source.path / _CHANGELOG
     before = {
@@ -149,7 +229,7 @@ def set_default(
             child = {}
             table[part] = child
         table = cast("dict[str, Any]", child)
-    table[leaf] = _parse_value(value)
+    table[leaf] = parsed
     message = f"chore(defaults): Set {leaf}"
     if trailers:
         message += "\n\n" + "\n".join(trailers)
