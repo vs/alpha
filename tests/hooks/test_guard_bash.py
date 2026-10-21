@@ -7,6 +7,7 @@ from .conftest import Project
 
 NO_VERIFY = "--no-verify skips the project's commit checks."
 HOOKS_PATH = "Overriding core.hooksPath skips the project's commit checks."
+HOOKS_CONFIG = "Changing core.hooksPath switches off the project's commit checks."
 
 
 def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
@@ -60,6 +61,21 @@ def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
         ("git -c core.hooksPath=/dev/null commit -m x", HOOKS_PATH),
         ("git -c core.hookspath=x push", HOOKS_PATH),
         ("git -ccore.hooksPath=x rebase main", HOOKS_PATH),
+        ("git config core.hooksPath /dev/null", HOOKS_CONFIG),
+        ("git config --global core.hooksPath ~/hooks", HOOKS_CONFIG),
+        ("git config --local core.hookspath x", HOOKS_CONFIG),
+        ("git config --unset core.hooksPath", HOOKS_CONFIG),
+        ("git config --unset-all core.hooksPath", HOOKS_CONFIG),
+        ("git config unset core.hooksPath", HOOKS_CONFIG),
+        ("git config set core.hooksPath x", HOOKS_CONFIG),
+        ("uv run git commit --no-verify -m x", NO_VERIFY),
+        ("uv run --with httpx git push -f", "-f"),
+        ("pnpm exec git push --force", "--force"),
+        ("npx git commit -n -m x", NO_VERIFY),
+        ("nohup git push -f", "-f"),
+        ("echo x | xargs git push -f", "-f"),
+        ("xargs -I {} git push -f origin {}", "-f"),
+        ("nohup uv run git config core.hooksPath x", HOOKS_CONFIG),
     ],
 )
 def test_blocked(project: Project, command: str, needle: str) -> None:
@@ -88,6 +104,17 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
         "bash -c 'echo git push -f'",
         "bash script.sh",
         "echo $(date)",
+        "git config core.hooksPath",
+        "git config --get core.hooksPath",
+        "git config core.hooksPath .claude/alpha/githooks",
+        "git config --local core.hooksPath .claude/alpha/githooks/",
+        "git config user.name x",
+        "uv run pytest",
+        "uv run --with httpx python -c 'print(1)'",
+        "pnpm exec vitest run",
+        "npx tsc --noEmit",
+        "nohup sleep 1",
+        "xargs echo git push -f",
     ],
 )
 def test_allowed(project: Project, command: str) -> None:

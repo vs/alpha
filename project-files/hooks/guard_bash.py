@@ -1,4 +1,5 @@
-"""PreToolUse hook for Bash: blocks --no-verify, force-push and pushed amends."""
+"""PreToolUse hook for Bash: blocks --no-verify, hooksPath changes, force-push and
+pushed amends."""
 
 from __future__ import annotations
 
@@ -24,6 +25,34 @@ HOOKS_PATH_MESSAGE = (
     "Overriding core.hooksPath skips the project's commit checks. Fix what the "
     "hook reports instead; if the hook itself is wrong, tell the user."
 )
+HOOKS_CONFIG_MESSAGE = (
+    "Changing core.hooksPath switches off the project's commit checks. Keep it "
+    "at .claude/alpha/githooks; if the hook itself is wrong, tell the user."
+)
+HOOKS_PATH = ".claude/alpha/githooks"
+CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--list", "-l", "get", "list"}
+CONFIG_UNSETS = {"--unset", "--unset-all", "unset"}
+# Commands that run another command, with their options that take a value.
+WRAPPERS: dict[tuple[str, ...], set[str]] = {
+    ("uv", "run"): {
+        "--with",
+        "--with-editable",
+        "--with-requirements",
+        "--project",
+        "--directory",
+        "--python",
+        "-p",
+        "--package",
+        "--group",
+        "--extra",
+        "--env-file",
+        "--index",
+    },
+    ("pnpm", "exec"): {"--filter", "-F", "--dir", "-C"},
+    ("npx",): {"--package", "-p"},
+    ("nohup",): set(),
+    ("xargs",): {"-I", "-n", "-L", "-P", "-d", "-E", "-s", "-a"},
+}
 SHELLS = {"sh", "bash", "zsh"}
 SHELL_KEYWORDS = {"then", "do", "else", "elif", "!", "time", "if", "while", "until"}
 MAX_DEPTH = 2
@@ -71,12 +100,33 @@ def split_segments(command: str) -> list[list[str]] | None:
     return [s for s in segments if s]
 
 
+def skip_wrapper(segment: list[str], i: int) -> int:
+    """Index of the wrapped command if segment[i:] starts with a wrapper, else i."""
+    for words, valued in WRAPPERS.items():
+        head = segment[i : i + len(words)]
+        if not head or posixpath.basename(head[0]) != words[0]:
+            continue
+        if head[1:] != list(words[1:]):
+            continue
+        j = i + len(words)
+        while j < len(segment) and segment[j].startswith("-"):
+            if segment[j] == "--":
+                return j + 1
+            j += 2 if segment[j] in valued else 1
+        return j
+    return i
+
+
 def strip_prefix(segment: list[str]) -> list[str]:
-    """Drop leading keywords, env assignments and command/exec/env wrappers."""
+    """Drop leading keywords, env assignments and wrappers (env, uv run, xargs…)."""
     i = 0
     after_env = False
     while i < len(segment):
         tok = segment[i]
+        wrapped = skip_wrapper(segment, i)
+        if wrapped != i:
+            i, after_env = wrapped, False
+            continue
         if tok == "env":
             after_env = True
         elif tok in SHELL_KEYWORDS or tok in ("command", "exec"):
@@ -181,11 +231,27 @@ def check_command(command: str, root: Path, depth: int = 0) -> None:
         check_segment(segment, root)
 
 
+def changes_hooks_path(args: list[str]) -> bool:
+    """Whether `git config <args>` sets or unsets core.hooksPath elsewhere."""
+    keys = [k for k, arg in enumerate(args) if arg.lower() == "core.hookspath"]
+    if not keys:
+        return False
+    before = set(args[: keys[0]])
+    if before & CONFIG_UNSETS:
+        return True
+    values = [a for a in args[keys[0] + 1 :] if not a.startswith("-")]
+    if before & CONFIG_READS or not values:
+        return False
+    return values[0].rstrip("/").removeprefix("./") != HOOKS_PATH
+
+
 def check_segment(segment: list[str], root: Path) -> None:
     invocation = git_invocation(segment)
     if invocation is None:
         return
     sub, raw_args, hooks_override = invocation
+    if sub == "config" and changes_hooks_path(raw_args):
+        _common.block(HOOKS_CONFIG_MESSAGE)
     args = option_args(sub, raw_args)
     if hooks_override and sub in SKIPPING:
         _common.block(HOOKS_PATH_MESSAGE)
