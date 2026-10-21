@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import git
+from helpers import TODAY, git, place_answers
 
-from alpha.generate import GenerateError
+from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
+from alpha.generate import GenerateError, generate
 from alpha.gitops import commit_skeleton
 from alpha.principles import render_principles
 
@@ -240,3 +242,103 @@ def test_ds_store_is_never_committed(
     commit_skeleton(tmp_path, principles_of(tmp_path), [])
     assert ".DS_Store" not in git(tmp_path, "ls-files")
     assert git(tmp_path, "status", "--porcelain") == ""
+
+
+def settings_hook(settings: dict[str, Any], event: str, matcher: str | None) -> str:
+    for entry in settings["hooks"][event]:
+        if entry.get("matcher") == matcher:
+            return entry["hooks"][0]["command"]
+    raise KeyError(f"no {event} hook for {matcher!r}")
+
+
+def test_generated_hooks_enforce_the_generated_principles(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    """Generate a project, then run its own hooks, wired as its settings.json
+    says, against its own docs/principles.toml: a principle dropped for one
+    component is not enforced there, and flat-layout code is checked."""
+    target = tmp_path / "proj"
+    answers = place_answers(target, "web-ts-plus-python-api")
+    data = json.loads(answers.read_text())
+    data["overrides"].append(
+        {
+            "principle": "tests-first-class",
+            "scope": "component:web",
+            "change": "drop",
+            "reason": "The web UI is a throwaway prototype for the demo.",
+        }
+    )
+    answers.write_text(json.dumps(data))
+    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    commit_skeleton(target, principles_of(target), [])
+
+    # Stand-ins for the toolchains log each call; python3 is this interpreter.
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "tools.log"
+    for tool in ("uv", "pnpm"):
+        script = bin_dir / tool
+        script.write_text(f'#!/bin/sh\necho "$(basename "$PWD"): {tool} $*" >> {log}\n')
+        script.chmod(0o755)
+    (bin_dir / "python3").symlink_to(sys.executable)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(target))
+    settings = json.loads((target / ".claude/settings.json").read_text())
+
+    def hook(event: str, matcher: str | None, payload: dict[str, Any]):
+        return subprocess.run(
+            settings_hook(settings, event, matcher),
+            shell=True,
+            cwd=target,
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+        )
+
+    started = hook("SessionStart", None, {"source": "startup"})
+    assert started.returncode == 0 and started.stdout == "", started.stderr
+
+    edit = {"tool_name": "Write", "tool_input": {"file_path": str(target / "x")}}
+    for rel in ("api/main.py", "web/app/page.tsx"):
+        (target / rel).parent.mkdir(parents=True, exist_ok=True)
+        (target / rel).write_text("x\n")
+        edit["tool_input"]["file_path"] = str(target / rel)
+        assert hook("PostToolUse", "Edit|Write|MultiEdit", edit).returncode == 0
+    assert log.read_text().splitlines() == [
+        "api: uv run ruff format main.py",
+        "api: uv run ruff check main.py",
+        "web: pnpm biome format --write app/page.tsx",
+        "web: pnpm biome lint app/page.tsx",
+    ]
+
+    stop = hook("Stop", None, {"stop_hook_active": False})
+    assert stop.returncode == 0, stop.stderr
+    reason = json.loads(stop.stdout)["reason"]
+    assert "api: source changed (api/main.py) but no tests changed." in reason
+    assert "web: source changed" not in reason  # dropped for web
+    ran = log.read_text().splitlines()[4:]
+    assert ran == [
+        "api: uv run pyright",
+        "api: uv run pytest",
+        "web: pnpm tsc --noEmit",
+        "web: pnpm vitest run",
+    ]
+
+    weaken = {
+        "tool_name": "Edit",
+        "tool_input": {
+            "file_path": str(target / "web/app/page.tsx"),
+            "old_string": "x",
+            "new_string": "// @ts-ignore\nx",
+        },
+    }
+    asked = hook("PreToolUse", "Edit|Write|MultiEdit", weaken)
+    decision = json.loads(asked.stdout)["hookSpecificOutput"]["permissionDecision"]
+    assert decision == "ask"
+    env_write = {
+        "tool_name": "Write",
+        "tool_input": {"file_path": str(target / "api/.env")},
+    }
+    assert hook("PreToolUse", "Edit|Write|MultiEdit", env_write).returncode == 2
+    no_verify = {"tool_name": "Bash", "tool_input": {"command": "git commit -nm x"}}
+    assert hook("PreToolUse", "Bash", no_verify).returncode == 2
