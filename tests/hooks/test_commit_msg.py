@@ -1,4 +1,5 @@
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -146,3 +147,21 @@ def test_dropped_clean_history_accepts_any_message(project: Project) -> None:
     project.drop_principle("clean-history")
     result = run_msg(project, "wip stuff\n")
     assert result.returncode == 0, result.stderr
+
+
+def test_shim_explains_a_missing_python3(project: Project, tmp_path_factory) -> None:
+    bin_dir = tmp_path_factory.mktemp("bin")
+    git_exe = shutil.which("git")
+    assert git_exe is not None
+    (bin_dir / "git").symlink_to(git_exe)
+    msg = project.write("MSG", "feat: Add x\n")
+    done = subprocess.run(
+        ["/bin/sh", str(SHIM), str(msg)],
+        cwd=project.root,
+        capture_output=True,
+        text=True,
+        env={"PATH": str(bin_dir), "HOME": str(project.root)},
+    )
+    assert done.returncode == 1
+    assert done.stderr.startswith("commit-msg: python3 was not found")
+    assert "brew install python" in done.stderr

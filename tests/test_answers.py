@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from alpha import cli
-from alpha.answers import AREAS, AnswersError, load_answers
+from alpha.answers import AREAS, AnswersError, load_answers, write_answers
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 
@@ -437,3 +437,20 @@ def test_scopes_may_differ_from_component_names(tmp_path: Path):
     data["git"]["scopes"] = ["backend", "frontend", "deps"]
     a = check(tmp_path, data)
     assert a.git and a.git.scopes == ("backend", "frontend", "deps")
+
+
+def test_non_utf8_answers_are_explained(tmp_path: Path):
+    path = tmp_path / "project.json"
+    path.write_bytes(b'{"schema": 1, "x": "\xff\xfe"}')
+    with pytest.raises(AnswersError) as err:
+        load_answers(path)
+    assert str(err.value).startswith(f"{path}: is not UTF-8 text")
+    assert "Save it as UTF-8" in str(err.value)
+
+
+def test_write_into_non_utf8_answers_is_explained(tmp_path: Path):
+    path = tmp_path / ".claude" / "alpha" / "project.json"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b'{"x": "\xff"}')
+    with pytest.raises(AnswersError, match="not valid JSON.*utf-8"):
+        write_answers(tmp_path, '{"layout": "single"}')

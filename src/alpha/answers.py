@@ -424,12 +424,18 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     sections may be incomplete and come back empty (None or ()).
     """
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         raise _fail(
             str(path),
             "file not found or unreadable",
             "Run the alpha interview first, or pass the right path",
+        ) from None
+    except UnicodeDecodeError:
+        raise _fail(
+            str(path),
+            "is not UTF-8 text",
+            "Save it as UTF-8, or delete it and run the alpha interview again",
         ) from None
     try:
         data: object = json.loads(text)
@@ -548,7 +554,7 @@ def write_answers(target: Path, text: str) -> Path:
     if path.exists():
         try:
             current: object = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as e:
+        except (OSError, ValueError) as e:  # ValueError: bad JSON or not UTF-8
             raise _fail(
                 str(path),
                 f"can't merge into it, it's not valid JSON ({e})",

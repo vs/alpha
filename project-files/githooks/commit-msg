@@ -1,2 +1,6 @@
 #!/bin/sh
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "commit-msg: python3 was not found, so this project's commit check can't run. Install Python 3.11+ (\"brew install python\" or \"uv python install 3.12\") and make sure python3 is on your PATH, then retry the commit." >&2
+  exit 1
+fi
 exec python3 "$(git rev-parse --show-toplevel)/.claude/alpha/hooks/commit_msg.py" "$1"
