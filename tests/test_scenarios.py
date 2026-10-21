@@ -173,6 +173,43 @@ def test_commit_skeleton_goes_through_the_real_commit_msg_hook(
     assert "alpha commit-skeleton" in str(err.value)
 
 
+def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
+    tmp_path: Path, generate_scenario, git_env
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    data = principles_of(tmp_path)
+    data["git"]["scopes"] = ["backend", "web"]
+    (tmp_path / "docs" / "principles.toml").write_text(render_principles(data))
+    commit_skeleton(tmp_path, data, [])
+    assert git_log_subjects(tmp_path) == [
+        "build(web): Set up typescript toolchain and tests",
+        "build: Set up api toolchain and tests",
+        "chore: Add Claude Code settings and guardrails",
+        "docs: Add product brief, principles and decisions",
+    ]
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+
+def test_commit_skeleton_rerun_finishes_after_a_partial_failure(
+    tmp_path: Path, generate_scenario, git_env
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    data = principles_of(tmp_path)
+    data["git"]["types"] = ["docs", "chore"]  # the hook rejects "build: ..."
+    principles = tmp_path / "docs" / "principles.toml"
+    principles.write_text(render_principles(data))
+    with pytest.raises(GenerateError, match=r'unknown type "build"'):
+        commit_skeleton(tmp_path, data, [])
+    assert len(git_log_subjects(tmp_path)) == 2
+    data["git"]["types"].append("build")
+    principles.write_text(render_principles(data))
+    commit_skeleton(tmp_path, data, [])
+    assert (
+        git_log_subjects(tmp_path)[0] == "build(ml): Set up python toolchain and tests"
+    )
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+
 def test_commit_skeleton_refuses_a_guessed_git_identity(
     tmp_path: Path, generate_scenario, git_env, monkeypatch: pytest.MonkeyPatch
 ):

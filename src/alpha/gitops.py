@@ -9,6 +9,7 @@ from alpha.generate import GenerateError
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = ["README.md", "LICENSE", "CONTRIBUTING.md", "docs", ".gitignore"]
 _CLAUDE = ["CLAUDE.md", ".claude"]
+_MAX_DESCRIPTION = 50  # the commit-msg hook's limit
 
 
 def _git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -48,6 +49,17 @@ def _check_identity(target: Path) -> None:
             )
 
 
+def _build_subject(component: dict[str, Any], scopes: list[str]) -> str:
+    """The component's build commit; scoped only when the hook accepts the scope."""
+    name, stack = component["name"], component["stack"]
+    if not scopes or name in scopes:
+        return f"build({name}): Set up {stack} toolchain and tests"
+    description = f"Set up {name} toolchain and tests"
+    if len(description) > _MAX_DESCRIPTION:
+        description = f"Set up {stack} toolchain and tests"
+    return f"build: {description}"
+
+
 def commit_skeleton(
     target: Path, principles: dict[str, Any], trailers: list[str]
 ) -> list[str]:
@@ -60,9 +72,9 @@ def commit_skeleton(
         ("docs: Add product brief, principles and decisions", _DOCS),
         ("chore: Add Claude Code settings and guardrails", _CLAUDE),
     ]
+    scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
     for c in principles["components"]:
-        subject = f"build({c['name']}): Set up {c['stack']} toolchain and tests"
-        groups.append((subject, [c["path"]]))  # "." takes everything left
+        groups.append((_build_subject(c, scopes), [c["path"]]))  # "." takes the rest
 
     hashes: list[str] = []
     for subject, paths in groups:
@@ -70,12 +82,13 @@ def commit_skeleton(
         if not present:
             continue
         _check(target, "add", "-A", "--", *present)
-        staged = _git(target, "diff", "--cached", "--quiet").returncode
-        if staged == 0:
+        # Only this group's paths: a failed earlier run may have left others staged.
+        staged = _git(target, "diff", "--cached", "--quiet", "--", *present)
+        if staged.returncode == 0:
             continue  # nothing staged for this group
-        if staged != 1:
-            _check(target, "diff", "--cached", "--quiet")  # report git's error
+        if staged.returncode != 1:
+            _check(target, "diff", "--cached", "--quiet", "--", *present)  # the error
         message = subject + ("\n\n" + "\n".join(trailers) if trailers else "")
-        _check(target, "commit", "-q", "-m", message)
+        _check(target, "commit", "-q", "-m", message, "--", *present)
         hashes.append(_check(target, "rev-parse", "HEAD"))
     return hashes
