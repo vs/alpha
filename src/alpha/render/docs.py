@@ -11,7 +11,7 @@ from alpha.principles import override_decision_paths
 from alpha.recipes import load_recipe
 
 LICENSES_DIR = Path(__file__).resolve().parents[1] / "licenses"
-_STEPS = ("setup", "test", "lint", "format", "typecheck")
+_STEPS = ("setup", "test", "lint", "format", "format_check", "typecheck")
 _DONE = (
     "Tests written and passing.",
     "Types and lint clean.",
@@ -19,15 +19,6 @@ _DONE = (
     "Committed per the commit convention.",
     "Reviewer passed.",
 )
-_WHY = {
-    "pytest": "Test runner",
-    "ruff": "Linting and formatting",
-    "pyright": "Strict type checking",
-    "typescript": "Type checking and compilation",
-    "vitest": "Test runner",
-    "@biomejs/biome": "Linting and formatting",
-    "@types/node": "Node.js type definitions",
-}
 _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
     "each leaving the checks green.",
@@ -36,13 +27,6 @@ _BRANCHING = {
 
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "decision"
-
-
-def _bootstrap_tools(stack: str) -> list[str]:
-    tools: list[str] = []
-    for line in load_recipe(stack).bootstrap:
-        tools += [t for t in line.split() if not t.startswith("-")][2:]
-    return tools
 
 
 def _identity(a: Answers) -> Identity:
@@ -241,7 +225,7 @@ def _architecture(a: Answers) -> str:
     lines += ["", talk, "", "## Tool choices", ""]
     for stack in dict.fromkeys(c.stack for c in a.components):
         recipe = load_recipe(stack)
-        tools = ", ".join(_bootstrap_tools(stack))
+        tools = ", ".join(recipe.why)
         lines += [
             f"- {stack}: {tools}. Commands: "
             + ", ".join(f"`{recipe.commands[s]}`" for s in _STEPS)
@@ -260,8 +244,8 @@ def _dependencies(a: Answers, today: date) -> str:
     ]
     for c in a.components:
         lines += [
-            f"| {t} | {c.name} | {_WHY.get(t, 'Tooling')} | {today.isoformat()} |"
-            for t in _bootstrap_tools(c.stack)
+            f"| {tool} | {c.name} | {why} | {today.isoformat()} |"
+            for tool, why in load_recipe(c.stack).why.items()
         ]
     return "\n".join(lines) + "\n"
 

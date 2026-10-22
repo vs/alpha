@@ -14,17 +14,13 @@ from alpha import VERSION
 from alpha.answers import PROJECT_JSON, load_answers
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
-from alpha.recipes import load_recipe, render_component
+from alpha.recipes import check_commands, load_recipe, render_component
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
 
 PRINCIPLES_TOML = "docs/principles.toml"
 _ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
 _ALLOWED_DIRS = frozenset({".claude", ".claude/alpha"})
-_IGNORES = {
-    "python": [".venv/", "__pycache__/", ".pytest_cache/"],
-    "typescript": ["node_modules/", "dist/", "coverage/"],
-}
 _TAIL_LINES = 40
 
 
@@ -65,7 +61,7 @@ def _gitignore(principles: dict[str, Any]) -> str:
         "!.env.example",
     ]
     for c in principles["components"]:
-        for entry in _IGNORES.get(c["stack"], []):
+        for entry in load_recipe(c["stack"]).ignores:
             # "**/" keeps the any-depth match the unprefixed pattern has.
             lines.append(entry if c["path"] == "." else f"{c['path']}/**/{entry}")
     return "\n".join(lines) + "\n"
@@ -205,7 +201,7 @@ def load_project_principles(target: Path) -> dict[str, Any]:
 
 
 def bootstrap(target: Path, principles: dict[str, Any]) -> None:
-    """Per component: install the toolchain, then run setup and the tests.
+    """Per component: install the toolchain, then run every check CI runs.
 
     Then rehash the manifest, so it matches the files commit-skeleton commits.
     """
@@ -220,10 +216,12 @@ def bootstrap(target: Path, principles: dict[str, Any]) -> None:
                 f'Component "{c["name"]}" folder {cwd} is missing. Fix its path in '
                 f"{PRINCIPLES_TOML}, or regenerate the skeleton in an empty folder."
             )
+        missing = [s for s in ("setup", "test") if s not in c["commands"]]
+        if missing:
+            raise KeyError(missing[0])  # explained as a damaged principles file
         commands = [
             *load_recipe(c["stack"]).bootstrap,
-            c["commands"]["setup"],
-            c["commands"]["test"],
+            *(command for _, command in check_commands(c["commands"])),
         ]
         for command in commands:
             print(f"alpha: {c['name']}: {command}", file=sys.stderr, flush=True)

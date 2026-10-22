@@ -1,6 +1,11 @@
 stack = "typescript"
-bootstrap = ["pnpm add -D typescript vitest @biomejs/biome @types/node"]
+bootstrap = [
+  "pnpm add -D typescript vitest @biomejs/biome @types/node",
+  # CI's pnpm/action-setup installs the version recorded here.
+  "pnpm pkg set packageManager=pnpm@$(pnpm --version)",
+]
 lockfiles = ["pnpm-lock.yaml"]
+ignores = ["node_modules/", "dist/", "coverage/"]
 manifests = ["package.json"]
 # Source is every .ts/.tsx file in the component, minus tests and excluded files.
 source_globs = ["**/*.ts", "**/*.tsx"]
@@ -28,6 +33,7 @@ setup = "pnpm install"
 test = "pnpm vitest run"
 lint = "pnpm biome lint ."
 format = "pnpm biome format --write ."
+format_check = "pnpm biome format ."
 typecheck = "pnpm tsc --noEmit"
 format_file = "pnpm biome format --write {file}"
 lint_file = "pnpm biome lint {file}"
@@ -37,3 +43,22 @@ lint_file = "pnpm biome lint {file}"
 "tsconfig.json" = "tsconfig.json.tmpl"
 "biome.json" = "biome.json.tmpl"
 "tests/setup.test.ts" = "setup.test.ts.tmpl"
+".node-version" = "node-version.tmpl"
+
+# The dev tools bootstrap installs, with the reason the dependency log gives.
+[why]
+typescript = "Type checking and compilation"
+vitest = "Test runner"
+"@biomejs/biome" = "Linting and formatting"
+"@types/node" = "Node.js type definitions"
+
+[ci]
+env = {}
+
+[[ci.steps]]
+uses = "pnpm/action-setup@v6"
+with = { package_json_file = "${dir}package.json" }
+
+[[ci.steps]]
+uses = "actions/setup-node@v7"
+with = { node-version-file = "${dir}.node-version", cache = "pnpm", cache-dependency-path = "${dir}pnpm-lock.yaml" }

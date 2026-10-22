@@ -27,7 +27,7 @@ STANDARD_ROOT = {
     ".claude",
 }
 ROOT_ENTRIES = {  # what each scenario may add at the root: its components
-    "python-ml-single": STANDARD_ROOT | {"pyproject.toml", "tests"},
+    "python-ml-single": STANDARD_ROOT | {"pyproject.toml", "tests", ".python-version"},
     "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web"},
 }
 SCENARIOS = ["python-ml-single", "web-ts-plus-python-api"]
@@ -156,6 +156,7 @@ def test_commit_skeleton_component_at_root_takes_the_rest(
     assert set(git(tmp_path, "show", "--name-only", "--format=", "HEAD").split()) == {
         "pyproject.toml",
         "tests/test_setup.py",
+        ".python-version",
     }
     assert git(tmp_path, "log", "-1", "--format=%B") == (
         "build(ml): Set up python toolchain and tests"

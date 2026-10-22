@@ -1,6 +1,7 @@
 stack = "python"
 bootstrap = ["uv add --dev pytest ruff pyright"]
 lockfiles = ["uv.lock"]
+ignores = [".venv/", "__pycache__/", ".pytest_cache/"]
 manifests = ["pyproject.toml"]
 # Source is every .py file in the component, minus tests and excluded files.
 source_globs = ["**/*.py"]
@@ -14,6 +15,7 @@ setup = "uv sync"
 test = "uv run pytest"
 lint = "uv run ruff check"
 format = "uv run ruff format"
+format_check = "uv run ruff format --check"
 typecheck = "uv run pyright"
 format_file = "uv run ruff format {file}"
 lint_file = "uv run ruff check {file}"
@@ -21,3 +23,18 @@ lint_file = "uv run ruff check {file}"
 [files]
 "pyproject.toml" = "pyproject.toml.tmpl"
 "tests/test_setup.py" = "test_setup.py.tmpl"
+".python-version" = "python-version.tmpl"
+
+# The dev tools bootstrap installs, with the reason the dependency log gives.
+[why]
+pytest = "Test runner"
+ruff = "Linting and formatting"
+pyright = "Strict type checking"
+
+[ci]
+env = { UV_LOCKED = "1" }  # uv fails instead of updating a stale uv.lock
+
+# setup-uv publishes no major tags, so it is pinned to a release.
+[[ci.steps]]
+uses = "astral-sh/setup-uv@v10.3.2"
+with = { enable-cache = true, cache-dependency-glob = "${dir}uv.lock" }

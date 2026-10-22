@@ -47,3 +47,31 @@ def test_bootstrap_runs_green(
             assert done.returncode == 0, f"{command}: {output}"
             assert "deprecat" not in output.lower(), f"{command}: {output}"
     assert git(tmp_path, "status", "--porcelain") == ""
+
+
+UNFORMATTED = {
+    "python": ("bad.py", "x  =  1\n"),
+    "typescript": ("bad.ts", "const x={a:1}\n"),
+}
+
+
+@pytest.mark.slow
+def test_format_check_fails_on_an_unformatted_file(
+    tmp_path: Path, generate_scenario, git_env
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    for c in principles["components"]:
+        name, text = UNFORMATTED[c["stack"]]
+        bad = tmp_path / c["path"] / name
+        bad.write_text(text)
+        done = subprocess.run(
+            c["commands"]["format_check"],
+            shell=True,
+            cwd=tmp_path / c["path"],
+            capture_output=True,
+            text=True,
+        )
+        assert done.returncode != 0, f"{c['name']}: {done.stdout}{done.stderr}"
+        assert bad.read_text() == text, f"{c['name']}: format_check rewrote {name}"

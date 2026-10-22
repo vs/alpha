@@ -240,17 +240,30 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
     generate_scenario(project, "web-ts-plus-python-api")
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
     bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
-    expected = [
+    announced = [
         "api: uv add --dev pytest ruff pyright",
         "api: uv sync",
+        "api: uv run ruff format --check",
+        "api: uv run ruff check",
+        "api: uv run pyright",
         "api: uv run pytest",
         "web: pnpm add -D typescript vitest @biomejs/biome @types/node",
+        "web: pnpm pkg set packageManager=pnpm@$(pnpm --version)",
         "web: pnpm install",
+        "web: pnpm biome format .",
+        "web: pnpm biome lint .",
+        "web: pnpm tsc --noEmit",
         "web: pnpm vitest run",
     ]
-    assert (tmp_path / "tools.log").read_text().splitlines() == expected
+    ran = [
+        *announced[:7],
+        "web: pnpm --version",  # the $(...) runs first
+        "web: pnpm pkg set packageManager=pnpm@pnpm output",
+        *announced[8:],
+    ]
+    assert (tmp_path / "tools.log").read_text().splitlines() == ran
     out = capsys.readouterr()
-    assert out.err.splitlines() == [f"alpha: {line}" for line in expected]
+    assert out.err.splitlines() == [f"alpha: {line}" for line in announced]
     assert out.out == ""
 
 
