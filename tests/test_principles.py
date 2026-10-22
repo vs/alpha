@@ -238,10 +238,39 @@ def test_output_parses_and_is_deterministic():
     s2 = render_principles(build_principles(D, A, "0.1.0"))
     parsed = tomllib.loads(s1)
     assert s1 == s2 and parsed["schema"] == 1
-    assert parsed["docs_map"] == {}
+    assert parsed["docs_map"] == {
+        "api/**/routes/**": ["docs/guide/**"],
+        "web/**/pages/**": ["docs/guide/**"],
+        "**/openapi*.yaml": ["docs/architecture.md"],
+    }
     assert parsed["components"][0]["commands"]["test"] == "uv run pytest"
     assert parsed["project"] == {"name": "Pico Trust", "slug": "pico-trust"}
 
 
 def test_branching_is_recorded():
     assert build_principles(D, A, "0.1.0")["git"]["branching"] == "trunk"
+
+
+def test_same_glob_in_two_mappings_merges_docs(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["documentation"]["mappings"] = [
+            {"paths": ["api/**", "web/**"], "docs": ["docs/a.md", "docs/b.md"]},
+            {"paths": ["api/**"], "docs": ["docs/b.md", "docs/c.md"]},
+        ]
+
+    out = build_principles(D, variant(tmp_path, mutate), "0.1.0")
+    assert out["docs_map"] == {
+        "api/**": ["docs/a.md", "docs/b.md", "docs/c.md"],
+        "web/**": ["docs/a.md", "docs/b.md"],
+    }
+
+
+@pytest.mark.parametrize("area", ["documentation", "build"])
+def test_principles_need_documentation_and_build(tmp_path: Path, area: str):
+    data = json.loads(FIXTURE.read_text())
+    data["areas"][area] = "pending"
+    path = tmp_path / "project.json"
+    path.write_text(json.dumps(data))
+    a = load_answers(path, ["identity"])
+    with pytest.raises(AnswersError, match=area):
+        build_principles(D, a, "0.1.0")

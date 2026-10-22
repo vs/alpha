@@ -3,7 +3,7 @@
 from pathlib import PurePosixPath
 from typing import Any, cast
 
-from alpha.answers import Answers, AnswersError, Component
+from alpha.answers import Answers, AnswersError, Component, Documentation
 from alpha.recipes import load_recipe
 from alpha.toml_write import dumps
 
@@ -74,6 +74,15 @@ def _applicable(applies: list[str], a: Answers, project: dict[str, bool]) -> lis
     return names
 
 
+def _docs_map(documentation: Documentation) -> dict[str, list[str]]:
+    """Each mapped glob to the docs that must change with it."""
+    out: dict[str, list[str]] = {}
+    for m in documentation.mappings:
+        for glob in m.paths:
+            out[glob] = _dedupe([*out.get(glob, []), *m.docs])
+    return out
+
+
 def override_decision_paths(a: Answers, first_number: int) -> dict[int, str]:
     return {
         i: f"docs/decisions/{first_number + i:04d}-override-{o.principle}.md"
@@ -84,10 +93,16 @@ def override_decision_paths(a: Answers, first_number: int) -> dict[int, str]:
 def build_principles(
     defaults: dict[str, Any], a: Answers, kit_version: str
 ) -> dict[str, Any]:
-    if a.identity is None or a.git is None or a.agent_workflow is None:
+    if (
+        a.identity is None
+        or a.documentation is None
+        or a.build is None
+        or a.git is None
+        or a.agent_workflow is None
+    ):
         raise AnswersError(
-            "Answers are incomplete: identity, git and agent_workflow must be done. "
-            "Finish the interview areas, then retry."
+            "Answers are incomplete: identity, documentation, build, git and "
+            "agent_workflow must be done. Finish the interview areas, then retry."
         )
     review = dict(defaults["review"])
     review["mode"] = a.agent_workflow.review_mode
@@ -173,7 +188,7 @@ def build_principles(
             "scopes": list(a.git.scopes),
             "branching": a.git.branching,
         },
-        "docs_map": {},  # filled by plan 2's documentation area
+        "docs_map": _docs_map(a.documentation),
         "components": components,
         "principles": principles,
     }
