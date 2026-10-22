@@ -54,6 +54,10 @@ def test_typescript_component_files():
     # Biome formats YAML since 2.6; the lockfile changes only through pnpm.
     for lockfile in load_recipe("typescript").lockfiles:
         assert f"!**/{lockfile}" in biome["files"]["includes"]
+    # A root component would otherwise reformat alpha's own files and the
+    # Markdown docs, whose tables Biome (2.6+) aligns.
+    assert "!**/.claude" in biome["files"]["includes"]
+    assert "!**/*.md" in biome["files"]["includes"]
 
 
 def test_single_layout_path_dot():

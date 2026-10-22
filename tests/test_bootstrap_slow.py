@@ -1,11 +1,14 @@
+import json
 import subprocess
 import tomllib
 from pathlib import Path
 
 import pytest
-from helpers import git
+from helpers import TODAY, git, place_answers
 
-from alpha.generate import bootstrap
+from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
+from alpha.generate import bootstrap, generate
 from alpha.gitops import commit_skeleton
 from alpha.recipes import load_recipe
 
@@ -75,3 +78,18 @@ def test_format_check_fails_on_an_unformatted_file(
         )
         assert done.returncode != 0, f"{c['name']}: {done.stdout}{done.stderr}"
         assert bad.read_text() == text, f"{c['name']}: format_check rewrote {name}"
+
+
+@pytest.mark.slow
+def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env):
+    # A root component's checks see everything at the root: .claude/, docs/
+    # and the CI workflow must all pass its formatter and linter.
+    answers = place_answers(tmp_path, "python-ml-single")
+    data = json.loads(answers.read_text())
+    data["components"][0].update(stack="typescript", kind="cli")
+    answers.write_text(json.dumps(data))
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)  # runs format_check, lint, typecheck and test
+    commit_skeleton(tmp_path, principles, [])
+    assert git(tmp_path, "status", "--porcelain") == ""
