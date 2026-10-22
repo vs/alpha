@@ -26,6 +26,7 @@ _PROJECT_ONLY = (
 )
 
 PRINCIPLES_FILE = "docs/principles.toml"
+DEPENDENCY_LOG = "docs/dependencies.md"  # the Stop hook requires it with new deps
 _HEADER = """\
 # Single source of truth for this project's principles, review thresholds,
 # protected paths and component commands. Edit by hand or through alpha skills;
@@ -210,6 +211,7 @@ def build_principles(
         a.security.extra_protected,
         [
             PRINCIPLES_FILE,
+            DEPENDENCY_LOG,
             *(doc for docs in docs_map.values() for doc in docs),
             *(m for c in components for m in c["manifests"]),
         ],

@@ -281,6 +281,7 @@ def test_extra_protected_and_contract_paths_reach_the_principles():
         ("**/*.toml", "docs/principles.toml"),
         ("**/package.json", "web/package.json"),
         ("docs/guide/**", "docs/guide/**"),
+        ("docs/dependencies.md", "docs/dependencies.md"),
     ],
 )
 def test_protecting_what_checks_must_change_is_refused(
