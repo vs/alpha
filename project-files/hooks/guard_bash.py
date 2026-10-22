@@ -93,7 +93,7 @@ def split_segments(command: str) -> list[list[str]] | None:
         return None
     segments: list[list[str]] = [[]]
     for token in tokens:
-        if set(token) <= set("&|;()") or token in ("{", "}"):
+        if (token and set(token) <= set("&|;()")) or token in ("{", "}"):
             segments.append([])
         else:
             segments[-1].append(token)

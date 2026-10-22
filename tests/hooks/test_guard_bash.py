@@ -166,3 +166,9 @@ def test_amend_blocked_when_pushed(project: Project, tmp_path: Path) -> None:
     assert "Make a new commit instead." in result.stderr
     project.git("commit", "--allow-empty", "-m", "feat: Two")
     assert bash(project, "git commit --amend --no-edit").returncode == 0
+
+
+def test_empty_quoted_argument_does_not_split_the_command(project: Project) -> None:
+    proc = bash(project, "git commit -m '' --no-verify")
+    assert proc.returncode == 2
+    assert NO_VERIFY in proc.stderr
