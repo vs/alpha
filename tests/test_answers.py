@@ -98,7 +98,9 @@ def test_bad_component_name_and_duplicates(tmp_path: Path):
         check(tmp_path, d)
 
 
-@pytest.mark.parametrize("path", ["/abs", "../up", "a/../b"])
+@pytest.mark.parametrize(
+    "path", ["/abs", "../up", "a/../b", "web/", "./web", "a//b", "a/./b"]
+)
 def test_bad_component_path(tmp_path: Path, path: str):
     d = valid()
     d["components"][1]["path"] = path
@@ -480,7 +482,10 @@ def test_fixture_loads_documentation_and_build():
     assert [t.name for t in a.build.components] == ["api", "web"]
 
 
-@pytest.mark.parametrize("path", ["guide", "docs", "/docs/guide", "docs/../guide"])
+@pytest.mark.parametrize(
+    "path",
+    ["guide", "docs", "/docs/guide", "docs/../guide", "docs/guide/", "docs//guide"],
+)
 def test_external_folder_must_be_under_docs(tmp_path: Path, path: str):
     d = valid()
     d["documentation"]["external_path"] = path
@@ -514,7 +519,11 @@ def test_bad_external_lists_choices(tmp_path: Path):
 
 
 @pytest.mark.parametrize("field", ["paths", "docs"])
-@pytest.mark.parametrize("value", [[], ["/abs/**"], ["a/../b"], [""], "docs/x.md"])
+@pytest.mark.parametrize(
+    "value",
+    [[], ["/abs/**"], ["a/../b"], [""], "docs/x.md", ["web/pages/"], ["./api/**"]]
+    + [["api//routes/**"]],
+)
 def test_mapping_paths_and_docs_rules(tmp_path: Path, field: str, value: object):
     d = valid()
     d["documentation"]["mappings"][0][field] = value

@@ -258,6 +258,14 @@ def _strs(d: Mapping[str, Any], key: str, where: str) -> tuple[str, ...]:
     return tuple(out)
 
 
+def _unmatchable(path: str) -> bool:
+    """A relative path or glob no repository path can match: empty, absolute,
+    or with an empty, "." or ".." segment (as in "web/", "./web", "a//b")."""
+    return path.startswith("/") or any(
+        part in ("", ".", "..") for part in path.split("/")
+    )
+
+
 def _project_root(answers_path: Path) -> Path:
     """Project root for an answers file at <root>/.claude/alpha/project.json."""
     return answers_path.resolve().parent.parent.parent
@@ -328,12 +336,12 @@ def _component(raw: object, i: int) -> Component:
             "Use lowercase letters, digits and hyphens, starting with a letter",
         )
     path = _str(d, "path", where)
-    parts = PurePosixPath(path).parts
-    if path.startswith("/") or ".." in parts:
+    if path != "." and _unmatchable(path):
         raise _fail(
             f"{where}.path",
             f"{path!r} must be relative to the project root",
-            'Use a folder like "api", without a leading "/" or ".."',
+            'Use a folder like "api" or "apps/api": no leading "/" or "./", '
+            'no trailing "/", no ".." or "//"',
         )
     stack = _str(d, "stack", where)
     if stack not in STACKS:
@@ -416,11 +424,12 @@ def _workflow(raw: object) -> AgentWorkflow:
 
 
 def _relative(value: str, where: str) -> None:
-    if not value.strip() or value.startswith("/") or ".." in value.split("/"):
+    if not value.strip() or _unmatchable(value):
         raise _fail(
             where,
             f"{value!r} must be a path or glob relative to the project root",
-            'Use e.g. "api/**/routes/**", without a leading "/" or ".."',
+            'Use e.g. "api/**/routes/**": no leading "/" or "./", no trailing '
+            '"/", no ".." or "//"',
         )
 
 
@@ -440,13 +449,8 @@ def _documentation(raw: object) -> Documentation:
     path = _str(d, "external_path", w, blank=True)
     location = _str(d, "external_location", w, blank=True)
     if external == "folder":
-        parts = PurePosixPath(path).parts
-        if (
-            path.startswith("/")
-            or ".." in parts
-            or len(parts) < 2
-            or parts[0] != "docs"
-        ):
+        parts = path.split("/")
+        if _unmatchable(path) or len(parts) < 2 or parts[0] != "docs":
             raise _fail(
                 "documentation.external_path",
                 f"{path!r} is not a folder under docs/",
