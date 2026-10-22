@@ -9,6 +9,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import os
+import re
 import shlex
 import signal
 import subprocess
@@ -281,3 +282,86 @@ def read_baseline(root: Path) -> str | None:
 
 def write_baseline(root: Path, sha: str) -> None:
     state_path(root, "session-base").write_text(sha + "\n")
+
+
+DECISIONS_DIR = "docs/decisions"
+INDEX_LINES = 40
+_HEADING = re.compile(r"# (\d{4})\. (.+)")
+
+
+def decision_index(root: Path) -> tuple[list[tuple[int, str, str, str]], list[str]]:
+    """Decision records as (number, title, status, path), and warnings for
+    files in docs/decisions/ that aren't records alpha can read."""
+    records: list[tuple[int, str, str, str]] = []
+    warnings: list[str] = []
+    folder = root / DECISIONS_DIR
+    if not folder.is_dir():
+        return records, warnings
+    for path in sorted(folder.glob("*.md")):
+        rel = f"{DECISIONS_DIR}/{path.name}"
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            warnings.append(f"{rel} can't be read as UTF-8 text; fix or remove it.")
+            continue
+        heading = _HEADING.fullmatch(lines[0].strip()) if lines else None
+        if heading is None:
+            warnings.append(
+                f'{rel} has no "# NNNN. Title" heading; fix it or rename it.'
+            )
+            continue
+        status = next(
+            (
+                line.split(":", 1)[1].strip()
+                for line in lines[1:12]
+                if line.startswith("Status:")
+            ),
+            "",
+        )
+        if not status:
+            warnings.append(f'{rel} has no "Status:" line; add "Status: accepted".')
+            continue
+        records.append((int(heading.group(1)), heading.group(2).strip(), status, rel))
+    records.sort()
+    return records, warnings
+
+
+def overrides_in_effect(principles: dict[str, Any]) -> list[str]:
+    """One line per principle the project overrode, with its decision record."""
+    lines: list[str] = []
+    for p in principles.get("principles", []):
+        record = p.get("override_decision")
+        if not record:
+            continue
+        state = "active" if p.get("active") else "inactive"
+        comps = ", ".join(str(c) for c in p.get("components", [])) or "none"
+        lines.append(f"{p.get('id')}: {state}, components {comps} ({record})")
+    return lines
+
+
+def context_text(root: Path, principles: dict[str, Any]) -> str:
+    """What every session and subagent is told about the decisions in effect."""
+    records, warnings = decision_index(root)
+    if records:
+        lines = [
+            "alpha: decisions in effect (read the ones that bear on your change "
+            "before changing anything):"
+        ]
+        shown = records[-INDEX_LINES:]
+        lines += [
+            f"- {n:04d} {title} [{status}] {path}" for n, title, status, path in shown
+        ]
+        if len(records) > len(shown):
+            lines.append(
+                f"- … {len(records) - len(shown)} older records in {DECISIONS_DIR}/"
+            )
+    else:
+        lines = [
+            f"alpha: no decision records yet in {DECISIONS_DIR}/; record decisions "
+            "with the decision skill."
+        ]
+    overrides = overrides_in_effect(principles)
+    if overrides:
+        lines += ["Principle overrides:", *(f"- {o}" for o in overrides)]
+    lines += [f"Warning: {w}" for w in warnings]
+    return "\n".join(lines)

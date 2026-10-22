@@ -41,16 +41,16 @@ def test_warns_when_hooks_path_unset(project: Project) -> None:
     assert f"git config core.hooksPath {HOOKS_PATH}" in text
 
 
-def test_silent_when_hooks_path_set(project: Project) -> None:
+def test_no_warning_when_hooks_path_set(project: Project) -> None:
     install_shim(project)
     project.git("config", "core.hooksPath", HOOKS_PATH)
     result = start(project)
     assert result.returncode == 0
-    assert result.stdout == ""
+    assert "core.hooksPath" not in context(result.stdout)
 
 
 def test_no_hooks_path_warning_without_shim(project: Project) -> None:
-    assert start(project).stdout == ""
+    assert "core.hooksPath" not in context(start(project).stdout)
 
 
 def test_no_hooks_path_warning_without_principles(project: Project) -> None:
@@ -78,7 +78,7 @@ def test_records_head_as_baseline_silently(project: Project) -> None:
     sha = commit(project)
     project.git("config", "core.hooksPath", HOOKS_PATH)
     result = start(project, source="resume")
-    assert result.stdout == ""
+    assert "warning" not in context(result.stdout)
     assert (
         project.root / ".claude/alpha/state/session-base"
     ).read_text().strip() == sha

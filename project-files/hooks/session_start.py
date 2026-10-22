@@ -1,4 +1,4 @@
-"""SessionStart hook: setup warnings; a new session gets a new Stop baseline."""
+"""SessionStart hook: the decision index, setup warnings, a new Stop baseline."""
 
 from __future__ import annotations
 
@@ -86,14 +86,20 @@ def main() -> None:
         if head:
             _common.write_baseline(root, head)
         _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
+    parts: list[str] = []
+    if problem is None:  # principles parse, so the index can name overrides
+        loaded = _common.load_principles(root)
+        if loaded is not None:
+            parts.append(_common.context_text(root, loaded))
     if warnings:
-        text = "alpha: " + " ".join(warnings)
+        parts.append("alpha: " + " ".join(warnings))
+    if parts:
         print(
             json.dumps(
                 {
                     "hookSpecificOutput": {
                         "hookEventName": "SessionStart",
-                        "additionalContext": text,
+                        "additionalContext": "\n\n".join(parts),
                     }
                 }
             )
