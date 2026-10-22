@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -209,7 +210,7 @@ def test_review_settings_come_from_answers(tmp_path: Path):
     assert review["max_lines"] == 50
     assert review["mode"] == "every-task"
     assert review["risk_paths"].count("docs/principles.toml") == 1
-    assert review["risk_paths"][-1] == "infra/**"
+    assert review["risk_paths"][-2:] == ["infra/**", "api/openapi.yaml"]
 
 
 def test_facts():
@@ -265,3 +266,31 @@ def test_principles_need_documentation_and_build(tmp_path: Path, area: str):
     a = load_answers(path, ["identity"])
     with pytest.raises(AnswersError, match=area):
         build_principles(D, a, "0.1.0")
+
+
+def test_extra_protected_and_contract_paths_reach_the_principles():
+    out = build_principles(D, A, "0.1.0")
+    assert "api/keys/**" in out["protected"]["paths"]
+    assert "api/openapi.yaml" in out["review"]["risk_paths"]
+
+
+@pytest.mark.parametrize(
+    ("glob", "blocked"),
+    [
+        ("docs/**", "docs/principles.toml"),
+        ("**/*.toml", "docs/principles.toml"),
+        ("**/package.json", "web/package.json"),
+        ("docs/guide/**", "docs/guide/**"),
+    ],
+)
+def test_protecting_what_checks_must_change_is_refused(
+    tmp_path: Path, glob: str, blocked: str
+):
+    def mutate(data: dict[str, Any]) -> None:
+        data["security"]["extra_protected"] = ["api/keys/**", glob]
+
+    with pytest.raises(
+        AnswersError,
+        match=rf"security\.extra_protected\[1\]: .*{re.escape(blocked)}",
+    ):
+        build_principles(D, variant(tmp_path, mutate), "0.1.0")
