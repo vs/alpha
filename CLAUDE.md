@@ -45,3 +45,11 @@ A scripted `claude -p --plugin-dir` run answered the `web-ts-plus-python-api` sc
 - Bootstrap now runs each component's CI checks (setup, format check, lint, typecheck, test); all passed for Python and TypeScript, including a TypeScript component at the root (slow tests).
 - The generated Stop hook blocked a new `api/app/routes/*.py` until `docs/guide/` changed, then allowed it.
 - Not yet verified: the workflow on GitHub itself. `actionlint` wasn't installed; the workflow was checked by parsing it and by Biome's YAML formatter.
+
+### Core areas live check (2026-10-22)
+
+Both scenarios went through `bin/alpha` (`answers check`, `generate`, `bootstrap`, `commit-skeleton`) with all twelve areas answered.
+
+- web+API: six commits ending with `ci: Run every component's checks in CI` and `ci: Schedule dependency updates`; docs include architecture (responsibilities, contracts, errors), glossary, security and observability; `.github/dependabot.yml` covers uv, npm and github-actions. Clean tree.
+- ML single (nothing deployed): no glossary and no observability doc; `docs/security.md` says nothing is deployed. Clean tree.
+- The generated path guard blocked `api/keys/**` (an extra protected path) and allowed normal source files. Its message used to talk about lockfiles and secrets for every protected path; it now names the glob and says to ask the user.
