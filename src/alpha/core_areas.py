@@ -1,4 +1,4 @@
-"""Answers for the areas every project settles: architecture, errors, testing."""
+"""Answers for the areas every project settles, from architecture to observability."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -13,6 +13,7 @@ from alpha.validate import (
     obj,
     paths,
     per_component,
+    relative,
     string,
     strings,
 )
@@ -37,6 +38,11 @@ ERROR_FORMATS: tuple[str, ...] = (
     "other",
 )
 TEST_LEVELS: tuple[str, ...] = ("unit", "integration", "end-to-end", "contract")
+UPDATE_TOOLS: tuple[str, ...] = ("dependabot", "manual")
+SCHEDULES: tuple[str, ...] = ("daily", "weekly", "monthly")
+LOG_FORMATS: tuple[str, ...] = ("json", "logfmt")
+CORRELATION: tuple[str, ...] = ("traceparent", "request-id", "none")
+TELEMETRY: tuple[str, ...] = ("none", "opentelemetry", "other")
 
 
 @dataclass(frozen=True)
@@ -86,6 +92,32 @@ class TestPlan:
 @dataclass(frozen=True)
 class Testing:
     components: tuple[TestPlan, ...]
+
+
+@dataclass(frozen=True)
+class Security:
+    secret_store: str
+    auth: str
+    extra_protected: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Dependencies:
+    updates: str
+    schedule: str
+
+
+@dataclass(frozen=True)
+class LogPlan:
+    name: str
+    log_format: str
+    correlation: str
+    telemetry: str
+
+
+@dataclass(frozen=True)
+class Observability:
+    components: tuple[LogPlan, ...]
 
 
 def architecture(
@@ -221,3 +253,67 @@ def testing(raw: object, comps: "Sequence[Component] | None", talk: bool) -> Tes
     if comps is not None:
         per_component(entries, comps, f"{w}.components", ("levels",))
     return Testing(tuple(entries))
+
+
+def security(raw: object, comps: "Sequence[Component] | None") -> Security:
+    w = "security"
+    d = obj(raw, w)
+    store = string(d, "secret_store", w, blank=True)
+    if (
+        comps is not None
+        and any(c.traits.deployed for c in comps)
+        and not store.strip()
+    ):
+        raise fail(
+            f"{w}.secret_store",
+            "is empty but a component is deployed",
+            "Say where production secrets live, e.g. your host's secret manager",
+        )
+    protected = strings(d, "extra_protected", w)
+    for i, glob in enumerate(protected):
+        relative(glob, f"{w}.extra_protected[{i}]")
+    return Security(store, string(d, "auth", w), protected)
+
+
+def dependencies(raw: object) -> Dependencies:
+    w = "dependencies"
+    d = obj(raw, w)
+    return Dependencies(
+        choice(d, "updates", w, UPDATE_TOOLS), choice(d, "schedule", w, SCHEDULES)
+    )
+
+
+def observability(raw: object, comps: "Sequence[Component] | None") -> Observability:
+    w = "observability"
+    d = obj(raw, w)
+    entries: list[LogPlan] = []
+    for i, e in enumerate(as_list(get(d, "components", w), f"{w}.components")):
+        ew = f"{w}.components[{i}]"
+        eo = obj(e, ew)
+        entries.append(
+            LogPlan(
+                string(eo, "name", ew),
+                choice(eo, "log_format", ew, LOG_FORMATS),
+                choice(eo, "correlation", ew, CORRELATION),
+                choice(eo, "telemetry", ew, TELEMETRY),
+            )
+        )
+    if comps is not None:
+        per_component(
+            entries,
+            comps,
+            f"{w}.components",
+            ("log_format", "correlation", "telemetry"),
+            only=lambda c: c.traits.deployed,
+            reason="isn't deployed",
+        )
+    if len(entries) > 1:
+        for i, e in enumerate(entries):
+            if e.correlation == "none":
+                raise fail(
+                    f"{w}.components[{i}].correlation",
+                    "is none but more than one component is deployed",
+                    "Use traceparent (or request-id) so a request can be "
+                    "followed across components",
+                )
+    return Observability(tuple(entries))

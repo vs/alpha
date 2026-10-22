@@ -8,6 +8,9 @@
     "testing": "done",
     "documentation": "done",
     "build": "done",
+    "security": "done",
+    "dependencies": "done",
+    "observability": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -117,6 +120,18 @@
       }
     ]
   },
+  "security": {
+    "secret_store": "",
+    "auth": "none",
+    "extra_protected": []
+  },
+  "dependencies": {
+    "updates": "dependabot",
+    "schedule": "monthly"
+  },
+  "observability": {
+    "components": []
+  },
   "overrides": [],
   "decisions": [
     {
@@ -167,6 +182,27 @@
       "context": "The model runs on developer machines only.",
       "decision": "GitHub Actions runs the checks; the component builds as a package.",
       "consequences": "No environments or hosting until the model is served."
+    },
+    {
+      "area": "security",
+      "title": "No secrets, no auth",
+      "context": "The model runs on developer machines.",
+      "decision": "Nothing is deployed, so there is no secret store and no auth.",
+      "consequences": "Revisit when the model is served."
+    },
+    {
+      "area": "dependencies",
+      "title": "Monthly Dependabot updates",
+      "context": "ML libraries move fast but break often.",
+      "decision": "Dependabot opens monthly update pull requests.",
+      "consequences": "Updates arrive in batches."
+    },
+    {
+      "area": "observability",
+      "title": "Observability not applicable yet",
+      "context": "Nothing is deployed.",
+      "decision": "No logging setup until the model is served.",
+      "consequences": "Revisit with the first deployment."
     },
     {
       "area": "git",

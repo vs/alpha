@@ -89,6 +89,9 @@ def single_component(
     data["build"]["components"] = [
         {"name": name, "artifact": "package", "hosting": hosting}
     ]
+    log = {"log_format": "json", "correlation": "none", "telemetry": "none"}
+    deployed = comp["traits"]["deployed"]
+    data["observability"]["components"] = [{"name": name, **log}] if deployed else []
 
 
 def override_record(data: dict[str, Any], principle: str, index: int = 0) -> str:

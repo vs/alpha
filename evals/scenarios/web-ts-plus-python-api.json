@@ -8,6 +8,9 @@
     "testing": "done",
     "documentation": "done",
     "build": "done",
+    "security": "done",
+    "dependencies": "done",
+    "observability": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -191,6 +194,33 @@
       }
     ]
   },
+  "security": {
+    "secret_store": "Fly.io secrets",
+    "auth": "API keys for publishers; verification is public.",
+    "extra_protected": [
+      "api/keys/**"
+    ]
+  },
+  "dependencies": {
+    "updates": "dependabot",
+    "schedule": "weekly"
+  },
+  "observability": {
+    "components": [
+      {
+        "name": "api",
+        "log_format": "json",
+        "correlation": "traceparent",
+        "telemetry": "none"
+      },
+      {
+        "name": "web",
+        "log_format": "json",
+        "correlation": "traceparent",
+        "telemetry": "none"
+      }
+    ]
+  },
   "overrides": [
     {
       "principle": "observability",
@@ -249,6 +279,27 @@
       "context": "Both components are deployed to staging and production.",
       "decision": "CI on GitHub Actions; api as a container on Fly.io, web on Cloudflare Pages.",
       "consequences": "Every push runs both components' checks; hosting is documented, not provisioned."
+    },
+    {
+      "area": "security",
+      "title": "Secrets in Fly.io, API keys for publishers",
+      "context": "The api signs payloads with keys that must never leak.",
+      "decision": "Production secrets live in Fly.io secrets; publishers authenticate with API keys; api/keys/** is protected.",
+      "consequences": "Claude can't edit api/keys/**."
+    },
+    {
+      "area": "dependencies",
+      "title": "Weekly Dependabot updates",
+      "context": "Two toolchains and pinned CI actions drift.",
+      "decision": "Dependabot opens weekly update pull requests per component and for the CI actions.",
+      "consequences": "Each update runs CI before it merges."
+    },
+    {
+      "area": "observability",
+      "title": "JSON logs correlated by traceparent",
+      "context": "A browser request spans web and api.",
+      "decision": "Both components log JSON and pass the W3C traceparent.",
+      "consequences": "One request can be followed across components."
     },
     {
       "area": "git",

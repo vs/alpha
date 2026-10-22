@@ -142,3 +142,87 @@ def test_per_component_areas_follow_renames(tmp_path: Path, area: str):
     d["architecture"]["components"][1]["calls"] = ["api"]
     with pytest.raises(AnswersError, match=rf"{area}\.components"):
         check(tmp_path, d)
+
+
+def test_fixture_loads_security_dependencies_observability():
+    a = load_answers(FIXTURE)
+    assert a.security and a.security.extra_protected == ("api/keys/**",)
+    assert a.dependencies and a.dependencies.updates == "dependabot"
+    assert a.observability
+    assert [c.name for c in a.observability.components] == ["api", "web"]
+
+
+def test_deployed_projects_need_a_secret_store(tmp_path: Path):
+    d = valid()
+    d["security"]["secret_store"] = " "
+    with pytest.raises(AnswersError, match=r"security\.secret_store: "):
+        check(tmp_path, d)
+
+
+def test_auth_is_required(tmp_path: Path):
+    d = valid()
+    d["security"]["auth"] = ""
+    with pytest.raises(AnswersError, match=r"security\.auth"):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize("glob", ["/etc/**", "keys/", "./keys/**", ""])
+def test_extra_protected_globs_must_match_something(tmp_path: Path, glob: str):
+    d = valid()
+    d["security"]["extra_protected"] = [glob]
+    with pytest.raises(AnswersError, match=r"security\.extra_protected\[0\]"):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"), [("updates", "renovate"), ("schedule", "hourly")]
+)
+def test_update_tool_and_schedule_choices(tmp_path: Path, key: str, value: str):
+    d = valid()
+    d["dependencies"][key] = value
+    with pytest.raises(AnswersError, match=rf"dependencies\.{key}: "):
+        check(tmp_path, d)
+
+
+def test_observability_covers_exactly_the_deployed_components(tmp_path: Path):
+    d = valid()
+    d["observability"]["components"].pop(0)
+    with pytest.raises(AnswersError, match=r"observability\.components: .*'api'"):
+        check(tmp_path, d)
+    d = valid()
+    d["components"][1]["traits"]["deployed"] = False
+    d["build"]["components"][1]["hosting"] = ""
+    with pytest.raises(
+        AnswersError, match=r"observability\.components\[1\]\.name: .*isn't deployed"
+    ):
+        check(tmp_path, d)
+
+
+def test_nothing_deployed_needs_no_observability_or_secret_store(tmp_path: Path):
+    d = valid()
+    for c in d["components"]:
+        c["traits"]["deployed"] = False
+    for t in d["build"]["components"]:
+        t["hosting"] = ""
+    d["build"]["environments"] = []
+    d["security"]["secret_store"] = ""
+    d["observability"]["components"] = []
+    a = check(tmp_path, d)
+    assert a.observability and a.observability.components == ()
+
+
+def test_correlation_none_only_with_one_deployed_component(tmp_path: Path):
+    d = valid()
+    d["observability"]["components"][0]["correlation"] = "none"
+    with pytest.raises(
+        AnswersError, match=r"observability\.components\[0\]\.correlation: "
+    ):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize("field", ["log_format", "correlation", "telemetry"])
+def test_observability_choices(tmp_path: Path, field: str):
+    d = valid()
+    d["observability"]["components"][0][field] = "text"
+    with pytest.raises(AnswersError, match=rf"observability\.components\[0\]\.{field}"):
+        check(tmp_path, d)

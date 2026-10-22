@@ -230,6 +230,7 @@ def test_build_doc_without_deployed_components(tmp_path: Path):
         data["build"]["environments"] = []
         for t in data["build"]["components"]:
             t["hosting"] = ""
+        data["observability"]["components"] = []
 
     doc = render(load(tmp_path, undeployed))["docs/build.md"]
     assert "## Environments\n\nNone: nothing is deployed.\n" in doc

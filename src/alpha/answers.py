@@ -10,7 +10,14 @@ from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 from alpha import core_areas
-from alpha.core_areas import Architecture, Errors, Testing
+from alpha.core_areas import (
+    Architecture,
+    Dependencies,
+    Errors,
+    Observability,
+    Security,
+    Testing,
+)
 from alpha.validate import (
     NAME,
     as_list,
@@ -37,6 +44,9 @@ AREAS: tuple[str, ...] = (
     "testing",
     "documentation",
     "build",
+    "security",
+    "dependencies",
+    "observability",
     "git",
     "agent_workflow",
 )
@@ -85,6 +95,9 @@ _TOP_KEYS = frozenset(
         "testing",
         "documentation",
         "build",
+        "security",
+        "dependencies",
+        "observability",
         "overrides",
         "decisions",
         "manifest",
@@ -207,6 +220,9 @@ class Answers:
     testing: Testing | None
     documentation: Documentation | None
     build: Build | None
+    security: Security | None
+    dependencies: Dependencies | None
+    observability: Observability | None
     overrides: tuple[Override, ...]
     decisions: tuple[Decision, ...]
 
@@ -627,6 +643,21 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         if active("build")
         else None
     )
+    security = (
+        core_areas.security(get(top, "security", ""), comps_or_none)
+        if active("security")
+        else None
+    )
+    dependencies = (
+        core_areas.dependencies(get(top, "dependencies", ""))
+        if active("dependencies")
+        else None
+    )
+    observability = (
+        core_areas.observability(get(top, "observability", ""), comps_or_none)
+        if active("observability")
+        else None
+    )
     decisions = tuple(
         _decision(x, i)
         for i, x in enumerate(as_list(top.get("decisions", []), "decisions"))
@@ -654,6 +685,9 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         testing,
         documentation,
         build,
+        security,
+        dependencies,
+        observability,
         overrides,
         decisions,
     )
