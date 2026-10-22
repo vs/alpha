@@ -45,8 +45,11 @@ Run the areas in this order, one at a time, never skipping one and never shortcu
 5. Testing: `alpha:testing`
 6. Documentation: `alpha:documentation`
 7. Build, CI and hosting: `alpha:build-and-hosting`
-8. Git history: `alpha:git-history`
-9. Agent workflow: `alpha:agent-workflow`
+8. Security and secrets: `alpha:security`
+9. Dependencies: `alpha:dependencies`
+10. Observability: `alpha:observability`
+11. Git history: `alpha:git-history`
+12. Agent workflow: `alpha:agent-workflow`
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 
@@ -54,7 +57,7 @@ Before each area, tell the user in one line which area comes next and what it se
 
 ## 5. Summary and confirmation
 
-Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
+Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), architecture (responsibilities, calls, contract, glossary), errors (format per component; categories), testing (levels per component), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, auth, extra protected paths), dependencies (updates and schedule), observability (per deployed component, or not applicable), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
 
 If the user wants a change, save it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` on one line (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
 
@@ -75,10 +78,11 @@ Tell the user, briefly:
 - **Enforced now:**
   - Every commit, by anyone, must follow the convention and scopes (the git `commit-msg` hook).
   - Claude can't skip git hooks, force-push, or amend commits that were already pushed.
-  - Claude can't edit protected files (secrets, lockfiles), and must ask the user before skipping a test, adding an ignore comment or loosening strictness.
+  - Claude can't edit protected files (secrets, lockfiles, and any extra protected paths), and must ask the user before skipping a test, adding an ignore comment or loosening strictness.
   - Every file Claude edits is formatted and linted right away.
   - Claude can't finish while it has added a secret, changed source without changing tests, changed a mapped path without its docs, added a dependency without a recorded reason, or left the type checks or tests failing.
   - CI runs every component's checks on each push to main and each pull request (when the user chose CI). Tell the user the workflow runs once they push the repository to GitHub.
+  - Dependabot opens update pull requests on the chosen schedule (when chosen), also once the repository is on GitHub.
   - Each session starts with a warning if the project setup is broken.
-- **Not covered yet:** the remaining areas (architecture, errors, testing, UI/UX, security, dependencies, observability, versioning, data, accessibility, performance) and the principles reviewer arrive in the next version of alpha. Their principles are already in `docs/principles.toml` at the kit defaults.
+- **Not covered yet:** the remaining areas (UI/UX, versioning and releases, data and migrations, accessibility, performance) and the principles reviewer arrive in the next version of alpha. Their principles are already in `docs/principles.toml` at the kit defaults.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building.

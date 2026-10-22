@@ -23,6 +23,9 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "testing": ("testing", ("testing",)),
     "documentation": ("documentation", ("documentation",)),
     "build-and-hosting": ("build", ("build",)),
+    "security": ("security", ("security",)),
+    "dependencies": ("dependencies", ("dependencies",)),
+    "observability": ("observability", ("observability",)),
     "git-history": ("git", ("git",)),
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
@@ -341,3 +344,30 @@ def test_every_kind_has_an_error_format_and_test_levels():
         assert set(levels[kind]) <= set(core_areas.TEST_LEVELS)
     assert kit["errors"]["categories"]
     assert kit["architecture"]["contract_format"] in core_areas.CONTRACT_FORMATS
+
+
+def test_every_update_and_observability_default_is_a_choice():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    assert kit["dependencies"]["updates"] in core_areas.UPDATE_TOOLS
+    assert kit["dependencies"]["schedule"] in core_areas.SCHEDULES
+    obs = kit["observability"]
+    assert obs["log_format"] in core_areas.LOG_FORMATS
+    assert obs["correlation"] in core_areas.CORRELATION
+    assert obs["telemetry"] in core_areas.TELEMETRY
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_waits_for_the_area_before_it(skill: str):
+    area = AREA_SKILLS[skill][0]
+    index = answers.AREAS.index(area)
+    found = re.findall(r"`areas\.(\w+)` isn't `\"done\"`", _section(skill, "Before you start"))
+    assert found == ([answers.AREAS[index - 1]] if index else [])
+
+
+def test_new_project_no_longer_lists_the_core_areas_as_missing():
+    report = _section("new-project", "7. Final report")
+    not_covered = report.split("**Not covered yet:**")[1].split("\n- **")[0]
+    for area in ("architecture", "errors", "testing", "security", "dependencies"):
+        assert area not in not_covered
+    assert "observability" not in not_covered
+    assert "Dependabot" in report

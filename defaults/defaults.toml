@@ -80,6 +80,17 @@ ml = "none"
 library = "package"
 worker = "container"
 
+
+[dependencies]
+updates = "dependabot"   # or "manual"
+schedule = "weekly"      # "daily", "weekly" or "monthly"
+
+# For each deployed component.
+[observability]
+log_format = "json"         # or "logfmt"
+correlation = "traceparent" # W3C trace context; or "request-id"
+telemetry = "none"          # or "opentelemetry"
+
 [[principles]]
 id = "simplest-architecture"
 title = "Simplest sufficient architecture"
