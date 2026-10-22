@@ -369,7 +369,7 @@ def find_problems(
                 principles, "docs-with-code", component_name(f, principles)
             )
         ]
-        if hit and not any(d in changed for d in doc_list):
+        if hit and not any(_common.matches(f, doc_list) for f in changed):
             for rel in hit:
                 problems.append(
                     f"{rel} changed but {', '.join(doc_list)} did not. Principle "

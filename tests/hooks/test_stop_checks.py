@@ -107,6 +107,28 @@ def test_manifest_without_dependency_log_blocks(project: Project) -> None:
     assert counter(project) == 0
 
 
+def guide_mapped(project: Project) -> None:
+    data = project.principles()
+    data["docs_map"] = {"api/src/**/*.py": ["docs/guide/**"]}
+    project.write_principles(data)
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+
+
+def test_docs_drift_satisfied_by_any_file_under_a_doc_glob(project: Project) -> None:
+    guide_mapped(project)
+    project.write("docs/guide/api/upload.md", "doc\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_docs_drift_glob_still_flags_unrelated_doc_changes(project: Project) -> None:
+    guide_mapped(project)
+    project.write("docs/other.md", "doc\n")
+    assert "api/src/a.py changed but docs/guide/** did not." in reason(run(project))
+
+
 def test_docs_drift_with_hand_set_docs_map(project: Project) -> None:
     data = project.principles()
     data["docs_map"] = {"api/src/**/*.py": ["docs/api.md"]}
