@@ -9,6 +9,7 @@ from typing import Any
 from alpha.answers import Answers, Component, Documentation, Identity
 from alpha.principles import override_decision_paths
 from alpha.recipes import check_commands, load_recipe
+from alpha.render import area_docs
 from alpha.render.ci import WORKFLOW
 
 LICENSES_DIR = Path(__file__).resolve().parents[1] / "licenses"
@@ -200,6 +201,8 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     docs = _documentation(a)
     if docs.external == "folder":
         lines.append(f"- [User guide]({docs.external_path}/)")
+    if area_docs.glossary(a, principles) is not None:
+        lines.append("- [Glossary](docs/glossary.md)")
     return "\n".join(lines) + "\n"
 
 
@@ -261,6 +264,7 @@ def _contributing(a: Answers, principles: dict[str, Any]) -> str:
         "with no trailing period.",
         "- Body lines wrap at 72 characters.",
         "",
+        *area_docs.testing_section(a),
         *_docs_section(_documentation(a)),
         "## Branching",
         "",
@@ -321,6 +325,7 @@ def _architecture(a: Answers) -> str:
             f"- {stack}: {tools}. Commands: "
             + ", ".join(f"`{recipe.commands[s]}`" for s in _STEPS)
         ]
+    lines += ["", *area_docs.architecture_sections(a)]
     return "\n".join(lines) + "\n"
 
 
@@ -376,6 +381,9 @@ def render_docs(
         "docs/dependencies.md": _dependencies(a, today),
         "docs/build.md": _build(a, principles),
     }
+    glossary = area_docs.glossary(a, principles)
+    if glossary is not None:
+        out["docs/glossary.md"] = glossary
     docs = _documentation(a)
     if docs.external == "folder":
         out[f"{docs.external_path}/README.md"] = (

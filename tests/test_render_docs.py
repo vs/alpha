@@ -97,6 +97,7 @@ def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
         "docs/dependencies.md",
         "docs/build.md",
         "docs/guide/README.md",
+        "docs/glossary.md",
     } | decision_records(fixture)
     first = out["docs/decisions/0001-product-identity.md"]
     assert first.startswith("# 0001. Product identity")
