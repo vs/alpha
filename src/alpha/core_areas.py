@@ -149,6 +149,13 @@ def architecture(
         entries.append(Responsibility(name, string(eo, "responsibility", ew), calls))
     if comps is not None:
         per_component(entries, comps, f"{w}.components", ("responsibility", "calls"))
+    if talk and not any(e.calls for e in entries):
+        raise fail(
+            f"{w}.components",
+            "components_talk is true but no component calls another",
+            "Add each component's calls, or set components_talk to false in the "
+            "components area",
+        )
 
     cw = f"{w}.contracts"
     co = obj(get(d, "contracts", w), cw)
@@ -157,8 +164,9 @@ def architecture(
         if fmt == "none":
             raise fail(
                 f"{cw}.format",
-                "is none but the components call each other",
-                "Pick the format their interfaces are defined in, e.g. openapi",
+                "is none but the components call each other (components_talk is true)",
+                "Pick the format their interfaces are defined in, e.g. openapi, or "
+                "set components_talk to false in the components area",
             )
         contract_paths = paths(co, "paths", cw)
     else:

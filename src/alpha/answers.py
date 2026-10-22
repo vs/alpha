@@ -612,6 +612,12 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     talk = top.get("components_talk", False)
     if not isinstance(talk, bool):
         raise fail("components_talk", "must be true or false", "Use true or false")
+    if talk and active("components") and len(comps) == 1:
+        raise fail(
+            "components_talk",
+            "is true but there is only one component",
+            "Set components_talk to false",
+        )
     comps_or_none = comps if active("components") else None
     jargon = identity.domain_jargon if identity else False
     architecture = (

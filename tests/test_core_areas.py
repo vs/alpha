@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from helpers import single_component
 
 from alpha.answers import AnswersError, load_answers
 
@@ -225,4 +226,30 @@ def test_observability_choices(tmp_path: Path, field: str):
     d = valid()
     d["observability"]["components"][0][field] = "text"
     with pytest.raises(AnswersError, match=rf"observability\.components\[0\]\.{field}"):
+        check(tmp_path, d)
+
+
+def test_talking_components_need_a_call(tmp_path: Path):
+    d = valid()
+    d["architecture"]["components"][1]["calls"] = []
+    with pytest.raises(
+        AnswersError,
+        match=r"architecture\.components: .*no component calls another.*"
+        r"set components_talk to false",
+    ):
+        check(tmp_path, d)
+
+
+def test_contract_error_says_how_to_turn_talking_off(tmp_path: Path):
+    d = valid()
+    d["architecture"]["contracts"] = {"format": "none", "paths": []}
+    with pytest.raises(AnswersError, match=r"contracts\.format: .*components_talk"):
+        check(tmp_path, d)
+
+
+def test_one_component_cannot_talk(tmp_path: Path):
+    d = valid()
+    single_component(d)
+    d["components_talk"] = True
+    with pytest.raises(AnswersError, match=r"components_talk: .*only one component"):
         check(tmp_path, d)
