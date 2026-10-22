@@ -318,6 +318,18 @@ def write_count(path: Path, count: int) -> None:
     path.write_text(json.dumps({"count": count}))
 
 
+def is_behavior(rel: str, principles: dict[str, Any], docs: list[str]) -> bool:
+    """Whether a changed file can change public behavior: not a doc, not a test
+    and not a file its component excludes from checks."""
+    if _common.matches(rel, docs):
+        return False
+    comp = _common.component_for(rel, principles)
+    if comp is None:
+        return True
+    excluded = [str(g) for g in comp.get("exclude_globs", [])]
+    return not _common.is_test(rel, comp) and not _common.matches(rel, excluded)
+
+
 def find_problems(
     root: Path, principles: dict[str, Any], changed: list[str], base: str | None
 ) -> list[str]:
@@ -359,12 +371,14 @@ def find_problems(
                     )
 
     docs_map: dict[str, Any] = principles.get("docs_map", {})
+    every_doc = [str(d) for docs in docs_map.values() for d in docs]
     for glob, docs in docs_map.items():
         doc_list = [str(d) for d in docs]
         hit = [
             f
             for f in changed
             if _common.matches(f, [glob])
+            and is_behavior(f, principles, every_doc)
             and _common.principle_applies(
                 principles, "docs-with-code", component_name(f, principles)
             )

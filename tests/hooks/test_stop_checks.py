@@ -129,6 +129,30 @@ def test_docs_drift_glob_still_flags_unrelated_doc_changes(project: Project) -> 
     assert "api/src/a.py changed but docs/guide/** did not." in reason(run(project))
 
 
+def map_docs(project: Project, docs_map: dict[str, list[str]]) -> None:
+    data = project.principles()
+    data["docs_map"] = docs_map
+    project.write_principles(data)
+    commit_all(project)
+
+
+def test_test_only_change_under_a_mapped_path_needs_no_docs(project: Project) -> None:
+    map_docs(project, {"api/**/routes/**": ["docs/guide/**"]})
+    project.write("api/tests/routes/test_users.py", "x = 1\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def test_a_doc_under_a_mapped_path_is_not_code(project: Project) -> None:
+    map_docs(
+        project,
+        {"**/api/**": ["docs/architecture.md"], "web/**": ["docs/guide/**"]},
+    )
+    project.write("docs/guide/api/upload.md", "doc\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
 def test_docs_drift_with_hand_set_docs_map(project: Project) -> None:
     data = project.principles()
     data["docs_map"] = {"api/src/**/*.py": ["docs/api.md"]}
