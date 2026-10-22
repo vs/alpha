@@ -3,6 +3,8 @@
   "areas": {
     "identity": "done",
     "components": "done",
+    "documentation": "done",
+    "build": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -56,6 +58,23 @@
       "data/**"
     ]
   },
+  "documentation": {
+    "external": "readme",
+    "external_path": "",
+    "external_location": "",
+    "mappings": []
+  },
+  "build": {
+    "ci": "github-actions",
+    "environments": [],
+    "components": [
+      {
+        "name": "ml",
+        "artifact": "package",
+        "hosting": ""
+      }
+    ]
+  },
   "overrides": [],
   "decisions": [
     {
@@ -71,6 +90,20 @@
       "context": "The product is a model plus its evaluation; there is no UI yet.",
       "decision": "A single Python component at the repository root.",
       "consequences": "A UI later means switching to a monorepo layout."
+    },
+    {
+      "area": "documentation",
+      "title": "README is the user documentation",
+      "context": "A single model package used by its maintainer and a few gardeners.",
+      "decision": "External docs live in the README; no paths are mapped yet.",
+      "consequences": "Map paths in docs/principles.toml once the package has a public interface."
+    },
+    {
+      "area": "build",
+      "title": "CI on GitHub Actions, packaged, not deployed",
+      "context": "The model runs on developer machines only.",
+      "decision": "GitHub Actions runs the checks; the component builds as a package.",
+      "consequences": "No environments or hosting until the model is served."
     },
     {
       "area": "git",

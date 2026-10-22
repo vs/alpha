@@ -3,6 +3,8 @@
   "areas": {
     "identity": "done",
     "components": "done",
+    "documentation": "done",
+    "build": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -62,7 +64,10 @@
   ],
   "git": {
     "convention": "conventional",
-    "scopes": ["api", "web"],
+    "scopes": [
+      "api",
+      "web"
+    ],
     "branching": "trunk"
   },
   "agent_workflow": {
@@ -70,6 +75,55 @@
     "max_lines": 200,
     "max_files": 5,
     "extra_risk_paths": []
+  },
+  "documentation": {
+    "external": "folder",
+    "external_path": "docs/guide",
+    "external_location": "",
+    "mappings": [
+      {
+        "paths": [
+          "api/**/routes/**"
+        ],
+        "docs": [
+          "docs/guide/**"
+        ]
+      },
+      {
+        "paths": [
+          "web/**/pages/**"
+        ],
+        "docs": [
+          "docs/guide/**"
+        ]
+      },
+      {
+        "paths": [
+          "**/openapi*.yaml"
+        ],
+        "docs": [
+          "docs/architecture.md"
+        ]
+      }
+    ]
+  },
+  "build": {
+    "ci": "github-actions",
+    "environments": [
+      "production"
+    ],
+    "components": [
+      {
+        "name": "api",
+        "artifact": "container",
+        "hosting": "Fly.io"
+      },
+      {
+        "name": "web",
+        "artifact": "static-site",
+        "hosting": "Cloudflare Pages"
+      }
+    ]
   },
   "overrides": [
     {
@@ -94,6 +148,20 @@
       "context": "Image processing is easiest in Python; verification needs a browser UI.",
       "decision": "A monorepo with an api (python) and a web (typescript) component.",
       "consequences": "Two toolchains to maintain; the api contract is the integration point."
+    },
+    {
+      "area": "documentation",
+      "title": "User guide in docs/guide",
+      "context": "Journalists need a guide to embedding and verifying images.",
+      "decision": "External docs live in docs/guide; api routes and web pages map to it.",
+      "consequences": "A change to a route or page must update the guide."
+    },
+    {
+      "area": "build",
+      "title": "GitHub Actions, containers and static hosting",
+      "context": "Both components are deployed and need checks on every change.",
+      "decision": "CI on GitHub Actions; api as a container on Fly.io, web on Cloudflare Pages.",
+      "consequences": "Every push runs both components' checks; hosting is documented, not provisioned."
     },
     {
       "area": "git",

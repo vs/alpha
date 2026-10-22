@@ -232,6 +232,7 @@ def root_component_principles(tmp_path: Path) -> dict[str, Any]:
     data["layout"] = "single"
     data["components"] = data["components"][:1]
     data["components"][0]["path"] = "."
+    data["build"]["components"] = data["build"]["components"][:1]
     data["overrides"] = []
     path = tmp_path / ".claude" / "alpha" / "project.json"
     path.parent.mkdir(parents=True)

@@ -10,12 +10,30 @@ from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 PROJECT_JSON = ".claude/alpha/project.json"
-AREAS: tuple[str, ...] = ("identity", "components", "git", "agent_workflow")
+AREAS: tuple[str, ...] = (
+    "identity",
+    "components",
+    "documentation",
+    "build",
+    "git",
+    "agent_workflow",
+)
 KINDS: frozenset[str] = frozenset(
     {"backend", "frontend", "cli", "mobile", "ml", "library", "worker"}
 )
 STACKS: frozenset[str] = frozenset({"python", "typescript"})
 LICENSES: frozenset[str] = frozenset({"MIT", "Apache-2.0", "Proprietary"})
+EXTERNAL_DOCS: tuple[str, ...] = ("readme", "folder", "elsewhere", "none")
+CI_PROVIDERS: tuple[str, ...] = ("github-actions", "none")
+ARTIFACTS: tuple[str, ...] = (
+    "none",
+    "package",
+    "container",
+    "static-site",
+    "binary",
+    "app",
+    "other",
+)
 _STATUSES = ("done", "in_progress", "pending")
 _LAYOUTS = ("monorepo", "single")
 _CHANGES = ("tighten", "loosen", "drop")
@@ -41,6 +59,8 @@ _TOP_KEYS = frozenset(
         "components",
         "git",
         "agent_workflow",
+        "documentation",
+        "build",
         "overrides",
         "decisions",
         "manifest",
@@ -107,6 +127,34 @@ class AgentWorkflow:
 
 
 @dataclass(frozen=True)
+class DocMapping:
+    paths: tuple[str, ...]
+    docs: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Documentation:
+    external: str
+    external_path: str
+    external_location: str
+    mappings: tuple[DocMapping, ...]
+
+
+@dataclass(frozen=True)
+class BuildTarget:
+    name: str
+    artifact: str
+    hosting: str
+
+
+@dataclass(frozen=True)
+class Build:
+    ci: str
+    environments: tuple[str, ...]
+    components: tuple[BuildTarget, ...]
+
+
+@dataclass(frozen=True)
 class Override:
     principle: str
     scope: str
@@ -134,6 +182,8 @@ class Answers:
     components: tuple[Component, ...]
     git: GitPrefs | None
     agent_workflow: AgentWorkflow | None
+    documentation: Documentation | None
+    build: Build | None
     overrides: tuple[Override, ...]
     decisions: tuple[Decision, ...]
 
@@ -365,6 +415,144 @@ def _workflow(raw: object) -> AgentWorkflow:
     )
 
 
+def _relative(value: str, where: str) -> None:
+    if not value.strip() or value.startswith("/") or ".." in value.split("/"):
+        raise _fail(
+            where,
+            f"{value!r} must be a path or glob relative to the project root",
+            'Use e.g. "api/**/routes/**", without a leading "/" or ".."',
+        )
+
+
+def _paths(d: Mapping[str, Any], key: str, where: str) -> tuple[str, ...]:
+    paths = _strs(d, key, where)
+    if not paths:
+        raise _fail(_join(where, key), "is empty", "List at least one path or glob")
+    for i, path in enumerate(paths):
+        _relative(path, f"{_join(where, key)}[{i}]")
+    return paths
+
+
+def _documentation(raw: object) -> Documentation:
+    w = "documentation"
+    d = _obj(raw, w)
+    external = _choice(d, "external", w, EXTERNAL_DOCS)
+    path = _str(d, "external_path", w, blank=True)
+    location = _str(d, "external_location", w, blank=True)
+    if external == "folder":
+        parts = PurePosixPath(path).parts
+        if (
+            path.startswith("/")
+            or ".." in parts
+            or len(parts) < 2
+            or parts[0] != "docs"
+        ):
+            raise _fail(
+                "documentation.external_path",
+                f"{path!r} is not a folder under docs/",
+                'Use a folder inside docs/, e.g. "docs/guide"',
+            )
+    elif path:
+        raise _fail(
+            "documentation.external_path",
+            f"is {path!r} but external docs are {external!r}",
+            'Set it to "" (only the folder choice has a path)',
+        )
+    if external == "elsewhere" and not location.strip():
+        raise _fail(
+            "documentation.external_location",
+            "is empty but external docs live elsewhere",
+            "Say where, e.g. a wiki URL",
+        )
+    if external != "elsewhere" and location:
+        raise _fail(
+            "documentation.external_location",
+            f"is {location!r} but external docs are {external!r}",
+            'Set it to "" (only the elsewhere choice has a location)',
+        )
+    mappings: list[DocMapping] = []
+    for i, m in enumerate(_list(_get(d, "mappings", w), "documentation.mappings")):
+        mw = f"documentation.mappings[{i}]"
+        mo = _obj(m, mw)
+        mappings.append(DocMapping(_paths(mo, "paths", mw), _paths(mo, "docs", mw)))
+    return Documentation(external, path, location, tuple(mappings))
+
+
+def _build(
+    raw: object, comps: tuple[Component, ...] | None, overrides: tuple[Override, ...]
+) -> Build:
+    w = "build"
+    d = _obj(raw, w)
+    ci = _choice(d, "ci", w, CI_PROVIDERS)
+    if ci == "none" and not any(
+        o.principle == "build-hosting-upfront"
+        and o.scope == "project"
+        and o.change in ("loosen", "drop")
+        for o in overrides
+    ):
+        raise _fail(
+            "build.ci",
+            "is none, which loosens the build-hosting-upfront principle",
+            "Add an override loosening build-hosting-upfront with the reason "
+            "there is no CI",
+        )
+    environments = _strs(d, "environments", w)
+    for i, env in enumerate(environments):
+        if not _NAME.fullmatch(env):
+            raise _fail(
+                f"build.environments[{i}]",
+                f"{env!r} is not a valid environment name",
+                "Use lowercase letters, digits and hyphens, e.g. production",
+            )
+    targets: list[BuildTarget] = []
+    for i, t in enumerate(_list(_get(d, "components", w), "build.components")):
+        tw = f"build.components[{i}]"
+        to = _obj(t, tw)
+        targets.append(
+            BuildTarget(
+                _str(to, "name", tw),
+                _choice(to, "artifact", tw, ARTIFACTS),
+                _str(to, "hosting", tw, blank=True),
+            )
+        )
+    if comps is not None:
+        by_name = {c.name: c for c in comps}
+        for i, t in enumerate(targets):
+            if t.name not in by_name:
+                raise _fail(
+                    f"build.components[{i}].name",
+                    f"there is no component named {t.name!r}",
+                    f"Use one of: {', '.join(sorted(by_name))}",
+                )
+            if by_name[t.name].traits.deployed and not t.hosting.strip():
+                raise _fail(
+                    f"build.components[{i}].hosting",
+                    f"component {t.name!r} is deployed but has no hosting",
+                    "Say where it runs, e.g. a cloud service or your own servers",
+                )
+        named = [t.name for t in targets]
+        for c in comps:
+            if c.name not in named:
+                raise _fail(
+                    "build.components",
+                    f"no entry for component {c.name!r}",
+                    f'Add {{"name": "{c.name}", "artifact": "…", "hosting": "…"}}',
+                )
+            if named.count(c.name) > 1:
+                raise _fail(
+                    "build.components",
+                    f"component {c.name!r} is listed twice",
+                    "Keep one entry per component",
+                )
+        if not environments and any(c.traits.deployed for c in comps):
+            raise _fail(
+                "build.environments",
+                "is empty but a component is deployed",
+                'Name at least one environment, e.g. ["production"]',
+            )
+    return Build(ci, environments, tuple(targets))
+
+
 def _override(raw: object, i: int, names: set[str] | None) -> Override:
     where = f"overrides[{i}]"
     d = _obj(raw, where)
@@ -460,8 +648,10 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     if schema != 1:
         raise _fail("schema", f"{schema!r} is not supported", "Set schema to 1")
     areas_raw = _obj(_get(top, "areas", ""), "areas")
+    # An area missing from an older interview hasn't been started yet.
     areas: dict[str, str] = {
-        a: _choice(areas_raw, a, "areas", _STATUSES) for a in AREAS
+        a: _choice(areas_raw, a, "areas", _STATUSES) if a in areas_raw else "pending"
+        for a in AREAS
     }
     for area in require_areas:
         if areas[area] != "done":
@@ -492,6 +682,18 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         _override(o, i, names)
         for i, o in enumerate(_list(top.get("overrides", []), "overrides"))
     )
+    documentation = (
+        _documentation(_get(top, "documentation", ""))
+        if active("documentation")
+        else None
+    )
+    build = (
+        _build(
+            _get(top, "build", ""), comps if active("components") else None, overrides
+        )
+        if active("build")
+        else None
+    )
     decisions = tuple(
         _decision(x, i)
         for i, x in enumerate(_list(top.get("decisions", []), "decisions"))
@@ -509,7 +711,18 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     if not isinstance(talk, bool):
         raise _fail("components_talk", "must be true or false", "Use true or false")
     return Answers(
-        1, areas, identity, layout, talk, comps, git, workflow, overrides, decisions
+        1,
+        areas,
+        identity,
+        layout,
+        talk,
+        comps,
+        git,
+        workflow,
+        documentation,
+        build,
+        overrides,
+        decisions,
     )
 
 

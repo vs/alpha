@@ -58,6 +58,9 @@ def cli_only(data: dict[str, Any]) -> None:
     data["components_talk"] = False
     data["git"]["scopes"] = ["tool"]
     data["overrides"] = []
+    data["build"]["components"] = [
+        {"name": "tool", "artifact": "package", "hosting": ""}
+    ]
 
 
 def test_cli_only_project_has_no_visual_system(tmp_path: Path):
@@ -92,7 +95,7 @@ def test_drop_for_one_component(tmp_path: Path):
     p = principle(build_principles(D, a, "0.1.0"), "observability")
     assert p["components"] == ["web"]
     assert p["active"] is True
-    assert p["override_decision"] == "docs/decisions/0005-override-observability.md"
+    assert p["override_decision"] == "docs/decisions/0007-override-observability.md"
 
 
 def test_drop_last_component_or_project_deactivates(tmp_path: Path):

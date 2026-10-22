@@ -46,6 +46,9 @@ def cli_only(data: dict[str, Any]) -> None:
     data["components_talk"] = False
     data["git"]["scopes"] = ["tool"]
     data["overrides"] = []
+    data["build"]["components"] = [
+        {"name": "tool", "artifact": "package", "hosting": ""}
+    ]
 
 
 def test_claude_md_lists_only_active_principles(tmp_path: Path):
@@ -93,15 +96,17 @@ def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
         "docs/dependencies.md",
         "docs/decisions/0001-product-identity.md",
         "docs/decisions/0002-python-api-plus-typescript-web.md",
-        "docs/decisions/0003-conventional-commits-on-trunk.md",
-        "docs/decisions/0004-batched-review.md",
-        "docs/decisions/0005-override-observability.md",
+        "docs/decisions/0003-user-guide-in-docs-guide.md",
+        "docs/decisions/0004-github-actions-containers-and-static-hosting.md",
+        "docs/decisions/0005-conventional-commits-on-trunk.md",
+        "docs/decisions/0006-batched-review.md",
+        "docs/decisions/0007-override-observability.md",
     }
     first = out["docs/decisions/0001-product-identity.md"]
     assert first.startswith("# 0001. Product identity")
     for heading in ("Status: accepted", "## Context", "## Decision", "## Consequences"):
         assert heading in first
-    override = out["docs/decisions/0005-override-observability.md"]
+    override = out["docs/decisions/0007-override-observability.md"]
     assert "Principle: observability (loosen, scope component:api)" in override
     assert "single-process prototype" in override
 

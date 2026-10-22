@@ -122,6 +122,7 @@ def test_single_layout_rules(tmp_path: Path):
     with pytest.raises(AnswersError, match=r"components\[0\]\.path: .*single.*\"\.\""):
         check(tmp_path, d)
     d["components"][0]["path"] = "."
+    d["build"]["components"] = [d["build"]["components"][0]]
     assert check(tmp_path, d).layout == "single"
 
 
@@ -454,3 +455,122 @@ def test_write_into_non_utf8_answers_is_explained(tmp_path: Path):
     path.write_bytes(b'{"x": "\xff"}')
     with pytest.raises(AnswersError, match="not valid JSON.*utf-8"):
         write_answers(tmp_path, '{"layout": "single"}')
+
+
+OLD_AREAS = ("identity", "components", "git", "agent_workflow")
+
+
+def test_old_interview_without_new_areas_still_loads(tmp_path: Path):
+    d = valid()
+    d["areas"] = dict.fromkeys(OLD_AREAS, "done")
+    for key in ("documentation", "build"):
+        del d[key]
+    d["decisions"] = [x for x in d["decisions"] if x["area"] in OLD_AREAS]
+    a = check(tmp_path, d, require_areas=["identity"])
+    assert a.areas["documentation"] == "pending"
+    assert a.areas["build"] == "pending"
+    assert a.documentation is None and a.build is None
+
+
+def test_fixture_loads_documentation_and_build():
+    a = load_answers(FIXTURE)
+    assert a.documentation and a.documentation.external_path == "docs/guide"
+    assert a.documentation.mappings[0].docs == ("docs/guide/**",)
+    assert a.build and a.build.ci == "github-actions"
+    assert [t.name for t in a.build.components] == ["api", "web"]
+
+
+@pytest.mark.parametrize("path", ["guide", "docs", "/docs/guide", "docs/../guide"])
+def test_external_folder_must_be_under_docs(tmp_path: Path, path: str):
+    d = valid()
+    d["documentation"]["external_path"] = path
+    with pytest.raises(AnswersError, match=r"documentation\.external_path: .*docs/"):
+        check(tmp_path, d)
+
+
+def test_external_path_only_with_folder(tmp_path: Path):
+    d = valid()
+    d["documentation"]["external"] = "readme"
+    with pytest.raises(AnswersError, match=r"documentation\.external_path: .*\"\""):
+        check(tmp_path, d)
+    d["documentation"]["external_path"] = ""
+    assert check(tmp_path, d).documentation
+
+
+def test_elsewhere_needs_a_location(tmp_path: Path):
+    d = valid()
+    d["documentation"].update(external="elsewhere", external_path="")
+    with pytest.raises(AnswersError, match=r"documentation\.external_location: "):
+        check(tmp_path, d)
+    d["documentation"]["external_location"] = "https://wiki.example.com/pico"
+    assert check(tmp_path, d).documentation
+
+
+def test_bad_external_lists_choices(tmp_path: Path):
+    d = valid()
+    d["documentation"]["external"] = "wiki"
+    with pytest.raises(AnswersError, match=r"external: .*elsewhere, folder"):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize("field", ["paths", "docs"])
+@pytest.mark.parametrize("value", [[], ["/abs/**"], ["a/../b"], [""], "docs/x.md"])
+def test_mapping_paths_and_docs_rules(tmp_path: Path, field: str, value: object):
+    d = valid()
+    d["documentation"]["mappings"][0][field] = value
+    with pytest.raises(AnswersError, match=rf"mappings\[0\]\.{field}"):
+        check(tmp_path, d)
+
+
+def test_ci_none_needs_a_loosening_override(tmp_path: Path):
+    d = valid()
+    d["build"]["ci"] = "none"
+    with pytest.raises(AnswersError, match=r"build\.ci: .*build-hosting-upfront"):
+        check(tmp_path, d)
+    d["overrides"].append(
+        {
+            "principle": "build-hosting-upfront",
+            "scope": "project",
+            "change": "loosen",
+            "params": {},
+            "reason": "A throwaway prototype with no shared repository.",
+        }
+    )
+    b = check(tmp_path, d).build
+    assert b and b.ci == "none"
+
+
+def test_build_components_must_match_components(tmp_path: Path):
+    d = valid()
+    d["build"]["components"].pop()
+    with pytest.raises(AnswersError, match=r"build\.components: no entry for .*'web'"):
+        check(tmp_path, d)
+    d = valid()
+    d["build"]["components"].append({"name": "x", "artifact": "none", "hosting": ""})
+    with pytest.raises(
+        AnswersError, match=r"build\.components\[2\]\.name: .*'x'.*api, web"
+    ):
+        check(tmp_path, d)
+
+
+def test_deployed_component_needs_hosting_and_an_environment(tmp_path: Path):
+    d = valid()
+    d["build"]["components"][1]["hosting"] = " "
+    with pytest.raises(AnswersError, match=r"build\.components\[1\]\.hosting: "):
+        check(tmp_path, d)
+    d = valid()
+    d["build"]["environments"] = []
+    with pytest.raises(AnswersError, match=r"build\.environments: .*production"):
+        check(tmp_path, d)
+    d["build"]["environments"] = ["Prod!"]
+    with pytest.raises(AnswersError, match=r"build\.environments\[0\]: "):
+        check(tmp_path, d)
+
+
+def test_bad_artifact_lists_choices(tmp_path: Path):
+    d = valid()
+    d["build"]["components"][0]["artifact"] = "zip"
+    with pytest.raises(
+        AnswersError, match=r"build\.components\[0\]\.artifact: .*container"
+    ):
+        check(tmp_path, d)

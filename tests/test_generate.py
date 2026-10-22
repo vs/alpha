@@ -203,7 +203,7 @@ def test_copies_hook_scripts_tools_and_executable_githook(
 def test_override_decision_file_matches_principles(tmp_path: Path, generate_scenario):
     files = generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = (tmp_path / "docs/principles.toml").read_text()
-    path = "docs/decisions/0005-override-observability.md"
+    path = "docs/decisions/0007-override-observability.md"
     assert path in files
     assert f'override_decision = "{path}"' in principles
 
