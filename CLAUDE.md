@@ -37,3 +37,11 @@ A scripted `claude -p --plugin-dir` run answered the `web-ts-plus-python-api` sc
 - Claude Code always asks before Write/Edit under `.claude/` (allow rules and PreToolUse "allow" can't pre-approve it), which cost an approval per save. The skills now save through `alpha answers write <target> --json '…'` instead: one-line Bash calls, so at most a Bash approval with "don't ask again". A multi-line heredoc form was still prompted; the one-line form ran without a prompt in a follow-up run.
 - A skill's `allowed-tools` seemed to pre-approve the alpha CLI only in the turn the skill was invoked in (one probe each way); later turns may ask for each `bin/alpha` call unless you add the optional rule above.
 - Without a git identity, `alpha commit-skeleton` now stops and says how to set one instead of committing as `you@host.local`.
+
+### Docs and CI live check (2026-10-22)
+
+`bin/alpha` took the `web-ts-plus-python-api` scenario through `answers check`, `generate`, `bootstrap` and `commit-skeleton`: five commits ending with `ci: Run every component's checks in CI`, clean tree.
+
+- Bootstrap now runs each component's CI checks (setup, format check, lint, typecheck, test); all passed for Python and TypeScript, including a TypeScript component at the root (slow tests).
+- The generated Stop hook blocked a new `api/app/routes/*.py` until `docs/guide/` changed, then allowed it.
+- Not yet verified: the workflow on GitHub itself. `actionlint` wasn't installed; the workflow was checked by parsing it and by Biome's YAML formatter.
