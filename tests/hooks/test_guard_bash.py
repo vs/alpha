@@ -225,3 +225,26 @@ def test_empty_quoted_argument_does_not_split_the_command(project: Project) -> N
     proc = bash(project, "git commit -m '' --no-verify")
     assert proc.returncode == 2
     assert NO_VERIFY in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat > docs/setup.md <<'EOF'\nRun:\ncp .env.example .env\nEOF",
+        "cat > notes.md <<EOF\necho KEY=1 > .env\nEOF",
+        "git commit -F - <<'EOF'\nfix: X\n\nrm api/uv.lock was wrong\nEOF",
+        "git commit -F - <<'EOF'\nfix: Don't use git commit --no-verify\nEOF",
+        "cat <<-EOF > docs/x.md\n\trm .env\n\tEOF\necho done",
+    ],
+)
+def test_heredoc_text_is_not_a_command(project: Project, command: str) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 0, (command, proc.stderr)
+
+
+def test_the_heredoc_line_itself_is_still_checked(project: Project) -> None:
+    proc = bash(project, "cat > .env <<'EOF'\nKEY=1\nEOF")
+    assert proc.returncode == 2
+    assert proc.stderr.startswith(".env is protected (")
+    proc = bash(project, "cat <<'EOF' | git commit -F - --no-verify\nx\nEOF")
+    assert proc.returncode == 2

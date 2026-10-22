@@ -60,6 +60,25 @@ MAX_DEPTH = 2
 ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 
 
+# A heredoc operator (<<WORD, <<-'WORD', <<"WORD"), but not a <<< here-string.
+_HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+
+
+def strip_heredocs(command: str) -> str:
+    """Drop heredoc bodies: they are text fed to a command, not commands."""
+    out: list[str] = []
+    pending: list[tuple[str, bool]] = []
+    for line in command.split("\n"):
+        if pending:
+            delimiter, tabs = pending[0]
+            if (line.lstrip("\t") if tabs else line) == delimiter:
+                pending.pop(0)
+            continue
+        out.append(line)
+        pending = [(m.group(3), m.group(1) == "-") for m in _HEREDOC.finditer(line)]
+    return "\n".join(out)
+
+
 def _newlines_to_semicolons(command: str) -> str:
     """Replace newlines outside quotes with `;` so they split segments."""
     out: list[str] = []
@@ -83,7 +102,7 @@ def _newlines_to_semicolons(command: str) -> str:
 
 def split_segments(command: str) -> list[list[str]] | None:
     """Token lists per `&&`/`||`/`;`/`|`/newline segment; None if unparseable."""
-    command = command.replace("\\\n", "")  # line continuations
+    command = strip_heredocs(command).replace("\\\n", "")  # line continuations
     lexer = shlex.shlex(
         _newlines_to_semicolons(command), posix=True, punctuation_chars=True
     )
@@ -241,7 +260,7 @@ NOT_FILES = {"", "-", "/dev/null", "/dev/stdout", "/dev/stderr"}
 def redirect_targets(command: str) -> list[str]:
     """Files a command redirects output into. Lexed without POSIX quote
     removal, so a quoted ">" (as in grep '>' f) stays a word, not a redirect."""
-    command = _newlines_to_semicolons(command.replace("\\\n", ""))
+    command = _newlines_to_semicolons(strip_heredocs(command).replace("\\\n", ""))
     lexer = shlex.shlex(command, posix=False, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
