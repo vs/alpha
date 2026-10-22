@@ -9,6 +9,7 @@ from alpha.generate import GenerateError
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = ["README.md", "LICENSE", "CONTRIBUTING.md", "docs", ".gitignore"]
 _CLAUDE = ["CLAUDE.md", ".claude"]
+_CI = ".github"
 _MAX_DESCRIPTION = 50  # the commit-msg hook's limit
 
 
@@ -74,13 +75,17 @@ def commit_skeleton(
     ]
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
     for c in principles["components"]:
-        groups.append((_build_subject(c, scopes), [c["path"]]))  # "." takes the rest
+        paths = [c["path"]]
+        if c["path"] == ".":  # the root takes the rest, except the CI commit's
+            paths.append(f":(exclude){_CI}")
+        groups.append((_build_subject(c, scopes), paths))
+    groups.append(("ci: Run every component's checks in CI", [_CI]))
 
     hashes: list[str] = []
     for subject, paths in groups:
-        present = [p for p in paths if (target / p).exists()]
-        if not present:
-            continue
+        present = [p for p in paths if p.startswith(":(") or (target / p).exists()]
+        if all(p.startswith(":(") for p in present):
+            continue  # none of the group's own paths exist
         _check(target, "add", "-A", "--", *present)
         # Only this group's paths: a failed earlier run may have left others staged.
         staged = _git(target, "diff", "--cached", "--quiet", "--", *present)

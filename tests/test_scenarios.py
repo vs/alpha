@@ -27,8 +27,9 @@ STANDARD_ROOT = {
     ".claude",
 }
 ROOT_ENTRIES = {  # what each scenario may add at the root: its components
-    "python-ml-single": STANDARD_ROOT | {"pyproject.toml", "tests", ".python-version"},
-    "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web"},
+    "python-ml-single": STANDARD_ROOT
+    | {"pyproject.toml", "tests", ".python-version", ".github"},
+    "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web", ".github"},
 }
 SCENARIOS = ["python-ml-single", "web-ts-plus-python-api"]
 TRAILER = "Co-Authored-By: T <t@t>"
@@ -110,6 +111,7 @@ def test_commit_skeleton_groups_and_trailers(
     hashes = commit_skeleton(tmp_path, principles_of(tmp_path), [TRAILER])
     subjects = git_log_subjects(tmp_path)
     assert subjects == [
+        "ci: Run every component's checks in CI",
         "build(web): Set up typescript toolchain and tests",
         "build(api): Set up python toolchain and tests",
         "chore: Add Claude Code settings and guardrails",
@@ -117,7 +119,7 @@ def test_commit_skeleton_groups_and_trailers(
     ]
     assert hashes == git(tmp_path, "log", "--reverse", "--format=%H").splitlines()
     assert git(tmp_path, "log", "-1", "--format=%B") == (
-        f"build(web): Set up typescript toolchain and tests\n\n{TRAILER}"
+        f"ci: Run every component's checks in CI\n\n{TRAILER}"
     )
     assert git(tmp_path, "status", "--porcelain") == ""
     # the commit-msg hook leaves bytecode behind; it must not be committed
@@ -130,7 +132,7 @@ def test_commit_skeleton_groups_and_trailers(
         out = git(tmp_path, "show", "--name-only", "--format=", commit)
         return set(out.splitlines())
 
-    docs, claude, api, web = hashes
+    docs, claude, api, web, ci = hashes
     assert {f.split("/")[0] for f in files_in(docs)} == {
         "README.md",
         "LICENSE",
@@ -141,6 +143,7 @@ def test_commit_skeleton_groups_and_trailers(
     assert {f.split("/")[0] for f in files_in(claude)} == {"CLAUDE.md", ".claude"}
     assert all(f.startswith("api/") for f in files_in(api))
     assert all(f.startswith("web/") for f in files_in(web))
+    assert files_in(ci) == {".github/workflows/ci.yml"}
 
 
 def test_commit_skeleton_component_at_root_takes_the_rest(
@@ -149,16 +152,17 @@ def test_commit_skeleton_component_at_root_takes_the_rest(
     generate_scenario(tmp_path, "python-ml-single")
     commit_skeleton(tmp_path, principles_of(tmp_path), [])
     assert git_log_subjects(tmp_path) == [
+        "ci: Run every component's checks in CI",
         "build(ml): Set up python toolchain and tests",
         "chore: Add Claude Code settings and guardrails",
         "docs: Add product brief, principles and decisions",
     ]
-    assert set(git(tmp_path, "show", "--name-only", "--format=", "HEAD").split()) == {
+    assert set(git(tmp_path, "show", "--name-only", "--format=", "HEAD~").split()) == {
         "pyproject.toml",
         "tests/test_setup.py",
         ".python-version",
     }
-    assert git(tmp_path, "log", "-1", "--format=%B") == (
+    assert git(tmp_path, "log", "-1", "--format=%B", "HEAD~") == (
         "build(ml): Set up python toolchain and tests"
     )
     assert git(tmp_path, "status", "--porcelain") == ""
@@ -185,6 +189,7 @@ def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
     (tmp_path / "docs" / "principles.toml").write_text(render_principles(data))
     commit_skeleton(tmp_path, data, [])
     assert git_log_subjects(tmp_path) == [
+        "ci: Run every component's checks in CI",
         "build(web): Set up typescript toolchain and tests",
         "build: Set up api toolchain and tests",
         "chore: Add Claude Code settings and guardrails",
@@ -204,12 +209,13 @@ def test_commit_skeleton_rerun_finishes_after_a_partial_failure(
     with pytest.raises(GenerateError, match=r'unknown type "build"'):
         commit_skeleton(tmp_path, data, [])
     assert len(git_log_subjects(tmp_path)) == 2
-    data["git"]["types"].append("build")
+    data["git"]["types"] += ["build", "ci"]
     principles.write_text(render_principles(data))
     commit_skeleton(tmp_path, data, [])
-    assert (
-        git_log_subjects(tmp_path)[0] == "build(ml): Set up python toolchain and tests"
-    )
+    assert git_log_subjects(tmp_path)[:2] == [
+        "ci: Run every component's checks in CI",
+        "build(ml): Set up python toolchain and tests",
+    ]
     assert git(tmp_path, "status", "--porcelain") == ""
 
 
@@ -343,3 +349,13 @@ def test_generated_hooks_enforce_the_generated_principles(
     assert hook("PreToolUse", "Edit|Write|MultiEdit", env_write).returncode == 2
     no_verify = {"tool_name": "Bash", "tool_input": {"command": "git commit -nm x"}}
     assert hook("PreToolUse", "Bash", no_verify).returncode == 2
+
+
+def test_commit_skeleton_commits_ci_last(tmp_path: Path, generate_scenario, git_env):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    commit_skeleton(tmp_path, principles_of(tmp_path), [])
+    assert git_log_subjects(tmp_path)[0] == "ci: Run every component's checks in CI"
+    assert git(tmp_path, "show", "--name-only", "--format=", "HEAD").split() == [
+        ".github/workflows/ci.yml"
+    ]
+    assert git(tmp_path, "status", "--porcelain") == ""
