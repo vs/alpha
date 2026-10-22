@@ -75,6 +75,7 @@ def _copies(plugin_root: Path) -> dict[str, Path]:
         for p in sorted((files / "hooks").glob("*.py"))
     }
     out[".claude/skills/commit/SKILL.md"] = files / "skills/commit/SKILL.md"
+    out[".claude/skills/decision/SKILL.md"] = files / "skills/decision/SKILL.md"
     out[".claude/agents/committer.md"] = files / "agents/committer.md"
     out[".claude/alpha/githooks/commit-msg"] = files / "githooks/commit-msg"
     return out
