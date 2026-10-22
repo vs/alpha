@@ -541,7 +541,10 @@ def test_subagent_is_blocked_on_its_own_untested_source(project: Project) -> Non
     edited_by(project, "a1", "api/src/x.py")
     text = reason(subagent_stop(project, "a1"))
     assert "api/src/x.py" in text
-    assert "app.py" not in text
+    assert text.endswith(
+        "You edited api/src/x.py. Fix the problems in those files only; report "
+        "the rest to the main session."
+    )
 
 
 def test_subagent_secret_blocks_every_time(project: Project) -> None:
@@ -573,3 +576,26 @@ def test_subagent_blocks_count_separately_from_the_main_session(
     assert counter(project) == 0
     proc = subagent_stop(project, "a1")
     assert "decision" not in json.loads(proc.stdout)  # gave up after three
+
+
+def test_subagent_implementing_tests_the_session_wrote_is_not_blocked(
+    project: Project,
+) -> None:
+    commit_all(project)
+    project.write("api/tests/test_x.py", "def test_x() -> None: ...\n")  # main's
+    project.write("api/src/x.py", "y = 2\n")
+    edited_by(project, "a1", "api/src/x.py")
+    proc = subagent_stop(project, "a1")
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def test_subagent_stop_leaves_component_commands_to_the_main_stop(
+    project: Project,
+) -> None:
+    project.set_commands("api", test=FAIL, typecheck=FAIL)
+    commit_all(project)
+    project.write("api/src/x.py", "y = 2\n")
+    project.write("api/tests/test_x.py", "y = 2\n")
+    edited_by(project, "a1", "api/src/x.py", "api/tests/test_x.py")
+    proc = subagent_stop(project, "a1")
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout

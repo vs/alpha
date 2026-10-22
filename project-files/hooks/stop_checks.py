@@ -331,7 +331,11 @@ def is_behavior(rel: str, principles: dict[str, Any], docs: list[str]) -> bool:
 
 
 def find_problems(
-    root: Path, principles: dict[str, Any], changed: list[str], base: str | None
+    root: Path,
+    principles: dict[str, Any],
+    changed: list[str],
+    base: str | None,
+    run_commands: bool = True,
 ) -> list[str]:
     problems: list[str] = []
     components: list[dict[str, Any]] = []
@@ -390,6 +394,8 @@ def find_problems(
                     "docs-with-code: update them, or say why no doc change is needed."
                 )
 
+    if not run_commands:
+        return problems
     deadline = time.monotonic() + BUDGET
     for comp in components:
         manifests = [str(m) for m in comp.get("manifests", [])]
@@ -423,20 +429,33 @@ def block(listing: str) -> NoReturn:
 
 
 def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoReturn:
-    """Judge only the files this subagent edited, so a read-only subagent is
-    never blocked by the main session's unfinished work."""
+    """Block a subagent only on problems with the files it edited.
+
+    The rules run over the whole session's changes (tests or docs another
+    agent wrote count), then only problems naming this subagent's files stay.
+    Type checks and tests cover whole components, where other agents may be
+    mid-change, so they're left to the main session's Stop.
+    """
     files = _common.agent_files(root, agent)
     base = session_base(root)
-    mine = [f for f in changed_since(root, base) if f in files] if files else []
+    changed = changed_since(root, base)
+    mine = [f for f in changed if f in files] if files else []
     record = _common.agent_files_path(root, agent)
     counter = _common.state_path(root, record.stem + "-blocks")
     secrets = secret_problems(root, principles, mine, base) if mine else []
-    problems = secrets + (find_problems(root, principles, mine, base) if mine else [])
+    problems = secrets
+    if mine:
+        found = find_problems(root, principles, changed, base, run_commands=False)
+        problems = secrets + [p for p in found if any(f in p for f in mine)]
     if not problems:
         record.unlink(missing_ok=True)
         counter.unlink(missing_ok=True)
         sys.exit(0)
     listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
+    listing += (
+        f"\nYou edited {', '.join(mine)}. Fix the problems in those files only; "
+        "report the rest to the main session."
+    )
     if not secrets:
         count = read_count(counter)
         if count >= MAX_BLOCKS:
