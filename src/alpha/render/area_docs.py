@@ -95,3 +95,76 @@ def testing_section(a: Answers) -> list[str]:
         "",
     ]
     return lines
+
+
+def security_doc(a: Answers, principles: dict[str, Any]) -> str:
+    """docs/security.md: where secrets live, auth, and the protected paths."""
+    assert a.security is not None
+    store = a.security.secret_store
+    lines = [
+        "# Security",
+        "",
+        "## Secrets",
+        "",
+        f"Production secrets live in: {store}." if store else "Nothing is deployed.",
+        "",
+        "Locally, secrets live in `.env` files, which git ignores; never commit "
+        "them. The Stop hook blocks a change that adds one.",
+        "",
+        "## Auth",
+        "",
+        a.security.auth,
+        "",
+        "## Protected paths",
+        "",
+        "Claude can't edit these; change them by hand.",
+        "",
+    ]
+    lines += [f"- `{glob}`" for glob in principles["protected"]["paths"]]
+    return "\n".join(lines) + "\n"
+
+
+def dependency_policy(a: Answers) -> list[str]:
+    """The Policy section of docs/dependencies.md, ending with a blank line."""
+    assert a.dependencies is not None
+    deps = a.dependencies
+    if deps.updates == "dependabot":
+        upgrading = (
+            f"Dependabot opens {deps.schedule} update pull requests, per component "
+            "and for the CI actions."
+        )
+    else:
+        upgrading = f"Upgrades are manual: check for updates {deps.schedule}."
+    return [
+        "## Policy",
+        "",
+        "- Adding: every new dependency gets a row in the log below, with the "
+        "reason. The Stop hook blocks a manifest change without one.",
+        "- Pinning: lockfiles pin every version. Only the package manager changes "
+        "them; Claude can't edit them by hand.",
+        f"- Upgrading: {upgrading}",
+        "",
+    ]
+
+
+def observability_doc(a: Answers) -> str | None:
+    """docs/observability.md, or None when nothing is deployed."""
+    assert a.observability is not None
+    if not a.observability.components:
+        return None
+    lines = [
+        "# Observability",
+        "",
+        "| Component | Logs | Correlation | Telemetry |",
+        "|---|---|---|---|",
+    ]
+    lines += [
+        f"| {c.name} | {c.log_format} | {c.correlation} | {c.telemetry} |"
+        for c in a.observability.components
+    ]
+    lines += [
+        "",
+        "Levels: `info` in deployed environments, `debug` locally; errors carry the "
+        "correlation id.",
+    ]
+    return "\n".join(lines) + "\n"

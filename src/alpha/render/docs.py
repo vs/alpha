@@ -194,6 +194,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "- [Product](docs/product.md)",
         "- [Architecture](docs/architecture.md)",
         "- [Build, CI and hosting](docs/build.md)",
+        "- [Security](docs/security.md)",
         "- [Dependencies](docs/dependencies.md)",
         "- [Decisions](docs/decisions/)",
         "- [Contributing](CONTRIBUTING.md)",
@@ -203,6 +204,8 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         lines.append(f"- [User guide]({docs.external_path}/)")
     if area_docs.glossary(a, principles) is not None:
         lines.append("- [Glossary](docs/glossary.md)")
+    if area_docs.observability_doc(a) is not None:
+        lines.append("- [Observability](docs/observability.md)")
     return "\n".join(lines) + "\n"
 
 
@@ -333,6 +336,9 @@ def _dependencies(a: Answers, today: date) -> str:
     lines = [
         "# Dependencies",
         "",
+        *area_docs.dependency_policy(a),
+        "## Log",
+        "",
         "Log every dependency added, with the reason.",
         "",
         "| Dependency | Component | Why | Added |",
@@ -380,7 +386,11 @@ def render_docs(
         "docs/architecture.md": _architecture(a),
         "docs/dependencies.md": _dependencies(a, today),
         "docs/build.md": _build(a, principles),
+        "docs/security.md": area_docs.security_doc(a, principles),
     }
+    observability = area_docs.observability_doc(a)
+    if observability is not None:
+        out["docs/observability.md"] = observability
     glossary = area_docs.glossary(a, principles)
     if glossary is not None:
         out["docs/glossary.md"] = glossary
