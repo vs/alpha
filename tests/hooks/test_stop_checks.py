@@ -377,10 +377,33 @@ def test_changed_findings_after_give_up_block_again(project: Project) -> None:
     commit_all(project)
     project.write("api/src/app.py", "x = 1\n")
     give_up(project)
-    project.write("notes.txt", f"key = {AWS_KEY}\n")
+    project.write("api/src/other.py", "y = 2\n")
     text = reason(run(project))
-    assert "notes.txt:1" in text
+    assert "other.py" in text
     assert counter(project) == 1
+
+
+def test_secrets_never_give_up(project: Project) -> None:
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")
+    project.write("notes.txt", f"key = {AWS_KEY}\n")
+    for _ in range(6):
+        text = reason(run(project))
+        assert "notes.txt:1" in text
+        assert "tests-first-class" in text
+    assert not (project.root / ".claude/alpha/state/stop-accepted").exists()
+
+
+def test_given_up_findings_block_again_with_a_secret(project: Project) -> None:
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")
+    give_up(project)
+    project.write("notes.txt", f"key = {AWS_KEY}\n")
+    for _ in range(4):
+        assert "notes.txt:1" in reason(run(project))
+    (project.root / "notes.txt").unlink()
+    out = json.loads(run(project).stdout)  # the user already knows about these
+    assert out["systemMessage"].startswith("alpha: still open")
 
 
 def test_fixed_findings_clear_the_accepted_set(project: Project) -> None:

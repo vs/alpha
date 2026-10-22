@@ -321,7 +321,7 @@ def write_count(path: Path, count: int) -> None:
 def find_problems(
     root: Path, principles: dict[str, Any], changed: list[str], base: str | None
 ) -> list[str]:
-    problems = secret_problems(root, principles, changed, base)
+    problems: list[str] = []
     components: list[dict[str, Any]] = []
     by_comp: dict[str, list[str]] = {}
     for rel in changed:
@@ -396,6 +396,18 @@ def flag(text: str) -> NoReturn:
     sys.exit(0)
 
 
+def block(listing: str) -> NoReturn:
+    print(
+        json.dumps(
+            {
+                "decision": "block",
+                "reason": f"alpha checks before stopping:\n{listing}",
+            }
+        )
+    )
+    sys.exit(0)
+
+
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
@@ -406,7 +418,10 @@ def main() -> None:
     base = session_base(root)
     changed = changed_since(root, base)
     counter = _common.state_path(root, "stop-blocks")
-    problems = find_problems(root, principles, changed, base) if changed else []
+    secrets = secret_problems(root, principles, changed, base) if changed else []
+    problems = secrets + (
+        find_problems(root, principles, changed, base) if changed else []
+    )
     accepted = _common.state_path(root, "stop-accepted")
     if not problems:
         write_count(counter, 0)
@@ -416,6 +431,8 @@ def main() -> None:
             _common.write_baseline(root, head)
         sys.exit(0)
     listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
+    if secrets:  # never given up on, unlike the other checks
+        block(listing)
     fingerprint = hashlib.sha256(listing.encode()).hexdigest()
     try:
         given_up = accepted.read_text().strip() == fingerprint
@@ -435,15 +452,7 @@ def main() -> None:
             f"decide:\n{listing}"
         )
     write_count(counter, count + 1)
-    print(
-        json.dumps(
-            {
-                "decision": "block",
-                "reason": f"alpha checks before stopping:\n{listing}",
-            }
-        )
-    )
-    sys.exit(0)
+    block(listing)
 
 
 if __name__ == "__main__":
