@@ -39,6 +39,7 @@ class Recipe:
     allow: list[str]
     files: dict[str, str]  # output relpath -> template name
     ignores: list[str]  # .gitignore entries, relative to the component
+    dependabot: str  # Dependabot package-ecosystem
     why: dict[str, str]  # bootstrap tool -> reason, for the dependency log
     ci: CiSetup
 
@@ -63,6 +64,7 @@ def load_recipe(stack: str) -> Recipe:
         allow=data["allow"],
         files=data["files"],
         ignores=data["ignores"],
+        dependabot=data["dependabot"],
         why=data["why"],
         ci=CiSetup(steps=data["ci"]["steps"], env=data["ci"]["env"]),
     )

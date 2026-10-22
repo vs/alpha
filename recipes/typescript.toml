@@ -6,6 +6,7 @@ bootstrap = [
 ]
 lockfiles = ["pnpm-lock.yaml"]
 ignores = ["node_modules/", "dist/", "coverage/"]
+dependabot = "npm"  # Dependabot package-ecosystem; covers pnpm
 manifests = ["package.json"]
 # Source is every .ts/.tsx file in the component, minus tests and excluded files.
 source_globs = ["**/*.ts", "**/*.tsx"]

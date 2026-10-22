@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from alpha.generate import GenerateError
+from alpha.render.ci import DEPENDABOT, WORKFLOW
 
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = ["README.md", "LICENSE", "CONTRIBUTING.md", "docs", ".gitignore"]
@@ -64,7 +65,7 @@ def _build_subject(component: dict[str, Any], scopes: list[str]) -> str:
 def commit_skeleton(
     target: Path, principles: dict[str, Any], trailers: list[str]
 ) -> list[str]:
-    """Commit docs, Claude settings, then each component; return the hashes."""
+    """Commit docs, Claude settings, each component, then CI; return the hashes."""
     if not (target / ".git").exists():
         _check(target, "init", "-q", "-b", "main")
     _check(target, "config", "core.hooksPath", HOOKS_PATH)
@@ -79,7 +80,8 @@ def commit_skeleton(
         if c["path"] == ".":  # the root takes the rest, except the CI commit's
             paths.append(f":(exclude){_CI}")
         groups.append((_build_subject(c, scopes), paths))
-    groups.append(("ci: Run every component's checks in CI", [_CI]))
+    groups.append(("ci: Run every component's checks in CI", [WORKFLOW]))
+    groups.append(("ci: Schedule dependency updates", [DEPENDABOT]))
 
     hashes: list[str] = []
     for subject, paths in groups:

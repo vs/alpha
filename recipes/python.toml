@@ -2,6 +2,7 @@ stack = "python"
 bootstrap = ["uv add --dev pytest ruff pyright"]
 lockfiles = ["uv.lock"]
 ignores = [".venv/", "__pycache__/", ".pytest_cache/"]
+dependabot = "uv"  # Dependabot package-ecosystem
 manifests = ["pyproject.toml"]
 # Source is every .py file in the component, minus tests and excluded files.
 source_globs = ["**/*.py"]

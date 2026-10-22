@@ -15,7 +15,7 @@ from alpha.answers import PROJECT_JSON, load_answers
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
 from alpha.recipes import check_commands, load_recipe, render_component
-from alpha.render.ci import render_ci
+from alpha.render.ci import render_ci, render_dependabot
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
 
@@ -138,6 +138,12 @@ def generate(
     texts[".gitignore"] = _gitignore(principles)
     assert a.build is not None  # build_principles refuses answers without it
     texts.update(render_ci(principles, a.build.ci))
+    assert a.dependencies is not None
+    texts.update(
+        render_dependabot(
+            principles, a.dependencies.updates, a.dependencies.schedule, a.build.ci
+        )
+    )
     copies = _copies(plugin_root)
 
     for rel, text in texts.items():
