@@ -41,7 +41,10 @@ def test_typescript_component_files():
     assert tsc["compilerOptions"]["strict"] is True
     pkg = json.loads(files["web/package.json"])
     assert pkg["type"] == "module" and pkg["name"] == "pico-web"
-    json.loads(files["web/biome.json"])
+    biome = json.loads(files["web/biome.json"])
+    # Biome formats YAML since 2.6; the lockfile changes only through pnpm.
+    for lockfile in load_recipe("typescript").lockfiles:
+        assert f"!**/{lockfile}" in biome["files"]["includes"]
 
 
 def test_single_layout_path_dot():
