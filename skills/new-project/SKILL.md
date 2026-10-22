@@ -22,9 +22,9 @@ Folder argument: `$ARGUMENTS`
 
 Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` (one line; each top-level key sent replaces that key in project.json), never by editing the file. If Claude Code asks to allow it, tell the user that choosing "don't ask again" covers every later save.
 
-- If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`), then continue with the first area that isn't done.
+- If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`; an area missing from `areas`, because the interview started on an older alpha, is pending), then continue with the first area in the order below that isn't done.
 - Otherwise create it:
-  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
+  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "documentation": "pending", "build": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
 
 ## 3. Load the kit defaults
 
@@ -40,8 +40,10 @@ Run the areas in this order, one at a time, never skipping one and never shortcu
 
 1. Identity: `alpha:identity`
 2. Components and stacks: `alpha:components`
-3. Git history: `alpha:git-history`
-4. Agent workflow: `alpha:agent-workflow`
+3. Documentation: `alpha:documentation`
+4. Build, CI and hosting: `alpha:build-and-hosting`
+5. Git history: `alpha:git-history`
+6. Agent workflow: `alpha:agent-workflow`
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 
@@ -49,7 +51,7 @@ Before each area, tell the user in one line which area comes next and what it se
 
 ## 5. Summary and confirmation
 
-Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
+Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
 
 If the user wants a change, save it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` on one line (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
 
@@ -72,7 +74,8 @@ Tell the user, briefly:
   - Claude can't skip git hooks, force-push, or amend commits that were already pushed.
   - Claude can't edit protected files (secrets, lockfiles), and must ask the user before skipping a test, adding an ignore comment or loosening strictness.
   - Every file Claude edits is formatted and linted right away.
-  - Claude can't finish while it has added a secret, changed source without changing tests, added a dependency without a recorded reason, or left the type checks or tests failing.
+  - Claude can't finish while it has added a secret, changed source without changing tests, changed a mapped path without its docs, added a dependency without a recorded reason, or left the type checks or tests failing.
+  - CI runs every component's checks on each push to main and each pull request (when the user chose CI). Tell the user the workflow runs once they push the repository to GitHub.
   - Each session starts with a warning if the project setup is broken.
-- **Not covered yet:** the remaining areas (architecture, errors, testing, UI/UX, documentation, build/CI/hosting, security, dependencies, observability, versioning, data, accessibility, performance) and the principles reviewer arrive in the next version of alpha. Their principles are already in `docs/principles.toml` at the kit defaults.
+- **Not covered yet:** the remaining areas (architecture, errors, testing, UI/UX, security, dependencies, observability, versioning, data, accessibility, performance) and the principles reviewer arrive in the next version of alpha. Their principles are already in `docs/principles.toml` at the kit defaults.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building.

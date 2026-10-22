@@ -18,6 +18,8 @@ CLI = '"${CLAUDE_PLUGIN_ROOT}/bin/alpha"'
 AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "identity": ("identity", ("identity",)),
     "components": ("components", ("layout", "components_talk", "components[]")),
+    "documentation": ("documentation", ("documentation",)),
+    "build-and-hosting": ("build", ("build",)),
     "git-history": ("git", ("git",)),
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
@@ -298,3 +300,28 @@ def test_new_project_saves_summary_changes_with_one_line_json():
     summary = _section("new-project", "5. Summary and confirmation")
     assert f"{CLI} answers write <target> --json '" in summary
     assert "<<" not in summary
+
+
+def test_every_kind_has_public_paths_and_an_artifact():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    assert answers.KINDS <= set(kit["documentation"]["public_paths"])
+    artifacts = kit["build"]["artifacts"]
+    assert answers.KINDS <= set(artifacts)
+    assert {artifacts[kind] for kind in answers.KINDS} <= set(answers.ARTIFACTS)
+    assert kit["build"]["ci"] in answers.CI_PROVIDERS
+    assert kit["documentation"]["external"] in answers.EXTERNAL_DOCS
+
+
+def test_new_project_creates_every_area_as_pending():
+    start = _section("new-project", "2. Start or resume")
+    for area in answers.AREAS:
+        assert f'"{area}": "pending"' in start
+    assert "missing from" in start  # an older interview's new areas
+
+
+def test_new_project_reports_ci_and_no_longer_lists_these_areas_as_missing():
+    report = _section("new-project", "7. Final report")
+    assert "CI runs" in report
+    not_covered = report.split("**Not covered yet:**")[1].split("\n- **")[0]
+    assert "documentation" not in not_covered
+    assert "build/CI/hosting" not in not_covered

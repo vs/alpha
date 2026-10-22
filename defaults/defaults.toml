@@ -28,6 +28,32 @@ mobile = "typescript"
 library = "python"
 worker = "python"
 
+[documentation]
+external = "readme"   # or "folder" (under docs/), "elsewhere", "none"
+
+# Globs inside a component where its public behavior usually lives; the
+# interview maps them to the docs that must change with them.
+[documentation.public_paths]
+backend = ["**/api/**", "**/routes/**", "**/handlers/**"]
+frontend = ["**/pages/**", "**/routes/**"]
+cli = ["**/cli/**", "**/commands/**"]
+mobile = ["**/screens/**"]
+ml = []
+library = ["**/index.*", "**/__init__.py", "**/public/**"]
+worker = ["**/jobs/**", "**/tasks/**"]
+
+[build]
+ci = "github-actions"   # or "none", which loosens build-hosting-upfront
+
+[build.artifacts]
+backend = "container"
+frontend = "static-site"
+cli = "package"
+mobile = "app"
+ml = "none"
+library = "package"
+worker = "container"
+
 [[principles]]
 id = "simplest-architecture"
 title = "Simplest sufficient architecture"
