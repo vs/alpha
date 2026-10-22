@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from helpers import override_record, single_component
 
 from alpha.answers import Answers, AnswersError, load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -46,21 +47,10 @@ def cli_only(data: dict[str, Any]) -> None:
         ],
         False,
     )
-    data["components"] = [
-        {
-            "name": "tool",
-            "path": ".",
-            "kind": "cli",
-            "stack": "python",
-            "traits": traits,
-        }
-    ]
-    data["components_talk"] = False
+    tool = {"name": "tool", "path": ".", "kind": "cli", "stack": "python"}
+    single_component(data, {**tool, "traits": traits})
     data["git"]["scopes"] = ["tool"]
     data["overrides"] = []
-    data["build"]["components"] = [
-        {"name": "tool", "artifact": "package", "hosting": ""}
-    ]
 
 
 def test_cli_only_project_has_no_visual_system(tmp_path: Path):
@@ -95,7 +85,8 @@ def test_drop_for_one_component(tmp_path: Path):
     p = principle(build_principles(D, a, "0.1.0"), "observability")
     assert p["components"] == ["web"]
     assert p["active"] is True
-    assert p["override_decision"] == "docs/decisions/0007-override-observability.md"
+    data = json.loads(FIXTURE.read_text())
+    assert p["override_decision"] == override_record(data, "observability")
 
 
 def test_drop_last_component_or_project_deactivates(tmp_path: Path):

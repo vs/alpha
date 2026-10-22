@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
+from alpha import core_areas
+from alpha.core_areas import Architecture, Errors, Testing
 from alpha.validate import (
     NAME,
     as_list,
@@ -18,6 +20,7 @@ from alpha.validate import (
     get,
     obj,
     paths,
+    per_component,
     pos_int,
     string,
     strings,
@@ -29,6 +32,9 @@ PROJECT_JSON = ".claude/alpha/project.json"
 AREAS: tuple[str, ...] = (
     "identity",
     "components",
+    "architecture",
+    "errors",
+    "testing",
     "documentation",
     "build",
     "git",
@@ -74,6 +80,9 @@ _TOP_KEYS = frozenset(
         "components",
         "git",
         "agent_workflow",
+        "architecture",
+        "errors",
+        "testing",
         "documentation",
         "build",
         "overrides",
@@ -193,6 +202,9 @@ class Answers:
     components: tuple[Component, ...]
     git: GitPrefs | None
     agent_workflow: AgentWorkflow | None
+    architecture: Architecture | None
+    errors: Errors | None
+    testing: Testing | None
     documentation: Documentation | None
     build: Build | None
     overrides: tuple[Override, ...]
@@ -436,33 +448,14 @@ def _build(
             )
         )
     if comps is not None:
+        per_component(targets, comps, "build.components", ("artifact", "hosting"))
         by_name = {c.name: c for c in comps}
         for i, t in enumerate(targets):
-            if t.name not in by_name:
-                raise fail(
-                    f"build.components[{i}].name",
-                    f"there is no component named {t.name!r}",
-                    f"Use one of: {', '.join(sorted(by_name))}",
-                )
             if by_name[t.name].traits.deployed and not t.hosting.strip():
                 raise fail(
                     f"build.components[{i}].hosting",
                     f"component {t.name!r} is deployed but has no hosting",
                     "Say where it runs, e.g. a cloud service or your own servers",
-                )
-        named = [t.name for t in targets]
-        for c in comps:
-            if c.name not in named:
-                raise fail(
-                    "build.components",
-                    f"no entry for component {c.name!r}",
-                    f'Add {{"name": "{c.name}", "artifact": "…", "hosting": "…"}}',
-                )
-            if named.count(c.name) > 1:
-                raise fail(
-                    "build.components",
-                    f"component {c.name!r} is listed twice",
-                    "Keep one entry per component",
                 )
         if not environments and any(c.traits.deployed for c in comps):
             raise fail(
@@ -600,6 +593,28 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         _override(o, i, names)
         for i, o in enumerate(as_list(top.get("overrides", []), "overrides"))
     )
+    talk = top.get("components_talk", False)
+    if not isinstance(talk, bool):
+        raise fail("components_talk", "must be true or false", "Use true or false")
+    comps_or_none = comps if active("components") else None
+    jargon = identity.domain_jargon if identity else False
+    architecture = (
+        core_areas.architecture(
+            get(top, "architecture", ""), comps_or_none, talk, jargon
+        )
+        if active("architecture")
+        else None
+    )
+    errors = (
+        core_areas.errors(get(top, "errors", ""), comps_or_none)
+        if active("errors")
+        else None
+    )
+    testing = (
+        core_areas.testing(get(top, "testing", ""), comps_or_none, talk)
+        if active("testing")
+        else None
+    )
     documentation = (
         _documentation(get(top, "documentation", ""))
         if active("documentation")
@@ -625,9 +640,6 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
                 f'Add a decision with "area": "{area}" '
                 "(title, context, decision, consequences)",
             )
-    talk = top.get("components_talk", False)
-    if not isinstance(talk, bool):
-        raise fail("components_talk", "must be true or false", "Use true or false")
     return Answers(
         1,
         areas,
@@ -637,6 +649,9 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         comps,
         git,
         workflow,
+        architecture,
+        errors,
+        testing,
         documentation,
         build,
         overrides,

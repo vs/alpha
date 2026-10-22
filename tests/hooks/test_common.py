@@ -8,7 +8,7 @@ from typing import Any
 
 import _common
 import pytest
-from helpers import union_annotations
+from helpers import single_component, union_annotations
 
 from alpha.answers import load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -230,9 +230,8 @@ def test_unknown_principle_applies_for_forward_compatibility():
 def root_component_principles(tmp_path: Path) -> dict[str, Any]:
     data = json.loads(FIXTURE.read_text())
     data["layout"] = "single"
-    data["components"] = data["components"][:1]
+    single_component(data)
     data["components"][0]["path"] = "."
-    data["build"]["components"] = data["build"]["components"][:1]
     data["overrides"] = []
     path = tmp_path / ".claude" / "alpha" / "project.json"
     path.parent.mkdir(parents=True)

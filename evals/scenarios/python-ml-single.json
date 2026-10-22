@@ -3,6 +3,9 @@
   "areas": {
     "identity": "done",
     "components": "done",
+    "architecture": "done",
+    "errors": "done",
+    "testing": "done",
     "documentation": "done",
     "build": "done",
     "git": "done",
@@ -58,6 +61,45 @@
       "data/**"
     ]
   },
+  "architecture": {
+    "components": [
+      {
+        "name": "ml",
+        "responsibility": "Trains and evaluates the leaf classifier.",
+        "calls": []
+      }
+    ],
+    "contracts": {
+      "format": "none",
+      "paths": []
+    },
+    "glossary": []
+  },
+  "errors": {
+    "components": [
+      {
+        "name": "ml",
+        "format": "exceptions"
+      }
+    ],
+    "categories": [
+      "validation",
+      "not-found",
+      "unavailable",
+      "internal"
+    ]
+  },
+  "testing": {
+    "components": [
+      {
+        "name": "ml",
+        "levels": [
+          "unit",
+          "integration"
+        ]
+      }
+    ]
+  },
   "documentation": {
     "external": "readme",
     "external_path": "",
@@ -90,6 +132,27 @@
       "context": "The product is a model plus its evaluation; there is no UI yet.",
       "decision": "A single Python component at the repository root.",
       "consequences": "A UI later means switching to a monorepo layout."
+    },
+    {
+      "area": "architecture",
+      "title": "One package, no contracts",
+      "context": "A single component calls nothing else.",
+      "decision": "ml trains and evaluates the model.",
+      "consequences": "A served model later needs a contract."
+    },
+    {
+      "area": "errors",
+      "title": "Typed exceptions",
+      "context": "The package is used from code and notebooks.",
+      "decision": "ml raises typed exceptions whose messages say how to fix the input.",
+      "consequences": "No error codes to maintain."
+    },
+    {
+      "area": "testing",
+      "title": "Unit and integration tests",
+      "context": "Training code touches data files.",
+      "decision": "ml: unit and integration tests.",
+      "consequences": "Integration tests run on a small fixture dataset."
     },
     {
       "area": "documentation",

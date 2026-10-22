@@ -7,7 +7,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from helpers import TODAY, git, place_answers
+from helpers import TODAY, git, override_record, place_answers
 
 from alpha import VERSION
 from alpha.answers import AnswersError
@@ -203,7 +203,8 @@ def test_copies_hook_scripts_tools_and_executable_githook(
 def test_override_decision_file_matches_principles(tmp_path: Path, generate_scenario):
     files = generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = (tmp_path / "docs/principles.toml").read_text()
-    path = "docs/decisions/0007-override-observability.md"
+    answers = json.loads((tmp_path / ".claude/alpha/project.json").read_text())
+    path = override_record(answers, answers["overrides"][0]["principle"])
     assert path in files
     assert f'override_decision = "{path}"' in principles
 

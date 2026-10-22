@@ -1,8 +1,8 @@
 """Field validators for the interview answers; each failure says how to fix it."""
 
 import re
-from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Protocol, TypeVar, cast
 
 NAME = re.compile(r"[a-z][a-z0-9-]*")
 
@@ -106,3 +106,53 @@ def paths(d: Mapping[str, Any], key: str, where: str) -> tuple[str, ...]:
     for i, path in enumerate(paths):
         relative(path, f"{join(where, key)}[{i}]")
     return paths
+
+
+class Named(Protocol):
+    @property
+    def name(self) -> str: ...
+
+
+C = TypeVar("C", bound=Named)
+
+
+def per_component(
+    targets: Sequence[Named],
+    comps: Sequence[C],
+    where: str,
+    fields: Sequence[str],
+    *,
+    only: Callable[[C], bool] = lambda _: True,
+    reason: str = "",
+) -> None:
+    """One entry per component that `only` selects, matched by name.
+
+    `fields` names the entry's other fields, for the fix of a missing entry;
+    `reason` says why a component `only` rejects can't have one.
+    """
+    names = [c.name for c in comps]
+    selected = [c.name for c in comps if only(c)]
+    for i, t in enumerate(targets):
+        if t.name not in names:
+            raise fail(
+                f"{where}[{i}].name",
+                f"there is no component named {t.name!r}",
+                f"Use one of: {', '.join(sorted(selected)) or '(none)'}",
+            )
+        if t.name not in selected:
+            raise fail(
+                f"{where}[{i}].name",
+                f"component {t.name!r} {reason}",
+                "Remove this entry",
+            )
+    named = [t.name for t in targets]
+    for name in selected:
+        if name not in named:
+            example = ", ".join([f'"name": "{name}"', *(f'"{f}": "…"' for f in fields)])
+            raise fail(where, f"no entry for component {name!r}", f"Add {{{example}}}")
+        if named.count(name) > 1:
+            raise fail(
+                where,
+                f"component {name!r} is listed twice",
+                "Keep one entry per component",
+            )

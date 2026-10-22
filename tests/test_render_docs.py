@@ -3,13 +3,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from helpers import TODAY
+from helpers import TODAY, override_record, single_component
 
 from alpha.answers import Answers, load_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles
-from alpha.render.docs import render_docs
+from alpha.render.docs import _slug, render_docs
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 D = load_defaults(Source(PLUGIN_ROOT, True, ""))
@@ -34,21 +34,10 @@ def cli_only(data: dict[str, Any]) -> None:
         ["has_ui", "deployed", "network_calls", "persisted_data", "ml"], False
     )
     traits["nontrivial_logic"] = False
-    data["components"] = [
-        {
-            "name": "tool",
-            "path": ".",
-            "kind": "cli",
-            "stack": "python",
-            "traits": traits,
-        }
-    ]
-    data["components_talk"] = False
+    tool = {"name": "tool", "path": ".", "kind": "cli", "stack": "python"}
+    single_component(data, {**tool, "traits": traits})
     data["git"]["scopes"] = ["tool"]
     data["overrides"] = []
-    data["build"]["components"] = [
-        {"name": "tool", "artifact": "package", "hosting": ""}
-    ]
 
 
 def test_claude_md_lists_only_active_principles(tmp_path: Path):
@@ -84,7 +73,19 @@ def test_claude_md_says_where_code_and_tests_live(tmp_path: Path):
     assert "`web/**/node_modules/**`" in commands
 
 
+def decision_records(data: dict[str, Any]) -> set[str]:
+    areas = {
+        f"docs/decisions/{i:04d}-{_slug(d['title'])}.md"
+        for i, d in enumerate(data["decisions"], 1)
+    }
+    return areas | {
+        override_record(data, o["principle"], i)
+        for i, o in enumerate(data["overrides"])
+    }
+
+
 def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
+    fixture = json.loads(FIXTURE.read_text())
     out = render(load(tmp_path))
     assert set(out) == {
         "README.md",
@@ -96,19 +97,12 @@ def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
         "docs/dependencies.md",
         "docs/build.md",
         "docs/guide/README.md",
-        "docs/decisions/0001-product-identity.md",
-        "docs/decisions/0002-python-api-plus-typescript-web.md",
-        "docs/decisions/0003-user-guide-in-docs-guide.md",
-        "docs/decisions/0004-github-actions-containers-and-static-hosting.md",
-        "docs/decisions/0005-conventional-commits-on-trunk.md",
-        "docs/decisions/0006-batched-review.md",
-        "docs/decisions/0007-override-observability.md",
-    }
+    } | decision_records(fixture)
     first = out["docs/decisions/0001-product-identity.md"]
     assert first.startswith("# 0001. Product identity")
     for heading in ("Status: accepted", "## Context", "## Decision", "## Consequences"):
         assert heading in first
-    override = out["docs/decisions/0007-override-observability.md"]
+    override = out[override_record(fixture, "observability")]
     assert "Principle: observability (loosen, scope component:api)" in override
     assert "single-process prototype" in override
 
@@ -222,7 +216,10 @@ def test_build_doc_lists_ci_checks_artifacts_and_environments(tmp_path: Path):
 def test_build_doc_without_ci_points_at_the_override(tmp_path: Path):
     doc = render(load(tmp_path, no_ci))["docs/build.md"]
     assert "No CI" in doc
-    assert "(decisions/0008-override-build-hosting-upfront.md)" in doc
+    data = json.loads(FIXTURE.read_text())
+    no_ci(data)
+    path = override_record(data, "build-hosting-upfront", 1)
+    assert f"({path.removeprefix('docs/')})" in doc
     assert "ci.yml" not in doc
 
 

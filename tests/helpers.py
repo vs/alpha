@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from alpha.cli import PLUGIN_ROOT
 
@@ -68,3 +69,29 @@ def union_annotations(tree: ast.Module) -> list[int]:
         for sub in ast.walk(ann)
         if isinstance(sub, ast.BinOp) and isinstance(sub.op, ast.BitOr)
     ]
+
+
+def single_component(
+    data: dict[str, Any], component: dict[str, Any] | None = None
+) -> None:
+    """Reduce answers to one component, with every per-component area in step."""
+    comp = component or data["components"][0]
+    name = comp["name"]
+    data["components"] = [comp]
+    data["components_talk"] = False
+    data["architecture"]["components"] = [
+        {"name": name, "responsibility": "Does the work.", "calls": []}
+    ]
+    data["architecture"]["contracts"] = {"format": "none", "paths": []}
+    data["errors"]["components"] = [{"name": name, "format": "exceptions"}]
+    data["testing"]["components"] = [{"name": name, "levels": ["unit"]}]
+    hosting = "Fly.io" if comp["traits"]["deployed"] else ""
+    data["build"]["components"] = [
+        {"name": name, "artifact": "package", "hosting": hosting}
+    ]
+
+
+def override_record(data: dict[str, Any], principle: str, index: int = 0) -> str:
+    """The decision record path of the index-th override, numbered after the areas'."""
+    number = len(data["decisions"]) + index + 1
+    return f"docs/decisions/{number:04d}-override-{principle}.md"

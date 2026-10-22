@@ -3,6 +3,9 @@
   "areas": {
     "identity": "done",
     "components": "done",
+    "architecture": "done",
+    "errors": "done",
+    "testing": "done",
     "documentation": "done",
     "build": "done",
     "git": "done",
@@ -76,6 +79,76 @@
     "max_files": 5,
     "extra_risk_paths": []
   },
+  "architecture": {
+    "components": [
+      {
+        "name": "api",
+        "responsibility": "Embeds and verifies trust payloads in images.",
+        "calls": []
+      },
+      {
+        "name": "web",
+        "responsibility": "Lets users verify an image in the browser.",
+        "calls": [
+          "api"
+        ]
+      }
+    ],
+    "contracts": {
+      "format": "openapi",
+      "paths": [
+        "api/openapi.yaml"
+      ]
+    },
+    "glossary": [
+      {
+        "term": "Payload",
+        "meaning": "The signed trust data hidden in an image."
+      },
+      {
+        "term": "Intact",
+        "meaning": "A payload whose signature still verifies."
+      }
+    ]
+  },
+  "errors": {
+    "components": [
+      {
+        "name": "api",
+        "format": "problem-json"
+      },
+      {
+        "name": "web",
+        "format": "user-message"
+      }
+    ],
+    "categories": [
+      "validation",
+      "not-found",
+      "conflict",
+      "unavailable",
+      "internal"
+    ]
+  },
+  "testing": {
+    "components": [
+      {
+        "name": "api",
+        "levels": [
+          "unit",
+          "integration",
+          "contract"
+        ]
+      },
+      {
+        "name": "web",
+        "levels": [
+          "unit",
+          "end-to-end"
+        ]
+      }
+    ]
+  },
   "documentation": {
     "external": "folder",
     "external_path": "docs/guide",
@@ -141,6 +214,27 @@
       "context": "Image processing is easiest in Python; verification needs a browser UI.",
       "decision": "A monorepo with an api (python) and a web (typescript) component.",
       "consequences": "Two toolchains to maintain; the api contract is the integration point."
+    },
+    {
+      "area": "architecture",
+      "title": "The web app calls the api through OpenAPI",
+      "context": "Two components share one contract.",
+      "decision": "api embeds and verifies; web calls it; api/openapi.yaml is the contract.",
+      "consequences": "Contract changes are reviewed as risky."
+    },
+    {
+      "area": "errors",
+      "title": "Problem details and user messages",
+      "context": "Errors reach both API callers and browser users.",
+      "decision": "api answers with problem+json; web shows messages that say how to fix the problem.",
+      "consequences": "Every error names its category and a fix."
+    },
+    {
+      "area": "testing",
+      "title": "Unit, integration, contract and end-to-end tests",
+      "context": "The api has real logic; the web app is the user's path.",
+      "decision": "api: unit, integration, contract; web: unit, end-to-end.",
+      "consequences": "Tests name the requirement they cover."
     },
     {
       "area": "documentation",

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from helpers import single_component
 
 from alpha import cli
 from alpha.answers import AREAS, AnswersError, load_answers, write_answers
@@ -120,11 +121,10 @@ def test_single_layout_rules(tmp_path: Path):
     d["layout"] = "single"
     with pytest.raises(AnswersError, match=r"layout: .*single.*exactly one"):
         check(tmp_path, d)
-    d["components"] = [d["components"][0]]
+    single_component(d)
     with pytest.raises(AnswersError, match=r"components\[0\]\.path: .*single.*\"\.\""):
         check(tmp_path, d)
     d["components"][0]["path"] = "."
-    d["build"]["components"] = [d["build"]["components"][0]]
     assert check(tmp_path, d).layout == "single"
 
 
