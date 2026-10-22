@@ -21,6 +21,17 @@ _DONE = (
     "Committed per the commit convention.",
     "Reviewer passed.",
 )
+_WORKING_RULES = (
+    "- Before you change code, docs or config, read the decision records in "
+    "docs/decisions/ that bear on the change (an index is added to your context "
+    "at the start of each session) and the principle's parameters in "
+    "docs/principles.toml. Follow them.",
+    "- A change that contradicts an accepted decision needs a new decision that "
+    "supersedes it. Ask the user first, then record it with the decision skill.",
+    "- When a requirement is ambiguous, ask the user, then record the answer with "
+    "the decision skill.",
+    "- Subagents work under the same principles, decisions and checks.",
+)
 _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
     "each leaving the checks green.",
@@ -163,6 +174,11 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     lines = [f"# {ident.name}", "", ident.value_proposition, "", "## Principles", ""]
     lines += [
         f"- **{p['title']}**: {p['statement']}"
+        + (
+            f" (overridden: see {p['override_decision']})"
+            if p["override_decision"]
+            else ""
+        )
         for p in principles["principles"]
         if p["active"]
     ]
@@ -170,6 +186,10 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "",
         "`docs/principles.toml` is the source of truth, with each principle's "
         "parameters, rationale and overrides.",
+        "",
+        "## Working rules",
+        "",
+        *_WORKING_RULES,
         "",
         "## Commands",
         "",

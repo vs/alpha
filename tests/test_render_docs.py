@@ -281,3 +281,31 @@ def test_elsewhere_and_no_external_docs(tmp_path: Path):
 
     text = render(load(tmp_path, elsewhere))["CONTRIBUTING.md"]
     assert "outside this repository: https://wiki.example.com/pico." in text
+
+
+WORKING_RULES = [
+    "- Before you change code, docs or config, read the decision records in "
+    "docs/decisions/ that bear on the change (an index is added to your context "
+    "at the start of each session) and the principle's parameters in "
+    "docs/principles.toml. Follow them.",
+    "- A change that contradicts an accepted decision needs a new decision that "
+    "supersedes it. Ask the user first, then record it with the decision skill.",
+    "- When a requirement is ambiguous, ask the user, then record the answer with "
+    "the decision skill.",
+    "- Subagents work under the same principles, decisions and checks.",
+]
+
+
+def test_claude_md_has_working_rules(tmp_path: Path):
+    md = render(load(tmp_path))["CLAUDE.md"]
+    section = md.split("## Working rules\n\n")[1].split("\n\n## ")[0]
+    assert section.splitlines() == WORKING_RULES
+    order = [md.index(h) for h in ("## Principles", "## Working rules", "## Commands")]
+    assert order == sorted(order)
+
+
+def test_overridden_principle_names_its_record(tmp_path: Path):
+    md = render(load(tmp_path))["CLAUDE.md"]
+    record = override_record(json.loads(FIXTURE.read_text()), "observability")
+    line = next(x for x in md.splitlines() if x.startswith("- **Observability**"))
+    assert line.endswith(f"(overridden: see {record})")
