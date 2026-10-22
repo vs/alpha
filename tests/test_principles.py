@@ -136,6 +136,55 @@ def test_tighten_merges_params(tmp_path: Path):
     assert p["active"] is True
 
 
+def test_component_tighten_keeps_project_params(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["overrides"] = [
+            {
+                "principle": "timeouts",
+                "scope": "component:api",
+                "change": "tighten",
+                "params": {"seconds": 5},
+                "reason": "",
+            },
+            {
+                "principle": "timeouts",
+                "scope": "component:web",
+                "change": "loosen",
+                "params": {"seconds": 30},
+                "reason": "x",
+            },
+        ]
+
+    out = build_principles(D, variant(tmp_path, mutate), "0.1.0")
+    p = principle(out, "timeouts")
+    assert p["params"] == {}
+    assert p["component_params"] == {"api": {"seconds": 5}, "web": {"seconds": 30}}
+    assert p["components"] == ["api", "web"]
+    reread = principle(tomllib.loads(render_principles(out)), "timeouts")
+    assert reread["component_params"] == p["component_params"]
+
+
+def test_project_tighten_leaves_component_params_empty(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["overrides"] = [
+            {
+                "principle": "timeouts",
+                "scope": "project",
+                "change": "tighten",
+                "params": {"seconds": 5},
+                "reason": "x",
+            }
+        ]
+
+    p = principle(build_principles(D, variant(tmp_path, mutate), "0.1.0"), "timeouts")
+    assert p["component_params"] == {}
+
+
+def test_component_tighten_without_params_adds_no_table():
+    p = principle(build_principles(D, A, "0.1.0"), "observability")
+    assert p["component_params"] == {}
+
+
 def test_unknown_override_principle(tmp_path: Path):
     def mutate(data: dict[str, Any]) -> None:
         data["overrides"][0]["principle"] = "nope"

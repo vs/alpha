@@ -133,6 +133,7 @@ def build_principles(
                 "components": names,
                 "override_decision": "",
                 "params": dict(p.get("params", {})),
+                "component_params": {},  # per component, on top of params
             }
         )
 
@@ -145,10 +146,14 @@ def build_principles(
                 f"overrides[{i}].principle: unknown principle '{o.principle}'. "
                 f"Known ids: {', '.join(sorted(by_id))}."
             )
+        comp = o.scope.removeprefix("component:") if o.scope != "project" else None
         if o.change in ("tighten", "loosen"):
-            cast(dict[str, Any], target["params"]).update(o.params)
-        elif o.scope.startswith("component:"):
-            comp = o.scope.removeprefix("component:")
+            if comp is None:
+                cast(dict[str, Any], target["params"]).update(o.params)
+            elif o.params:
+                per = cast(dict[str, dict[str, Any]], target["component_params"])
+                per.setdefault(comp, {}).update(o.params)
+        elif comp is not None:
             target["components"] = [n for n in target["components"] if n != comp]
             if not target["components"]:
                 target["active"] = False
