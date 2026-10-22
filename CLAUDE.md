@@ -53,3 +53,11 @@ Both scenarios went through `bin/alpha` (`answers check`, `generate`, `bootstrap
 - web+API: six commits ending with `ci: Run every component's checks in CI` and `ci: Schedule dependency updates`; docs include architecture (responsibilities, contracts, errors), glossary, security and observability; `.github/dependabot.yml` covers uv, npm and github-actions. Clean tree.
 - ML single (nothing deployed): no glossary and no observability doc; `docs/security.md` says nothing is deployed. Clean tree.
 - The generated path guard blocked `api/keys/**` (an extra protected path) and allowed normal source files. Its message used to talk about lockfiles and secrets for every protected path; it now names the glob and says to ask the user.
+
+### Rules in context live check (2026-10-23)
+
+In a generated web+API project, with headless `claude -p`:
+
+- Asked what it was told at session start, without reading files, Claude listed all 13 decision records with numbers, titles and paths, and the observability override. It first read the override line ("active, components api, web") as applying to both components; the index now quotes the record's `Principle:` header ("loosen, scope component:api").
+- A general-purpose subagent asked to add `api/app/routes/ping.py` without tests: post-edit recorded the file for that subagent, SubagentStop blocked it three times and then let it stop with a message, and the main session's Stop flagged the untested file the same way.
+- In an untrusted folder, `-p` ignores the project's `permissions.allow` (Claude Code prints a warning), but the hooks still run.
