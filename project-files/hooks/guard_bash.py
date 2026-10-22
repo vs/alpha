@@ -9,6 +9,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
@@ -231,6 +232,81 @@ def check_command(command: str, root: Path, depth: int = 0) -> None:
         check_segment(segment, root)
 
 
+REDIRECTS = {">", ">>", ">|", "&>", "&>>"}
+WRITES_LAST = {"cp", "mv", "install", "ln"}  # the last argument is written
+WRITES_ALL = {"rm", "truncate", "tee"}  # every non-option argument is written
+NOT_FILES = {"", "-", "/dev/null", "/dev/stdout", "/dev/stderr"}
+
+
+def redirect_targets(command: str) -> list[str]:
+    """Files a command redirects output into. Lexed without POSIX quote
+    removal, so a quoted ">" (as in grep '>' f) stays a word, not a redirect."""
+    command = _newlines_to_semicolons(command.replace("\\\n", ""))
+    lexer = shlex.shlex(command, posix=False, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return []
+    targets: list[str] = []
+    for i, token in enumerate(tokens[:-1]):
+        if token in REDIRECTS:
+            try:
+                targets += shlex.split(tokens[i + 1])
+            except ValueError:
+                continue
+    return targets
+
+
+def command_targets(segment: list[str]) -> list[str]:
+    """Files a command writes through its arguments (tee, cp, rm, sed -i, ...)."""
+    if not segment:
+        return []
+    name = posixpath.basename(segment[0])
+    args = segment[1:]
+    plain = [a for a in args if not a.startswith("-")]
+    if name in WRITES_ALL:
+        return plain
+    if name in WRITES_LAST:
+        return plain[-1:]
+    in_place = (
+        name == "sed"
+        and any(a.startswith("-i") or a.startswith("--in-place") for a in args)
+    ) or (
+        name == "perl"
+        and any(a.startswith("-") and not a.startswith("--") and "i" in a for a in args)
+    )
+    if in_place:
+        return plain[1:]  # the first plain argument is the script
+    return []
+
+
+def check_writes(
+    command: str, root: Path, cwd: Path, principles: dict[str, Any], depth: int = 0
+) -> None:
+    """Block a shell command that writes to a protected path."""
+    segments = split_segments(command)
+    if segments is None:
+        return
+    targets = redirect_targets(command)
+    for segment in segments:
+        segment = strip_prefix(segment)
+        script = shell_script(segment)
+        if script is not None and depth < MAX_DEPTH:
+            check_writes(script, root, cwd, principles, depth + 1)
+        targets += command_targets(segment)
+    for target in targets:
+        if target in NOT_FILES:
+            continue
+        path = Path(target)
+        rel = _common.rel_to_root(root, str(path if path.is_absolute() else cwd / path))
+        if rel is None:
+            continue
+        glob = _common.protected_glob(rel, principles)
+        if glob is not None:
+            _common.block(_common.protected_message(rel, glob, principles))
+
+
 def changes_hooks_path(args: list[str]) -> bool:
     """Whether `git config <args>` sets or unsets core.hooksPath elsewhere."""
     keys = [k for k, arg in enumerate(args) if arg.lower() == "core.hookspath"]
@@ -288,7 +364,8 @@ def main() -> None:
     _common.check_python()
     inp = _common.read_input()
     root = _common.project_root(inp)
-    if _common.load_principles(root) is None:
+    principles = _common.load_principles(root)
+    if principles is None:
         sys.exit(0)
     if inp.get("tool_name") != "Bash":
         sys.exit(0)
@@ -299,6 +376,9 @@ def main() -> None:
     if not isinstance(command, str):
         sys.exit(0)
     check_command(command, root)
+    cwd_value = inp.get("cwd")
+    cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else root
+    check_writes(command, root, cwd, principles)
     sys.exit(0)
 
 

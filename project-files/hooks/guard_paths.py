@@ -45,25 +45,6 @@ WEAKENING: list[tuple[str, re.Pattern[str]]] = (
 )
 
 
-def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
-    """Why a path is protected (it matched glob), and what to do instead."""
-    head = (
-        f"{rel} is protected (`{glob}` in docs/principles.toml), so Claude can't "
-        "edit it."
-    )
-    protected = principles.get("protected", {})
-    if glob in [str(g) for g in protected.get("extra", [])]:
-        return f"{head} Ask the user to change it by hand."
-    comp = _common.component_for(rel, principles)
-    if comp is not None and rel in [str(p) for p in comp.get("lockfiles", [])]:
-        setup = comp.get("commands", {}).get("setup")
-        hint = setup if isinstance(setup, str) and setup else "your package manager"
-        return (
-            f"{head} Lockfiles change only through the package manager (e.g. {hint})."
-        )
-    return f"{head} Secrets belong in the environment, never in files Claude edits."
-
-
 def texts(tool: str, tool_input: dict[str, Any], current: Path) -> tuple[str, str]:
     """(old text, new text) for the edit."""
     if tool == "Write":
@@ -130,10 +111,9 @@ def main() -> None:
     rel = _common.rel_to_root(root, file_path)
     if rel is None:
         sys.exit(0)
-    globs: list[str] = list(principles.get("protected", {}).get("paths", []))
-    matched = [g for g in globs if _common.matches(rel, [g])]
-    if matched:
-        _common.block(protected_message(rel, matched[0], principles))
+    glob = _common.protected_glob(rel, principles)
+    if glob is not None:
+        _common.block(_common.protected_message(rel, glob, principles))
     if rel == PRINCIPLES:
         ask(
             f"{PRINCIPLES} is the project's single source of truth: every alpha "

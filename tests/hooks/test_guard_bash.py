@@ -168,6 +168,59 @@ def test_amend_blocked_when_pushed(project: Project, tmp_path: Path) -> None:
     assert bash(project, "git commit --amend --no-edit").returncode == 0
 
 
+@pytest.mark.parametrize(
+    ("command", "rel"),
+    [
+        ("echo x > api/uv.lock", "api/uv.lock"),
+        ("echo k >> .env", ".env"),
+        ("echo k>.env", ".env"),
+        ("cat x | tee api/keys/a.txt", "api/keys/a.txt"),
+        ("cat x | tee -a api/keys/a.txt", "api/keys/a.txt"),
+        ("sed -i '' 's/a/b/' api/uv.lock", "api/uv.lock"),
+        ("sed -i -e s/a/b/ web/pnpm-lock.yaml", "web/pnpm-lock.yaml"),
+        ("perl -pi -e 's/a/b/' api/uv.lock", "api/uv.lock"),
+        ("cp /tmp/x web/pnpm-lock.yaml", "web/pnpm-lock.yaml"),
+        ("mv tmp.lock api/uv.lock", "api/uv.lock"),
+        ("rm api/keys/old.txt", "api/keys/old.txt"),
+        ("bash -c 'echo x >.env.local'", ".env.local"),
+        ("echo x > ./api/../api/uv.lock", "api/uv.lock"),
+    ],
+)
+def test_shell_writes_to_protected_paths_are_blocked(
+    project: Project, command: str, rel: str
+) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 2, (command, proc.stderr)
+    assert proc.stderr.startswith(f"{rel} is protected ("), proc.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat api/uv.lock > /dev/null",
+        "grep '>' api/uv.lock",
+        'grep ">" api/uv.lock',
+        "echo '> api/uv.lock'",
+        "uv sync",
+        "cp api/uv.lock /tmp/backup.lock",
+        "echo x > api/src/app.py",
+        "ls 2>&1 api",
+        "sed 's/a/b/' api/uv.lock",
+    ],
+)
+def test_reads_and_unprotected_writes_pass(project: Project, command: str) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 0, (command, proc.stderr)
+
+
+def test_write_outside_the_project_passes(
+    project: Project, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    outside = tmp_path_factory.mktemp("outside")
+    proc = bash(project, f"echo x > {outside}/.env")
+    assert proc.returncode == 0, proc.stderr
+
+
 def test_empty_quoted_argument_does_not_split_the_command(project: Project) -> None:
     proc = bash(project, "git commit -m '' --no-verify")
     assert proc.returncode == 2

@@ -389,3 +389,30 @@ def record_agent_file(root: Path, agent_id: str, rel: str) -> None:
     if rel not in files:
         files.append(rel)
         agent_files_path(root, agent_id).write_text(json.dumps({"files": files}))
+
+
+def protected_glob(rel: str, principles: dict[str, Any]) -> str | None:
+    """The first protected-path glob that rel matches, if any."""
+    for glob in principles.get("protected", {}).get("paths", []):
+        if matches(rel, [str(glob)]):
+            return str(glob)
+    return None
+
+
+def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
+    """Why a path is protected (it matched glob), and what to do instead."""
+    head = (
+        f"{rel} is protected (`{glob}` in docs/principles.toml), so Claude can't "
+        "edit it."
+    )
+    protected = principles.get("protected", {})
+    if glob in [str(g) for g in protected.get("extra", [])]:
+        return f"{head} Ask the user to change it by hand."
+    comp = component_for(rel, principles)
+    if comp is not None and rel in [str(p) for p in comp.get("lockfiles", [])]:
+        setup = comp.get("commands", {}).get("setup")
+        hint = setup if isinstance(setup, str) and setup else "your package manager"
+        return (
+            f"{head} Lockfiles change only through the package manager (e.g. {hint})."
+        )
+    return f"{head} Secrets belong in the environment, never in files Claude edits."
