@@ -112,3 +112,18 @@ def test_index_survives_unreadable_files(project: Project, tmp_path: Path) -> No
     records, warnings = _common.decision_index(project.root)
     assert [r[0] for r in records] == [1]
     assert warnings
+
+
+def test_override_line_says_what_the_record_changed(project: Project) -> None:
+    path = next(
+        p["override_decision"]
+        for p in project.principles()["principles"]
+        if p["override_decision"]
+    )
+    project.write(
+        path,
+        "# 0013. Override observability\n\nDate: 2026-10-23\nStatus: accepted\n"
+        "Principle: observability (loosen, scope component:api)\n\n## Context\n\nc\n",
+    )
+    (line,) = _common.overrides_in_effect(project.principles(), project.root)
+    assert line == f"observability: loosen, scope component:api ({path})"

@@ -312,7 +312,7 @@ def test_generated_hooks_enforce_the_generated_principles(
     told = json.loads(started.stdout)["hookSpecificOutput"]["additionalContext"]
     assert told.startswith("alpha: decisions in effect")
     assert "0001 Product identity [accepted]" in told
-    assert "- tests-first-class: active, components api" in told  # the override
+    assert "- tests-first-class: drop, scope component:web (" in told  # the override
 
     edit = {"tool_name": "Write", "tool_input": {"file_path": str(target / "x")}}
     for rel in ("api/main.py", "web/app/page.tsx"):

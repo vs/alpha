@@ -326,16 +326,34 @@ def decision_index(root: Path) -> tuple[list[tuple[int, str, str, str]], list[st
     return records, warnings
 
 
-def overrides_in_effect(principles: dict[str, Any]) -> list[str]:
-    """One line per principle the project overrode, with its decision record."""
+def _record_change(root: Path, record: str) -> str | None:
+    """What a record's "Principle: id (change, scope ...)" header line says."""
+    try:
+        lines = (root / record).read_text(encoding="utf-8").splitlines()[:12]
+    except (OSError, UnicodeDecodeError):
+        return None
+    for line in lines:
+        found = re.fullmatch(r"Principle: \S+ \((.+)\)", line.strip())
+        if found:
+            return found.group(1)
+    return None
+
+
+def overrides_in_effect(
+    principles: dict[str, Any], root: Path | None = None
+) -> list[str]:
+    """One line per principle the project overrode: what changed, and the record."""
     lines: list[str] = []
     for p in principles.get("principles", []):
         record = p.get("override_decision")
         if not record:
             continue
-        state = "active" if p.get("active") else "inactive"
-        comps = ", ".join(str(c) for c in p.get("components", [])) or "none"
-        lines.append(f"{p.get('id')}: {state}, components {comps} ({record})")
+        change = _record_change(root, str(record)) if root is not None else None
+        if change is None:  # no readable record: say what the principles file says
+            state = "active" if p.get("active") else "inactive"
+            comps = ", ".join(str(c) for c in p.get("components", [])) or "none"
+            change = f"{state}, components {comps}"
+        lines.append(f"{p.get('id')}: {change} ({record})")
     return lines
 
 
@@ -360,7 +378,7 @@ def context_text(root: Path, principles: dict[str, Any]) -> str:
             f"alpha: no decision records yet in {DECISIONS_DIR}/; record decisions "
             "with the decision skill."
         ]
-    overrides = overrides_in_effect(principles)
+    overrides = overrides_in_effect(principles, root)
     if overrides:
         lines += ["Principle overrides:", *(f"- {o}" for o in overrides)]
     lines += [f"Warning: {w}" for w in warnings]
