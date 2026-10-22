@@ -38,6 +38,10 @@ def main() -> None:
     rel = _common.rel_to_root(root, file_path)
     if rel is None:
         sys.exit(0)
+    agent = inp.get("agent_id")
+    if isinstance(agent, str) and agent:
+        # SubagentStop checks only what this subagent changed.
+        _common.record_agent_file(root, agent, rel)
     comp = _common.component_for(rel, principles)
     if comp is None:
         sys.exit(0)

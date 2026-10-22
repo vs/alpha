@@ -365,3 +365,27 @@ def context_text(root: Path, principles: dict[str, Any]) -> str:
         lines += ["Principle overrides:", *(f"- {o}" for o in overrides)]
     lines += [f"Warning: {w}" for w in warnings]
     return "\n".join(lines)
+
+
+def agent_files_path(root: Path, agent_id: str) -> Path:
+    """Where the files a subagent edited are listed (state/agent-<id>.json)."""
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", agent_id)
+    return state_path(root, f"agent-{safe}.json")
+
+
+def agent_files(root: Path, agent_id: str) -> list[str]:
+    try:
+        data = json.loads(agent_files_path(root, agent_id).read_text())
+    except (OSError, ValueError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    files: object = cast("dict[str, Any]", data).get("files")
+    return [str(f) for f in cast("list[Any]", files)] if isinstance(files, list) else []
+
+
+def record_agent_file(root: Path, agent_id: str, rel: str) -> None:
+    files = agent_files(root, agent_id)
+    if rel not in files:
+        files.append(rel)
+        agent_files_path(root, agent_id).write_text(json.dumps({"files": files}))

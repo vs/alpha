@@ -507,3 +507,69 @@ def test_missing_tool_is_not_cached(project: Project) -> None:
         "stop_checks.py", PAYLOAD, env={"PATH": f"{bin_dir}:{os.environ['PATH']}"}
     )
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def subagent_stop(project: Project, agent: str) -> subprocess.CompletedProcess[str]:
+    return project.run_hook(
+        "stop_checks.py",
+        {
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": False,
+            "agent_id": agent,
+            "agent_type": "general-purpose",
+        },
+    )
+
+
+def edited_by(project: Project, agent: str, *rels: str) -> None:
+    project.write(
+        f".claude/alpha/state/agent-{agent}.json", json.dumps({"files": list(rels)})
+    )
+
+
+def test_subagent_without_edits_stops_freely(project: Project) -> None:
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")  # the main agent's untested work
+    proc = subagent_stop(project, "r1")
+    assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_subagent_is_blocked_on_its_own_untested_source(project: Project) -> None:
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")  # main agent's
+    project.write("api/src/x.py", "y = 2\n")
+    edited_by(project, "a1", "api/src/x.py")
+    text = reason(subagent_stop(project, "a1"))
+    assert "api/src/x.py" in text
+    assert "app.py" not in text
+
+
+def test_subagent_secret_blocks_every_time(project: Project) -> None:
+    commit_all(project)
+    project.write("notes.txt", f"key = {AWS_KEY}\n")
+    edited_by(project, "a1", "notes.txt")
+    for _ in range(5):
+        assert "notes.txt:1" in reason(subagent_stop(project, "a1"))
+
+
+def test_clean_subagent_stop_clears_its_state(project: Project) -> None:
+    commit_all(project)
+    project.write("api/src/x.py", "y = 2\n")
+    project.write("api/tests/test_x.py", "y = 2\n")
+    edited_by(project, "a1", "api/src/x.py", "api/tests/test_x.py")
+    proc = subagent_stop(project, "a1")
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    assert not (project.root / ".claude/alpha/state/agent-a1.json").exists()
+
+
+def test_subagent_blocks_count_separately_from_the_main_session(
+    project: Project,
+) -> None:
+    commit_all(project)
+    project.write("api/src/x.py", "y = 2\n")
+    edited_by(project, "a1", "api/src/x.py")
+    for _ in range(3):
+        reason(subagent_stop(project, "a1"))
+    assert counter(project) == 0
+    proc = subagent_stop(project, "a1")
+    assert "decision" not in json.loads(proc.stdout)  # gave up after three

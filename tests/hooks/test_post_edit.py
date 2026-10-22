@@ -1,3 +1,4 @@
+import json
 import subprocess
 from typing import Any
 
@@ -139,3 +140,32 @@ def test_flat_layout_file_is_formatted(project: Project) -> None:
 def test_vendored_file_is_not_formatted(project: Project) -> None:
     project.set_commands("api", format_file=LINT_FAIL)
     assert run(project, "api/.venv/lib/site.py").returncode == 0
+
+
+def run_as(project: Project, rel: str, agent: str) -> None:
+    target = project.root / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x = 1\n")
+    proc = project.run_hook(
+        "post_edit.py",
+        {
+            "tool_name": "Write",
+            "tool_input": {"file_path": str(target)},
+            "agent_id": agent,
+            "agent_type": "general-purpose",
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_post_edit_records_subagent_files(project: Project) -> None:
+    run_as(project, "api/src/x.py", "a1")
+    run_as(project, "api/src/x.py", "a1")
+    run_as(project, "docs/notes.md", "a1")
+    state = project.root / ".claude/alpha/state/agent-a1.json"
+    assert json.loads(state.read_text()) == {"files": ["api/src/x.py", "docs/notes.md"]}
+
+
+def test_main_session_edits_are_not_recorded(project: Project) -> None:
+    run(project, "api/src/x.py")
+    assert not list((project.root / ".claude/alpha/state").glob("agent-*"))

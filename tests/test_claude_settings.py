@@ -49,6 +49,7 @@ def test_key_order_is_deterministic():
         "PostToolUse",
         "Stop",
         "SubagentStart",
+        "SubagentStop",
     ]
 
 
@@ -69,6 +70,9 @@ def test_hook_wiring():
     ]
     assert entries("Stop") == [{"hooks": [{**cmd("stop_checks.py"), "timeout": 1200}]}]
     assert entries("SubagentStart") == [{"hooks": [cmd("subagent_start.py")]}]
+    assert entries("SubagentStop") == [
+        {"hooks": [{**cmd("stop_checks.py"), "timeout": 1200}]}
+    ]
 
 
 def test_every_hook_command_names_an_existing_script():
@@ -78,7 +82,7 @@ def test_every_hook_command_names_an_existing_script():
         for entry in group
         for h in entry["hooks"]
     ]
-    assert len(commands) == 6
+    assert len(commands) == 7
     for command in commands:
         match = re.search(r"/([a-z_]+\.py)$", command)
         assert match, command

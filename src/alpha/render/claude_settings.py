@@ -56,5 +56,6 @@ def render_settings(principles: dict[str, Any]) -> dict[str, Any]:
             "PostToolUse": [_entry(_hook("post_edit.py"), _EDIT_TOOLS)],
             "Stop": [_entry(_hook("stop_checks.py", _STOP_TIMEOUT_SECONDS))],
             "SubagentStart": [_entry(_hook("subagent_start.py"))],
+            "SubagentStop": [_entry(_hook("stop_checks.py", _STOP_TIMEOUT_SECONDS))],
         },
     }

@@ -422,6 +422,33 @@ def block(listing: str) -> NoReturn:
     sys.exit(0)
 
 
+def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoReturn:
+    """Judge only the files this subagent edited, so a read-only subagent is
+    never blocked by the main session's unfinished work."""
+    files = _common.agent_files(root, agent)
+    base = session_base(root)
+    mine = [f for f in changed_since(root, base) if f in files] if files else []
+    record = _common.agent_files_path(root, agent)
+    counter = _common.state_path(root, record.stem + "-blocks")
+    secrets = secret_problems(root, principles, mine, base) if mine else []
+    problems = secrets + (find_problems(root, principles, mine, base) if mine else [])
+    if not problems:
+        record.unlink(missing_ok=True)
+        counter.unlink(missing_ok=True)
+        sys.exit(0)
+    listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
+    if not secrets:
+        count = read_count(counter)
+        if count >= MAX_BLOCKS:
+            write_count(counter, 0)
+            flag(
+                "alpha: a subagent's checks still fail after 3 attempts; "
+                f"stopping it so the main session can decide:\n{listing}"
+            )
+        write_count(counter, count + 1)
+    block(listing)
+
+
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
@@ -429,6 +456,11 @@ def main() -> None:
     principles = _common.load_principles(root)
     if principles is None:
         sys.exit(0)
+    if inp.get("hook_event_name") == "SubagentStop":
+        agent = inp.get("agent_id")
+        if not isinstance(agent, str) or not agent:
+            sys.exit(0)
+        subagent_stop(root, principles, agent)
     base = session_base(root)
     changed = changed_since(root, base)
     counter = _common.state_path(root, "stop-blocks")
