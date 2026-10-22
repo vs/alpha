@@ -360,7 +360,9 @@ def test_every_update_and_observability_default_is_a_choice():
 def test_area_waits_for_the_area_before_it(skill: str):
     area = AREA_SKILLS[skill][0]
     index = answers.AREAS.index(area)
-    found = re.findall(r"`areas\.(\w+)` isn't `\"done\"`", _section(skill, "Before you start"))
+    found = re.findall(
+        r"`areas\.(\w+)` isn't `\"done\"`", _section(skill, "Before you start")
+    )
     assert found == ([answers.AREAS[index - 1]] if index else [])
 
 

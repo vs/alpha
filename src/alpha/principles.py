@@ -151,6 +151,7 @@ def build_principles(
                 "kind": c.kind,
                 "stack": c.stack,
                 "manifests": [_prefixed(c.path, m) for m in recipe.manifests],
+                "lockfiles": [_prefixed(c.path, lock) for lock in recipe.lockfiles],
                 "source_globs": [_prefixed(c.path, g) for g in recipe.source_globs],
                 "test_globs": [_prefixed(c.path, g) for g in recipe.test_globs],
                 "exclude_globs": [_prefixed(c.path, g) for g in recipe.exclude_globs],
@@ -218,7 +219,11 @@ def build_principles(
         "kit_version": kit_version,
         "project": {"name": a.identity.name, "slug": a.identity.slug},
         "review": review,
-        "protected": {"paths": _dedupe(protected)},
+        # extra: the project's own additions, as opposed to secrets and lockfiles
+        "protected": {
+            "paths": _dedupe(protected),
+            "extra": list(a.security.extra_protected),
+        },
         "git": {
             "convention": a.git.convention,
             "types": list(defaults["git"]["types"]),

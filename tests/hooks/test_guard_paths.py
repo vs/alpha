@@ -33,18 +33,30 @@ def test_lockfile_blocked_with_component_setup_command(project: Project) -> None
     project.set_commands("api", setup="uv sync")
     proc = run(project, "Write", {"file_path": str(project.root / "api/uv.lock")})
     assert proc.returncode == 2
-    assert (
-        "api/uv.lock is protected. Lockfiles change only through the package "
-        "manager (e.g. uv sync); secrets belong in the environment, never in "
-        "files Claude edits."
-    ) in proc.stderr
+    assert proc.stderr.startswith(
+        "api/uv.lock is protected (`api/uv.lock` in docs/principles.toml), so "
+        "Claude can't edit it."
+    )
+    assert "Lockfiles change only through the package manager (e.g. uv sync)." in (
+        proc.stderr
+    )
+    assert "Secrets" not in proc.stderr
 
 
-def test_env_local_blocked_with_generic_hint(project: Project) -> None:
+def test_env_local_blocked_as_a_secret(project: Project) -> None:
     proc = run(project, "Write", {"file_path": str(project.root / ".env.local")})
     assert proc.returncode == 2
-    assert ".env.local is protected." in proc.stderr
-    assert "(e.g. your package manager)" in proc.stderr
+    assert ".env.local is protected (`**/.env.*` in" in proc.stderr
+    assert "Secrets belong in the environment" in proc.stderr
+    assert "Lockfiles" not in proc.stderr
+
+
+def test_extra_protected_path_asks_for_a_hand_edit(project: Project) -> None:
+    proc = run(project, "Write", {"file_path": str(project.root / "api/keys/a.txt")})
+    assert proc.returncode == 2
+    assert "api/keys/a.txt is protected (`api/keys/**` in" in proc.stderr
+    assert "Ask the user to change it by hand." in proc.stderr
+    assert "Lockfiles" not in proc.stderr and "Secrets" not in proc.stderr
 
 
 def test_unprotected_file_passes(project: Project) -> None:
@@ -195,7 +207,8 @@ def test_nested_env_files_blocked(project: Project) -> None:
     for rel in ("api/.env", "web/config/.env.local"):
         proc = run(project, "Write", {"file_path": str(project.root / rel)})
         assert proc.returncode == 2, rel
-        assert f"{rel} is protected." in proc.stderr
+        assert f"{rel} is protected (" in proc.stderr
+        assert "Secrets belong in the environment" in proc.stderr
 
 
 def test_principles_file_edit_asks(project: Project) -> None:

@@ -45,18 +45,23 @@ WEAKENING: list[tuple[str, re.Pattern[str]]] = (
 )
 
 
-def protected_message(rel: str, principles: dict[str, Any]) -> str:
-    hint = "your package manager"
-    comp = _common.component_for(rel, principles)
-    if comp is not None:
-        setup = comp.get("commands", {}).get("setup")
-        if isinstance(setup, str) and setup:
-            hint = setup
-    return (
-        f"{rel} is protected. Lockfiles change only through the package manager "
-        f"(e.g. {hint}); secrets belong in the environment, never in files "
-        "Claude edits."
+def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
+    """Why a path is protected (it matched glob), and what to do instead."""
+    head = (
+        f"{rel} is protected (`{glob}` in docs/principles.toml), so Claude can't "
+        "edit it."
     )
+    protected = principles.get("protected", {})
+    if glob in [str(g) for g in protected.get("extra", [])]:
+        return f"{head} Ask the user to change it by hand."
+    comp = _common.component_for(rel, principles)
+    if comp is not None and rel in [str(p) for p in comp.get("lockfiles", [])]:
+        setup = comp.get("commands", {}).get("setup")
+        hint = setup if isinstance(setup, str) and setup else "your package manager"
+        return (
+            f"{head} Lockfiles change only through the package manager (e.g. {hint})."
+        )
+    return f"{head} Secrets belong in the environment, never in files Claude edits."
 
 
 def texts(tool: str, tool_input: dict[str, Any], current: Path) -> tuple[str, str]:
@@ -126,8 +131,9 @@ def main() -> None:
     if rel is None:
         sys.exit(0)
     globs: list[str] = list(principles.get("protected", {}).get("paths", []))
-    if _common.matches(rel, globs):
-        _common.block(protected_message(rel, principles))
+    matched = [g for g in globs if _common.matches(rel, [g])]
+    if matched:
+        _common.block(protected_message(rel, matched[0], principles))
     if rel == PRINCIPLES:
         ask(
             f"{PRINCIPLES} is the project's single source of truth: every alpha "
