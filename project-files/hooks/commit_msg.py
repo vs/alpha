@@ -133,7 +133,7 @@ def check(lines: list[str], types: list[str], scopes: list[str] | None) -> None:
 
 
 def main() -> None:
-    _common.check_python()
+    _common.check_python(fail_code=1)
     if len(sys.argv) != 2:
         print(
             "commit-msg: expected the commit message file as the only argument. "
@@ -149,7 +149,7 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(1)
-    principles = _common.load_principles(toplevel())
+    principles = _common.load_principles(toplevel(), fail_code=1)
     types, scopes = DEFAULT_TYPES, None
     if principles is not None:
         if not _common.principle_applies(principles, "clean-history"):

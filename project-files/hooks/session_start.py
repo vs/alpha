@@ -43,9 +43,9 @@ def principles_problem(path: Path) -> str | None:
 def old_python_warning(problem: str) -> None:
     """Tell the user and Claude that the hooks are off; must run on Python 3.9."""
     text = (
-        f"alpha: the project's hooks are off. {problem} Until then nothing checks "
-        "commits, protected files or work before stopping; restart the session "
-        "once python3 is 3.11+."
+        f"alpha: the project's hooks are off. {problem} Until then git refuses "
+        "commits and nothing checks protected files or work before stopping; "
+        "restart the session once python3 is 3.11+."
     )
     print(
         json.dumps(

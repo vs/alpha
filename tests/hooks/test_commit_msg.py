@@ -7,19 +7,23 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import HOOKS, REPO, Project
+from .conftest import HOOKS, OLD_PYTHON, REPO, Project
 
 SCRIPT = HOOKS / "commit_msg.py"
 SHIM = REPO / "project-files" / "githooks" / "commit-msg"
 
 
 def run_msg(
-    project: Project, message: str, *, cwd: Path | None = None
+    project: Project,
+    message: str,
+    *,
+    cwd: Path | None = None,
+    python: list[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     msg = project.root / "COMMIT_EDITMSG_TEST"
     msg.write_text(message)
     return subprocess.run(
-        [sys.executable, str(SCRIPT), str(msg)],
+        [*(python or [sys.executable]), str(SCRIPT), str(msg)],
         cwd=cwd or project.root,
         capture_output=True,
         text=True,
@@ -92,6 +96,22 @@ def test_without_principles_uses_defaults_and_any_scope(project: Project) -> Non
     (project.root / "docs" / "principles.toml").unlink()
     assert run_msg(project, "feat(whatever): Add x\n").returncode == 0
     assert run_msg(project, "feet: Add x\n").returncode == 1
+
+
+def test_old_python_rejects_the_commit(project: Project) -> None:
+    # macOS's /usr/bin/python3 is 3.9: skipping the check there would let any
+    # message through for everyone whose PATH finds it first.
+    result = run_msg(project, "feat: Add x\n", python=OLD_PYTHON)
+    assert result.returncode == 1
+    assert "alpha needs Python 3.11+ (found 3.9)" in result.stderr
+
+
+def test_malformed_principles_rejects_the_commit(project: Project) -> None:
+    project.write("docs/principles.toml", "schema = = 1")
+    result = run_msg(project, "feat: Add x\n")
+    assert result.returncode == 1
+    assert "not valid TOML" in result.stderr
+    assert "git checkout docs/principles.toml" in result.stderr
 
 
 def test_runs_from_a_subdirectory_using_toplevel_principles(project: Project) -> None:

@@ -36,11 +36,13 @@ def python_problem() -> str | None:
     )
 
 
-def check_python() -> None:
+def check_python(fail_code: int = 0) -> None:
+    """Exit with `fail_code` on an old python3: 0 keeps a Claude session usable,
+    1 makes a git hook refuse instead of skipping its check."""
     problem = python_problem()
     if problem:
         print(problem, file=sys.stderr)
-        sys.exit(0)
+        sys.exit(fail_code)
 
 
 def read_input() -> dict[str, Any]:
@@ -72,7 +74,11 @@ def project_root(inp: dict[str, Any]) -> Path:
     return Path.cwd()
 
 
-def load_principles(root: Path) -> dict[str, Any] | None:
+def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:
+    """The parsed principles file, or None when there is none.
+
+    A malformed file exits with `fail_code`, as in check_python().
+    """
     path = root / "docs" / "principles.toml"
     if not path.is_file():
         return None
@@ -88,7 +94,7 @@ def load_principles(root: Path) -> dict[str, Any] | None:
             '"git checkout docs/principles.toml".',
             file=sys.stderr,
         )
-        sys.exit(0)
+        sys.exit(fail_code)
 
 
 def principle_applies(

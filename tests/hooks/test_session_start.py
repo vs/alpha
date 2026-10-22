@@ -138,6 +138,7 @@ def test_old_python_warns_that_hooks_are_off(project: Project) -> None:
     assert "alpha needs Python 3.11+ (found 3.9)" in text
     assert "uv python install 3.12" in text
     assert "hooks are off" in text
+    assert "git refuses commits" in text
 
 
 def test_old_python_is_silent_outside_alpha_projects(project: Project) -> None:
