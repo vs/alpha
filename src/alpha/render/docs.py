@@ -6,9 +6,10 @@ from pathlib import Path
 from string import Template
 from typing import Any
 
-from alpha.answers import Answers, Component, Identity
+from alpha.answers import Answers, Component, Documentation, Identity
 from alpha.principles import override_decision_paths
-from alpha.recipes import load_recipe
+from alpha.recipes import check_commands, load_recipe
+from alpha.render.ci import WORKFLOW
 
 LICENSES_DIR = Path(__file__).resolve().parents[1] / "licenses"
 _STEPS = ("setup", "test", "lint", "format", "format_check", "typecheck")
@@ -47,6 +48,91 @@ def _license(a: Answers, year: int, root: Path) -> str:
         return f"Copyright (c) {year} {ident.copyright_holder}. All rights reserved.\n"
     text = (LICENSES_DIR / f"{ident.license}.txt").read_text()
     return Template(text).safe_substitute(year=year, holder=ident.copyright_holder)
+
+
+def _documentation(a: Answers) -> Documentation:
+    assert a.documentation is not None
+    return a.documentation
+
+
+def _external(docs: Documentation) -> str:
+    if docs.external == "readme":
+        return "User-facing documentation lives in README.md."
+    if docs.external == "folder":
+        return f"User-facing documentation lives in `{docs.external_path}/`."
+    if docs.external == "elsewhere":
+        return (
+            "User-facing documentation lives outside this repository: "
+            f"{docs.external_location}."
+        )
+    return "There is no user-facing documentation."
+
+
+def _docs_section(docs: Documentation) -> list[str]:
+    """CONTRIBUTING's Documentation section, ending with a blank line."""
+    lines = [
+        "## Documentation",
+        "",
+        "Internal docs (design, decisions, how we work) live in `docs/`. "
+        + _external(docs),
+        "",
+    ]
+    if docs.mappings:
+        lines += ["| When these change | Update |", "|---|---|"]
+        lines += [
+            f"| {_ticked(list(m.paths))} | {_ticked(list(m.docs))} |"
+            for m in docs.mappings
+        ]
+        lines += [
+            "",
+            "The Stop hook blocks a change to these paths that leaves the docs "
+            "untouched.",
+            "",
+        ]
+    return lines
+
+
+def _build(a: Answers, principles: dict[str, Any]) -> str:
+    assert a.build is not None
+    lines = ["# Build, CI and hosting", "", "## CI", ""]
+    if a.build.ci == "none":
+        first = len(a.decisions) + 1
+        record = next(
+            path
+            for i, path in override_decision_paths(a, first).items()
+            if a.overrides[i].principle == "build-hosting-upfront"
+        )
+        lines.append(f"No CI. Why: see [the decision]({record.removeprefix('docs/')}).")
+    else:
+        lines += [
+            f"GitHub Actions runs `{WORKFLOW}` on every push to main and every "
+            "pull request: one job per component, running its checks in order.",
+            "",
+            "| Component | Checks |",
+            "|---|---|",
+        ]
+        lines += [
+            f"| {c['name']} | "
+            + ", ".join(f"`{cmd}`" for _, cmd in check_commands(c["commands"]))
+            + " |"
+            for c in principles["components"]
+        ]
+    lines += ["", "## Components", "", "| Component | Artifact | Hosting |"]
+    lines.append("|---|---|---|")
+    lines += [
+        f"| {t.name} | {t.artifact} | {t.hosting or '-'} |" for t in a.build.components
+    ]
+    lines += ["", "## Environments", ""]
+    if a.build.environments:
+        lines += [f"- {env}" for env in a.build.environments]
+    else:
+        lines.append("None: nothing is deployed.")
+    lines += [
+        "",
+        "Hosting is decided and documented here; alpha creates no cloud resources "
+        "and no deploy jobs.",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def _ticked(globs: list[str]) -> str:
@@ -106,10 +192,14 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "- [Principles](docs/principles.toml)",
         "- [Product](docs/product.md)",
         "- [Architecture](docs/architecture.md)",
+        "- [Build, CI and hosting](docs/build.md)",
         "- [Dependencies](docs/dependencies.md)",
         "- [Decisions](docs/decisions/)",
         "- [Contributing](CONTRIBUTING.md)",
     ]
+    docs = _documentation(a)
+    if docs.external == "folder":
+        lines.append(f"- [User guide]({docs.external_path}/)")
     return "\n".join(lines) + "\n"
 
 
@@ -171,6 +261,7 @@ def _contributing(a: Answers, principles: dict[str, Any]) -> str:
         "with no trailing period.",
         "- Body lines wrap at 72 characters.",
         "",
+        *_docs_section(_documentation(a)),
         "## Branching",
         "",
         branching,
@@ -283,7 +374,14 @@ def render_docs(
         "docs/product.md": _product(a),
         "docs/architecture.md": _architecture(a),
         "docs/dependencies.md": _dependencies(a, today),
+        "docs/build.md": _build(a, principles),
     }
+    docs = _documentation(a)
+    if docs.external == "folder":
+        out[f"{docs.external_path}/README.md"] = (
+            f"# {_identity(a).name} guide\n\n"
+            f"User-facing documentation for {_identity(a).name} lives here.\n"
+        )
     for i, d in enumerate(a.decisions, 1):
         out[f"docs/decisions/{i:04d}-{_slug(d.title)}.md"] = _decision(
             i, d.title, today, d.context, d.decision, d.consequences

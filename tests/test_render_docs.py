@@ -94,6 +94,8 @@ def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
         "docs/product.md",
         "docs/architecture.md",
         "docs/dependencies.md",
+        "docs/build.md",
+        "docs/guide/README.md",
         "docs/decisions/0001-product-identity.md",
         "docs/decisions/0002-python-api-plus-typescript-web.md",
         "docs/decisions/0003-user-guide-in-docs-guide.md",
@@ -187,3 +189,94 @@ def test_decision_title_without_ascii_letters_gets_a_name(tmp_path: Path):
 
     out = render(load(tmp_path, mutate))
     assert "docs/decisions/0001-decision.md" in out
+
+
+def no_ci(data: dict[str, Any]) -> None:
+    data["build"]["ci"] = "none"
+    data["overrides"].append(
+        {
+            "principle": "build-hosting-upfront",
+            "scope": "project",
+            "change": "loosen",
+            "params": {},
+            "reason": "A throwaway prototype with no shared repository.",
+        }
+    )
+
+
+def test_build_doc_lists_ci_checks_artifacts_and_environments(tmp_path: Path):
+    doc = render(load(tmp_path))["docs/build.md"]
+    assert doc.startswith("# Build, CI and hosting\n")
+    assert "`.github/workflows/ci.yml`" in doc
+    assert "every push to main and every pull request" in doc
+    assert (
+        "| api | `uv sync`, `uv run ruff format --check`, `uv run ruff check`, "
+        "`uv run pyright`, `uv run pytest` |"
+    ) in doc
+    assert "| api | container | Fly.io |" in doc
+    assert "| web | static-site | Cloudflare Pages |" in doc
+    assert "## Environments\n\n- production\n" in doc
+    assert "alpha creates no cloud resources" in doc
+
+
+def test_build_doc_without_ci_points_at_the_override(tmp_path: Path):
+    doc = render(load(tmp_path, no_ci))["docs/build.md"]
+    assert "No CI" in doc
+    assert "(decisions/0008-override-build-hosting-upfront.md)" in doc
+    assert "ci.yml" not in doc
+
+
+def test_build_doc_without_deployed_components(tmp_path: Path):
+    def undeployed(data: dict[str, Any]) -> None:
+        for c in data["components"]:
+            c["traits"]["deployed"] = False
+        data["build"]["environments"] = []
+        for t in data["build"]["components"]:
+            t["hosting"] = ""
+
+    doc = render(load(tmp_path, undeployed))["docs/build.md"]
+    assert "## Environments\n\nNone: nothing is deployed.\n" in doc
+    assert "| api | container | - |" in doc
+
+
+def test_contributing_documents_where_docs_live_and_the_mappings(tmp_path: Path):
+    text = render(load(tmp_path))["CONTRIBUTING.md"]
+    section = text.split("## Documentation\n")[1].split("\n## ")[0]
+    assert "Internal docs" in section and "`docs/`" in section
+    assert "User-facing documentation lives in `docs/guide/`." in section
+    assert "| When these change | Update |" in section
+    assert "| `api/**/routes/**` | `docs/guide/**` |" in section
+    assert "The Stop hook blocks" in section
+    assert text.index("## Documentation") < text.index("## Branching")
+
+
+def test_external_folder_gets_a_readme_and_a_claude_md_link(tmp_path: Path):
+    out = render(load(tmp_path))
+    assert out["docs/guide/README.md"].startswith("# Pico Trust guide\n")
+    assert "- [User guide](docs/guide/)" in out["CLAUDE.md"]
+    assert "- [Build, CI and hosting](docs/build.md)" in out["CLAUDE.md"]
+
+
+def test_readme_external_docs_add_no_folder(tmp_path: Path):
+    def readme(data: dict[str, Any]) -> None:
+        data["documentation"].update(external="readme", external_path="")
+        data["documentation"]["mappings"] = []
+
+    out = render(load(tmp_path, readme))
+    assert not [k for k in out if k.startswith("docs/guide")]
+    section = out["CONTRIBUTING.md"].split("## Documentation\n")[1]
+    assert "User-facing documentation lives in README.md." in section
+    assert "When these change" not in section
+    assert "User guide" not in out["CLAUDE.md"]
+
+
+def test_elsewhere_and_no_external_docs(tmp_path: Path):
+    def elsewhere(data: dict[str, Any]) -> None:
+        data["documentation"].update(
+            external="elsewhere",
+            external_path="",
+            external_location="https://wiki.example.com/pico",
+        )
+
+    text = render(load(tmp_path, elsewhere))["CONTRIBUTING.md"]
+    assert "outside this repository: https://wiki.example.com/pico." in text
