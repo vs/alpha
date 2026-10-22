@@ -28,6 +28,32 @@ mobile = "typescript"
 library = "python"
 worker = "python"
 
+[architecture]
+contract_format = "openapi"   # when components call each other
+
+[errors]
+categories = ["validation", "not-found", "conflict", "unavailable", "internal"]
+
+# How each kind of component reports an error to whoever uses it.
+[errors.formats]
+backend = "problem-json"
+frontend = "user-message"
+mobile = "user-message"
+cli = "message-and-exit-code"
+library = "exceptions"
+worker = "structured-log"
+ml = "exceptions"
+
+# Test levels per kind; the interview adds contract tests when components talk.
+[testing.levels]
+backend = ["unit", "integration"]
+frontend = ["unit", "end-to-end"]
+mobile = ["unit", "end-to-end"]
+cli = ["unit", "end-to-end"]
+library = ["unit"]
+worker = ["unit", "integration"]
+ml = ["unit", "integration"]
+
 [documentation]
 external = "readme"   # or "folder" (under docs/), "elsewhere", "none"
 

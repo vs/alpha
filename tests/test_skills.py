@@ -9,7 +9,7 @@ from dataclasses import is_dataclass
 
 import pytest
 
-from alpha import answers
+from alpha import answers, core_areas
 from alpha.cli import PLUGIN_ROOT, build_parser
 
 SKILLS = PLUGIN_ROOT / "skills"
@@ -18,6 +18,9 @@ CLI = '"${CLAUDE_PLUGIN_ROOT}/bin/alpha"'
 AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "identity": ("identity", ("identity",)),
     "components": ("components", ("layout", "components_talk", "components[]")),
+    "architecture": ("architecture", ("architecture",)),
+    "errors": ("errors", ("errors",)),
+    "testing": ("testing", ("testing",)),
     "documentation": ("documentation", ("documentation",)),
     "build-and-hosting": ("build", ("build",)),
     "git-history": ("git", ("git",)),
@@ -325,3 +328,16 @@ def test_new_project_reports_ci_and_no_longer_lists_these_areas_as_missing():
     not_covered = report.split("**Not covered yet:**")[1].split("\n- **")[0]
     assert "documentation" not in not_covered
     assert "build/CI/hosting" not in not_covered
+
+
+def test_every_kind_has_an_error_format_and_test_levels():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    formats = kit["errors"]["formats"]
+    levels = kit["testing"]["levels"]
+    assert answers.KINDS <= set(formats) and answers.KINDS <= set(levels)
+    assert {formats[k] for k in answers.KINDS} <= set(core_areas.ERROR_FORMATS)
+    for kind in answers.KINDS:
+        assert "unit" in levels[kind]
+        assert set(levels[kind]) <= set(core_areas.TEST_LEVELS)
+    assert kit["errors"]["categories"]
+    assert kit["architecture"]["contract_format"] in core_areas.CONTRACT_FORMATS

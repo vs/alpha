@@ -40,10 +40,13 @@ Run the areas in this order, one at a time, never skipping one and never shortcu
 
 1. Identity: `alpha:identity`
 2. Components and stacks: `alpha:components`
-3. Documentation: `alpha:documentation`
-4. Build, CI and hosting: `alpha:build-and-hosting`
-5. Git history: `alpha:git-history`
-6. Agent workflow: `alpha:agent-workflow`
+3. Architecture: `alpha:architecture`
+4. Errors: `alpha:errors`
+5. Testing: `alpha:testing`
+6. Documentation: `alpha:documentation`
+7. Build, CI and hosting: `alpha:build-and-hosting`
+8. Git history: `alpha:git-history`
+9. Agent workflow: `alpha:agent-workflow`
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 
