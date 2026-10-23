@@ -30,8 +30,9 @@ ROOT_ENTRIES = {  # what each scenario may add at the root: its components
     "python-ml-single": STANDARD_ROOT
     | {"pyproject.toml", "tests", ".python-version", ".github"},
     "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web", ".github"},
+    "rust-cli": STANDARD_ROOT | {"Cargo.toml", "tests", ".github"},
 }
-SCENARIOS = ["python-ml-single", "web-ts-plus-python-api"]
+SCENARIOS = ["python-ml-single", "web-ts-plus-python-api", "rust-cli"]
 TRAILER = "Co-Authored-By: T <t@t>"
 
 

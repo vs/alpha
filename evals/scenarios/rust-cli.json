@@ -1,0 +1,280 @@
+{
+  "schema": 1,
+  "areas": {
+    "identity": "done",
+    "components": "done",
+    "architecture": "done",
+    "errors": "done",
+    "testing": "done",
+    "documentation": "done",
+    "build": "done",
+    "security": "done",
+    "dependencies": "done",
+    "observability": "done",
+    "git": "done",
+    "agent_workflow": "done"
+  },
+  "identity": {
+    "name": "Tidy",
+    "slug": "tidy",
+    "value_proposition": "Rename messy downloaded files into a consistent, sortable form.",
+    "target_users": "People whose download folders fill up with files named like IMG_2041 (3).JPG.",
+    "requirements": [
+      {
+        "id": "R1",
+        "text": "A user can rename every file in a folder to a date-prefixed, lowercase, hyphenated name.",
+        "acceptance": "Given a folder with files named 'IMG 2041 (3).JPG', when the user runs tidy on it, then the file is renamed to '2026-10-23-img-2041-3.jpg' and nothing else changes."
+      }
+    ],
+    "license": "Apache-2.0",
+    "license_file": null,
+    "copyright_holder": "Semyon Vadishev",
+    "domain_jargon": false
+  },
+  "layout": "single",
+  "components_talk": false,
+  "components": [
+    {
+      "name": "cli",
+      "path": ".",
+      "kind": "cli",
+      "stack": "rust",
+      "traits": {
+        "has_ui": false,
+        "deployed": false,
+        "network_calls": false,
+        "persisted_data": false,
+        "ml": false,
+        "nontrivial_logic": true
+      }
+    }
+  ],
+  "git": {
+    "convention": "conventional",
+    "scopes": [
+      "cli"
+    ],
+    "branching": "trunk"
+  },
+  "agent_workflow": {
+    "review_mode": "batched",
+    "max_lines": 200,
+    "max_files": 5,
+    "extra_risk_paths": []
+  },
+  "architecture": {
+    "components": [
+      {
+        "name": "cli",
+        "responsibility": "Renames the files in a folder by a fixed naming rule.",
+        "calls": []
+      }
+    ],
+    "contracts": {
+      "format": "none",
+      "paths": []
+    },
+    "glossary": []
+  },
+  "errors": {
+    "components": [
+      {
+        "name": "cli",
+        "format": "message-and-exit-code"
+      }
+    ],
+    "categories": [
+      "validation",
+      "not-found",
+      "conflict",
+      "internal"
+    ]
+  },
+  "testing": {
+    "components": [
+      {
+        "name": "cli",
+        "levels": [
+          "unit",
+          "end-to-end"
+        ]
+      }
+    ]
+  },
+  "documentation": {
+    "external": "readme",
+    "external_path": "",
+    "external_location": "",
+    "mappings": []
+  },
+  "build": {
+    "ci": "github-actions",
+    "environments": [],
+    "components": [
+      {
+        "name": "cli",
+        "artifact": "binary",
+        "hosting": ""
+      }
+    ]
+  },
+  "security": {
+    "secret_store": "",
+    "auth": "none",
+    "extra_protected": []
+  },
+  "dependencies": {
+    "updates": "dependabot",
+    "schedule": "monthly"
+  },
+  "observability": {
+    "components": []
+  },
+  "overrides": [],
+  "decisions": [
+    {
+      "area": "identity",
+      "title": "Product identity",
+      "context": "A small tool for one tidy-up job.",
+      "decision": "Tidy renames files for people with messy download folders.",
+      "consequences": "Features beyond R1 need a new requirement first."
+    },
+    {
+      "area": "components",
+      "title": "One Rust CLI",
+      "context": "A single command-line tool, distributed as a binary.",
+      "decision": "One Rust component at the repository root.",
+      "consequences": "Rust's toolchain is the only one to maintain; its recipe is drafted for this project."
+    },
+    {
+      "area": "architecture",
+      "title": "One binary, no contracts",
+      "context": "Nothing calls the CLI but people.",
+      "decision": "cli renames files by a fixed rule.",
+      "consequences": "No contracts to maintain."
+    },
+    {
+      "area": "errors",
+      "title": "Messages and exit codes",
+      "context": "People run it in a terminal.",
+      "decision": "Errors go to stderr with a fix and a non-zero exit code.",
+      "consequences": "Scripts can rely on the exit code."
+    },
+    {
+      "area": "testing",
+      "title": "Unit and end-to-end tests",
+      "context": "The rename rule is the core; the folder walk is the risk.",
+      "decision": "cli: unit tests for the rule, end-to-end tests on a temp folder.",
+      "consequences": "Tests name the requirement they cover."
+    },
+    {
+      "area": "documentation",
+      "title": "README is the user documentation",
+      "context": "One command with few options.",
+      "decision": "User docs live in the README.",
+      "consequences": "Map paths once the CLI has a public interface."
+    },
+    {
+      "area": "build",
+      "title": "GitHub Actions, a binary, not deployed",
+      "context": "Users download a binary.",
+      "decision": "CI runs the checks; the artifact is a binary.",
+      "consequences": "No hosting or environments."
+    },
+    {
+      "area": "security",
+      "title": "No secrets, no auth",
+      "context": "A local tool.",
+      "decision": "Nothing is deployed and nobody signs in.",
+      "consequences": "Revisit if it ever talks to a service."
+    },
+    {
+      "area": "dependencies",
+      "title": "Monthly Dependabot updates",
+      "context": "Few dependencies.",
+      "decision": "Dependabot opens monthly updates for crates and CI actions.",
+      "consequences": "Updates arrive in small batches."
+    },
+    {
+      "area": "observability",
+      "title": "Observability not applicable",
+      "context": "Nothing is deployed.",
+      "decision": "No logging setup.",
+      "consequences": "Revisit with a deployment."
+    },
+    {
+      "area": "git",
+      "title": "Conventional commits on trunk",
+      "context": "A solo maintainer with agents committing.",
+      "decision": "Conventional commits scoped by component, on trunk.",
+      "consequences": "The commit-msg hook rejects other messages."
+    },
+    {
+      "area": "agent_workflow",
+      "title": "Batched review",
+      "context": "Small changes, occasional risk.",
+      "decision": "Batched review at 200 lines or 5 files.",
+      "consequences": "Agents stop for review past either limit."
+    }
+  ],
+  "recipes": {
+    "rust": {
+      "bootstrap": [],
+      "commands": {
+        "setup": "cargo fetch",
+        "test": "cargo test",
+        "lint": "cargo clippy --all-targets -- -D warnings",
+        "format": "cargo fmt",
+        "format_check": "cargo fmt --check",
+        "typecheck": "cargo check --all-targets",
+        "format_file": "rustfmt --edition 2024 {file}",
+        "lint_file": ""
+      },
+      "lockfiles": [
+        "Cargo.lock"
+      ],
+      "manifests": [
+        "Cargo.toml"
+      ],
+      "source_globs": [
+        "**/*.rs"
+      ],
+      "test_globs": [
+        "tests/**/*.rs"
+      ],
+      "exclude_globs": [
+        "**/target/**",
+        "**/.*/**"
+      ],
+      "ignores": [
+        "target/"
+      ],
+      "allow": [
+        "Bash(cargo fetch:*)",
+        "Bash(cargo test:*)",
+        "Bash(cargo fmt:*)",
+        "Bash(cargo clippy:*)",
+        "Bash(cargo check:*)",
+        "Bash(cargo add:*)"
+      ],
+      "why": {},
+      "ci": {
+        "steps": [
+          {
+            "uses": "actions-rust-lang/setup-rust-toolchain@v2",
+            "with": {
+              "components": "rustfmt, clippy"
+            }
+          }
+        ],
+        "env": {}
+      },
+      "dependabot": "cargo",
+      "templates": {
+        "Cargo.toml": "[package]\nname = \"$slug-$name\"\nversion = \"0.1.0\"\nedition = \"2024\"\npublish = false\n\n[dependencies]\n\n[lints.rust]\nunsafe_code = \"forbid\"\n",
+        "tests/setup.rs": "//! Checks that the Rust toolchain builds and runs this project's tests.\n\n#[test]\nfn toolchain_runs_tests() {\n    assert_eq!(2 + 2, 4);\n}\n"
+      },
+      "proven_hash": "3b2be675b0ac1ed0427fab57551c90ea444d26d0caa67cb1d9f2993cd31ff767"
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
@@ -6,15 +7,26 @@ from pathlib import Path
 import pytest
 from helpers import TODAY, git, place_answers
 
+from alpha import cli
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import bootstrap, generate
+from alpha.generate import bootstrap, generate, project_book
 from alpha.gitops import commit_skeleton
-from alpha.recipes import load_recipe
+
+NEEDS_CARGO = pytest.mark.skipif(
+    shutil.which("cargo") is None, reason="needs the Rust toolchain (cargo)"
+)
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("scenario", ["python-ml-single", "web-ts-plus-python-api"])
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "python-ml-single",
+        "web-ts-plus-python-api",
+        pytest.param("rust-cli", marks=NEEDS_CARGO),
+    ],
+)
 def test_bootstrap_runs_green(
     tmp_path: Path, scenario: str, generate_scenario, git_env
 ):
@@ -22,17 +34,17 @@ def test_bootstrap_runs_green(
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
     bootstrap(tmp_path, principles)  # raises unless bootstrap, setup and test exit 0
     for c in principles["components"]:
-        for lockfile in load_recipe(c["stack"]).lockfiles:
+        for lockfile in project_book(tmp_path).get(c["stack"]).lockfiles:
             assert (tmp_path / c["path"] / lockfile).is_file()
 
     commit_skeleton(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
     tracked = git(tmp_path, "ls-files").splitlines()
     for c in principles["components"]:
-        for lockfile in load_recipe(c["stack"]).lockfiles:
+        for lockfile in project_book(tmp_path).get(c["stack"]).lockfiles:
             prefix = "" if c["path"] == "." else f"{c['path']}/"
             assert f"{prefix}{lockfile}" in tracked
-    junk = (".venv/", "__pycache__/", ".pytest_cache/", "node_modules/")
+    junk = (".venv/", "__pycache__/", ".pytest_cache/", "node_modules/", "target/")
     assert not [f for f in tracked if any(j in f"/{f}" for j in junk)]
 
     # The fresh skeleton passes its own checks, and formatting changes nothing.
@@ -93,3 +105,16 @@ def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env):
     bootstrap(tmp_path, principles)  # runs format_check, lint, typecheck and test
     commit_skeleton(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
+
+
+@pytest.mark.slow
+@NEEDS_CARGO
+def test_rust_recipe_is_proven_by_try(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    answers = place_answers(tmp_path, "rust-cli")
+    data = json.loads(answers.read_text())
+    del data["recipes"]["rust"]["proven_hash"]
+    answers.write_text(json.dumps(data))
+    assert cli.main(["recipe", "try", str(tmp_path), "rust"]) == 0
+    assert capsys.readouterr().out.strip() == "ok: rust recipe proven"
