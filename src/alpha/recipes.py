@@ -1,6 +1,7 @@
 """Stack recipes: commands, globs and skeleton templates per stack."""
 
 import fnmatch
+import os
 import re
 import tomllib
 from collections.abc import Mapping
@@ -8,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from alpha.defaults import DefaultsError, locate_source
 from alpha.validate import AnswersError, unmatchable
 
 if TYPE_CHECKING:
@@ -229,15 +231,49 @@ def recipe_from_data(
     )
 
 
-def load_recipe(stack: str) -> Recipe:
-    path = RECIPES_DIR / f"{stack}.toml"
-    if not path.is_file():
-        known = sorted(p.stem for p in RECIPES_DIR.glob("*.toml"))
+def kit_dirs() -> list[Path]:
+    """Where kit recipes live: the live source's recipes/ (with recipes saved
+    from earlier projects) first, then the ones bundled with the plugin."""
+    dirs: list[Path] = []
+    try:
+        source = locate_source(RECIPES_DIR.parent, os.environ, Path.home())
+    except DefaultsError:
+        source = None
+    if source is not None and source.live:
+        live = source.path / "recipes"
+        if live.is_dir() and live.resolve() != RECIPES_DIR.resolve():
+            dirs.append(live)
+    dirs.append(RECIPES_DIR)
+    return dirs
+
+
+class RecipeBook:
+    """Resolves a stack to its recipe: the kit's first, then a drafted one."""
+
+    def __init__(self, drafted: Mapping[str, Recipe] | None = None) -> None:
+        self.drafted: dict[str, Recipe] = dict(drafted or {})
+
+    def kit_stacks(self) -> list[str]:
+        return sorted({p.stem for d in kit_dirs() for p in d.glob("*.toml")})
+
+    def get(self, stack: str) -> Recipe:
+        for folder in kit_dirs():
+            path = folder / f"{stack}.toml"
+            if path.is_file():
+                data = tomllib.loads(path.read_text())
+                return recipe_from_data(stack, data, f"recipes/{stack}.toml", folder)
+        if stack in self.drafted:
+            return self.drafted[stack]
         raise RecipeError(
-            f'No recipe for stack "{stack}". Use one of: {", ".join(known)}.'
+            f'No recipe for stack "{stack}". Use one of: '
+            f"{', '.join(self.kit_stacks())}, or draft one with the stack-recipe "
+            "skill."
         )
-    data = tomllib.loads(path.read_text())
-    return recipe_from_data(stack, data, f"recipes/{stack}.toml", RECIPES_DIR)
+
+
+def load_recipe(stack: str) -> Recipe:
+    """A kit recipe (bundled or saved to the live source)."""
+    return RecipeBook().get(stack)
 
 
 def render_template(text: str, name: str, slug: str) -> str:

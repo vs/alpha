@@ -18,6 +18,7 @@ from alpha.core_areas import (
     Security,
     Testing,
 )
+from alpha.recipes import Recipe, RecipeBook, recipe_from_data
 from alpha.validate import (
     NAME,
     as_list,
@@ -53,7 +54,6 @@ AREAS: tuple[str, ...] = (
 KINDS: frozenset[str] = frozenset(
     {"backend", "frontend", "cli", "mobile", "ml", "library", "worker"}
 )
-STACKS: frozenset[str] = frozenset({"python", "typescript"})
 LICENSES: frozenset[str] = frozenset({"MIT", "Apache-2.0", "Proprietary"})
 EXTERNAL_DOCS: tuple[str, ...] = ("readme", "folder", "elsewhere", "none")
 CI_PROVIDERS: tuple[str, ...] = ("github-actions", "none")
@@ -100,6 +100,7 @@ _TOP_KEYS = frozenset(
         "observability",
         "overrides",
         "decisions",
+        "recipes",
         "manifest",
     }
 )
@@ -225,6 +226,32 @@ class Answers:
     observability: Observability | None
     overrides: tuple[Override, ...]
     decisions: tuple[Decision, ...]
+    recipes: dict[str, Recipe]  # drafted in the interview, for stacks the kit lacks
+
+    def book(self) -> RecipeBook:
+        """Where this project's stacks get their recipes."""
+        return RecipeBook(self.recipes)
+
+
+def _drafted_recipes(raw: object) -> dict[str, Recipe]:
+    kit = set(RecipeBook().kit_stacks())
+    drafted: dict[str, Recipe] = {}
+    for stack, data in obj(raw, "recipes").items():
+        where = f"recipes.{stack}"
+        if not NAME.fullmatch(stack):
+            raise fail(
+                where,
+                f"{stack!r} isn't a valid stack name",
+                "Use lowercase letters, digits and hyphens, e.g. rust",
+            )
+        if stack in kit:
+            raise fail(
+                where,
+                f"the kit already has a {stack} recipe",
+                "Remove this one; the kit's recipe is used",
+            )
+        drafted[stack] = recipe_from_data(stack, obj(data, where), where, None)
+    return drafted
 
 
 def _project_root(answers_path: Path) -> Path:
@@ -288,7 +315,7 @@ def _identity(raw: object, base: Path) -> Identity:
     )
 
 
-def _component(raw: object, i: int) -> Component:
+def _component(raw: object, i: int, stacks: set[str], drafted: set[str]) -> Component:
     where = f"components[{i}]"
     d = obj(raw, where)
     name = string(d, "name", where)
@@ -307,11 +334,12 @@ def _component(raw: object, i: int) -> Component:
             'no trailing "/", no ".." or "//"',
         )
     stack = string(d, "stack", where)
-    if stack not in STACKS:
+    if stack not in stacks:
+        kit = ", ".join(sorted(stacks - drafted))
         raise fail(
             f"{where}.stack",
-            f"{stack} is not supported yet; alpha 0.1 supports python and typescript",
-            "Pick one, or wait for the generic-stack recipe (plan 2)",
+            f'"{stack}" has no recipe',
+            f"Draft one with the stack-recipe skill, or use one of: {kit}",
         )
     tw = f"{where}.traits"
     t = obj(get(d, "traits", where), tw)
@@ -319,8 +347,13 @@ def _component(raw: object, i: int) -> Component:
     return Component(name, path, choice(d, "kind", where, sorted(KINDS)), stack, traits)
 
 
-def _components(raw: object, layout: str) -> tuple[Component, ...]:
-    comps = [_component(c, i) for i, c in enumerate(as_list(raw, "components"))]
+def _components(raw: object, layout: str, book: RecipeBook) -> tuple[Component, ...]:
+    stacks = {*book.kit_stacks(), *book.drafted}
+    drafted = set(book.drafted)
+    comps = [
+        _component(c, i, stacks, drafted)
+        for i, c in enumerate(as_list(raw, "components"))
+    ]
     if not comps:
         raise fail("components", "is empty", "Add at least one component")
     seen: dict[str, int] = {}
@@ -593,13 +626,14 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     def active(area: str) -> bool:
         return area in require_areas or areas[area] == "done"
 
+    drafted = _drafted_recipes(top.get("recipes", {}))
     base = _project_root(path)
     identity = _identity(get(top, "identity", ""), base) if active("identity") else None
     layout: str | None = None
     comps: tuple[Component, ...] = ()
     if active("components"):
         layout = choice(top, "layout", "", _LAYOUTS)
-        comps = _components(get(top, "components", ""), layout)
+        comps = _components(get(top, "components", ""), layout, RecipeBook(drafted))
     git = _git(get(top, "git", "")) if active("git") else None
     workflow = (
         _workflow(get(top, "agent_workflow", "")) if active("agent_workflow") else None
@@ -696,6 +730,7 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         observability,
         overrides,
         decisions,
+        drafted,
     )
 
 

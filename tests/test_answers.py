@@ -2,11 +2,12 @@ import copy
 import io
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import single_component
+from helpers import shell_recipe, single_component
 
 from alpha import cli
 from alpha.answers import AREAS, AnswersError, load_answers, write_answers
@@ -128,14 +129,52 @@ def test_single_layout_rules(tmp_path: Path):
     assert check(tmp_path, d).layout == "single"
 
 
-def test_unsupported_stack_mentions_supported_ones(tmp_path: Path):
+def test_a_stack_without_a_recipe_says_how_to_get_one(tmp_path: Path):
     d = valid()
     d["components"][0]["stack"] = "go"
     with pytest.raises(
         AnswersError,
-        match=r"components\[0\]\.stack: go is not supported yet.*python and typescript",
+        match=r'components\[0\]\.stack: "go" has no recipe.*stack-recipe skill.*'
+        r"python, typescript",
     ):
         check(tmp_path, d)
+
+
+def with_shell(d: dict[str, Any]) -> dict[str, Any]:
+    comp = dict(d["components"][0], stack="shell", path=".")
+    single_component(d, comp)
+    d["layout"] = "single"
+    d["recipes"] = {"shell": shell_recipe()}
+    return d
+
+
+def test_a_drafted_recipe_makes_its_stack_usable(tmp_path: Path):
+    a = check(tmp_path, with_shell(valid()), require_areas=["components"])
+    assert a.components[0].stack == "shell"
+    assert a.recipes["shell"].proven is False
+    assert a.book().get("shell").templates["tests/setup.sh"] == "test 1 -eq 1\n"
+
+
+@pytest.mark.parametrize(
+    ("name", "problem"),
+    [
+        ("Rust", "isn't a valid stack name"),
+        ("c++", "isn't a valid stack name"),
+        ("python", "the kit already has"),
+    ],
+)
+def test_drafted_recipe_names(tmp_path: Path, name: str, problem: str):
+    d = with_shell(valid())
+    d["recipes"] = {name: shell_recipe()}
+    with pytest.raises(AnswersError, match=rf"recipes\.{re.escape(name)}: .*{problem}"):
+        check(tmp_path, d, require_areas=["components"])
+
+
+def test_drafted_recipe_errors_name_the_field(tmp_path: Path):
+    d = with_shell(valid())
+    d["recipes"]["shell"]["commands"]["setup"] = ""
+    with pytest.raises(AnswersError, match=r"recipes\.shell\.commands\.setup"):
+        check(tmp_path, d, require_areas=["components"])
 
 
 def test_bad_kind(tmp_path: Path):

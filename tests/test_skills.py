@@ -11,6 +11,7 @@ import pytest
 
 from alpha import answers, core_areas
 from alpha.cli import PLUGIN_ROOT, build_parser
+from alpha.recipes import RecipeBook
 
 SKILLS = PLUGIN_ROOT / "skills"
 CLI = '"${CLAUDE_PLUGIN_ROOT}/bin/alpha"'
@@ -182,7 +183,7 @@ def test_every_kind_has_a_recommended_stack():
     kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
     stacks: dict[str, str] = kit["stacks"]
     assert answers.KINDS <= set(stacks)
-    assert {stacks[kind] for kind in answers.KINDS} <= answers.STACKS
+    assert {stacks[kind] for kind in answers.KINDS} <= set(RecipeBook().kit_stacks())
 
 
 @pytest.mark.parametrize("skill", ALL_SKILLS)
