@@ -149,3 +149,92 @@ def test_unreadable_state_is_treated_as_fresh(project: Project) -> None:
         project, "HEAD"
     )
     assert json.loads(path.read_text())["findings"] == []
+
+
+def decision(
+    project: Project, number: int, title: str, status: str = "accepted"
+) -> None:
+    slug = title.lower().replace(" ", "-")
+    project.write(
+        f"docs/decisions/{number:04d}-{slug}.md",
+        f"# {number:04d}. {title}\n\nDate: 2026-10-23\nStatus: {status}\n\n"
+        "## Context\n\nc\n\n## Decision\n\nd\n\n## Consequences\n\nq\n",
+    )
+
+
+def briefed(project: Project) -> str:
+    project.write("api/pyproject.toml", "[project]\nname = 'x'\n")
+    project.write("web/package.json", "{}\n")
+    decision(project, 1, "Use OpenAPI")
+    decision(project, 2, "Use REST", status="superseded by 0003")
+    decision(project, 3, "Use gRPC")
+    commit_all(project)
+    review.ensure_state(project.root)
+    project.write("api/src/x.py", "def f() -> int:\n    return 1\n")
+    return review.brief(project.root)
+
+
+def test_brief_lists_tree_principles_decisions_and_diff(project: Project) -> None:
+    text = briefed(project)
+    head, rest = text.split("\n", 1)
+    assert head == f"Tree: {review.snapshot(project.root)}"
+    assert rest.startswith("Reviewed: ")
+    principles = text.split("## Principles\n")[1].split("\n## ")[0]
+    assert "- fail-helpfully (Fail fast, fail helpfully): " in principles
+    assert (
+        "- observability " in principles and "override: docs/decisions/" in principles
+    )
+    decisions = text.split("## Decisions\n")[1].split("\n## ")[0]
+    assert "- 0001 Use OpenAPI (docs/decisions/0001-use-openapi.md)" in decisions
+    files = text.split("## Changed files\n")[1].split("\n## ")[0]
+    assert files.strip() == "2\tapi/src/x.py"
+    assert "+def f() -> int:" in text.split("## Diff\n")[1]
+
+
+def test_brief_omits_principles_of_untouched_components(project: Project) -> None:
+    principles = briefed(project).split("## Principles\n")[1].split("\n## ")[0]
+    assert "visual-system" not in principles  # web only, and only api changed
+    assert "- contracts " in principles  # applies to api too
+
+
+def test_brief_skips_superseded_decisions(project: Project) -> None:
+    decisions = briefed(project).split("## Decisions\n")[1].split("\n## ")[0]
+    assert "Use REST" not in decisions and "Use gRPC" in decisions
+
+
+def test_brief_lists_open_findings(project: Project) -> None:
+    briefed(project)
+    state = review.load_state(project.root)
+    state["findings"] = [
+        {
+            "id": "F-abc123",
+            "principle": "timeouts",
+            "file": "api/src/x.py",
+            "line": 1,
+            "problem": "no timeout",
+            "fix": "add one",
+            "accepted": False,
+        }
+    ]
+    review.save_state(project.root, state)
+    text = review.brief(project.root)
+    assert "## Open findings\n\n- F-abc123 timeouts api/src/x.py:1: no timeout" in text
+
+
+def test_brief_truncates_long_diffs_and_names_the_rest(project: Project) -> None:
+    briefed(project)
+    project.write("api/src/big.py", lines(2000))
+    project.write("web/src/z.ts", "export {}\n")
+    text = review.brief(project.root)
+    diff = text.split("## Diff\n")[1]
+    assert len(diff.splitlines()) <= review.DIFF_LINES + 2
+    tail = diff.splitlines()[-1]
+    assert tail.startswith("… diff truncated; read the remaining files directly: ")
+    assert "api/src/big.py" in tail and "web/src/z.ts" in tail
+
+
+def test_brief_cli_outside_an_alpha_project(project: Project) -> None:
+    (project.root / "docs/principles.toml").unlink()
+    proc = project.run_hook("review.py", {})  # no "brief" argument either
+    assert proc.returncode == 1
+    assert "python3 .claude/alpha/hooks/review.py brief" in proc.stderr

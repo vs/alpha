@@ -165,3 +165,109 @@ def review_due(principles: dict[str, Any], debt: dict[str, Any]) -> str | None:
             f"max_files {max_files})"
         )
     return None
+
+
+DIFF_LINES = 1500
+USAGE = (
+    "Run it as: python3 .claude/alpha/hooks/review.py brief, from the root of an "
+    "alpha project (one with docs/principles.toml)."
+)
+
+
+def _relevant_principles(
+    principles: dict[str, Any], files: list[str]
+) -> list[dict[str, Any]]:
+    """Active principles the reviewer checks that apply to the changed files."""
+    touched: set[str] = set()
+    outside = False
+    for path in files:
+        comp = _common.component_for(path, principles)
+        if comp is None:
+            outside = True
+        else:
+            touched.add(str(comp.get("name")))
+    chosen: list[dict[str, Any]] = []
+    for p in principles.get("principles", []):
+        if not p.get("active") or "reviewer" not in p.get("checked_by", []):
+            continue
+        names = {str(n) for n in p.get("components", [])}
+        if outside or names & touched:
+            chosen.append(cast("dict[str, Any]", p))
+    return chosen
+
+
+def _principle_line(p: dict[str, Any]) -> str:
+    line = f"- {p.get('id')} ({p.get('title')}): {p.get('statement')}"
+    comps = ", ".join(str(c) for c in p.get("components", []))
+    line += f" [components: {comps}]"
+    params: dict[str, Any] = p.get("params", {}) or {}
+    if params:
+        line += " [params: " + ", ".join(f"{k}={v}" for k, v in params.items()) + "]"
+    if p.get("override_decision"):
+        line += f" [override: {p['override_decision']}]"
+    return line
+
+
+def _diff(root: Path, old: str, new: str) -> list[str]:
+    out = _git(root, "diff", "--no-renames", old, new) or ""
+    lines = out.splitlines()
+    if len(lines) <= DIFF_LINES:
+        return lines
+    shown = lines[:DIFF_LINES]
+    rest: list[str] = []
+    current = ""
+    for i, line in enumerate(lines):
+        if line.startswith("diff --git "):
+            current = line.split(" b/", 1)[-1]
+            if i >= DIFF_LINES and current not in rest:
+                rest.append(current)
+        elif i == DIFF_LINES and current and current not in rest:
+            rest.append(current)  # cut in the middle of this file
+    return [
+        *shown,
+        f"… diff truncated; read the remaining files directly: {', '.join(rest)}",
+    ]
+
+
+def brief(root: Path) -> str:
+    """Everything the reviewer needs: the tree it reviews, the principles and
+    decisions in effect, open findings, and the unreviewed diff."""
+    principles = _common.load_principles(root) or {}
+    state = ensure_state(root)
+    reviewed = str(state["reviewed_tree"])
+    current = snapshot(root) or reviewed
+    stats = _numstat(root, reviewed, current)
+    files = [path for _, path in stats]
+    records, _warnings = _common.decision_index(root)
+    lines = [f"Tree: {current}", f"Reviewed: {reviewed}", "", "## Principles", ""]
+    lines += [_principle_line(p) for p in _relevant_principles(principles, files)]
+    lines += ["", "## Decisions", ""]
+    lines += [
+        f"- {n:04d} {title} ({path})"
+        for n, title, status, path in records
+        if status == "accepted"
+    ]
+    findings = [f for f in state.get("findings", []) if not f.get("accepted")]
+    if findings:
+        lines += ["", "## Open findings", ""]
+        lines += [
+            f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
+            for f in findings
+        ]
+    lines += ["", "## Changed files", ""]
+    lines += [f"{count}\t{path}" for count, path in stats]
+    lines += ["", "## Diff", "", *_diff(root, reviewed, current)]
+    return "\n".join(lines) + "\n"
+
+
+def main() -> None:
+    _common.check_python()
+    root = _common.project_root({})
+    if sys.argv[1:] != ["brief"] or not (root / "docs" / "principles.toml").is_file():
+        print(USAGE, file=sys.stderr)
+        sys.exit(1)
+    print(brief(root), end="")
+
+
+if __name__ == "__main__":
+    main()
