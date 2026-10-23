@@ -19,7 +19,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 Decide which parts the project is made of (a backend, a web frontend, a CLI, an ML pipeline, …), what each is written in, where it lives, and a few plain traits per part. These answers decide which test runner, linter and type checker each part gets, and which principles apply to it. Every later area applies to every component.
 
-alpha v0.1 sets up **Python** and **TypeScript** only. Say so plainly when you ask about stacks; other stacks arrive in a later version.
+Any stack works. The kit has proven recipes for some (`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe list`); for any other stack, the `alpha:stack-recipe` skill drafts a recipe with the user and proves it before this area is done.
 
 ## Fields this area settles
 
@@ -28,7 +28,7 @@ alpha v0.1 sets up **Python** and **TypeScript** only. Say so plainly when you a
 - `components[].name` - lowercase letters, digits and hyphens, e.g. `api`; also the commit scope.
 - `components[].path` - the component's folder relative to the root.
 - `components[].kind` - one of `backend`, `frontend`, `cli`, `mobile`, `ml`, `library`, `worker`.
-- `components[].stack` - `python` or `typescript`.
+- `components[].stack` - the stack's name, lowercase with hyphens (e.g. `python`, `typescript`, `rust`).
 - `components[].traits.has_ui` - it shows a user interface.
 - `components[].traits.deployed` - it runs somewhere other than a developer's machine.
 - `components[].traits.network_calls` - it calls other services or processes.
@@ -47,7 +47,7 @@ Round 1:
 
 Round 2 (needs the component list):
 - **Layout** - with one component, recommend `single`; with more, `monorepo` is required. Rule: `single` means exactly one component, at path `"."`.
-- **Stack per component** - recommend `defaults.stacks[kind]`. Offer only `python` and `typescript`. If the user wants another language, explain that v0.1 can't set it up yet, and ask them to pick one of the two or stop here.
+- **Stack per component** - recommend `defaults.stacks[kind]`. The user may pick any stack. Say which stacks the kit has proven recipes for (from `recipe list`); for any other, explain in one line that a recipe will be drafted and proven for this project, and that it's less proven.
 - **Talk to each other** - ask only when there is more than one component: "Do these components call each other?" Explain: yes turns on the "Contracts are the source of truth" principle, so their interfaces are defined once (e.g. OpenAPI) and checked. With one component, set `components_talk` to `false` without asking.
 
 Round 3 (needs the layout):
@@ -75,7 +75,8 @@ Each top-level key you send replaces that key in project.json; the others stay a
 3. When the user confirms the area, save `layout`, `components_talk` and the `components` list. Each component is `{"name", "path", "kind", "stack", "traits": {"has_ui", "deployed", "network_calls", "persisted_data", "ml", "nontrivial_logic"}}`, with every trait `true` or `false`. Keep the exact field names.
 4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "components"`:
    `{"area": "components", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the shape (e.g. "Python api plus TypeScript web"); `context` is why these parts; `decision` lists the components with their stacks and the layout; `consequences` names the toolchains to maintain and the integration points, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `components` set to `"done"`.
+5. For each stack that `recipe list` doesn't name, invoke `alpha:stack-recipe` with the Skill tool for it before marking the area done.
+6. In the same call as step 3 (or after the recipes are proven), save `areas` with `components` set to `"done"`.
 
 ## Check
 

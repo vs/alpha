@@ -69,6 +69,7 @@ Run these in order. If one fails, show the user its message (it says what went w
 2. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" generate <target>` writes the skeleton.
 3. Tell the user the next step installs each component's toolchain and runs its tests, and can take a minute. Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target>`.
 4. Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-skeleton <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, in that order. If there are none, pass no `--trailer`. Never invent co-author lines.
+5. For each recipe drafted in this interview (the `recipes` in project.json), ask: "Save the <stack> recipe to the kit for future projects?" On yes, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe save <target> <stack> --trailer "<line>"` with the same trailers. Exit 0: tell the user the next project can use it. Exit 4: the kit's source isn't available on this machine, so it stays in this project only. Exit 3: show the message and follow its fix.
 
 ## 7. Final report
 
@@ -85,5 +86,6 @@ Tell the user, briefly:
   - Dependabot opens update pull requests on the chosen schedule (when chosen), also once the repository is on GitHub.
   - Claude can't finish, or push, with unreviewed changes past the thresholds or open review findings; findings you accept are recorded in the decision log.
   - Each session starts with a warning if the project setup is broken.
+- **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved to the kit.
 - **Not covered yet:** the remaining areas (UI/UX, versioning and releases, data and migrations, accessibility, performance) arrive in the next version of alpha. Their principles are already in `docs/principles.toml` at the kit defaults.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building.

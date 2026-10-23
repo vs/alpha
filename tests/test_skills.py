@@ -30,7 +30,7 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "git-history": ("git", ("git",)),
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
-ALL_SKILLS = ["grilling", *AREA_SKILLS, "new-project"]
+ALL_SKILLS = ["grilling", *AREA_SKILLS, "stack-recipe", "new-project"]
 CLI_SKILLS = ALL_SKILLS  # every skill calls the CLI
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 AREA_SECTIONS = [
@@ -228,6 +228,7 @@ def test_skills_use_every_cli_command_the_interview_needs():
     needed = ["defaults show", "defaults set", "answers check", "answers write"]
     needed += ["generate"]
     needed += ["bootstrap", "commit-skeleton"]
+    needed += ["recipe list", "recipe check", "recipe try", "recipe save"]
     for command in needed:
         assert any(c == command or c.startswith(command) for c in calls), command
 
@@ -391,3 +392,36 @@ def test_new_project_reports_the_reviewer():
     )
     not_covered = report.split("**Not covered yet:**")[1].split("\n- **")[0]
     assert "reviewer" not in not_covered
+
+
+def test_stack_recipe_skill_drafts_checks_and_tries():
+    text = _text("stack-recipe")
+    assert (
+        "Use only inside an alpha project interview"
+        in _frontmatter("stack-recipe")["description"]
+    )
+    for call in ("recipe check <target> <stack>", "recipe try <target> <stack>"):
+        assert f"{CLI} {call}" in text
+    for field in (
+        "bootstrap",
+        "commands",
+        "templates",
+        "test_globs",
+        "ci",
+        "dependabot",
+    ):
+        assert f"`{field}`" in text
+    assert "less proven" in text
+
+
+def test_components_offers_any_stack():
+    text = _text("components")
+    assert "Python** and **TypeScript** only" not in text
+    assert f"{CLI} recipe list" in text and "`alpha:stack-recipe`" in text
+
+
+def test_new_project_offers_to_save_drafted_recipes():
+    text = _text("new-project")
+    assert f"{CLI} recipe save <target> <stack>" in text
+    assert "Save the <stack> recipe to the kit for future projects?" in text
+    assert "less proven" in _section("new-project", "7. Final report")
