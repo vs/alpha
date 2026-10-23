@@ -87,9 +87,13 @@ def main() -> None:
         if head:
             _common.write_baseline(root, head)
         _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
-    if problem is None:
-        review.ensure_state(root)
     parts: list[str] = []
+    if problem is None:
+        state = review.ensure_state(root)
+        notice = state.pop("notice", None)
+        if notice:
+            parts.append(str(notice))
+            review.save_state(root, state)
     if problem is None:  # principles parse, so the index can name overrides
         loaded = _common.load_principles(root)
         if loaded is not None:

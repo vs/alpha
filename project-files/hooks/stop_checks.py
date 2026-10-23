@@ -471,6 +471,18 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
     block(listing)
 
 
+def safe_gate(root: Path, principles: dict[str, Any]) -> str | None:
+    """The review gate's verdict. When git can't snapshot the tree the gate
+    can't judge: tell the user rather than block every stop on it."""
+    try:
+        return review.gate(root, principles)
+    except review.SnapshotError as e:
+        flag(
+            f"alpha review: can't measure review debt ({e}). Fix that so the "
+            "principles reviewer can run; pushes stay blocked until then."
+        )
+
+
 def review_block(root: Path, inp: dict[str, Any], reason: str) -> NoReturn:
     """Block on the review. The same block again within one turn means Claude
     already tried and needs the user: end the turn with a message instead of
@@ -496,7 +508,7 @@ def review_or_flag(
 ) -> None:
     """Giving up on the mechanical checks never skips the review: block on it
     if it's due, naming the checks still open too. Returns when it isn't."""
-    verdict = review.gate(root, principles)
+    verdict = safe_gate(root, principles)
     if verdict:
         review_block(
             root, inp, f"{verdict}\n\nThese checks are still failing too:\n{listing}"
@@ -531,7 +543,7 @@ def main() -> None:
             _common.write_baseline(root, head)
         # Review only work that passes the mechanical checks. Findings block
         # until fixed or accepted by the user, so this never gives up.
-        verdict = review.gate(root, principles)
+        verdict = safe_gate(root, principles)
         if verdict:
             review_block(root, inp, verdict)
         _common.state_path(root, "review-blocked").unlink(missing_ok=True)

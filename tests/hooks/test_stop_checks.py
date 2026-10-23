@@ -763,3 +763,16 @@ def test_a_changed_review_block_blocks_again_in_the_same_turn(
     state["findings"][0]["problem"] = "Something else."
     review.save_state(project.root, state)
     assert "Something else." in reason(run_active(project))
+
+
+def test_a_failed_snapshot_warns_at_stop(project: Project) -> None:
+    import review
+
+    commit_all(project)
+    review.ensure_state(project.root)
+    lock = project.root / ".git" / (review.INDEX_FILE + ".lock")
+    lock.write_text("")
+    proc = project.run_hook("stop_checks.py", PAYLOAD)
+    out = json.loads(proc.stdout)
+    assert "decision" not in out
+    assert out["systemMessage"].startswith("alpha review: can't measure review debt")

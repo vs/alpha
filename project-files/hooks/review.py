@@ -11,6 +11,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -19,12 +21,19 @@ import _common  # noqa: E402
 
 STATE = "review.json"
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-_INDEX = "alpha-review-index"
+INDEX_FILE = "alpha-review-index"
+_STALE_LOCK_SECONDS = 120
 
 
-def _git(root: Path, *args: str, env: dict[str, str] | None = None) -> str | None:
+class SnapshotError(Exception):
+    """git couldn't snapshot the working tree; the message says why."""
+
+
+def _run(
+    root: Path, *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str] | None:
     try:
-        proc = subprocess.run(
+        return subprocess.run(
             ["git", *args],
             cwd=root,
             capture_output=True,
@@ -34,55 +43,115 @@ def _git(root: Path, *args: str, env: dict[str, str] | None = None) -> str | Non
         )
     except OSError:
         return None
-    return proc.stdout if proc.returncode == 0 else None
 
 
-def snapshot(root: Path) -> str | None:
-    """The working tree's tree id, through a scratch index (the real one is
-    untouched). Ignored files and alpha's state stay out."""
-    git_dir = _git(root, "rev-parse", "--absolute-git-dir")
-    if git_dir is None:
-        return None
-    # Outside the working tree, so the scratch index never snapshots itself.
-    env = {**os.environ, "GIT_INDEX_FILE": str(Path(git_dir.strip()) / _INDEX)}
+def _git(root: Path, *args: str, env: dict[str, str] | None = None) -> str | None:
+    proc = _run(root, *args, env=env)
+    return proc.stdout if proc is not None and proc.returncode == 0 else None
+
+
+def _must(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
+    proc = _run(root, *args, env=env)
+    if proc is None:
+        raise SnapshotError("git couldn't be run")
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout).strip().splitlines()
+        raise SnapshotError(f"git {args[0]} failed: {detail[0] if detail else '?'}")
+    return proc.stdout
+
+
+def snapshot(root: Path) -> str:
+    """The working tree's tree id, through a scratch index in the git directory
+    (the real index is untouched). Ignored files and alpha's state stay out.
+    The scratch index persists, so unchanged files aren't hashed again."""
+    git_dir = Path(_must(root, "rev-parse", "--absolute-git-dir").strip())
+    index = git_dir / INDEX_FILE
+    lock = git_dir / f"{INDEX_FILE}.lock"
+    try:  # a hook killed mid-snapshot leaves its lock behind
+        if time.time() - lock.stat().st_mtime > _STALE_LOCK_SECONDS:
+            lock.unlink()
+    except OSError:
+        pass
+    env = {**os.environ, "GIT_INDEX_FILE": str(index)}
     head = _git(root, "rev-parse", "--verify", "-q", "HEAD^{tree}")
-    start = ("read-tree", head.strip()) if head else ("read-tree", "--empty")
-    if _git(root, *start, env=env) is None:
-        return None
+    if head and index.is_file():
+        # --reset keeps the stat info of unchanged entries, and doesn't refuse
+        # an index that is out of date with the working tree as -m does.
+        _must(root, "read-tree", "--reset", head.strip(), env=env)
+    elif head:
+        _must(root, "read-tree", head.strip(), env=env)
+    else:
+        _must(root, "read-tree", "--empty", env=env)
     # Not an exclude pathspec: in generated projects the state folder is
     # gitignored, and git add exits 1 when a pathspec names an ignored path.
-    if _git(root, "add", "-A", "--", ".", env=env) is None:
-        return None
-    state = ("rm", "-rqf", "--cached", "--ignore-unmatch", "--", _common.STATE_DIR)
-    if _git(root, *state, env=env) is None:
-        return None
-    tree = _git(root, "write-tree", env=env)
-    return tree.strip() if tree else None
+    _must(root, "add", "-A", "--", ".", env=env)
+    _must(
+        root,
+        "rm",
+        "-rqf",
+        "--cached",
+        "--ignore-unmatch",
+        "--",
+        _common.STATE_DIR,
+        env=env,
+    )
+    return _must(root, "write-tree", env=env).strip()
 
 
 def load_state(root: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(_common.state_path(root, STATE).read_text())
-    except (OSError, ValueError):
+    """The saved state; {} when there is none, {"unreadable": True} when the
+    file exists but can't be read."""
+    path = _common.state_path(root, STATE)
+    if not path.exists():
         return {}
-    return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {"unreadable": True}
+    return (
+        cast("dict[str, Any]", data) if isinstance(data, dict) else {"unreadable": True}
+    )
 
 
 def save_state(root: Path, state: dict[str, Any]) -> None:
-    _common.state_path(root, STATE).write_text(json.dumps(state, indent=2) + "\n")
+    """Write the state in one step, so a killed hook never leaves half a file."""
+    path = _common.state_path(root, STATE)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f"{STATE}.")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(json.dumps(state, indent=2) + "\n")
+        os.replace(tmp, path)
+    except OSError:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _start_tree(root: Path) -> str:
+    """Where review starts without state: the last pushed commit when there is
+    an upstream (so committed, unpushed work stays unreviewed), else HEAD."""
+    upstream = _git(root, "merge-base", "HEAD", "@{upstream}")
+    rev = f"{upstream.strip()}^{{tree}}" if upstream else "HEAD^{tree}"
+    tree = _git(root, "rev-parse", "--verify", "-q", rev)
+    return tree.strip() if tree else EMPTY_TREE
 
 
 def ensure_state(root: Path) -> dict[str, Any]:
-    """The review state; a project without one starts reviewed at HEAD."""
+    """The review state, created when missing or unreadable."""
     state = load_state(root)
     if not isinstance(state.get("reviewed_tree"), str):
-        head = _git(root, "rev-parse", "--verify", "-q", "HEAD^{tree}")
-        state: dict[str, Any] = {
-            "reviewed_tree": head.strip() if head else EMPTY_TREE,
+        start = _start_tree(root)
+        fresh: dict[str, Any] = {
+            "reviewed_tree": start,
             "findings": [],
             "reviewed_for": "",
         }
-        save_state(root, state)
+        if state.get("unreadable"):
+            fresh["notice"] = (
+                "alpha: the review state was unreadable, so review restarted from "
+                "the last pushed commit (or HEAD)."
+            )
+        save_state(root, fresh)
+        state = fresh
     return state
 
 
@@ -107,7 +176,7 @@ def debt(root: Path, principles: dict[str, Any]) -> dict[str, Any]:
     """Changed files since the last review, their size, and the risky ones."""
     state = ensure_state(root)
     reviewed = str(state["reviewed_tree"])
-    current = snapshot(root)
+    current = snapshot(root)  # SnapshotError propagates: callers fail closed
     empty: dict[str, Any] = {
         "files": [],
         "counted_files": 0,
@@ -115,7 +184,7 @@ def debt(root: Path, principles: dict[str, Any]) -> dict[str, Any]:
         "risky": [],
         "tree": current,
     }
-    if current is None or current == reviewed:
+    if current == reviewed:
         return empty
     review: dict[str, Any] = principles.get("review", {})
     excluded = [str(g) for g in review.get("exclude", [])]
@@ -242,11 +311,6 @@ def brief(root: Path) -> str:
     state = ensure_state(root)
     reviewed = str(state["reviewed_tree"])
     current = snapshot(root)
-    if current is None:
-        raise RuntimeError(
-            "can't snapshot the working tree with git; check that this is a git "
-            "repository and that git works here, then run the brief again."
-        )
     stats = _numstat(root, reviewed, current)
     files = [path for _, path in stats]
     records, _warnings = _common.decision_index(root)
@@ -279,8 +343,12 @@ def main() -> None:
         sys.exit(1)
     try:
         print(brief(root), end="")
-    except RuntimeError as e:
-        print(f"review.py: {e}", file=sys.stderr)
+    except SnapshotError as e:
+        print(
+            f"review.py: can't snapshot the working tree ({e}). Fix that, then run "
+            "the brief again.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 
@@ -360,7 +428,13 @@ def push_blocker(root: Path, principles: dict[str, Any]) -> str | None:
             f"first ({', '.join(pending)}): fix them and run the principles-reviewer "
             "again, or have the user accept them and record that in the decision log."
         )
-    files = debt(root, principles)["files"]
+    try:
+        files = debt(root, principles)["files"]
+    except SnapshotError as e:
+        return (
+            "Nothing leaves the machine unreviewed, but alpha can't measure the "
+            f"review debt ({e}). Fix that and retry, or ask the user to push by hand."
+        )
     if files:
         noun = "file" if len(files) == 1 else "files"
         return (

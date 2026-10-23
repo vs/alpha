@@ -2,8 +2,10 @@ import json
 import os
 import subprocess
 import sys
+import time
 from typing import Any
 
+import pytest
 import review
 
 from .conftest import HOOKS, Project
@@ -147,7 +149,7 @@ def test_unreadable_state_is_treated_as_fresh(project: Project) -> None:
     base(project)
     path = project.root / ".claude/alpha/state/review.json"
     path.write_text("{not json")
-    assert review.load_state(project.root) == {}
+    assert review.load_state(project.root) == {"unreadable": True}
     assert review.ensure_state(project.root)["reviewed_tree"] == tree_of(
         project, "HEAD"
     )
@@ -265,3 +267,79 @@ def test_brief_refuses_when_the_tree_cannot_be_snapshot(project: Project) -> Non
     )
     assert proc.returncode == 1
     assert "can't snapshot the working tree" in proc.stderr
+
+
+def scratch_index(project: Project) -> Any:
+    return project.root / ".git" / review.INDEX_FILE
+
+
+def test_scratch_index_persists_and_snapshots_agree(project: Project) -> None:
+    base(project)
+    project.write("api/src/x.py", "x = 1\n")
+    first = review.snapshot(project.root)
+    assert scratch_index(project).is_file()
+    assert review.snapshot(project.root) == first
+
+
+def test_a_stale_lock_is_cleared(project: Project) -> None:
+    base(project)
+    lock = scratch_index(project).with_name(review.INDEX_FILE + ".lock")
+    lock.write_text("")
+    old = time.time() - 600
+    os.utime(lock, (old, old))
+    project.write("api/src/x.py", "x = 1\n")
+    assert review.debt(project.root, project.principles())["files"] == ["api/src/x.py"]
+
+
+def test_a_fresh_lock_fails_loudly(project: Project) -> None:
+    base(project)
+    lock = scratch_index(project).with_name(review.INDEX_FILE + ".lock")
+    lock.write_text("")
+    with pytest.raises(review.SnapshotError, match="lock"):
+        review.debt(project.root, project.principles())
+    reason = review.push_blocker(project.root, project.principles())
+    assert reason is not None
+    assert reason.startswith("Nothing leaves the machine unreviewed, but alpha can't")
+    assert "push by hand" in reason
+
+
+def test_an_unreadable_file_fails_loudly(project: Project) -> None:
+    base(project)
+    secret = project.write("api/src/locked.py", "x = 1\n")
+    secret.chmod(0)
+    try:
+        with pytest.raises(review.SnapshotError):
+            review.snapshot(project.root)
+    finally:
+        secret.chmod(0o644)
+
+
+def test_lost_state_starts_at_the_pushed_commit(
+    project: Project, tmp_path_factory: Any
+) -> None:
+    remote = tmp_path_factory.mktemp("remote")
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    base(project)
+    project.git("remote", "add", "origin", str(remote))
+    project.git("push", "-q", "-u", "origin", "HEAD")
+    project.write("api/auth/login.py", "x = 1\n")
+    commit_all(project, "feat: Add login")
+    (project.root / ".claude/alpha/state/review.json").unlink()
+    debt = review.debt(project.root, project.principles())
+    assert debt["files"] == ["api/auth/login.py"]
+
+
+def test_state_is_written_atomically(project: Project) -> None:
+    base(project)
+    state = review.load_state(project.root)
+    review.save_state(project.root, state)
+    leftovers = [p.name for p in (project.root / ".claude/alpha/state").iterdir()]
+    assert not [n for n in leftovers if n.startswith("review.json.")]
+
+
+def test_unreadable_state_is_reported_at_session_start(project: Project) -> None:
+    base(project)
+    (project.root / ".claude/alpha/state/review.json").write_text("{not json")
+    out = project.run_hook("session_start.py", {"hook_event_name": "SessionStart"})
+    text = json.loads(out.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert "review state was unreadable" in text
