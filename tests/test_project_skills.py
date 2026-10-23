@@ -43,3 +43,41 @@ def test_decision_skill_matches_the_interview_format():
         if line.startswith(("Date: ", "Status: ", "## ")):
             head = line.split(":")[0] + ":" if ":" in line else line
             assert head in text, f"the skill doesn't name {head!r}"
+
+
+REVIEWER = PLUGIN_ROOT / "project-files" / "agents" / "principles-reviewer.md"
+
+
+def frontmatter(text: str) -> dict[str, str]:
+    head = text.split("\n---\n", 1)[0].removeprefix("---\n")
+    return {
+        k.strip(): v.strip()
+        for k, _, v in (line.partition(":") for line in head.splitlines())
+    }
+
+
+def test_reviewer_agent_frontmatter():
+    meta = frontmatter(REVIEWER.read_text())
+    assert meta["name"] == "principles-reviewer"
+    assert len(meta["description"]) > 60
+    tools = {t.strip() for t in meta["tools"].split(",")}
+    assert tools == {"Read", "Grep", "Glob", "Bash"}
+    assert "model" not in meta
+
+
+def test_reviewer_agent_contract():
+    text = REVIEWER.read_text()
+    for piece in (
+        "python3 .claude/alpha/hooks/review.py brief",
+        '"tree"',
+        '"findings"',
+        '"principle"',
+        '"file"',
+        '"line"',
+        '"problem"',
+        '"fix"',
+        "decision:NNNN",
+        "```json",
+    ):
+        assert piece in text, piece
+    assert len(text.splitlines()) <= 100

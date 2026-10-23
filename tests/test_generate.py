@@ -192,6 +192,11 @@ def test_copies_hook_scripts_tools_and_executable_githook(
         == (ROOT / "project-files/githooks/commit-msg").read_bytes()
     )
     assert os.access(githook, os.X_OK)
+    reviewer = tmp_path / ".claude/agents/principles-reviewer.md"
+    assert (
+        reviewer.read_text()
+        == (ROOT / "project-files/agents/principles-reviewer.md").read_text()
+    )
     decision = tmp_path / ".claude/skills/decision/SKILL.md"
     assert (
         decision.read_text()
