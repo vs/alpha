@@ -69,3 +69,11 @@ In a generated web+API project, headless `claude -p` was asked to add `api/app/s
 - The first run found three hook bugs, now fixed with tests: a pyproject.toml tool-config edit was taken as a new dependency (the dependency check now keys on lockfiles); giving up on that check skipped the review gate; and the working-tree snapshot failed in generated projects (their `.gitignore` covers the state folder), so review debt was always zero.
 - After the fixes, the stop checks passed and Claude ran the principles-reviewer unprompted. It recorded three findings: `never-weaken-checks` (the catch-all), `fail-helpfully` (errors become `b''`, against decision 0004), and `decision:0005` (tests don't name their requirement). Stop blocked once; when the same block repeated, the turn ended with the findings shown, instead of looping until Claude Code's cap.
 - `claude -p --continue "accept F-… F-…"` accepted two findings. Claude recorded decision 0014 with `Accepts:` lines, fixed the third finding, and the re-review came back clean, so the reviewed tree advanced.
+
+### Generic stack live check (2026-10-23)
+
+With only the identity area done, headless `claude -p --plugin-dir` ran the components area for a Rust CLI.
+
+- The components skill handed off to stack-recipe, which looked up the installed toolchain and the current Rust setup action and drafted a recipe. It was stricter than the scenario's: `Cargo.toml` lints deny warnings and Clippy's `all` and `pedantic`; a `rust-toolchain.toml` pins Rust 1.93 with rustfmt and clippy; CI uses `actions-rust-lang/setup-rust-toolchain@v2.0.0`. There are no `src/` files.
+- `alpha recipe try` printed `ok: rust recipe proven`, and `answers check --area components` printed `ok`.
+- Editing the recipe afterwards (adding `-- -D warnings` to clippy) made `answers check` refuse it until it is proven again.
