@@ -1,6 +1,8 @@
 """Stack recipes: commands, globs and skeleton templates per stack."""
 
 import fnmatch
+import hashlib
+import json
 import os
 import re
 import tomllib
@@ -297,3 +299,9 @@ def render_component(
         (base / relpath).as_posix(): render_template(text, component.name, project_slug)
         for relpath, text in recipe.templates.items()
     }
+
+
+def recipe_hash(data: Mapping[str, Any]) -> str:
+    """A fingerprint of a drafted recipe, so a proof covers exactly this form."""
+    content = {k: v for k, v in data.items() if k != "proven_hash"}
+    return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()

@@ -129,3 +129,10 @@ def shell_recipe() -> dict[str, Any]:
             "tests/setup.sh": "test 1 -eq 1\n",
         },
     }
+
+
+def proven(recipe: dict[str, Any]) -> dict[str, Any]:
+    """The recipe, marked as proven by "alpha recipe try" in its current form."""
+    from alpha.recipes import recipe_hash
+
+    return {**recipe, "proven_hash": recipe_hash(recipe)}

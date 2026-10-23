@@ -6,7 +6,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from alpha import VERSION, answers, defaults, toml_write
+from alpha import VERSION, answers, defaults, recipe_cli, toml_write
 from alpha.generate import (
     PRINCIPLES_TOML,
     PROJECT_JSON,
@@ -49,6 +49,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     awrite.add_argument("target", type=Path, help="the folder being set up")
     awrite.add_argument("--json", help="the JSON object to merge (default: stdin)")
+    r = sub.add_parser("recipe", help="kit recipes and drafted ones")
+    rsub = r.add_subparsers(dest="recipe_command", required=True)
+    rsub.add_parser("list", help="the kit's stacks")
+    for name, text in (
+        ("check", "validate a drafted recipe"),
+        ("try", "prove a drafted recipe in a scratch folder"),
+    ):
+        rp = rsub.add_parser(name, help=text)
+        rp.add_argument("target", type=Path, help="the folder being set up")
+        rp.add_argument("stack", help="the drafted recipe's stack, e.g. rust")
     gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
     boot = sub.add_parser("bootstrap", help="install toolchains and run the tests")
@@ -122,6 +132,26 @@ def _answers(args: argparse.Namespace) -> int:
         print(e, file=sys.stderr)
         return 1
     print("ok")
+    return 0
+
+
+def _recipe(args: argparse.Namespace) -> int:
+    try:
+        if args.recipe_command == "list":
+            print("\n".join(recipe_cli.list_recipes()))
+            return 0
+        if args.recipe_command == "check":
+            recipe_cli.check(args.target, args.stack)
+            print("ok")
+            return 0
+        problem = recipe_cli.try_recipe(args.target, args.stack)
+    except answers.AnswersError as e:
+        print(e, file=sys.stderr)
+        return 1
+    if problem:
+        print(problem, file=sys.stderr)
+        return 1
+    print(f"ok: {args.stack} recipe proven")
     return 0
 
 
@@ -207,6 +237,8 @@ def main(argv: list[str] | None = None) -> int:
         return _defaults(args)
     if args.command == "answers":
         return _answers(args)
+    if args.command == "recipe":
+        return _recipe(args)
     if args.command in ("generate", "bootstrap", "commit-skeleton"):
         return _project(args)
     return 2  # unreachable: argparse rejects unknown commands

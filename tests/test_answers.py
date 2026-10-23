@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import shell_recipe, single_component
+from helpers import proven, shell_recipe, single_component
 
 from alpha import cli
 from alpha.answers import AREAS, AnswersError, load_answers, write_answers
@@ -144,7 +144,7 @@ def with_shell(d: dict[str, Any]) -> dict[str, Any]:
     comp = dict(d["components"][0], stack="shell", path=".")
     single_component(d, comp)
     d["layout"] = "single"
-    d["recipes"] = {"shell": shell_recipe()}
+    d["recipes"] = {"shell": proven(shell_recipe())}
     return d
 
 

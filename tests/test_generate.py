@@ -14,6 +14,7 @@ from helpers import (
     git,
     override_record,
     place_answers,
+    proven,
     shell_recipe,
     single_component,
 )
@@ -463,7 +464,7 @@ def test_cli_generate_explains_write_failure(tmp_path: Path):
 def shell_project(target: Path) -> list[str]:
     data = json.loads((SCENARIOS / "python-ml-single.json").read_text())
     single_component(data, dict(data["components"][0], stack="shell"))
-    data["recipes"] = {"shell": shell_recipe()}
+    data["recipes"] = {"shell": proven(shell_recipe())}
     dest = target / ".claude/alpha/project.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(data))

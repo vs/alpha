@@ -18,7 +18,7 @@ from alpha.core_areas import (
     Security,
     Testing,
 )
-from alpha.recipes import Recipe, RecipeBook, recipe_from_data
+from alpha.recipes import Recipe, RecipeBook, recipe_from_data, recipe_hash
 from alpha.validate import (
     NAME,
     as_list,
@@ -233,7 +233,7 @@ class Answers:
         return RecipeBook(self.recipes)
 
 
-def drafted_recipes(raw: object) -> dict[str, Recipe]:
+def drafted_recipes(raw: object, require_proven: bool = False) -> dict[str, Recipe]:
     kit = set(RecipeBook().kit_stacks())
     drafted: dict[str, Recipe] = {}
     for stack, data in obj(raw, "recipes").items():
@@ -250,7 +250,14 @@ def drafted_recipes(raw: object) -> dict[str, Recipe]:
                 f"the kit already has a {stack} recipe",
                 "Remove this one; the kit's recipe is used",
             )
-        drafted[stack] = recipe_from_data(stack, obj(data, where), where, None)
+        fields = obj(data, where)
+        drafted[stack] = recipe_from_data(stack, fields, where, None)
+        if require_proven and fields.get("proven_hash") != recipe_hash(fields):
+            raise fail(
+                where,
+                "not proven since it last changed",
+                f'Run "alpha recipe try <target> {stack}" until it prints ok',
+            )
     return drafted
 
 
@@ -626,7 +633,9 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     def active(area: str) -> bool:
         return area in require_areas or areas[area] == "done"
 
-    drafted = drafted_recipes(top.get("recipes", {}))
+    drafted = drafted_recipes(
+        top.get("recipes", {}), require_proven=active("components")
+    )
     base = _project_root(path)
     identity = _identity(get(top, "identity", ""), base) if active("identity") else None
     layout: str | None = None
