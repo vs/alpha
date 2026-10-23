@@ -1,4 +1,5 @@
-"""UserPromptSubmit hook: the user accepts a review finding.
+"""UserPromptSubmit hook: changes made between turns, and the user accepting
+a review finding.
 
 Only a prompt that is exactly "accept F-xxxxxx" (several ids allowed) counts.
 Claude Code also runs this hook for subagent reports and messages from other
@@ -38,12 +39,13 @@ def main() -> None:
     if _common.python_problem():
         sys.exit(0)
     inp = _common.read_input()
+    root = _common.project_root(inp)
+    if _common.load_principles(root) is None:
+        sys.exit(0)
+    review.absorb_outside_changes(root)
     text = inp.get("prompt")
     command = _COMMAND.fullmatch(text.strip()) if isinstance(text, str) else None
     if command is None:
-        sys.exit(0)
-    root = _common.project_root(inp)
-    if _common.load_principles(root) is None:
         sys.exit(0)
     wanted = _ID.findall(command.group(1))
     state = review.ensure_state(root)

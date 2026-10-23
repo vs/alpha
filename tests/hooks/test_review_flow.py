@@ -89,3 +89,41 @@ def test_a_report_on_the_reviewed_tree_is_sent_back(project: Project) -> None:
     assert out["decision"] == "block"
     assert "Tree line" in out["reason"] and "not its Reviewed line" in out["reason"]
     assert review.load_state(project.root)["reviewed_tree"] == reviewed
+
+
+def prompt(project: Project, text: str = "next task") -> None:
+    hook(
+        project,
+        "user_prompt.py",
+        {"hook_event_name": "UserPromptSubmit", "prompt": text},
+    )
+
+
+def test_changes_between_turns_are_not_claudes_debt(project: Project) -> None:
+    started(project)
+    (project.root / "api/migrations/0001.sql").unlink()  # nothing unreviewed
+    assert stop(project).stdout == ""  # turn ends with everything reviewed
+    project.write("api/migrations/0002.sql", "alter table t add c int;\n")  # the user
+    prompt(project)
+    debt = review.debt(project.root, project.principles())
+    assert debt["files"] == []
+    assert stop(project).stdout == ""
+
+
+def test_claudes_unreviewed_work_stays_debt(project: Project) -> None:
+    started(project)  # Claude wrote api/migrations/0001.sql
+    blocked = json.loads(stop(project).stdout)
+    assert "principles-reviewer" in blocked["reason"]
+    project.write("web/README.md", "notes\n")  # the user, between turns
+    prompt(project)
+    debt = review.debt(project.root, project.principles())
+    assert debt["files"] == ["api/migrations/0001.sql"]
+
+
+def test_a_conflicting_outside_change_stays_debt(project: Project) -> None:
+    started(project)
+    stop(project)  # Claude left 0001.sql unreviewed
+    project.write("api/migrations/0001.sql", "create table u (id int);\n")  # the user
+    prompt(project)
+    debt = review.debt(project.root, project.principles())
+    assert debt["files"] == ["api/migrations/0001.sql"]

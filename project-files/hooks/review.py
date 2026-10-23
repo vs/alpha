@@ -454,3 +454,56 @@ def push_blocker(root: Path, principles: dict[str, Any]) -> str | None:
             f"agent first ({len(files)} {noun} changed since the last review)."
         )
     return None
+
+
+_ALPHA_IDENTITY = {
+    "GIT_AUTHOR_NAME": "alpha",
+    "GIT_AUTHOR_EMAIL": "alpha@localhost",
+    "GIT_COMMITTER_NAME": "alpha",
+    "GIT_COMMITTER_EMAIL": "alpha@localhost",
+}
+
+
+def note_turn_end(root: Path) -> None:
+    """Remember the tree Claude leaves at a Stop; the last Stop of a turn wins."""
+    state = ensure_state(root)
+    try:
+        state["left_tree"] = snapshot(root)
+    except SnapshotError:
+        state.pop("left_tree", None)
+    save_state(root, state)
+
+
+def _commit(root: Path, tree: str) -> str | None:
+    """A throwaway commit object for a tree, so merge-tree can use it."""
+    env = {**os.environ, **_ALPHA_IDENTITY}
+    out = _git(root, "commit-tree", tree, "-m", "alpha review snapshot", env=env)
+    return out.strip() if out else None
+
+
+def absorb_outside_changes(root: Path) -> None:
+    """Changes made between Claude's turns (the user's edits, a pull) aren't
+    Claude's work: carry them onto the reviewed tree with a three-way merge
+    based on the tree Claude left. Claude's own unreviewed edits stay debt; on
+    a conflict, or anything git can't do, nothing is absorbed."""
+    state = load_state(root)
+    left = state.get("left_tree")
+    reviewed = state.get("reviewed_tree")
+    if not isinstance(left, str) or not isinstance(reviewed, str):
+        return
+    state.pop("left_tree", None)
+    try:
+        current = snapshot(root)
+    except SnapshotError:
+        save_state(root, state)
+        return
+    if current != left:
+        commits = [_commit(root, t) for t in (left, reviewed, current)]
+        if all(commits):
+            base, ours, theirs = cast("list[str]", commits)
+            merged = _git(
+                root, "merge-tree", "--write-tree", f"--merge-base={base}", ours, theirs
+            )
+            if merged:
+                state["reviewed_tree"] = merged.splitlines()[0].strip()
+    save_state(root, state)

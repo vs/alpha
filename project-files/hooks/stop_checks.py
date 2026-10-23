@@ -530,6 +530,7 @@ def main() -> None:
     if not inp.get("stop_hook_active"):
         # A new turn: an earlier turn's review block doesn't count as repeated.
         _common.state_path(root, "review-blocked").unlink(missing_ok=True)
+    review.note_turn_end(root)  # what Claude leaves, if this Stop ends the turn
     base = session_base(root)
     changed = changed_since(root, base)
     counter = _common.state_path(root, "stop-blocks")
