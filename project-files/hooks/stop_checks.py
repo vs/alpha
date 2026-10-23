@@ -367,11 +367,13 @@ def find_problems(
             name = str(comp.get("name"))
             if not _common.principle_applies(principles, "dependency-reasons", name):
                 continue
-            manifests = list(comp.get("manifests", []))
+            # A lockfile changes exactly when dependencies do; a manifest also
+            # holds tool settings, whose edits need no log entry.
+            lockfiles = [str(lock) for lock in comp.get("lockfiles", [])]
             for rel in by_comp[str(comp.get("name"))]:
-                if rel in manifests:
+                if rel in lockfiles:
                     problems.append(
-                        f"Dependency manifest changed ({rel}) without an entry in "
+                        f"Dependencies changed ({rel}) without an entry in "
                         f"{DEPENDENCY_LOG}. Record what was added and why."
                     )
 

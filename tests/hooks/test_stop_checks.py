@@ -103,16 +103,28 @@ def test_source_and_tests_pass_and_reset_counter(project: Project) -> None:
     assert counter(project) == 0
 
 
-def test_manifest_without_dependency_log_blocks(project: Project) -> None:
+def test_lockfile_without_dependency_log_blocks(project: Project) -> None:
     commit_all(project)
-    project.write("api/pyproject.toml", "[project]\n")
+    project.write("api/pyproject.toml", "[project]\ndependencies = ['httpx']\n")
+    project.write("api/uv.lock", "version = 1\n")
     text = reason(run(project))
-    assert "Dependency manifest changed (api/pyproject.toml) without an entry" in text
-    assert "docs/dependencies.md" in text
+    assert (
+        "Dependencies changed (api/uv.lock) without an entry in docs/dependencies.md."
+        in text
+    )
     project.write("docs/dependencies.md", "- httpx\n")
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
     assert counter(project) == 0
+
+
+def test_manifest_config_change_needs_no_dependency_entry(project: Project) -> None:
+    commit_all(project)
+    project.write(
+        "api/pyproject.toml", "[tool.pytest.ini_options]\npythonpath = ['.']\n"
+    )
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
 
 
 def guide_mapped(project: Project) -> None:
@@ -349,7 +361,7 @@ def test_tests_first_class_dropped_for_one_component(project: Project) -> None:
 def test_dropped_dependency_reasons_does_not_block(project: Project) -> None:
     project.drop_principle("dependency-reasons", component="api")
     commit_all(project)
-    project.write("api/pyproject.toml", "[project]\n")
+    project.write("api/uv.lock", "version = 1\n")
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
 

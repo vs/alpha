@@ -139,7 +139,7 @@ def dependency_policy(a: Answers) -> list[str]:
         "## Policy",
         "",
         "- Adding: every new dependency gets a row in the log below, with the "
-        "reason. The Stop hook blocks a manifest change without one.",
+        "reason. The Stop hook blocks a lockfile change without one.",
         "- Pinning: lockfiles pin every version. Only the package manager changes "
         "them; Claude can't edit them by hand.",
         f"- Upgrading: {upgrading}",
