@@ -730,3 +730,36 @@ def test_review_blocks_never_give_up(project: Project) -> None:
     open_finding(project)
     for _ in range(5):
         assert "alpha review: open findings:" in reason(run(project))
+
+
+def run_active(project: Project) -> subprocess.CompletedProcess[str]:
+    """A Stop that follows a block in the same turn (stop_hook_active)."""
+    return project.run_hook(
+        "stop_checks.py", {"hook_event_name": "Stop", "stop_hook_active": True}
+    )
+
+
+def test_a_repeated_review_block_ends_the_turn_with_a_message(project: Project) -> None:
+    commit_all(project)
+    open_finding(project)
+    assert "alpha review: open findings:" in reason(run(project))
+    proc = run_active(project)  # same findings, Claude already tried
+    out = json.loads(proc.stdout)
+    assert "decision" not in out
+    assert out["systemMessage"].startswith("alpha review: open findings:")
+    assert "applies again at the next stop" in out["systemMessage"]
+    assert "alpha review: open findings:" in reason(run(project))  # next turn
+
+
+def test_a_changed_review_block_blocks_again_in_the_same_turn(
+    project: Project,
+) -> None:
+    import review
+
+    commit_all(project)
+    open_finding(project)
+    reason(run(project))
+    state = review.load_state(project.root)
+    state["findings"][0]["problem"] = "Something else."
+    review.save_state(project.root, state)
+    assert "Something else." in reason(run_active(project))

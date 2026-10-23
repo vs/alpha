@@ -471,14 +471,36 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
     block(listing)
 
 
-def review_or_flag(root: Path, principles: dict[str, Any], listing: str) -> None:
+def review_block(root: Path, inp: dict[str, Any], reason: str) -> NoReturn:
+    """Block on the review. The same block again within one turn means Claude
+    already tried and needs the user: end the turn with a message instead of
+    looping. The gate applies again at the next stop."""
+    marker = _common.state_path(root, "review-blocked")
+    digest = hashlib.sha256(reason.encode()).hexdigest()
+    try:
+        repeated = marker.read_text().strip() == digest
+    except OSError:
+        repeated = False
+    if inp.get("stop_hook_active") and repeated:
+        flag(
+            f"{reason}\n\nalpha: Claude stopped here because this needs you; the "
+            "review gate applies again at the next stop."
+        )
+    marker.write_text(digest + "\n")
+    print(json.dumps({"decision": "block", "reason": reason}))
+    sys.exit(0)
+
+
+def review_or_flag(
+    root: Path, principles: dict[str, Any], inp: dict[str, Any], listing: str
+) -> None:
     """Giving up on the mechanical checks never skips the review: block on it
     if it's due, naming the checks still open too. Returns when it isn't."""
     verdict = review.gate(root, principles)
     if verdict:
-        reason = f"{verdict}\n\nThese checks are still failing too:\n{listing}"
-        print(json.dumps({"decision": "block", "reason": reason}))
-        sys.exit(0)
+        review_block(
+            root, inp, f"{verdict}\n\nThese checks are still failing too:\n{listing}"
+        )
 
 
 def main() -> None:
@@ -511,8 +533,8 @@ def main() -> None:
         # until fixed or accepted by the user, so this never gives up.
         verdict = review.gate(root, principles)
         if verdict:
-            print(json.dumps({"decision": "block", "reason": verdict}))
-            sys.exit(0)
+            review_block(root, inp, verdict)
+        _common.state_path(root, "review-blocked").unlink(missing_ok=True)
         sys.exit(0)
     listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
     if secrets:  # never given up on, unlike the other checks
@@ -523,7 +545,7 @@ def main() -> None:
     except OSError:
         given_up = False
     if given_up:
-        review_or_flag(root, principles, listing)
+        review_or_flag(root, principles, inp, listing)
         flag(
             "alpha: still open; the user was told after 3 attempts, so alpha won't "
             f"block on these again until they change:\n{listing}"
@@ -532,7 +554,7 @@ def main() -> None:
     if count >= MAX_BLOCKS:
         write_count(counter, 0)
         accepted.write_text(fingerprint + "\n")
-        review_or_flag(root, principles, listing)
+        review_or_flag(root, principles, inp, listing)
         flag(
             "alpha: checks still failing after 3 attempts; stopping so the user can "
             f"decide:\n{listing}"
