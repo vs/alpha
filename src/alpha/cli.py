@@ -59,6 +59,10 @@ def build_parser() -> argparse.ArgumentParser:
         rp = rsub.add_parser(name, help=text)
         rp.add_argument("target", type=Path, help="the folder being set up")
         rp.add_argument("stack", help="the drafted recipe's stack, e.g. rust")
+    rsave = rsub.add_parser("save", help="add a proven drafted recipe to the kit")
+    rsave.add_argument("target", type=Path, help="the generated project")
+    rsave.add_argument("stack", help="the drafted recipe's stack, e.g. rust")
+    rsave.add_argument("--trailer", action="append", default=[], help="commit trailer")
     gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
     boot = sub.add_parser("bootstrap", help="install toolchains and run the tests")
@@ -144,10 +148,23 @@ def _recipe(args: argparse.Namespace) -> int:
             recipe_cli.check(args.target, args.stack)
             print("ok")
             return 0
+        if args.recipe_command == "save":
+            source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+            short = recipe_cli.save_recipe(
+                args.target, args.stack, source, args.trailer
+            )
+            print(f"saved: {args.stack} recipe, commit {short}")
+            return 0
         problem = recipe_cli.try_recipe(args.target, args.stack)
+    except defaults.SourceNotLive as e:
+        print(e, file=sys.stderr)
+        return 4
+    except defaults.DefaultsError as e:
+        print(e, file=sys.stderr)
+        return 3
     except answers.AnswersError as e:
         print(e, file=sys.stderr)
-        return 1
+        return 3 if args.recipe_command == "save" else 1
     if problem:
         print(problem, file=sys.stderr)
         return 1

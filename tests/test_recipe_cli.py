@@ -3,14 +3,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import SCENARIOS, TODAY, shell_recipe, single_component
+from helpers import SCENARIOS, TODAY, git, proven, shell_recipe, single_component
+from test_defaults import make_source, reject_commits
 
 from alpha import cli
 from alpha.answers import AnswersError
 from alpha.cli import PLUGIN_ROOT
-from alpha.defaults import Source
+from alpha.defaults import DefaultsError, Source, SourceNotLive
 from alpha.generate import generate
-from alpha.recipes import recipe_hash
+from alpha.recipe_cli import save_recipe
+from alpha.recipes import RecipeBook, recipe_hash
 
 
 def project(tmp_path: Path, recipe: dict[str, Any] | None = None) -> Path:
@@ -110,3 +112,78 @@ def test_a_recipe_edited_after_try_is_refused(tmp_path: Path):
     scenario_with_shell(tmp_path, recipe)
     with pytest.raises(AnswersError, match=r"not proven since it last changed"):
         generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+
+
+def drafted_project(tmp_path: Path, recipe: dict[str, Any]) -> Path:
+    target = project(tmp_path, recipe)
+    path = target / ".claude/alpha/project.json"
+    data = json.loads(path.read_text())
+    data["identity"] = {"slug": "leaf-lens"}
+    path.write_text(json.dumps(data))
+    return target
+
+
+def test_save_writes_the_recipe_and_commits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    src = make_source(tmp_path / "src", repo=True)
+    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
+    recipe = proven(shell_recipe())
+    target = drafted_project(tmp_path / "p", recipe)
+    short = save_recipe(target, "shell", src, ["Co-Authored-By: X <x@y>"])
+    assert git(src.path, "rev-parse", "HEAD").startswith(short)
+    message = git(src.path, "log", "-1", "--format=%B")
+    assert message.startswith("feat(recipes): Add shell recipe from leaf-lens")
+    assert "Co-Authored-By: X <x@y>" in message
+    saved = RecipeBook().get("shell")
+    assert saved.proven is False
+    assert saved.templates == shell_recipe()["templates"]
+    assert saved.commands == shell_recipe()["commands"]
+    assert git(src.path, "status", "--porcelain") == ""
+
+
+def test_save_needs_a_live_source(tmp_path: Path):
+    target = drafted_project(tmp_path, proven(shell_recipe()))
+    bundled = Source(tmp_path / "plugin", False, "no source checkout found")
+    with pytest.raises(SourceNotLive):
+        save_recipe(target, "shell", bundled, [])
+
+
+def test_save_refuses_an_unproven_recipe(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    target = drafted_project(tmp_path / "p", shell_recipe())
+    with pytest.raises(AnswersError, match="not proven"):
+        save_recipe(target, "shell", src, [])
+
+
+def test_save_refuses_a_stack_the_kit_has(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    src = make_source(tmp_path / "src", repo=True)
+    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    save_recipe(target, "shell", src, [])
+    with pytest.raises(AnswersError, match="already has a shell recipe"):
+        save_recipe(target, "shell", src, [])
+
+
+def test_save_leaves_nothing_when_the_commit_fails(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    reject_commits(src.path)
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    with pytest.raises(DefaultsError, match="retry"):
+        save_recipe(target, "shell", src, [])
+    assert not (src.path / "recipes").exists() or not any(
+        (src.path / "recipes").iterdir()
+    )
+    assert git(src.path, "status", "--porcelain") == ""
+
+
+def test_cli_save_exit_codes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    monkeypatch.setenv("ALPHA_SOURCE", str(tmp_path / "missing"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    assert cli.main(["recipe", "save", str(target), "shell"]) == 4
+    assert "Cannot save a recipe to the kit" in capsys.readouterr().err
