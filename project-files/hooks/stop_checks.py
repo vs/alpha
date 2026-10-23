@@ -13,6 +13,7 @@ from typing import Any, NoReturn, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
+import review  # noqa: E402
 
 TIMEOUT = 600
 BUDGET = 1100
@@ -494,6 +495,12 @@ def main() -> None:
         head = head_sha(root)
         if head is not None:
             _common.write_baseline(root, head)
+        # Review only work that passes the mechanical checks. Findings block
+        # until fixed or accepted by the user, so this never gives up.
+        verdict = review.gate(root, principles)
+        if verdict:
+            print(json.dumps({"decision": "block", "reason": verdict}))
+            sys.exit(0)
         sys.exit(0)
     listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
     if secrets:  # never given up on, unlike the other checks

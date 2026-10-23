@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
+import review  # noqa: E402
 
 HOOKS_PATH = ".claude/alpha/githooks"
 
@@ -86,6 +87,8 @@ def main() -> None:
         if head:
             _common.write_baseline(root, head)
         _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
+    if problem is None:
+        review.ensure_state(root)
     parts: list[str] = []
     if problem is None:  # principles parse, so the index can name overrides
         loaded = _common.load_principles(root)

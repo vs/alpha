@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -271,3 +272,59 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+_ACCEPTS = re.compile(r"F-[0-9a-f]{6}")
+
+
+def accepted_in_log(root: Path) -> set[str]:
+    """Finding ids that decision records accept on an "Accepts:" header line."""
+    ids: set[str] = set()
+    for _n, _title, _status, path in _common.decision_index(root)[0]:
+        try:
+            head = (root / path).read_text(encoding="utf-8").splitlines()[:20]
+        except (OSError, UnicodeDecodeError):
+            continue
+        for line in head:
+            if line.startswith("Accepts:"):
+                ids.update(_ACCEPTS.findall(line))
+    return ids
+
+
+def gate(root: Path, principles: dict[str, Any]) -> str | None:
+    """Why Claude can't finish yet, review-wise, or None."""
+    state = ensure_state(root)
+    findings: list[dict[str, Any]] = list(state.get("findings", []))
+    still_open = [f for f in findings if not f.get("accepted")]
+    if still_open:
+        listing = "\n".join(
+            f"{f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']} "
+            f"Fix: {f['fix']}"
+            for f in still_open
+        )
+        first = still_open[0]["id"]
+        return (
+            f"alpha review: open findings:\n{listing}\nFix them and run the "
+            "principles-reviewer agent again. If one can't or shouldn't be fixed, "
+            f'ask the user; they accept it by replying "accept {first}".'
+        )
+    logged = accepted_in_log(root)
+    unrecorded = [str(f["id"]) for f in findings if f["id"] not in logged]
+    if unrecorded:
+        lines = ", ".join(f"Accepts: {i}" for i in unrecorded)
+        return (
+            "alpha review: the user accepted findings that aren't in the decision "
+            "log yet. Record them with the decision skill, one header line each: "
+            f"{lines}."
+        )
+    if findings and snapshot(root) == state.get("reviewed_for"):
+        state["reviewed_tree"] = state["reviewed_for"]
+        state["findings"] = []
+        save_state(root, state)
+    reason = review_due(principles, debt(root, principles))
+    if reason:
+        return (
+            f"alpha review: run the principles-reviewer agent before finishing "
+            f"({reason})."
+        )
+    return None

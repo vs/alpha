@@ -155,3 +155,11 @@ def test_real_old_python_warns_that_hooks_are_off(project: Project) -> None:
     assert result.returncode == 0, result.stderr
     text = json.loads(result.stdout)["systemMessage"]
     assert "alpha needs Python 3.11+ (found 3." in text
+
+
+def test_session_start_creates_the_review_state(project: Project) -> None:
+    sha = commit(project)
+    start(project, source="startup")
+    state = json.loads((project.root / ".claude/alpha/state/review.json").read_text())
+    tree = project.git("rev-parse", f"{sha}^{{tree}}").stdout.strip()
+    assert state["reviewed_tree"] == tree

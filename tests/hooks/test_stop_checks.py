@@ -19,7 +19,15 @@ def commit_all(project: Project) -> None:
     project.git("commit", "-q", "-m", "chore: Baseline")
 
 
-def run(project: Project) -> subprocess.CompletedProcess[str]:
+def run(project: Project, reviewed: bool = True) -> subprocess.CompletedProcess[str]:
+    """Run the Stop hook. Unless a test is about the review gate, the current
+    tree counts as reviewed, so only the mechanical checks speak."""
+    if reviewed:
+        import review
+
+        state = review.ensure_state(project.root)
+        state["reviewed_tree"] = review.snapshot(project.root)
+        review.save_state(project.root, state)
     return project.run_hook("stop_checks.py", PAYLOAD)
 
 
@@ -599,3 +607,100 @@ def test_subagent_stop_leaves_component_commands_to_the_main_stop(
     edited_by(project, "a1", "api/src/x.py", "api/tests/test_x.py")
     proc = subagent_stop(project, "a1")
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def open_finding(project: Project, accepted: bool = False) -> dict[str, Any]:
+    import review
+
+    state = review.ensure_state(project.root)
+    finding = {
+        "id": "F-abc123",
+        "principle": "fail-helpfully",
+        "file": "api/src/x.py",
+        "line": 3,
+        "problem": "The except clause swallows every error.",
+        "fix": "Catch the specific error.",
+        "accepted": accepted,
+    }
+    state["findings"] = [finding]
+    state["reviewed_for"] = review.snapshot(project.root)
+    review.save_state(project.root, state)
+    return finding
+
+
+def accepts_record(project: Project, finding_id: str) -> None:
+    project.write(
+        "docs/decisions/0001-accept-it.md",
+        "# 0001. Accept it\n\nDate: 2026-10-23\nStatus: accepted\n"
+        f"Accepts: {finding_id}\n\n## Context\n\nc\n\n## Decision\n\nd\n\n"
+        "## Consequences\n\nq\n",
+    )
+
+
+def test_open_findings_block_with_ids_and_how_to_accept(project: Project) -> None:
+    commit_all(project)
+    open_finding(project)
+    text = reason(run(project))
+    assert text.startswith("alpha review: open findings:")
+    assert (
+        "F-abc123 fail-helpfully api/src/x.py:3: The except clause swallows every "
+        "error. Fix: Catch the specific error." in text
+    )
+    assert 'they accept it by replying "accept F-abc123"' in text
+
+
+def test_forged_acceptance_does_not_clear_a_finding(project: Project) -> None:
+    commit_all(project)
+    open_finding(project)
+    accepts_record(project, "F-abc123")
+    assert "alpha review: open findings:" in reason(run(project))
+
+
+def test_accepted_but_unrecorded_findings_block(project: Project) -> None:
+    commit_all(project)
+    open_finding(project, accepted=True)
+    text = reason(run(project))
+    assert "decision skill" in text and "Accepts: F-abc123" in text
+
+
+def test_accepted_and_recorded_findings_clear_the_review(project: Project) -> None:
+    import review
+
+    commit_all(project)
+    accepts_record(project, "F-abc123")
+    open_finding(project, accepted=True)
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    state = review.load_state(project.root)
+    assert state["findings"] == [] and state["reviewed_tree"] == state["reviewed_for"]
+
+
+def test_review_due_blocks_with_its_reason(project: Project) -> None:
+    commit_all(project)
+    import review
+
+    review.ensure_state(project.root)
+    project.write("api/migrations/0001.sql", "create table t (id int);\n")
+    text = reason(run(project, reviewed=False))
+    assert text == (
+        "alpha review: run the principles-reviewer agent before finishing "
+        "(risky paths changed: api/migrations/0001.sql)."
+    )
+
+
+def test_mechanical_problems_hide_the_review_gate(project: Project) -> None:
+    commit_all(project)
+    import review
+
+    review.ensure_state(project.root)
+    project.write("api/migrations/0001.sql", "create table t (id int);\n")
+    project.write("api/src/app.py", "x = 1\n")
+    text = reason(run(project, reviewed=False))
+    assert "tests-first-class" in text and "alpha review" not in text
+
+
+def test_review_blocks_never_give_up(project: Project) -> None:
+    commit_all(project)
+    open_finding(project)
+    for _ in range(5):
+        assert "alpha review: open findings:" in reason(run(project))
