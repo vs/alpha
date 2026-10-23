@@ -293,6 +293,7 @@ WORKING_RULES = [
     "- When a requirement is ambiguous, ask the user, then record the answer with "
     "the decision skill.",
     "- Subagents work under the same principles, decisions and checks.",
+    "- At the end of a planned piece of work, run the principles-reviewer agent.",
 ]
 
 
@@ -309,3 +310,12 @@ def test_overridden_principle_names_its_record(tmp_path: Path):
     record = override_record(json.loads(FIXTURE.read_text()), "observability")
     line = next(x for x in md.splitlines() if x.startswith("- **Observability**"))
     assert line.endswith(f"(overridden: see {record})")
+
+
+def test_contributing_names_the_review_checkpoint(tmp_path: Path):
+    text = render(load(tmp_path))["CONTRIBUTING.md"]
+    branching = text.split("## Branching\n")[1]
+    assert (
+        "Claude runs the principles reviewer before it pushes or opens a pull "
+        "request; people can push by hand." in branching
+    )

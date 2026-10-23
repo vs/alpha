@@ -19,7 +19,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 Decide when the agents' changes get a judgment-based review against the project's principles: after every task, or in batches once a change grows past a size threshold or touches a risky path. The cheap mechanical checks (hooks on every edit, stop and commit) are always on and need no answers here.
 
-The principles reviewer itself arrives in a later version of alpha. Tell the user so: these settings are recorded in the principles file now, and the reviewer will read them when it lands.
+The project gets a principles-reviewer agent that reads these settings from the principles file. It runs when the unreviewed changes cross the thresholds or touch a risky path (or after every task, in every-task mode), and before any push. Its findings stop Claude from finishing until they're fixed or the user accepts them, and an accepted finding is recorded in the decision log.
 
 ## Fields this area settles
 

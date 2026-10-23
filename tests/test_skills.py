@@ -373,3 +373,20 @@ def test_new_project_no_longer_lists_the_core_areas_as_missing():
         assert area not in not_covered
     assert "observability" not in not_covered
     assert "Dependabot" in report
+
+
+def test_agent_workflow_says_the_reviewer_is_real():
+    purpose = _section("agent-workflow", "Purpose")
+    assert "arrives in a later version" not in purpose
+    assert "principles-reviewer" in purpose and "before any push" in purpose
+
+
+def test_new_project_reports_the_reviewer():
+    report = _section("new-project", "7. Final report")
+    assert (
+        "Claude can't finish, or push, with unreviewed changes past the thresholds "
+        "or open review findings; findings you accept are recorded in the decision "
+        "log." in report
+    )
+    not_covered = report.split("**Not covered yet:**")[1].split("\n- **")[0]
+    assert "reviewer" not in not_covered

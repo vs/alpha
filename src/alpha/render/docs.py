@@ -31,6 +31,7 @@ _WORKING_RULES = (
     "- When a requirement is ambiguous, ask the user, then record the answer with "
     "the decision skill.",
     "- Subagents work under the same principles, decisions and checks.",
+    "- At the end of a planned piece of work, run the principles-reviewer agent.",
 )
 _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
@@ -292,6 +293,9 @@ def _contributing(a: Answers, principles: dict[str, Any]) -> str:
         "## Branching",
         "",
         branching,
+        "",
+        "Claude runs the principles reviewer before it pushes or opens a pull "
+        "request; people can push by hand.",
     ]
     return "\n".join(lines) + "\n"
 

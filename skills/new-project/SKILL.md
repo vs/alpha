@@ -83,6 +83,7 @@ Tell the user, briefly:
   - Claude can't finish while it has added a secret, changed source without changing tests, changed a mapped path without its docs, added a dependency without a recorded reason, or left the type checks or tests failing.
   - CI runs every component's checks on each push to main and each pull request (when the user chose CI). Tell the user the workflow runs once they push the repository to GitHub.
   - Dependabot opens update pull requests on the chosen schedule (when chosen), also once the repository is on GitHub.
+  - Claude can't finish, or push, with unreviewed changes past the thresholds or open review findings; findings you accept are recorded in the decision log.
   - Each session starts with a warning if the project setup is broken.
-- **Not covered yet:** the remaining areas (UI/UX, versioning and releases, data and migrations, accessibility, performance) and the principles reviewer arrive in the next version of alpha. Their principles are already in `docs/principles.toml` at the kit defaults.
+- **Not covered yet:** the remaining areas (UI/UX, versioning and releases, data and migrations, accessibility, performance) arrive in the next version of alpha. Their principles are already in `docs/principles.toml` at the kit defaults.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building.
