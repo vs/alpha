@@ -471,6 +471,16 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
     block(listing)
 
 
+def review_or_flag(root: Path, principles: dict[str, Any], listing: str) -> None:
+    """Giving up on the mechanical checks never skips the review: block on it
+    if it's due, naming the checks still open too. Returns when it isn't."""
+    verdict = review.gate(root, principles)
+    if verdict:
+        reason = f"{verdict}\n\nThese checks are still failing too:\n{listing}"
+        print(json.dumps({"decision": "block", "reason": reason}))
+        sys.exit(0)
+
+
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
@@ -513,6 +523,7 @@ def main() -> None:
     except OSError:
         given_up = False
     if given_up:
+        review_or_flag(root, principles, listing)
         flag(
             "alpha: still open; the user was told after 3 attempts, so alpha won't "
             f"block on these again until they change:\n{listing}"
@@ -521,6 +532,7 @@ def main() -> None:
     if count >= MAX_BLOCKS:
         write_count(counter, 0)
         accepted.write_text(fingerprint + "\n")
+        review_or_flag(root, principles, listing)
         flag(
             "alpha: checks still failing after 3 attempts; stopping so the user can "
             f"decide:\n{listing}"

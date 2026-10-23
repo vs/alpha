@@ -127,6 +127,20 @@ def test_manifest_config_change_needs_no_dependency_entry(project: Project) -> N
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
 
 
+def test_give_up_still_requires_the_review(project: Project) -> None:
+    import review
+
+    commit_all(project)
+    review.ensure_state(project.root)
+    project.write("api/migrations/0001.sql", "create table t (id int);\n")
+    project.write("api/src/app.py", "x = 1\n")  # untested: a mechanical problem
+    for _ in range(3):
+        assert "tests-first-class" in reason(run(project, reviewed=False))
+    text = reason(run(project, reviewed=False))
+    assert text.startswith("alpha review: run the principles-reviewer agent")
+    assert "tests-first-class" in text  # the open checks are still named
+
+
 def guide_mapped(project: Project) -> None:
     data = project.principles()
     data["docs_map"] = {"api/src/**/*.py": ["docs/guide/**"]}
