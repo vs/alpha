@@ -71,7 +71,8 @@ def test_hook_wiring():
     assert entries("Stop") == [{"hooks": [{**cmd("stop_checks.py"), "timeout": 1200}]}]
     assert entries("SubagentStart") == [{"hooks": [cmd("subagent_start.py")]}]
     assert entries("SubagentStop") == [
-        {"hooks": [{**cmd("stop_checks.py"), "timeout": 1200}]}
+        {"hooks": [{**cmd("stop_checks.py"), "timeout": 1200}]},
+        {"matcher": "principles-reviewer", "hooks": [cmd("review_record.py")]},
     ]
 
 
@@ -82,7 +83,7 @@ def test_every_hook_command_names_an_existing_script():
         for entry in group
         for h in entry["hooks"]
     ]
-    assert len(commands) == 7
+    assert len(commands) == 8
     for command in commands:
         match = re.search(r"/([a-z_]+\.py)$", command)
         assert match, command
