@@ -61,3 +61,11 @@ In a generated web+API project, with headless `claude -p`:
 - Asked what it was told at session start, without reading files, Claude listed all 13 decision records with numbers, titles and paths, and the observability override. It first read the override line ("active, components api, web") as applying to both components; the index now quotes the record's `Principle:` header ("loosen, scope component:api").
 - A general-purpose subagent asked to add `api/app/routes/ping.py` without tests: post-edit recorded the file for that subagent, SubagentStop blocked it three times and then let it stop with a message, and the main session's Stop flagged the untested file the same way.
 - In an untrusted folder, `-p` ignores the project's `permissions.allow` (Claude Code prints a warning), but the hooks still run.
+
+### Reviewer live check (2026-10-23)
+
+In a generated web+API project, headless `claude -p` was asked to add `api/app/security/files.py` (a risk path) with a catch-all `except Exception: return b''`, plus a test.
+
+- The first run found three hook bugs, now fixed with tests: a pyproject.toml tool-config edit was taken as a new dependency (the dependency check now keys on lockfiles); giving up on that check skipped the review gate; and the working-tree snapshot failed in generated projects (their `.gitignore` covers the state folder), so review debt was always zero.
+- After the fixes, the stop checks passed and Claude ran the principles-reviewer unprompted. It recorded three findings: `never-weaken-checks` (the catch-all), `fail-helpfully` (errors become `b''`, against decision 0004), and `decision:0005` (tests don't name their requirement). Stop blocked once; when the same block repeated, the turn ended with the findings shown, instead of looping until Claude Code's cap.
+- `claude -p --continue "accept F-… F-…"` accepted two findings. Claude recorded decision 0014 with `Accepts:` lines, fixed the third finding, and the re-review came back clean, so the reviewed tree advanced.
