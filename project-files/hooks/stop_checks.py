@@ -527,6 +527,9 @@ def main() -> None:
         if not isinstance(agent, str) or not agent:
             sys.exit(0)
         subagent_stop(root, principles, agent)
+    if not inp.get("stop_hook_active"):
+        # A new turn: an earlier turn's review block doesn't count as repeated.
+        _common.state_path(root, "review-blocked").unlink(missing_ok=True)
     base = session_base(root)
     changed = changed_since(root, base)
     counter = _common.state_path(root, "stop-blocks")

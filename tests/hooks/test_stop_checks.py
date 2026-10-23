@@ -776,3 +776,15 @@ def test_a_failed_snapshot_warns_at_stop(project: Project) -> None:
     out = json.loads(proc.stdout)
     assert "decision" not in out
     assert out["systemMessage"].startswith("alpha review: can't measure review debt")
+
+
+def test_the_repeat_marker_does_not_carry_into_the_next_turn(project: Project) -> None:
+    commit_all(project)
+    open_finding(project)
+    reason(run(project))  # turn N: block on the findings
+    run_active(project)  # turn N: same block again, the turn ends
+    # Turn N+1: first a mechanical block, then the review block again.
+    project.write("api/src/app.py", "x = 1\n")
+    assert "tests-first-class" in reason(run(project))
+    project.write("api/tests/test_app.py", "x = 1\n")
+    assert "alpha review: open findings:" in reason(run_active(project))
