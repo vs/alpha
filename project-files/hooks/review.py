@@ -311,6 +311,9 @@ def brief(root: Path) -> str:
     state = ensure_state(root)
     reviewed = str(state["reviewed_tree"])
     current = snapshot(root)
+    # The recorder accepts a report only on a tree a brief handed out.
+    state["briefed"] = [*state.get("briefed", []), current][-5:]
+    save_state(root, state)
     stats = _numstat(root, reviewed, current)
     files = [path for _, path in stats]
     records, _warnings = _common.decision_index(root)
@@ -322,6 +325,13 @@ def brief(root: Path) -> str:
         for n, title, status, path in records
         if status == "accepted"
     ]
+    accepted = [f for f in state.get("findings", []) if f.get("accepted")]
+    if accepted:
+        lines += ["", "## Accepted findings (don't report these again)", ""]
+        lines += [
+            f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
+            for f in accepted
+        ]
     findings = [f for f in state.get("findings", []) if not f.get("accepted")]
     if findings:
         lines += ["", "## Open findings", ""]
@@ -399,7 +409,9 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
             "log yet. Record them with the decision skill, one header line each: "
             f"{lines}."
         )
-    if findings and snapshot(root) == state.get("reviewed_for"):
+    if findings:
+        # Every finding is accepted and recorded: the reviewed tree passes.
+        # Later edits, such as the decision record itself, are measured from it.
         state["reviewed_tree"] = state["reviewed_for"]
         state["findings"] = []
         save_state(root, state)

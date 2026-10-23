@@ -22,9 +22,8 @@ def setup(project: Project) -> str:
     project.git("commit", "-q", "-m", "chore: Base")
     review.ensure_state(project.root)
     project.write("api/src/x.py", "x = 1\n")
-    tree = review.snapshot(project.root)
-    assert tree
-    return tree
+    # The reviewer works from the brief, which hands out the tree to report.
+    return review.brief(project.root).splitlines()[0].removeprefix("Tree: ")
 
 
 def report(tree: str, findings: list[dict[str, Any]]) -> str:

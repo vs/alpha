@@ -69,6 +69,11 @@ def parse(root: Path, message: str) -> tuple[str, list[dict[str, Any]]]:
         or not is_tree(root, tree)
     ):
         send_back(f"{tree!r} isn't the tree from the brief.")
+    if tree not in review.load_state(root).get("briefed", []):
+        send_back(
+            f"{tree} isn't a tree a brief handed out: copy the brief's Tree line, "
+            "not its Reviewed line (run the brief first if you haven't)."
+        )
     raw = report.get("findings")
     if not isinstance(raw, list):
         send_back('"findings" must be a list.')
