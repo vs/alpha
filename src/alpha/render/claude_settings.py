@@ -22,6 +22,7 @@ _DENY = [
 ]
 _EDIT_TOOLS = "Edit|Write|MultiEdit"
 _STOP_TIMEOUT_SECONDS = 1200
+_PROMPT_TIMEOUT_SECONDS = 10
 
 
 def _hook(script: str, timeout: int | None = None) -> dict[str, Any]:
@@ -59,6 +60,9 @@ def render_settings(principles: dict[str, Any]) -> dict[str, Any]:
             "SubagentStop": [
                 _entry(_hook("stop_checks.py", _STOP_TIMEOUT_SECONDS)),
                 _entry(_hook("review_record.py"), "principles-reviewer"),
+            ],
+            "UserPromptSubmit": [
+                _entry(_hook("user_prompt.py", _PROMPT_TIMEOUT_SECONDS))
             ],
         },
     }
