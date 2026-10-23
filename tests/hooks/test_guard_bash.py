@@ -313,3 +313,38 @@ def test_other_git_commands_ignore_review_debt(project: Project) -> None:
     project.write("api/src/x.py", "x = 1\n")
     for command in ("git status", "git commit -m 'feat: X'", "gh pr view"):
         assert bash(project, command).returncode == 0, command
+
+
+STATE_MESSAGE = "alpha's hooks keep their state there"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo '{}' > .claude/alpha/state/review.json",
+        "rm .claude/alpha/state/review.json",
+        "rm -rf .claude",
+        "rm -rf .claude/alpha",
+        "sed -i '' 's/false/true/' .claude/alpha/state/review.json",
+    ],
+)
+def test_the_review_state_is_not_writable_from_bash(
+    project: Project, command: str
+) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 2, (command, proc.stderr)
+    assert STATE_MESSAGE in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "command", ["git clean -fdX", "git clean -fdx", "git clean -X -f"]
+)
+def test_git_clean_of_ignored_files_is_blocked(project: Project, command: str) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 2
+    assert ".claude/alpha/state" in proc.stderr
+
+
+def test_plain_git_clean_and_reading_the_state_pass(project: Project) -> None:
+    assert bash(project, "git clean -fd").returncode == 0
+    assert bash(project, "cat .claude/alpha/state/review.json").returncode == 0

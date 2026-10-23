@@ -409,8 +409,20 @@ def record_agent_file(root: Path, agent_id: str, rel: str) -> None:
         agent_files_path(root, agent_id).write_text(json.dumps({"files": files}))
 
 
+STATE_GLOB = f"{STATE_DIR}/**"
+
+
 def protected_glob(rel: str, principles: dict[str, Any]) -> str | None:
-    """The first protected-path glob that rel matches, if any."""
+    """The first protected-path glob that rel matches, if any. alpha's own
+    state (and any folder holding it) is always protected: the review state
+    must come from the hooks alone."""
+    rel = rel.rstrip("/")
+    if (
+        rel == STATE_DIR
+        or rel.startswith(f"{STATE_DIR}/")
+        or STATE_DIR.startswith(f"{rel}/")
+    ):
+        return STATE_GLOB
     for glob in principles.get("protected", {}).get("paths", []):
         if matches(rel, [str(glob)]):
             return str(glob)
@@ -419,6 +431,12 @@ def protected_glob(rel: str, principles: dict[str, Any]) -> str | None:
 
 def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
     """Why a path is protected (it matched glob), and what to do instead."""
+    if glob == STATE_GLOB:
+        return (
+            f"{rel} is protected: alpha's hooks keep their state there "
+            f"({STATE_DIR}/), including the review record, and nothing else may "
+            "write or delete it. Read it if you need to; ask the user if it's wrong."
+        )
     head = (
         f"{rel} is protected (`{glob}` in docs/principles.toml), so Claude can't "
         "edit it."

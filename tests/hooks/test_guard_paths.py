@@ -223,3 +223,10 @@ def test_principles_file_edit_asks(project: Project) -> None:
         {"file_path": str(project.root / "docs/principles.toml"), "content": ""},
     )
     assert "single source of truth" in reason(write)
+
+
+def test_the_review_state_is_not_editable(project: Project) -> None:
+    path = str(project.root / ".claude/alpha/state/review.json")
+    proc = run(project, "Write", {"file_path": path})
+    assert proc.returncode == 2
+    assert "alpha's hooks keep their state there" in proc.stderr

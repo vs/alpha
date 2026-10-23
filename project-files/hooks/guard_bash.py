@@ -389,6 +389,15 @@ def check_segment(segment: list[str], root: Path) -> None:
                 )
     if sub == "push":
         check_review(root)
+    if sub == "clean" and any(
+        a in ("-x", "-X") or ("x" in short_flags(a, sub) or "X" in short_flags(a, sub))
+        for a in args
+    ):
+        _common.block(
+            f"git clean -x/-X deletes ignored files, including alpha's review state "
+            f"in {_common.STATE_DIR}/. Delete the files you mean by name, or ask the "
+            "user to run it."
+        )
     if sub == "commit" and "--amend" in args:
         branches = pushed_branches(root)
         if branches:
