@@ -19,7 +19,7 @@ import _common  # noqa: E402
 
 STATE = "review.json"
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-_INDEX = "review-index"
+_INDEX = "alpha-review-index"
 
 
 def _git(root: Path, *args: str, env: dict[str, str] | None = None) -> str | None:
@@ -40,16 +40,21 @@ def _git(root: Path, *args: str, env: dict[str, str] | None = None) -> str | Non
 def snapshot(root: Path) -> str | None:
     """The working tree's tree id, through a scratch index (the real one is
     untouched). Ignored files and alpha's state stay out."""
-    index = _common.state_path(root, _INDEX)
-    env = {**os.environ, "GIT_INDEX_FILE": str(index)}
+    git_dir = _git(root, "rev-parse", "--absolute-git-dir")
+    if git_dir is None:
+        return None
+    # Outside the working tree, so the scratch index never snapshots itself.
+    env = {**os.environ, "GIT_INDEX_FILE": str(Path(git_dir.strip()) / _INDEX)}
     head = _git(root, "rev-parse", "--verify", "-q", "HEAD^{tree}")
     start = ("read-tree", head.strip()) if head else ("read-tree", "--empty")
     if _git(root, *start, env=env) is None:
         return None
-    if (
-        _git(root, "add", "-A", "--", ".", f":(exclude){_common.STATE_DIR}", env=env)
-        is None
-    ):
+    # Not an exclude pathspec: in generated projects the state folder is
+    # gitignored, and git add exits 1 when a pathspec names an ignored path.
+    if _git(root, "add", "-A", "--", ".", env=env) is None:
+        return None
+    state = ("rm", "-rqf", "--cached", "--ignore-unmatch", "--", _common.STATE_DIR)
+    if _git(root, *state, env=env) is None:
         return None
     tree = _git(root, "write-tree", env=env)
     return tree.strip() if tree else None
@@ -236,7 +241,12 @@ def brief(root: Path) -> str:
     principles = _common.load_principles(root) or {}
     state = ensure_state(root)
     reviewed = str(state["reviewed_tree"])
-    current = snapshot(root) or reviewed
+    current = snapshot(root)
+    if current is None:
+        raise RuntimeError(
+            "can't snapshot the working tree with git; check that this is a git "
+            "repository and that git works here, then run the brief again."
+        )
     stats = _numstat(root, reviewed, current)
     files = [path for _, path in stats]
     records, _warnings = _common.decision_index(root)
@@ -267,7 +277,11 @@ def main() -> None:
     if sys.argv[1:] != ["brief"] or not (root / "docs" / "principles.toml").is_file():
         print(USAGE, file=sys.stderr)
         sys.exit(1)
-    print(brief(root), end="")
+    try:
+        print(brief(root), end="")
+    except RuntimeError as e:
+        print(f"review.py: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

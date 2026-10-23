@@ -1,9 +1,12 @@
 import json
+import os
+import subprocess
+import sys
 from typing import Any
 
 import review
 
-from .conftest import Project
+from .conftest import HOOKS, Project
 
 
 def commit_all(project: Project, message: str = "chore: Base") -> None:
@@ -42,7 +45,7 @@ def test_snapshot_ignores_gitignored_and_state_and_leaves_index_alone(
     project: Project,
 ) -> None:
     base(project)
-    project.write(".gitignore", "*.log\n")
+    project.write(".gitignore", "*.log\n.claude/alpha/state/\n")
     commit_all(project, "chore: Ignore logs")
     review.ensure_state(project.root)
     state = review.load_state(project.root)
@@ -238,3 +241,27 @@ def test_brief_cli_outside_an_alpha_project(project: Project) -> None:
     proc = project.run_hook("review.py", {})  # no "brief" argument either
     assert proc.returncode == 1
     assert "python3 .claude/alpha/hooks/review.py brief" in proc.stderr
+
+
+def test_snapshot_works_when_the_state_folder_is_gitignored(project: Project) -> None:
+    # Generated projects ignore .claude/alpha/state/, as their .gitignore says.
+    project.write(".gitignore", ".claude/alpha/state/\n")
+    base(project)
+    project.write("api/src/new.py", "x = 1\n")
+    debt = review.debt(project.root, project.principles())
+    assert debt["files"] == ["api/src/new.py"]
+    assert debt["tree"] != tree_of(project, "HEAD")
+
+
+def test_brief_refuses_when_the_tree_cannot_be_snapshot(project: Project) -> None:
+    base(project)
+    (project.root / ".git").rename(project.root / "not-git")
+    proc = subprocess.run(
+        [sys.executable, str(HOOKS / "review.py"), "brief"],
+        cwd=project.root,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(project.root)},
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 1
+    assert "can't snapshot the working tree" in proc.stderr
