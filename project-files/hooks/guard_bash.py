@@ -13,6 +13,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
+import review  # noqa: E402
 
 NO_VERIFY_MESSAGE = (
     "--no-verify skips the project's commit checks. Fix what the hook reports "
@@ -341,7 +342,23 @@ def changes_hooks_path(args: list[str]) -> bool:
     return values[0].rstrip("/").removeprefix("./") != HOOKS_PATH
 
 
+def check_review(root: Path) -> None:
+    """Pushes and pull requests wait for the principles reviewer."""
+    principles = _common.load_principles(root)
+    if principles is None:
+        return
+    reason = review.push_blocker(root, principles)
+    if reason:
+        _common.block(reason)
+
+
 def check_segment(segment: list[str], root: Path) -> None:
+    if (
+        segment
+        and posixpath.basename(segment[0]) == "gh"
+        and segment[1:3] == ["pr", "create"]
+    ):
+        check_review(root)
     invocation = git_invocation(segment)
     if invocation is None:
         return
@@ -370,6 +387,8 @@ def check_segment(segment: list[str], root: Path) -> None:
                     "normally after making a new commit instead, or ask the user "
                     "to run the forced push themselves."
                 )
+    if sub == "push":
+        check_review(root)
     if sub == "commit" and "--amend" in args:
         branches = pushed_branches(root)
         if branches:

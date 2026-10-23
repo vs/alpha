@@ -328,3 +328,29 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
             f"({reason})."
         )
     return None
+
+
+def push_blocker(root: Path, principles: dict[str, Any]) -> str | None:
+    """Why a push or pull request must wait for the reviewer, or None.
+    Unlike the Stop gate, any unreviewed change counts, whatever its size."""
+    state = ensure_state(root)
+    logged = accepted_in_log(root)
+    pending = [
+        str(f["id"])
+        for f in state.get("findings", [])
+        if not f.get("accepted") or f["id"] not in logged
+    ]
+    if pending:
+        return (
+            "Nothing leaves the machine unreviewed: resolve the review findings "
+            f"first ({', '.join(pending)}): fix them and run the principles-reviewer "
+            "again, or have the user accept them and record that in the decision log."
+        )
+    files = debt(root, principles)["files"]
+    if files:
+        noun = "file" if len(files) == 1 else "files"
+        return (
+            "Nothing leaves the machine unreviewed: run the principles-reviewer "
+            f"agent first ({len(files)} {noun} changed since the last review)."
+        )
+    return None

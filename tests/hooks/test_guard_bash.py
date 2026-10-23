@@ -10,6 +10,14 @@ HOOKS_PATH = "Overriding core.hooksPath skips the project's commit checks."
 HOOKS_CONFIG = "Changing core.hooksPath switches off the project's commit checks."
 
 
+def mark_reviewed(project: Project) -> None:
+    import review
+
+    state = review.ensure_state(project.root)
+    state["reviewed_tree"] = review.snapshot(project.root)
+    review.save_state(project.root, state)
+
+
 def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
     return project.run_hook(
         "guard_bash.py", {"tool_name": "Bash", "tool_input": {"command": command}}
@@ -120,6 +128,7 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
     ],
 )
 def test_allowed(project: Project, command: str) -> None:
+    mark_reviewed(project)  # these test git rules, not the review checkpoint
     result = bash(project, command)
     assert result.returncode == 0, result.stderr
 
@@ -248,3 +257,59 @@ def test_the_heredoc_line_itself_is_still_checked(project: Project) -> None:
     assert proc.stderr.startswith(".env is protected (")
     proc = bash(project, "cat <<'EOF' | git commit -F - --no-verify\nx\nEOF")
     assert proc.returncode == 2
+
+
+def committed(project: Project) -> None:
+    project.git("add", "-A")
+    project.git("commit", "-q", "-m", "chore: Base")
+    mark_reviewed(project)
+
+
+@pytest.mark.parametrize(
+    "command", ["git push", "git push --dry-run origin main", "gh pr create --fill"]
+)
+def test_unreviewed_work_is_not_pushed(project: Project, command: str) -> None:
+    committed(project)
+    project.write("api/src/x.py", "x = 1\n")
+    proc = bash(project, command)
+    assert proc.returncode == 2
+    assert proc.stderr.startswith(
+        "Nothing leaves the machine unreviewed: run the principles-reviewer agent "
+        "first (1 file changed since the last review)."
+    )
+
+
+def test_push_allowed_right_after_a_clean_review(project: Project) -> None:
+    committed(project)
+    project.write("api/src/x.py", "x = 1\n")
+    mark_reviewed(project)
+    assert bash(project, "git push").returncode == 0
+
+
+def test_open_findings_block_the_push(project: Project) -> None:
+    import review
+
+    committed(project)
+    state = review.load_state(project.root)
+    state["findings"] = [
+        {
+            "id": "F-abc123",
+            "principle": "p",
+            "file": "f",
+            "line": 1,
+            "problem": "x",
+            "fix": "y",
+            "accepted": False,
+        }
+    ]
+    review.save_state(project.root, state)
+    proc = bash(project, "git push")
+    assert proc.returncode == 2
+    assert "F-abc123" in proc.stderr
+
+
+def test_other_git_commands_ignore_review_debt(project: Project) -> None:
+    committed(project)
+    project.write("api/src/x.py", "x = 1\n")
+    for command in ("git status", "git commit -m 'feat: X'", "gh pr view"):
+        assert bash(project, command).returncode == 0, command
