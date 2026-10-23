@@ -1,4 +1,5 @@
 stack = "python"
+proven = true  # the kit's own, run in real projects
 bootstrap = ["uv add --dev pytest ruff pyright"]
 lockfiles = ["uv.lock"]
 ignores = [".venv/", "__pycache__/", ".pytest_cache/"]

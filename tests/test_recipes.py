@@ -1,12 +1,23 @@
+import copy
 import json
 import re
 import tomllib
+from typing import Any
 
 import pytest
+from helpers import shell_recipe
 
 from alpha.answers import Component, Traits
 from alpha.cli import PLUGIN_ROOT
-from alpha.recipes import CHECK_STEPS, check_commands, load_recipe, render_component
+from alpha.recipes import (
+    CHECK_STEPS,
+    RecipeError,
+    check_commands,
+    load_recipe,
+    recipe_from_data,
+    render_component,
+    render_template,
+)
 
 
 def _component(stack: str, kind: str, name: str, path: str) -> Component:
@@ -80,7 +91,7 @@ def test_command_keys_complete():
 
 
 def test_unknown_stack_says_how_to_fix():
-    with pytest.raises(ValueError, match="Use one of: python, typescript"):
+    with pytest.raises(RecipeError, match="Use one of: python, typescript"):
         load_recipe("cobol")
 
 
@@ -112,3 +123,85 @@ def test_recipes_name_no_stack_outside_recipes():
         if re.search(r"[\"'](python|typescript)[\"']", line)
     ]
     assert found == []
+
+
+def drafted(**changes: Any) -> dict[str, Any]:
+    data = copy.deepcopy(shell_recipe())
+    for dotted, value in changes.items():
+        *parents, leaf = dotted.split("__")
+        target = data
+        for part in parents:
+            target = target[part]
+        if value is DELETE:
+            del target[leaf]
+        else:
+            target[leaf] = value
+    return data
+
+
+DELETE = object()
+
+
+def test_kit_recipes_are_proven_and_carry_their_templates():
+    for stack in ("python", "typescript"):
+        recipe = load_recipe(stack)
+        assert recipe.proven is True
+        assert any(path.startswith("tests/") for path in recipe.templates)
+
+
+def test_a_drafted_recipe_loads():
+    recipe = recipe_from_data("shell", shell_recipe(), "recipes.shell", None)
+    assert recipe.proven is False
+    assert recipe.templates["tests/setup.sh"] == "test 1 -eq 1\n"
+
+
+@pytest.mark.parametrize(
+    ("changes", "where"),
+    [
+        ({"commands__setup": ""}, r"recipes\.shell\.commands\.setup"),
+        ({"commands__test": DELETE}, r"recipes\.shell\.commands\.test"),
+        ({"commands__typecheck": DELETE}, r"recipes\.shell\.commands\.typecheck"),
+        ({"commands__format_file": "fmt"}, r"recipes\.shell\.commands\.format_file"),
+        ({"bootstrap": "make"}, r"recipes\.shell\.bootstrap"),
+        ({"source_globs": ["./src/**"]}, r"recipes\.shell\.source_globs\[0\]"),
+        ({"lockfiles": ["/abs.lock"]}, r"recipes\.shell\.lockfiles\[0\]"),
+        ({"ignores": ["/out"]}, r"recipes\.shell\.ignores\[0\]"),
+        ({"why": {"tool": 3}}, r"recipes\.shell\.why"),
+        (
+            {"ci__steps": [{"uses": "owner/repo@main"}]},
+            r"recipes\.shell\.ci\.steps\[0\]",
+        ),
+        ({"ci__steps": [{"run": "x"}]}, r"recipes\.shell\.ci\.steps\[0\]"),
+        ({"ci__env": {"A": 1}}, r"recipes\.shell\.ci\.env"),
+        ({"dependabot": 1}, r"recipes\.shell\.dependabot"),
+        ({"proven": "yes"}, r"recipes\.shell\.proven"),
+        ({"templates": {}}, r"recipes\.shell\.templates"),
+        ({"templates": {"tool.cfg": "x"}}, r"recipes\.shell\.templates: .*setup test"),
+        ({"templates": {"../x": "y", "tests/a.sh": "z"}}, r"recipes\.shell\.templates"),
+    ],
+)
+def test_malformed_recipes_name_the_field(changes: dict[str, Any], where: str):
+    with pytest.raises(RecipeError, match=where):
+        recipe_from_data("shell", drafted(**changes), "recipes.shell", None)
+
+
+@pytest.mark.parametrize(
+    "uses",
+    [
+        "actions/checkout@v7",
+        "astral-sh/setup-uv@v10.3.2",
+        "dtolnay/rust-toolchain@" + "a" * 40,
+    ],
+)
+def test_pinned_ci_actions_are_accepted(uses: str):
+    data = drafted(ci__steps=[{"uses": uses}])
+    assert recipe_from_data("shell", data, "recipes.shell", None).ci.steps == [
+        {"uses": uses}
+    ]
+
+
+def test_render_template_substitutes_only_name_and_slug():
+    text = "$name $slug $HOME ${name} $$x $name_y ${slug}-z"
+    assert (
+        render_template(text, "api", "pico") == "api pico $HOME api $$x $name_y pico-z"
+    )

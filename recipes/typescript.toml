@@ -1,4 +1,5 @@
 stack = "typescript"
+proven = true  # the kit's own, run in real projects
 bootstrap = [
   "pnpm add -D typescript vitest @biomejs/biome @types/node",
   # CI's pnpm/action-setup installs the version recorded here.

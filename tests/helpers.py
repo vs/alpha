@@ -98,3 +98,34 @@ def override_record(data: dict[str, Any], principle: str, index: int = 0) -> str
     """The decision record path of the index-th override, numbered after the areas'."""
     number = len(data["decisions"]) + index + 1
     return f"docs/decisions/{number:04d}-override-{principle}.md"
+
+
+def shell_recipe() -> dict[str, Any]:
+    """A drafted recipe for a made-up "shell" stack whose checks run anywhere."""
+    return {
+        "bootstrap": [],
+        "commands": {
+            "setup": "true",
+            "test": "sh tests/setup.sh",
+            "lint": "",
+            "format": "",
+            "format_check": "",
+            "typecheck": "",
+            "format_file": "",
+            "lint_file": "",
+        },
+        "lockfiles": [],
+        "manifests": ["tool.cfg"],
+        "source_globs": ["**/*.sh"],
+        "test_globs": ["tests/**"],
+        "exclude_globs": ["**/.*/**"],
+        "ignores": ["out/"],
+        "allow": ["Bash(sh:*)"],
+        "why": {},
+        "ci": {"steps": [], "env": {}},
+        "dependabot": "",
+        "templates": {
+            "tool.cfg": "name = $slug-$name\n",
+            "tests/setup.sh": "test 1 -eq 1\n",
+        },
+    }
