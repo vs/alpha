@@ -3,7 +3,7 @@
 from string import Template
 from typing import Any, cast
 
-from alpha.recipes import check_commands, load_recipe
+from alpha.recipes import RecipeBook, check_commands
 from alpha.yaml_write import dumps
 
 WORKFLOW = ".github/workflows/ci.yml"
@@ -24,8 +24,8 @@ def _expand(value: object, folder: str) -> object:
     return value
 
 
-def _job(component: dict[str, Any]) -> dict[str, object]:
-    recipe = load_recipe(component["stack"])
+def _job(component: dict[str, Any], book: RecipeBook) -> dict[str, object]:
+    recipe = book.get(component["stack"])
     path = component["path"]
     folder = "" if path == "." else f"{path}/"
     job: dict[str, object] = {
@@ -44,33 +44,42 @@ def _job(component: dict[str, Any]) -> dict[str, object]:
     return job
 
 
-def render_ci(principles: dict[str, Any], ci: str) -> dict[str, str]:
+def render_ci(
+    principles: dict[str, Any], ci: str, book: RecipeBook | None = None
+) -> dict[str, str]:
     """The workflow file for the chosen CI provider; nothing for "none"."""
     if ci == "none":
         return {}
+    recipes = book or RecipeBook()
     workflow = {
         "name": "CI",
         "on": {"push": {"branches": ["main"]}, "pull_request": {}},
         "permissions": {"contents": "read"},
-        "jobs": {c["name"]: _job(c) for c in principles["components"]},
+        "jobs": {c["name"]: _job(c, recipes) for c in principles["components"]},
     }
     return {WORKFLOW: _HEADER + dumps(workflow)}
 
 
 def render_dependabot(
-    principles: dict[str, Any], updates: str, schedule: str, ci: str
+    principles: dict[str, Any],
+    updates: str,
+    schedule: str,
+    ci: str,
+    book: RecipeBook | None = None,
 ) -> dict[str, str]:
     """Dependabot updates per component, and for the CI actions; nothing if manual."""
     if updates != "dependabot":
         return {}
     interval = {"interval": schedule}
+    book = book or RecipeBook()
     entries: list[object] = [
         {
-            "package-ecosystem": load_recipe(c["stack"]).dependabot,
+            "package-ecosystem": ecosystem,
             "directory": "/" if c["path"] == "." else f"/{c['path']}",
             "schedule": interval,
         }
         for c in principles["components"]
+        if (ecosystem := book.get(c["stack"]).dependabot)  # "": no updates
     ]
     if ci == "github-actions":
         entries.append(

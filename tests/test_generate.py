@@ -7,7 +7,16 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from helpers import TODAY, git, override_record, place_answers
+import yaml
+from helpers import (
+    SCENARIOS,
+    TODAY,
+    git,
+    override_record,
+    place_answers,
+    shell_recipe,
+    single_component,
+)
 
 from alpha import VERSION
 from alpha.answers import AnswersError
@@ -313,7 +322,7 @@ def test_bootstrap_failure_names_command_output_and_fix(
     assert "exit 3" in message
     assert "pnpm output" in message
     assert message.endswith(
-        "Fix the toolchain (is uv/pnpm installed?) and rerun "
+        "Fix the failing step (is the component's toolchain installed?) and rerun "
         f'"alpha bootstrap {project}"'
     )
 
@@ -449,3 +458,35 @@ def test_cli_generate_explains_write_failure(tmp_path: Path):
     finally:
         project.chmod(0o755)
     assert_explained(out, f"Could not write {project / 'docs'}", "permissions")
+
+
+def shell_project(target: Path) -> list[str]:
+    data = json.loads((SCENARIOS / "python-ml-single.json").read_text())
+    single_component(data, dict(data["components"][0], stack="shell"))
+    data["recipes"] = {"shell": shell_recipe()}
+    dest = target / ".claude/alpha/project.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(data))
+    return generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+
+
+def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
+    files = shell_project(tmp_path)
+    assert "tool.cfg" in files and "tests/setup.sh" in files
+    assert (tmp_path / "tool.cfg").read_text() == "name = leaf-lens-ml\n"
+    ci = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
+    runs = [s.get("run") for s in ci["jobs"]["ml"]["steps"] if "run" in s]
+    assert runs == ["true", "sh tests/setup.sh"]
+    deps = yaml.safe_load((tmp_path / ".github/dependabot.yml").read_text())
+    assert [u["package-ecosystem"] for u in deps["updates"]] == ["github-actions"]
+    settings = json.loads((tmp_path / ".claude/settings.json").read_text())
+    assert "Bash(sh:*)" in settings["permissions"]["allow"]
+    assert "out/" in (tmp_path / ".gitignore").read_text().splitlines()
+    architecture = (tmp_path / "docs/architecture.md").read_text()
+    assert "(less proven: recipe drafted for this project)" in architecture
+
+
+def test_bootstrap_runs_a_drafted_recipe(tmp_path: Path):
+    shell_project(tmp_path)
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)  # true, then sh tests/setup.sh

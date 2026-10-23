@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from alpha.recipes import load_recipe
+from alpha.recipes import RecipeBook
 
 _GIT_ALLOW = [
     "Bash(git status:*)",
@@ -41,11 +41,13 @@ def _entry(hook: dict[str, Any], matcher: str | None = None) -> dict[str, Any]:
     return entry
 
 
-def render_settings(principles: dict[str, Any]) -> dict[str, Any]:
+def render_settings(
+    principles: dict[str, Any], book: RecipeBook | None = None
+) -> dict[str, Any]:
     stacks = {c["stack"] for c in principles["components"]}
     allow = set(_GIT_ALLOW)
     for stack in stacks:
-        allow.update(load_recipe(stack).allow)
+        allow.update((book or RecipeBook()).get(stack).allow)
     return {
         "permissions": {"allow": sorted(allow), "deny": list(_DENY)},
         "hooks": {

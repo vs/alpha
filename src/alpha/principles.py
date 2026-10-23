@@ -6,7 +6,6 @@ from pathlib import PurePosixPath
 from typing import Any, cast
 
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
-from alpha.recipes import load_recipe
 from alpha.toml_write import dumps
 
 _UI_KINDS = frozenset({"frontend", "mobile"})
@@ -142,8 +141,9 @@ def build_principles(
 
     components: list[dict[str, Any]] = []
     protected = list(defaults["protected"]["paths"])
+    book = a.book()
     for c in a.components:
-        recipe = load_recipe(c.stack)
+        recipe = book.get(c.stack)
         protected += [_prefixed(c.path, lock) for lock in recipe.lockfiles]
         components.append(
             {

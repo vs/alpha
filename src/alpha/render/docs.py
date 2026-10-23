@@ -8,7 +8,7 @@ from typing import Any
 
 from alpha.answers import Answers, Component, Documentation, Identity
 from alpha.principles import override_decision_paths
-from alpha.recipes import check_commands, load_recipe
+from alpha.recipes import check_commands
 from alpha.render import area_docs
 from alpha.render.ci import WORKFLOW
 
@@ -345,13 +345,15 @@ def _architecture(a: Answers) -> str:
         else "Components do not communicate with each other."
     )
     lines += ["", talk, "", "## Tool choices", ""]
+    book = a.book()
     for stack in dict.fromkeys(c.stack for c in a.components):
-        recipe = load_recipe(stack)
-        tools = ", ".join(recipe.why)
-        lines += [
-            f"- {stack}: {tools}. Commands: "
-            + ", ".join(f"`{recipe.commands[s]}`" for s in _STEPS)
-        ]
+        recipe = book.get(stack)
+        tools = ", ".join(recipe.why) or "the stack's own toolchain"
+        commands = [recipe.commands[s] for s in _STEPS if recipe.commands[s]]
+        line = f"- {stack}: {tools}. Commands: " + ", ".join(f"`{c}`" for c in commands)
+        if not recipe.proven:
+            line += " (less proven: recipe drafted for this project)"
+        lines.append(line)
     lines += ["", *area_docs.architecture_sections(a)]
     return "\n".join(lines) + "\n"
 
@@ -371,7 +373,7 @@ def _dependencies(a: Answers, today: date) -> str:
     for c in a.components:
         lines += [
             f"| {tool} | {c.name} | {why} | {today.isoformat()} |"
-            for tool, why in load_recipe(c.stack).why.items()
+            for tool, why in a.book().get(c.stack).why.items()
         ]
     return "\n".join(lines) + "\n"
 

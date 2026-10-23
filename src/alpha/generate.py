@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha import VERSION
-from alpha.answers import PROJECT_JSON, load_answers
+from alpha.answers import PROJECT_JSON, drafted_recipes, load_answers
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
-from alpha.recipes import check_commands, load_recipe, render_component
+from alpha.recipes import RecipeBook, check_commands, render_component
 from alpha.render.ci import render_ci, render_dependabot
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
@@ -47,7 +47,7 @@ def _unexpected(target: Path) -> list[str]:
     return sorted(found)
 
 
-def _gitignore(principles: dict[str, Any]) -> str:
+def _gitignore(principles: dict[str, Any], book: RecipeBook) -> str:
     # Hooks run with python3, which leaves bytecode next to them.
     lines = [
         ".claude/alpha/state/",
@@ -62,7 +62,7 @@ def _gitignore(principles: dict[str, Any]) -> str:
         "!.env.example",
     ]
     for c in principles["components"]:
-        for entry in load_recipe(c["stack"]).ignores:
+        for entry in book.get(c["stack"]).ignores:
             # "**/" keeps the any-depth match the unprefixed pattern has.
             lines.append(entry if c["path"] == "." else f"{c['path']}/**/{entry}")
     return "\n".join(lines) + "\n"
@@ -129,23 +129,30 @@ def generate(
     answers_path = target / PROJECT_JSON
     a = load_answers(answers_path)
     principles = build_principles(load_defaults(source), a, VERSION)
+    book = a.book()
 
     # Render everything before writing anything, so a failure leaves no debris.
     texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
     today = today or date.today()
     texts.update(render_docs(a, principles, year, today, root=target))
     for c in a.components:
-        texts.update(render_component(c, principles["project"]["slug"]))
+        texts.update(
+            render_component(c, principles["project"]["slug"], book.get(c.stack))
+        )
     texts[".claude/settings.json"] = (
-        json.dumps(render_settings(principles), indent=2) + "\n"
+        json.dumps(render_settings(principles, book), indent=2) + "\n"
     )
-    texts[".gitignore"] = _gitignore(principles)
+    texts[".gitignore"] = _gitignore(principles, book)
     assert a.build is not None  # build_principles refuses answers without it
-    texts.update(render_ci(principles, a.build.ci))
+    texts.update(render_ci(principles, a.build.ci, book))
     assert a.dependencies is not None
     texts.update(
         render_dependabot(
-            principles, a.dependencies.updates, a.dependencies.schedule, a.build.ci
+            principles,
+            a.dependencies.updates,
+            a.dependencies.schedule,
+            a.build.ci,
+            book,
         )
     )
     copies = _copies(plugin_root)
@@ -213,15 +220,28 @@ def load_project_principles(target: Path) -> dict[str, Any]:
         ) from None
 
 
+def project_book(target: Path) -> RecipeBook:
+    """The kit's recipes plus any the project's interview drafted."""
+    try:
+        data = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return RecipeBook()
+    if not isinstance(data, dict):
+        return RecipeBook()
+    raw: object = cast(dict[str, Any], data).get("recipes", {})
+    return RecipeBook(drafted_recipes(raw))
+
+
 def bootstrap(target: Path, principles: dict[str, Any]) -> None:
     """Per component: install the toolchain, then run every check CI runs.
 
     Then rehash the manifest, so it matches the files commit-skeleton commits.
     """
     fix = (
-        "Fix the toolchain (is uv/pnpm installed?) and rerun "
+        "Fix the failing step (is the component's toolchain installed?) and rerun "
         f'"alpha bootstrap {target}"'
     )
+    book = project_book(target)
     for c in principles["components"]:
         cwd = target / c["path"]
         if not cwd.is_dir():
@@ -233,7 +253,7 @@ def bootstrap(target: Path, principles: dict[str, Any]) -> None:
         if missing:
             raise KeyError(missing[0])  # explained as a damaged principles file
         commands = [
-            *load_recipe(c["stack"]).bootstrap,
+            *book.get(c["stack"]).bootstrap,
             *(command for _, command in check_commands(c["commands"])),
         ]
         for command in commands:

@@ -233,7 +233,7 @@ class Answers:
         return RecipeBook(self.recipes)
 
 
-def _drafted_recipes(raw: object) -> dict[str, Recipe]:
+def drafted_recipes(raw: object) -> dict[str, Recipe]:
     kit = set(RecipeBook().kit_stacks())
     drafted: dict[str, Recipe] = {}
     for stack, data in obj(raw, "recipes").items():
@@ -626,7 +626,7 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     def active(area: str) -> bool:
         return area in require_areas or areas[area] == "done"
 
-    drafted = _drafted_recipes(top.get("recipes", {}))
+    drafted = drafted_recipes(top.get("recipes", {}))
     base = _project_root(path)
     identity = _identity(get(top, "identity", ""), base) if active("identity") else None
     layout: str | None = None
