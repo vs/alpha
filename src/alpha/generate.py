@@ -135,10 +135,10 @@ def generate(
     texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
     today = today or date.today()
     texts.update(render_docs(a, principles, year, today, root=target))
+    component_files: dict[str, tuple[str, str]] = {}  # path -> (text, stack)
     for c in a.components:
-        texts.update(
-            render_component(c, principles["project"]["slug"], book.get(c.stack))
-        )
+        rendered = render_component(c, principles["project"]["slug"], book.get(c.stack))
+        component_files.update({rel: (text, c.stack) for rel, text in rendered.items()})
     texts[".claude/settings.json"] = (
         json.dumps(render_settings(principles, book), indent=2) + "\n"
     )
@@ -156,6 +156,14 @@ def generate(
         )
     )
     copies = _copies(plugin_root)
+    for rel, (text, stack) in component_files.items():
+        if rel in texts or rel in copies:
+            raise GenerateError(
+                f"The {stack} recipe's template {rel} collides with a file alpha "
+                "generates. Remove that template from the recipe (alpha writes the "
+                "file itself), then retry."
+            )
+        texts[rel] = text
 
     for rel, text in texts.items():
         path = target / rel

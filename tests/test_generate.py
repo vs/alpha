@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tomllib
@@ -491,3 +492,20 @@ def test_bootstrap_runs_a_drafted_recipe(tmp_path: Path):
     shell_project(tmp_path)
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
     bootstrap(tmp_path, principles)  # true, then sh tests/setup.sh
+
+
+@pytest.mark.parametrize(
+    "path", ["CLAUDE.md", "docs/principles.toml", ".gitignore", "README.md"]
+)
+def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: str):
+    data = json.loads((SCENARIOS / "python-ml-single.json").read_text())
+    single_component(data, dict(data["components"][0], stack="shell"))
+    recipe = shell_recipe()
+    recipe["templates"][path] = "hijacked\n"
+    data["recipes"] = {"shell": proven(recipe)}
+    dest = tmp_path / ".claude/alpha/project.json"
+    dest.parent.mkdir(parents=True)
+    dest.write_text(json.dumps(data))
+    with pytest.raises(GenerateError, match=rf"{re.escape(path)}.*alpha generates"):
+        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    assert not (tmp_path / "CLAUDE.md").exists()
