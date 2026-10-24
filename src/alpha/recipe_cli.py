@@ -23,11 +23,17 @@ _NOT_FOUND = 127
 
 
 def list_recipes() -> list[str]:
+    """The kit's stacks; a broken recipe is listed with its problem."""
     book = RecipeBook()
-    return [
-        f"{stack} ({'proven' if book.get(stack).proven else 'drafted in a project'})"
-        for stack in book.kit_stacks()
-    ]
+    lines: list[str] = []
+    for stack in book.kit_stacks():
+        try:
+            proven = book.get(stack).proven
+        except AnswersError as e:
+            lines.append(f"{stack} (broken: {e})")
+            continue
+        lines.append(f"{stack} ({'proven' if proven else 'drafted in a project'})")
+    return lines
 
 
 def _drafted(target: Path) -> dict[str, Any]:

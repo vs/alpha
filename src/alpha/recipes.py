@@ -395,8 +395,14 @@ class RecipeBook:
         for folder in kit_dirs():
             path = folder / f"{stack}.toml"
             if path.is_file():
-                data = tomllib.loads(path.read_text())
-                return recipe_from_data(stack, data, f"recipes/{stack}.toml", folder)
+                try:
+                    data = tomllib.loads(path.read_text())
+                    return recipe_from_data(stack, data, str(path), folder)
+                except (tomllib.TOMLDecodeError, OSError) as e:
+                    raise RecipeError(
+                        f"{path}: can't be read ({e}). Fix it, or remove the "
+                        f"{stack} recipe from {folder}, then retry."
+                    ) from None
         if stack in self.drafted:
             return self.drafted[stack]
         raise RecipeError(

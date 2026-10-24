@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -6,13 +7,13 @@ import pytest
 from helpers import SCENARIOS, TODAY, git, proven, shell_recipe, single_component
 from test_defaults import make_source, reject_commits
 
-from alpha import cli
+from alpha import cli, toml_write
 from alpha.answers import AnswersError
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import DefaultsError, Source, SourceNotLive
 from alpha.generate import generate
 from alpha.recipe_cli import save_recipe
-from alpha.recipes import RecipeBook, recipe_hash
+from alpha.recipes import RecipeBook, RecipeError, recipe_hash
 
 
 def project(tmp_path: Path, recipe: dict[str, Any] | None = None) -> Path:
@@ -187,3 +188,36 @@ def test_cli_save_exit_codes(
     target = drafted_project(tmp_path / "p", proven(shell_recipe()))
     assert cli.main(["recipe", "save", str(target), "shell"]) == 4
     assert "Cannot save a recipe to the kit" in capsys.readouterr().err
+
+
+def broken_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    src = make_source(tmp_path / "src")
+    folder = src.path / "recipes"
+    folder.mkdir()
+    (folder / "bad.toml").write_text("x = [\n")
+    gone = {k: v for k, v in shell_recipe().items() if k != "templates"}
+    gone["files"] = {"tests/setup.sh": "setup.sh.tmpl"}  # no such file
+    (folder / "gone.toml").write_text(toml_write.dumps(gone))
+    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
+    return folder
+
+
+def test_a_broken_kit_recipe_is_named_with_its_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    folder = broken_source(tmp_path, monkeypatch)
+    with pytest.raises(RecipeError, match=rf"{re.escape(str(folder))}/bad.toml"):
+        RecipeBook().get("bad")
+    with pytest.raises(RecipeError, match=r"gone\.toml.*setup\.sh\.tmpl"):
+        RecipeBook().get("gone")
+
+
+def test_list_keeps_going_past_a_broken_recipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    broken_source(tmp_path, monkeypatch)
+    assert cli.main(["recipe", "list"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert "python (proven)" in lines
+    assert any(line.startswith("bad (broken: ") for line in lines)
+    assert any(line.startswith("gone (broken: ") for line in lines)
