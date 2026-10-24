@@ -233,7 +233,11 @@ class Answers:
         return RecipeBook(self.recipes)
 
 
-def drafted_recipes(raw: object, require_proven: bool = False) -> dict[str, Recipe]:
+def drafted_recipes(
+    raw: object, require_proven: bool = False, generated: bool = False
+) -> dict[str, Recipe]:
+    """The interview's drafted recipes. Once the project is generated, one the
+    kit has since gained (saved from this project) is left to the kit's copy."""
     kit = set(RecipeBook().kit_stacks())
     drafted: dict[str, Recipe] = {}
     for stack, data in obj(raw, "recipes").items():
@@ -244,6 +248,8 @@ def drafted_recipes(raw: object, require_proven: bool = False) -> dict[str, Reci
                 f"{stack!r} isn't a valid stack name",
                 "Use lowercase letters, digits and hyphens, e.g. rust",
             )
+        if stack in kit and generated:
+            continue
         if stack in kit:
             raise fail(
                 where,
@@ -640,7 +646,9 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         return area in require_areas or areas[area] == "done"
 
     drafted = drafted_recipes(
-        top.get("recipes", {}), require_proven=active("components")
+        top.get("recipes", {}),
+        require_proven=active("components"),
+        generated="manifest" in top,
     )
     base = _project_root(path)
     identity = _identity(get(top, "identity", ""), base) if active("identity") else None

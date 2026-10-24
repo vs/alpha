@@ -8,10 +8,10 @@ from helpers import SCENARIOS, TODAY, git, proven, shell_recipe, single_componen
 from test_defaults import make_source, reject_commits
 
 from alpha import cli, toml_write
-from alpha.answers import AnswersError
+from alpha.answers import AnswersError, load_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import DefaultsError, Source, SourceNotLive
-from alpha.generate import generate
+from alpha.generate import generate, project_book
 from alpha.recipe_cli import save_recipe
 from alpha.recipes import RecipeBook, RecipeError, recipe_hash
 
@@ -221,3 +221,17 @@ def test_list_keeps_going_past_a_broken_recipe(
     assert "python (proven)" in lines
     assert any(line.startswith("bad (broken: ") for line in lines)
     assert any(line.startswith("gone (broken: ") for line in lines)
+
+
+def test_saving_a_recipe_keeps_its_project_working(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    src = make_source(tmp_path / "src", repo=True)
+    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
+    target = tmp_path / "proj"
+    scenario_with_shell(target, proven(shell_recipe()))
+    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    save_recipe(target, "shell", src, [])
+    answers = load_answers(target / ".claude/alpha/project.json")
+    assert answers.book().get("shell").proven is False
+    assert project_book(target).get("shell").templates == shell_recipe()["templates"]

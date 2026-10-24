@@ -237,7 +237,7 @@ def project_book(target: Path) -> RecipeBook:
     if not isinstance(data, dict):
         return RecipeBook()
     raw: object = cast(dict[str, Any], data).get("recipes", {})
-    return RecipeBook(drafted_recipes(raw))
+    return RecipeBook(drafted_recipes(raw, generated=True))
 
 
 def bootstrap(target: Path, principles: dict[str, Any]) -> None:
