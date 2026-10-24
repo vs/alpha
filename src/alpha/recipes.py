@@ -60,6 +60,69 @@ class RecipeError(AnswersError):
 
 
 COMMAND_KEYS = (*CHECK_STEPS, "format", "format_file", "lint_file")
+_RECIPE_KEYS = frozenset(
+    {
+        "stack",
+        "proven",
+        "proven_hash",
+        "bootstrap",
+        "commands",
+        "lockfiles",
+        "manifests",
+        "source_globs",
+        "test_globs",
+        "exclude_globs",
+        "ignores",
+        "allow",
+        "why",
+        "ci",
+        "dependabot",
+        "templates",
+        "files",
+    }
+)
+_STEP_KEYS = frozenset({"uses", "with", "name", "id", "env"})
+# Dependabot's package-ecosystem values (its config schema, 2026-10).
+DEPENDABOT_ECOSYSTEMS = frozenset(
+    {
+        "bazel",
+        "bun",
+        "bundler",
+        "cargo",
+        "composer",
+        "conda",
+        "deno",
+        "devcontainers",
+        "docker",
+        "docker-compose",
+        "dotnet-sdk",
+        "elm",
+        "github-actions",
+        "gitsubmodule",
+        "gomod",
+        "gradle",
+        "helm",
+        "julia",
+        "maven",
+        "mix",
+        "nix",
+        "npm",
+        "nuget",
+        "opentofu",
+        "pip",
+        "pre-commit",
+        "pub",
+        "rust-toolchain",
+        "sbt",
+        "swift",
+        "terraform",
+        "uv",
+        "vcpkg",
+    }
+)
+# Template paths a recipe may not write: git's and alpha's own folders.
+_RESERVED = (".git", ".claude", ".github")
+_ALLOW = re.compile(r"Bash\(([A-Za-z0-9_.-]+)((?: [A-Za-z0-9_.=/-]+)*):\*\)")
 _ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@(v\d+(\.\d+){0,2}|[0-9a-f]{40})")
 _TEMPLATE_VALUE = re.compile(r"(?<!\$)\$(?:\{(name|slug)\}|(name|slug)\b)")
 
@@ -102,6 +165,37 @@ def _texts(value: object, where: str, *, globs: bool = False) -> list[str]:
     return out
 
 
+def _plain(value: object) -> bool:
+    """Text, whole numbers, true/false, and lists or objects of them."""
+    if isinstance(value, bool | int | str):
+        return not isinstance(value, float)
+    if isinstance(value, list):
+        return all(_plain(v) for v in cast("list[object]", value))
+    if isinstance(value, dict):
+        items = cast("dict[object, object]", value).items()
+        return all(isinstance(k, str) and _plain(v) for k, v in items)
+    return False
+
+
+def _unknown(
+    keys: object, allowed: frozenset[str] | tuple[str, ...], where: str
+) -> None:
+    extra = sorted(
+        str(k) for k in cast("dict[object, object]", keys) if k not in allowed
+    )
+    if extra:
+        raise _fail(
+            where,
+            f"unknown {'key' if len(extra) == 1 else 'keys'} {', '.join(extra)}",
+            f"Use only: {', '.join(sorted(allowed))}",
+        )
+
+
+def _first_word(command: str) -> str:
+    words = [w for w in command.split() if "=" not in w]  # skip VAR=value
+    return words[0] if words else ""
+
+
 def _mapping(value: object, where: str) -> dict[str, str]:
     if not isinstance(value, dict):
         raise _fail(where, "must be an object of text values", 'Write e.g. {"a": "b"}')
@@ -120,6 +214,8 @@ def recipe_from_data(
     drafted recipes give `templates` inline.
     """
 
+    _unknown(data, _RECIPE_KEYS, where)
+
     def get(key: str) -> object:
         if key not in data:
             raise _fail(f"{where}.{key}", "is missing", f'Add "{key}"')
@@ -132,6 +228,7 @@ def recipe_from_data(
             f"{where}.commands", "must be an object", "List each step's command"
         )
     commands_in = cast("dict[str, object]", raw)
+    _unknown(commands_in, COMMAND_KEYS, f"{where}.commands")
     commands: dict[str, str] = {}
     for key in COMMAND_KEYS:
         here = f"{where}.commands.{key}"
@@ -166,6 +263,7 @@ def recipe_from_data(
             f"{where}.ci", "must be an object", 'Write {"steps": [], "env": {}}'
         )
     ci_data = cast("dict[str, object]", ci_raw)
+    _unknown(ci_data, ("steps", "env"), f"{where}.ci")
     steps_raw = ci_data.get("steps", [])
     if not isinstance(steps_raw, list):
         raise _fail(f"{where}.ci.steps", "must be a list", "List GitHub Actions steps")
@@ -175,6 +273,14 @@ def recipe_from_data(
         if not isinstance(step, dict):
             raise _fail(here, "must be an object", 'Write {"uses": "owner/repo@v1"}')
         step_data = cast("dict[str, Any]", step)
+        # Setup steps install a toolchain; the checks come from the commands.
+        _unknown(step_data, _STEP_KEYS, here)
+        if not _plain(step_data):
+            raise _fail(
+                here,
+                "has a value that isn't text, a whole number or true/false",
+                "Write every value as text (quote numbers like versions)",
+            )
         uses = step_data.get("uses")
         if not isinstance(uses, str) or not _ACTION.fullmatch(uses):
             raise _fail(
@@ -188,6 +294,12 @@ def recipe_from_data(
     dependabot = get("dependabot")
     if not isinstance(dependabot, str):
         raise _fail(f"{where}.dependabot", "must be text", 'Name the ecosystem, or ""')
+    if dependabot and dependabot not in DEPENDABOT_ECOSYSTEMS:
+        raise _fail(
+            f"{where}.dependabot",
+            f"{dependabot!r} isn't a Dependabot ecosystem",
+            f'Use one of: {", ".join(sorted(DEPENDABOT_ECOSYSTEMS))}, or ""',
+        )
     proven = data.get("proven", False)
     if not isinstance(proven, bool):
         raise _fail(f"{where}.proven", "must be true or false", "Use true or false")
@@ -210,12 +322,31 @@ def recipe_from_data(
                 f"{rel!r} isn't a path inside the component",
                 'Use relative paths like "tests/setup.sh"',
             )
+        if rel.split("/")[0] in _RESERVED:
+            raise _fail(
+                f"{where}.templates",
+                f"{rel!r} is inside {rel.split('/')[0]}/, which belongs to git, "
+                "alpha or its CI",
+                "Leave it out; alpha writes those files itself",
+            )
     if not any(matches(rel, lists["test_globs"]) for rel in templates):
         raise _fail(
             f"{where}.templates",
             "has no setup test (no template matches test_globs)",
             "Add a test that checks the toolchain itself, e.g. tests/setup.<ext>",
         )
+    tools = {_first_word(c) for c in [*bootstrap, *commands.values()] if c}
+    for i, rule in enumerate(lists["allow"]):
+        found = _ALLOW.fullmatch(rule)
+        if found is None or found.group(1) not in tools:
+            raise _fail(
+                f"{where}.allow[{i}]",
+                f"{rule!r} isn't a narrow rule for one of the recipe's own tools",
+                f"Write Bash(<tool> <args>:*) for a tool its commands use "
+                f"({', '.join(sorted(tools))}), e.g. Bash({sorted(tools)[0]} test:*)"
+                if tools
+                else "Remove it",
+            )
     return Recipe(
         stack=stack,
         bootstrap=bootstrap,

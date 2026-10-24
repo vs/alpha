@@ -251,6 +251,12 @@ def drafted_recipes(raw: object, require_proven: bool = False) -> dict[str, Reci
                 "Remove this one; the kit's recipe is used",
             )
         fields = obj(data, where)
+        if "proven" in fields:
+            raise fail(
+                f"{where}.proven",
+                "is set, but a drafted recipe is always less proven than the kit's",
+                'Remove "proven"; alpha marks drafted recipes itself',
+            )
         drafted[stack] = recipe_from_data(stack, fields, where, None)
         if require_proven and fields.get("proven_hash") != recipe_hash(fields):
             raise fail(

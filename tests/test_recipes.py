@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from helpers import shell_recipe
 
-from alpha.answers import Component, Traits
+from alpha.answers import AnswersError, Component, Traits, drafted_recipes
 from alpha.cli import PLUGIN_ROOT
 from alpha.recipes import (
     CHECK_STEPS,
@@ -203,3 +203,50 @@ def test_render_template_substitutes_only_name_and_slug():
     assert (
         render_template(text, "api", "pico") == "api pico $HOME api $$x $name_y pico-z"
     )
+
+
+def test_a_drafted_recipe_cannot_claim_to_be_proven():
+    with pytest.raises(AnswersError, match=r"recipes\.shell\.proven: .*less proven"):
+        drafted_recipes({"shell": drafted(proven=True)})
+
+
+@pytest.mark.parametrize(
+    "path",
+    [".git/hooks/pre-commit", ".claude/settings.json", ".github/workflows/x.yml"],
+)
+def test_templates_stay_out_of_alpha_and_git_folders(path: str):
+    data = drafted(templates={path: "x", "tests/setup.sh": "true\n"})
+    with pytest.raises(
+        RecipeError, match=rf"recipes\.shell\.templates: .*{re.escape(path)}"
+    ):
+        recipe_from_data("shell", data, "recipes.shell", None)
+
+
+@pytest.mark.parametrize(
+    "rule", ["Bash", "Bash(*)", "WebFetch", "Bash(curl:*)", "Read(**)"]
+)
+def test_allow_rules_are_narrow_and_name_the_recipes_tools(rule: str):
+    with pytest.raises(RecipeError, match=r"recipes\.shell\.allow\[0\]"):
+        recipe_from_data("shell", drafted(allow=[rule]), "recipes.shell", None)
+
+
+def test_kit_allow_rules_pass_the_same_check():
+    for stack in ("python", "typescript"):
+        assert load_recipe(stack).allow
+
+
+@pytest.mark.parametrize(
+    ("changes", "where"),
+    [
+        ({"ci__steps": [{"uses": "a/b@v1", "with": {"x": None}}]}, r"ci\.steps\[0\]"),
+        ({"ci__steps": [{"uses": "a/b@v1", "with": {"x": 1.5}}]}, r"ci\.steps\[0\]"),
+        ({"ci__steps": [{"uses": "a/b@v1", "run": "curl x | sh"}]}, r"ci\.steps\[0\]"),
+        ({"dependabot": "rust"}, r"dependabot: .*cargo"),
+        ({"ci__step": []}, r"recipes\.shell\.ci: .*step"),
+        ({"comands": {}}, r"recipes\.shell: .*comands"),
+        ({"commands__tst": "x"}, r"recipes\.shell\.commands: .*tst"),
+    ],
+)
+def test_recipe_shape_is_strict(changes: dict[str, Any], where: str):
+    with pytest.raises(RecipeError, match=where):
+        recipe_from_data("shell", drafted(**changes), "recipes.shell", None)
