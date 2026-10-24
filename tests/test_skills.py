@@ -425,3 +425,19 @@ def test_new_project_offers_to_save_drafted_recipes():
     assert f"{CLI} recipe save <target> <stack>" in text
     assert "Save the <stack> recipe to the kit for future projects?" in text
     assert "less proven" in _section("new-project", "7. Final report")
+
+
+def test_stack_recipe_skill_covers_what_trips_typical_stacks():
+    text = _text("stack-recipe")
+    for fact in (
+        "CI runs `setup` and the checks, never `bootstrap`",
+        "must not create source files",
+        "binary files",
+        "test convention",
+        "`$name` and `$slug` are always replaced",
+        "Leave out `proven`",
+        "no `run` steps",
+        "Bash(<tool> <args>:*)",
+        "show the user what changed",
+    ):
+        assert fact in text, fact

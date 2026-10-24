@@ -277,3 +277,16 @@ def test_a_failed_save_keeps_other_staged_changes(tmp_path: Path):
     staged = git(src.path, "diff", "--cached", "--name-only").splitlines()
     assert staged == ["recipes/other.txt"]
     assert not (src.path / "recipes" / "shell").exists()
+
+
+def test_try_fails_when_commands_create_source_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    recipe = shell_recipe()
+    recipe["commands"]["setup"] = "mkdir -p src && touch src/app.sh"
+    target = project(tmp_path, recipe)
+    assert cli.main(["recipe", "try", str(target), "shell"]) == 1
+    err = capsys.readouterr().err
+    assert "created source files (src/app.sh)" in err
+    assert "no app code" in err
+    assert "proven_hash" not in recipes_of(target)["shell"]

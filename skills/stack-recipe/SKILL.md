@@ -26,11 +26,13 @@ One JSON object, saved under `recipes.<stack>` in project.json. Paths and globs 
 - `manifests`, `lockfiles` - e.g. `["Cargo.toml"]`, `["Cargo.lock"]`.
 - `source_globs`, `test_globs`, `exclude_globs` - which files are code, which are tests, which are build output or vendored.
 - `ignores` - `.gitignore` entries (e.g. `"target/"`).
-- `allow` - Claude Code permission rules for the stack's commands (e.g. `"Bash(cargo test:*)"`).
+- `allow` - Claude Code permission rules for the stack's commands, each `Bash(<tool> <args>:*)` for a tool the recipe's own commands use (e.g. `"Bash(cargo test:*)"`); nothing broader.
 - `why` - dev tool → reason, for the dependency log (`{}` when none are added).
-- `templates` - file path → content: the manifest with strict settings, and **one setup test that checks the toolchain itself** (it must match `test_globs`). No source files and no app code. `$name` is the component, `$slug` the project; any other `$` stays as written.
-- `ci` - `{"steps": [...], "env": {...}}`: GitHub Actions steps that install the toolchain, each `uses` pinned to a release tag or commit SHA; `${dir}` in a value is the component's folder plus `/`.
-- `dependabot` - the Dependabot ecosystem name, or `""` if it has none.
+- `templates` - file path → content: the manifest with strict settings, and **one setup test that checks the toolchain itself** (it must match `test_globs`). No source files and no app code. `$name` and `$slug` are always replaced (the component and the project), with no escape, so don't name a shell variable that; any other `$` stays as written. Templates are text only: binary files (a Gradle wrapper jar, say) must come from `bootstrap`. Nothing under `.git/`, `.claude/` or `.github/`, and no file alpha writes itself (`CLAUDE.md`, `README.md`, `.gitignore`, `docs/`).
+- `ci` - `{"steps": [...], "env": {...}}`: GitHub Actions steps that install the toolchain, each with a `uses` pinned to a release tag or commit SHA, and no `run` steps; `${dir}` in a value is the component's folder plus `/`. CI runs `setup` and the checks, never `bootstrap`, so a tool `bootstrap` installs globally (a linter, say) must instead be a project dependency, come from a CI step, or ship with the toolchain.
+- `dependabot` - the Dependabot ecosystem name (e.g. `cargo`, `gomod`, `gradle`, `nuget`, `swift`), or `""` if it has none.
+
+Leave out `proven`: a drafted recipe is always less proven, and alpha marks it so.
 
 ## Steps
 
@@ -43,11 +45,13 @@ One JSON object, saved under `recipes.<stack>` in project.json. Paths and globs 
 
    If the toolchain isn't installed, tell the user how to install it and wait.
 2. **Draft** the whole recipe. Use the strictest settings the stack offers (warnings as errors, strict type checks). The setup test asserts the toolchain works, e.g. that a trivial expression compiles and runs.
+   - `bootstrap` and `setup` must not create source files: no `cargo init`, `go mod init` with a main file, `dotnet new`, `swift package init` or `gradle init` that writes code. Write the manifest as a template instead. `recipe try` fails when the commands create a file matching `source_globs`.
+   - `test_globs` must follow the stack's test convention (e.g. `**/*_test.go`, `src/test/**`): the Stop hook asks for a test change whenever a source file changes, and only files matching `test_globs` count.
 3. **Show it** to the user in plain words: what each check runs, which files the skeleton gets, what CI installs, and that it's less proven than the kit's own recipes. Ask: "Use this recipe?" Change it until they agree.
 4. **Save** it, sending `recipes` whole (keep any other drafted recipe), on one line in single quotes (write each `'` inside it as `'\''`, and newlines in templates as `\n`):
    `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"recipes": {"<stack>": {…}}}'`
 5. **Check** it: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe check <target> <stack>` prints `ok`, or the field to fix. Fix, save, check again.
-6. **Try** it: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <stack>` writes the skeleton files in a scratch folder and runs the bootstrap and every check. It prints `ok: <stack> recipe proven`, or the failing command with its output. Fix the recipe (ask the user when the fix is a choice, e.g. dropping a check), save, and try again until it's proven. Any later edit needs another try; generating refuses a recipe that wasn't proven in its current form.
+6. **Try** it: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <stack>` writes the skeleton files in a scratch folder and runs the bootstrap and every check. It prints `ok: <stack> recipe proven`, or the failing command with its output. Fix the recipe, then show the user what changed (a new or changed command, especially one that downloads or installs something) and wait for their yes before trying again; ask too when the fix is a choice, e.g. dropping a check. Save and try again until it's proven. Any later edit needs another try; generating refuses a recipe that wasn't proven in its current form.
 
 ## Done
 

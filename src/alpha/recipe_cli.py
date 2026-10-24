@@ -12,8 +12,10 @@ from alpha import toml_write
 from alpha.answers import PROJECT_JSON, AnswersError, drafted_recipes, write_answers
 from alpha.defaults import DefaultsError, Source, SourceNotLive
 from alpha.recipes import (
+    Recipe,
     RecipeBook,
     check_commands,
+    matches,
     recipe_hash,
     render_template,
 )
@@ -76,6 +78,22 @@ def _run(command: str, cwd: Path) -> tuple[int, str]:
     return done.returncode, done.stdout
 
 
+def _created_sources(root: Path, recipe: Recipe) -> list[str]:
+    """Code files in the scratch folder that no template wrote."""
+    found: list[str] = []
+    for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root).as_posix()
+        if (
+            path.is_file()
+            and rel not in recipe.templates
+            and matches(rel, recipe.source_globs)
+            and not matches(rel, recipe.test_globs)
+            and not matches(rel, recipe.exclude_globs)
+        ):
+            found.append(rel)
+    return found
+
+
 def try_recipe(target: Path, stack: str) -> str | None:
     """Prove the drafted recipe in a scratch folder: write its templates, then
     run its bootstrap and every check step. None on success (the proof is
@@ -106,6 +124,14 @@ def try_recipe(target: Path, stack: str) -> str | None:
                 f'"{command}" failed (exit {code}). Last lines of its output:\n'
                 f"{tail}\n{fix}, save it, and run "
                 f'"alpha recipe try {target} {stack}" again.'
+            )
+        created = _created_sources(root, recipe)
+        if created:
+            return (
+                f"The recipe's commands created source files ({', '.join(created)}). "
+                "The skeleton holds no app code: remove the step that creates them "
+                f'(e.g. an init command), save it, and run "alpha recipe try {target} '
+                f'{stack}" again.'
             )
     drafted = _drafted(target)
     drafted[stack] = {**data, "proven_hash": recipe_hash(data)}
