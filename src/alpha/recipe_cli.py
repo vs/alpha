@@ -161,25 +161,36 @@ def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -
     toml = {"stack": stack, "proven": False, **fields}
     toml["files"] = {rel: _template_name(rel) for rel in templates}
     folder = source.path / "recipes"
-    written = [folder / f"{stack}.toml", folder / stack]
-    created_folder = not folder.exists()
-    try:
-        (folder / stack).mkdir(parents=True)
-        for rel, text in templates.items():
-            (folder / stack / _template_name(rel)).write_text(text)
-        (folder / f"{stack}.toml").write_text(
+    if (folder / stack).exists():
+        raise AnswersError(
+            f"recipes/{stack}/ already exists in the kit source ({folder}). Move it "
+            "away or remove it, then retry."
+        )
+    try:  # render before writing anything, so a failure leaves no files
+        text = (
             "# Drafted in a project interview and proven there; less proven than "
             "the kit's own.\n" + toml_write.dumps(toml)
         )
-        paths = [str(p.relative_to(source.path)) for p in written]
+    except TypeError as e:
+        raise AnswersError(
+            f"recipes.{stack}: can't be written as TOML ({e}). Fix that value in "
+            "the drafted recipe, try it again, then save it."
+        ) from None
+    created_folder = not folder.exists()
+    paths = [f"recipes/{stack}.toml", f"recipes/{stack}"]
+    try:
+        (folder / stack).mkdir(parents=True)
+        for rel, template in templates.items():
+            (folder / stack / _template_name(rel)).write_text(template)
+        (folder / f"{stack}.toml").write_text(text)
         _git(source.path, "add", "--", *paths)
         message = f"feat(recipes): Add {stack} recipe from {slug}"
         if trailers:
             message += "\n\n" + "\n".join(trailers)
         _git(source.path, "commit", "-q", "-m", message, "--", *paths)
-    except (DefaultsError, OSError):
-        subprocess.run(
-            ["git", "-C", str(source.path), "reset", "-q", "--", "recipes"],
+    except Exception:
+        subprocess.run(  # unstage only what this save staged
+            ["git", "-C", str(source.path), "reset", "-q", "--", *paths],
             capture_output=True,
         )
         shutil.rmtree(folder / stack, ignore_errors=True)

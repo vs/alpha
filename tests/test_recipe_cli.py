@@ -235,3 +235,45 @@ def test_saving_a_recipe_keeps_its_project_working(
     answers = load_answers(target / ".claude/alpha/project.json")
     assert answers.book().get("shell").proven is False
     assert project_book(target).get("shell").templates == shell_recipe()["templates"]
+
+
+def test_save_refuses_when_the_template_folder_exists(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    notes = src.path / "recipes" / "shell" / "notes.txt"
+    notes.parent.mkdir(parents=True)
+    notes.write_text("mine\n")
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    with pytest.raises(AnswersError, match=r"recipes/shell/ already exists"):
+        save_recipe(target, "shell", src, [])
+    assert notes.read_text() == "mine\n"
+    assert not (src.path / "recipes" / "shell.toml").exists()
+
+
+def test_save_writes_nothing_when_the_toml_cannot_be_rendered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    src = make_source(tmp_path / "src", repo=True)
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+
+    def fail(_: object) -> str:
+        raise TypeError("cannot write <class 'float'> at ci.steps")
+
+    monkeypatch.setattr(toml_write, "dumps", fail)
+    with pytest.raises(AnswersError, match="can't be written as TOML"):
+        save_recipe(target, "shell", src, [])
+    assert not (src.path / "recipes").exists()
+
+
+def test_a_failed_save_keeps_other_staged_changes(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    other = src.path / "recipes" / "other.txt"
+    other.parent.mkdir(parents=True)
+    other.write_text("staged\n")
+    git(src.path, "add", "recipes/other.txt")
+    reject_commits(src.path)
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    with pytest.raises(DefaultsError):
+        save_recipe(target, "shell", src, [])
+    staged = git(src.path, "diff", "--cached", "--name-only").splitlines()
+    assert staged == ["recipes/other.txt"]
+    assert not (src.path / "recipes" / "shell").exists()

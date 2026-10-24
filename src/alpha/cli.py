@@ -165,6 +165,13 @@ def _recipe(args: argparse.Namespace) -> int:
     except answers.AnswersError as e:
         print(e, file=sys.stderr)
         return 3 if args.recipe_command == "save" else 1
+    except OSError as e:
+        print(
+            f"Could not write {e.filename or 'a file'}: {e.strerror or e}. Check "
+            "permissions and free space, then retry.",
+            file=sys.stderr,
+        )
+        return 3
     if problem:
         print(problem, file=sys.stderr)
         return 1
