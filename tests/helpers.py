@@ -92,7 +92,7 @@ def single_component(
     log = {"log_format": "json", "correlation": "none", "telemetry": "none"}
     deployed = comp["traits"]["deployed"]
     data["observability"]["components"] = [{"name": name, **log}] if deployed else []
-    ui = comp["traits"]["has_ui"]
+    ui = comp["traits"]["has_ui"] or comp["kind"] in ("frontend", "mobile")
     for area in ("ui", "accessibility"):
         if area in data:
             entries = data[area]["components"]

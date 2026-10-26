@@ -64,6 +64,7 @@ AREAS: tuple[str, ...] = (
 KINDS: frozenset[str] = frozenset(
     {"backend", "frontend", "cli", "mobile", "ml", "library", "worker"}
 )
+_UI_KINDS = frozenset({"frontend", "mobile"})
 LICENSES: frozenset[str] = frozenset({"MIT", "Apache-2.0", "Proprietary"})
 EXTERNAL_DOCS: tuple[str, ...] = ("readme", "folder", "elsewhere", "none")
 CI_PROVIDERS: tuple[str, ...] = ("github-actions", "none")
@@ -158,6 +159,11 @@ class Component:
     kind: str
     stack: str
     traits: Traits
+
+    @property
+    def has_ui(self) -> bool:
+        """Frontends and mobile apps always have one, whatever the trait says."""
+        return self.kind in _UI_KINDS or self.traits.has_ui
 
 
 @dataclass(frozen=True)

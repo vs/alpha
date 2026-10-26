@@ -471,3 +471,13 @@ def test_data_and_performance_follow_renames(tmp_path: Path, area: str):
             d[other]["components"][0]["name"] = "server"
     with pytest.raises(AnswersError, match=rf"{area}\.components"):
         check(tmp_path, d)
+
+
+def test_a_frontend_has_a_ui_whatever_its_trait_says(tmp_path: Path):
+    d = valid()
+    d["components"][1]["traits"]["has_ui"] = False
+    a = check(tmp_path, d)
+    assert a.ui and [c.name for c in a.ui.components] == ["web"]
+    d["ui"]["components"] = []
+    with pytest.raises(AnswersError, match=r"ui\.components: no entry .*'web'"):
+        check(tmp_path, d)

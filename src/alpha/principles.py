@@ -8,7 +8,6 @@ from typing import Any, cast
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
 from alpha.toml_write import dumps
 
-_UI_KINDS = frozenset({"frontend", "mobile"})
 _COMPONENT_FACTS = (
     "has_ui",
     "deployed",
@@ -16,11 +15,11 @@ _COMPONENT_FACTS = (
     "persisted_data",
     "ml",
     "nontrivial_logic",
+    "budgets_set",
 )
 _PROJECT_ONLY = (
     "multi_component",
     "communicating_components",
-    "budgets_set",
     "domain_jargon",
 )
 
@@ -33,25 +32,35 @@ _HEADER = """\
 """
 
 
-def component_facts(c: Component) -> dict[str, bool]:
+def _budgets(a: Answers) -> dict[str, list[str]]:
+    """Each component's budgets, as "<metric> < <limit> (<measured by>)"."""
+    plans = a.performance.components if a.performance else ()
+    return {
+        p.name: [f"{b.metric} < {b.limit} ({b.measured_by})" for b in p.budgets]
+        for p in plans
+        if p.budgets
+    }
+
+
+def component_facts(c: Component, a: Answers) -> dict[str, bool]:
     t = c.traits
     return {
-        "has_ui": c.kind in _UI_KINDS or t.has_ui,
+        "has_ui": c.has_ui,
         "deployed": t.deployed,
         "network_calls": t.network_calls,
         "persisted_data": t.persisted_data,
         "ml": t.ml,
         "nontrivial_logic": t.nontrivial_logic,
+        "budgets_set": c.name in _budgets(a),
     }
 
 
 def compute_facts(a: Answers) -> dict[str, bool]:
-    per = [component_facts(c) for c in a.components]
+    per = [component_facts(c, a) for c in a.components]
     multi = len(a.components) > 1
     facts = {key: any(f[key] for f in per) for key in _COMPONENT_FACTS}
     facts["multi_component"] = multi
     facts["communicating_components"] = multi and a.components_talk
-    facts["budgets_set"] = False  # Plan 2
     facts["domain_jargon"] = a.identity.domain_jargon if a.identity else False
     return facts
 
@@ -67,7 +76,7 @@ def _dedupe(items: list[str]) -> list[str]:
 def _applicable(applies: list[str], a: Answers, project: dict[str, bool]) -> list[str]:
     names: list[str] = []
     for c in a.components:
-        facts = component_facts(c)
+        facts = component_facts(c, a)
         for cond in applies:
             if cond == "always" or (
                 project[cond] if cond in _PROJECT_ONLY else facts.get(cond, False)
@@ -126,7 +135,9 @@ def build_principles(
             "the interview areas, then retry."
         )
     assert a.git and a.agent_workflow and a.documentation and a.identity
-    assert a.security and a.architecture
+    assert a.security and a.architecture and a.ui and a.data and a.accessibility
+    migration_paths = _dedupe([g for d in a.data.components for g in d.migrations])
+    tokens = {u.name: u.tokens for u in a.ui.components}
     review = dict(defaults["review"])
     review["mode"] = a.agent_workflow.review_mode
     review["max_lines"] = a.agent_workflow.max_lines
@@ -136,6 +147,8 @@ def build_principles(
             *defaults["review"]["risk_paths"],
             *a.agent_workflow.extra_risk_paths,
             *a.architecture.contracts.paths,
+            *migration_paths,
+            *(p for t in tokens.values() for p in (t, f"{t}/**")),
         ]
     )
 
@@ -182,6 +195,15 @@ def build_principles(
         )
 
     by_id = {p["id"]: p for p in principles}
+    # What the interview set, before overrides change it.
+    if a.accessibility.level:
+        by_id["accessibility"]["params"]["level"] = a.accessibility.level
+    by_id["perf-budgets"]["component_params"].update(
+        {name: {"budgets": b} for name, b in _budgets(a).items()}
+    )
+    by_id["visual-system"]["component_params"].update(
+        {name: {"tokens": t} for name, t in tokens.items()}
+    )
     decision_paths = override_decision_paths(a, len(a.decisions) + 1)
     for i, o in enumerate(a.overrides):
         target = by_id.get(o.principle)
@@ -233,6 +255,7 @@ def build_principles(
             "branching": a.git.branching,
         },
         "docs_map": docs_map,
+        "data": {"migration_paths": migration_paths},
         "components": components,
         "principles": principles,
     }

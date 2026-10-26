@@ -210,13 +210,19 @@ def test_review_settings_come_from_answers(tmp_path: Path):
     assert review["max_lines"] == 50
     assert review["mode"] == "every-task"
     assert review["risk_paths"].count("docs/principles.toml") == 1
-    assert review["risk_paths"][-2:] == ["infra/**", "api/openapi.yaml"]
+    assert review["risk_paths"][-5:] == [
+        "infra/**",
+        "api/openapi.yaml",
+        "api/migrations/**",
+        "web/src/styles/tokens.css",
+        "web/src/styles/tokens.css/**",
+    ]
 
 
 def test_facts():
     facts = compute_facts(A)
     assert facts["has_ui"] and facts["communicating_components"]
-    assert not facts["budgets_set"] and not facts["ml"]
+    assert facts["budgets_set"] and not facts["ml"]
 
 
 def test_override_decision_paths():
@@ -257,7 +263,18 @@ def test_same_glob_in_two_mappings_merges_docs(tmp_path: Path):
     }
 
 
-@pytest.mark.parametrize("area", ["documentation", "build"])
+@pytest.mark.parametrize(
+    "area",
+    [
+        "documentation",
+        "build",
+        "ui",
+        "releases",
+        "data",
+        "accessibility",
+        "performance",
+    ],
+)
 def test_principles_need_documentation_and_build(tmp_path: Path, area: str):
     data = json.loads(FIXTURE.read_text())
     data["areas"][area] = "pending"
@@ -295,3 +312,91 @@ def test_protecting_what_checks_must_change_is_refused(
         match=rf"security\.extra_protected\[1\]: .*{re.escape(blocked)}",
     ):
         build_principles(D, variant(tmp_path, mutate), "0.1.0")
+
+
+def scenario_answers(tmp_path: Path, name: str, mutate: Any = None) -> Answers:
+    from helpers import SCENARIOS
+
+    data = json.loads((SCENARIOS / f"{name}.json").read_text())
+    if mutate:
+        mutate(data)
+    path = tmp_path / ".claude" / "alpha" / "project.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(data))
+    return load_answers(path)
+
+
+def test_perf_budgets_apply_where_budgets_are_set(tmp_path: Path):
+    p = principle(build_principles(D, A, "0.1.0"), "perf-budgets")
+    assert p["active"] and p["components"] == ["api", "web"]
+
+    def no_web_budgets(data: dict[str, Any]) -> None:
+        data["performance"]["components"][1]["budgets"] = []
+
+    out = build_principles(D, variant(tmp_path, no_web_budgets), "0.1.0")
+    assert principle(out, "perf-budgets")["components"] == ["api"]
+    assert compute_facts(variant(tmp_path / "b", no_web_budgets))["budgets_set"]
+
+
+def test_no_budgets_turn_perf_budgets_off(tmp_path: Path):
+    a = scenario_answers(tmp_path, "python-ml-single")
+    assert not compute_facts(a)["budgets_set"]
+    p = principle(build_principles(D, a, "0.1.0"), "perf-budgets")
+    assert p["active"] is False and p["components"] == []
+
+
+def test_budgets_reach_the_principle_per_component():
+    p = principle(build_principles(D, A, "0.1.0"), "perf-budgets")
+    assert p["component_params"] == {
+        "api": {"budgets": ["p95 response time < 300 ms (k6 in CI against staging)"]},
+        "web": {
+            "budgets": [
+                "JavaScript bundle < 200 KB gzipped (the build's size report in CI)"
+            ]
+        },
+    }
+
+
+def test_accessibility_level_and_tokens_reach_the_principles():
+    out = build_principles(D, A, "0.1.0")
+    assert principle(out, "accessibility")["params"]["level"] == "WCAG 2.2 AA"
+    assert principle(out, "visual-system")["component_params"] == {
+        "web": {"tokens": "web/src/styles/tokens.css"}
+    }
+
+
+def test_no_ui_sets_no_accessibility_level(tmp_path: Path):
+    out = build_principles(D, scenario_answers(tmp_path, "rust-cli"), "0.1.0")
+    assert "level" not in principle(out, "accessibility")["params"]
+    assert principle(out, "visual-system")["component_params"] == {}
+
+
+def test_migrations_and_tokens_are_risk_paths(tmp_path: Path):
+    out = build_principles(D, A, "0.1.0")
+    assert out["data"] == {"migration_paths": ["api/migrations/**"]}
+    risk = out["review"]["risk_paths"]
+    assert "api/migrations/**" in risk
+    assert "web/src/styles/tokens.css" in risk
+    assert "web/src/styles/tokens.css/**" in risk
+    assert len(risk) == len(set(risk))
+
+
+def test_no_stored_data_means_no_migration_paths(tmp_path: Path):
+    out = build_principles(D, scenario_answers(tmp_path, "rust-cli"), "0.1.0")
+    assert out["data"] == {"migration_paths": []}
+
+
+def test_project_override_of_level_wins(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["overrides"].append(
+            {
+                "principle": "accessibility",
+                "scope": "project",
+                "change": "tighten",
+                "params": {"level": "WCAG 2.2 AAA"},
+                "reason": "A public-sector client requires AAA.",
+            }
+        )
+
+    out = build_principles(D, variant(tmp_path, mutate), "0.1.0")
+    assert principle(out, "accessibility")["params"]["level"] == "WCAG 2.2 AAA"

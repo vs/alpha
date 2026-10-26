@@ -410,7 +410,7 @@ def observability(raw: object, comps: "Sequence[Component] | None") -> Observabi
 
 
 def _has_ui(c: "Component") -> bool:
-    return c.traits.has_ui
+    return c.has_ui
 
 
 def ui(raw: object, comps: "Sequence[Component] | None") -> Ui:
