@@ -268,7 +268,7 @@
         "storage": "PostgreSQL",
         "migration_tool": "Alembic",
         "migrations": [
-          "api/migrations/**"
+          "api/migrations/versions/**"
         ],
         "reversible": true
       }

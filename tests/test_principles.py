@@ -213,7 +213,7 @@ def test_review_settings_come_from_answers(tmp_path: Path):
     assert review["risk_paths"][-5:] == [
         "infra/**",
         "api/openapi.yaml",
-        "api/migrations/**",
+        "api/migrations/versions/**",
         "web/src/styles/tokens.css",
         "web/src/styles/tokens.css/**",
     ]
@@ -348,10 +348,10 @@ def test_no_budgets_turn_perf_budgets_off(tmp_path: Path):
 def test_budgets_reach_the_principle_per_component():
     p = principle(build_principles(D, A, "0.1.0"), "perf-budgets")
     assert p["component_params"] == {
-        "api": {"budgets": ["p95 response time < 300 ms (k6 in CI against staging)"]},
+        "api": {"budgets": ["p95 response time: 300 ms (k6 in CI against staging)"]},
         "web": {
             "budgets": [
-                "JavaScript bundle < 200 KB gzipped (the build's size report in CI)"
+                "JavaScript bundle: 200 KB gzipped (the build's size report in CI)"
             ]
         },
     }
@@ -373,9 +373,9 @@ def test_no_ui_sets_no_accessibility_level(tmp_path: Path):
 
 def test_migrations_and_tokens_are_risk_paths(tmp_path: Path):
     out = build_principles(D, A, "0.1.0")
-    assert out["data"] == {"migration_paths": ["api/migrations/**"]}
+    assert out["data"] == {"migration_paths": ["api/migrations/versions/**"]}
     risk = out["review"]["risk_paths"]
-    assert "api/migrations/**" in risk
+    assert "api/migrations/versions/**" in risk
     assert "web/src/styles/tokens.css" in risk
     assert "web/src/styles/tokens.css/**" in risk
     assert len(risk) == len(set(risk))

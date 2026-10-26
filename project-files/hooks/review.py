@@ -271,13 +271,34 @@ def _relevant_principles(
     return chosen
 
 
-def _principle_line(p: dict[str, Any]) -> str:
+def _touched(principles: dict[str, Any], files: list[str]) -> set[str] | None:
+    """Names of the components the files belong to; None when one is outside
+    every component, so all of them count."""
+    touched: set[str] = set()
+    for path in files:
+        comp = _common.component_for(path, principles)
+        if comp is None:
+            return None
+        touched.add(str(comp.get("name")))
+    return touched
+
+
+def _params(params: dict[str, Any]) -> str:
+    return ", ".join(f"{k}={v}" for k, v in params.items())
+
+
+def _principle_line(p: dict[str, Any], touched: set[str] | None) -> str:
     line = f"- {p.get('id')} ({p.get('title')}): {p.get('statement')}"
     comps = ", ".join(str(c) for c in p.get("components", []))
     line += f" [components: {comps}]"
     params: dict[str, Any] = p.get("params", {}) or {}
     if params:
-        line += " [params: " + ", ".join(f"{k}={v}" for k, v in params.items()) + "]"
+        line += f" [params: {_params(params)}]"
+    per = p.get("component_params", {})
+    if isinstance(per, dict):
+        for name, extra in cast("dict[str, Any]", per).items():
+            if isinstance(extra, dict) and (touched is None or name in touched):
+                line += f" [{name}: {_params(cast('dict[str, Any]', extra))}]"
     if p.get("override_decision"):
         line += f" [override: {p['override_decision']}]"
     return line
@@ -318,7 +339,10 @@ def brief(root: Path) -> str:
     files = [path for _, path in stats]
     records, _warnings = _common.decision_index(root)
     lines = [f"Tree: {current}", f"Reviewed: {reviewed}", "", "## Principles", ""]
-    lines += [_principle_line(p) for p in _relevant_principles(principles, files)]
+    touched = _touched(principles, files)
+    lines += [
+        _principle_line(p, touched) for p in _relevant_principles(principles, files)
+    ]
     lines += ["", "## Decisions", ""]
     lines += [
         f"- {n:04d} {title} ({path})"

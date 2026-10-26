@@ -171,7 +171,9 @@ def test_data_doc_lists_storage_and_the_migration_rules(tmp_path: Path):
     assert doc.startswith("# Data\n")
     storage = section(doc, "Storage")
     assert "| Component | Storage | Migrations | Reversible |" in storage
-    assert "| api | PostgreSQL | Alembic: `api/migrations/**` | yes |" in storage
+    assert (
+        "| api | PostgreSQL | Alembic: `api/migrations/versions/**` | yes |" in storage
+    )
     assert "Every schema change is a migration." in storage
     assert "Migrations are append-only" in storage
     assert "(the Stop hook checks)" in storage

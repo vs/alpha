@@ -86,6 +86,8 @@ def main() -> None:
         head = git_out(root, "rev-parse", "--verify", "-q", "HEAD")
         if head:
             _common.write_baseline(root, head)
+            # Unlike the baseline, this stays put for the whole session.
+            _common.state_path(root, "session-start").write_text(head + "\n")
         _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
     parts: list[str] = []
     if problem is None:

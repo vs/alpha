@@ -323,10 +323,26 @@ def existed_at(root: Path, ref: str, rel: str) -> bool:
     return git_lines(root, "cat-file", "-e", f"{ref}:{rel}") is not None
 
 
+def session_start(root: Path, base: str | None) -> str | None:
+    """The commit this session started from: recorded at SessionStart and kept
+    for the whole session, unlike the baseline each clean Stop moves. Falls
+    back to the baseline, then HEAD."""
+    try:
+        start = _common.state_path(root, "session-start").read_text().strip()
+    except OSError:
+        start = ""
+    if (
+        start
+        and git_lines(root, "merge-base", "--is-ancestor", start, "HEAD") is not None
+    ):
+        return start
+    return base or head_sha(root)
+
+
 def migration_problems(
-    root: Path, principles: dict[str, Any], changed: list[str], base: str | None
+    root: Path, principles: dict[str, Any], base: str | None
 ) -> list[str]:
-    """Changes to migrations that existed at the session's base (else HEAD)."""
+    """Changes to migrations that existed when the session started."""
     data = principles.get("data")
     raw = (
         cast("dict[str, Any]", data).get("migration_paths")
@@ -334,9 +350,11 @@ def migration_problems(
         else None
     )
     globs = [str(g) for g in cast("list[Any]", raw)] if isinstance(raw, list) else []
-    ref = base or head_sha(root)
+    ref = session_start(root, base)
     if not globs or ref is None:
         return []
+    # Without renames, a moved migration counts as its old path deleted.
+    changed = git_lines(root, "diff", "--name-only", "--no-renames", ref) or []
     problems: list[str] = []
     for rel in changed:
         if not _common.matches(rel, globs) or not _common.principle_applies(
@@ -410,7 +428,7 @@ def find_problems(
                         f"{DEPENDENCY_LOG}. Record what was added and why."
                     )
 
-    problems += migration_problems(root, principles, changed, base)
+    problems += migration_problems(root, principles, base)
 
     docs_map: dict[str, Any] = principles.get("docs_map", {})
     every_doc = [str(d) for docs in docs_map.values() for d in docs]

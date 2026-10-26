@@ -358,7 +358,7 @@ def test_fixture_loads_releases_data_and_performance():
     a = load_answers(FIXTURE)
     assert a.releases and (a.releases.scheme, a.releases.scope) == ("semver", "repo")
     assert a.data and [c.name for c in a.data.components] == ["api"]
-    assert a.data.components[0].migrations == ("api/migrations/**",)
+    assert a.data.components[0].migrations == ("api/migrations/versions/**",)
     assert a.data.components[0].reversible is True
     assert a.data.ml is None
     assert a.performance

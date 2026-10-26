@@ -790,7 +790,7 @@ def test_the_repeat_marker_does_not_carry_into_the_next_turn(project: Project) -
     assert "alpha review: open findings:" in reason(run_active(project))
 
 
-MIGRATION = "api/migrations/0001_init.sql"
+MIGRATION = "api/migrations/versions/0001_init.sql"
 
 
 def committed_migration(project: Project) -> str:
@@ -830,16 +830,16 @@ def test_editing_a_committed_migration_blocks_without_a_recorded_base(
 
 def test_a_new_migration_passes(project: Project) -> None:
     committed_migration(project)
-    project.write("api/migrations/0002_more.sql", "alter table t add c int;\n")
+    project.write("api/migrations/versions/0002_more.sql", "alter table t add c int;\n")
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
 
 
 def test_a_migration_created_and_edited_this_session_passes(project: Project) -> None:
     committed_migration(project)
-    project.write("api/migrations/0002_more.sql", "alter table t add c int;\n")
+    project.write("api/migrations/versions/0002_more.sql", "alter table t add c int;\n")
     commit_all(project)
-    project.write("api/migrations/0002_more.sql", "alter table t add d int;\n")
+    project.write("api/migrations/versions/0002_more.sql", "alter table t add d int;\n")
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
 
@@ -855,9 +855,10 @@ def test_dropped_safe_migrations_does_not_block(project: Project) -> None:
 def test_files_outside_the_migration_paths_are_not_migrations(
     project: Project,
 ) -> None:
-    project.write("api/schema.sql", "create table t (id int);\n")
+    project.write("api/migrations/env.py", "target_metadata = None\n")
     committed_migration(project)
-    project.write("api/schema.sql", "create table t (id bigint);\n")
+    project.write("api/migrations/env.py", "target_metadata = Base.metadata\n")
+    project.write("api/tests/test_env.py", "def test_env() -> None: ...\n")
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
 
@@ -875,3 +876,55 @@ def test_a_subagent_editing_a_committed_migration_is_blocked(project: Project) -
     assert f"{MIGRATION} existed before this session" in reason(
         subagent_stop(project, "a1")
     )
+
+
+def test_renaming_a_committed_migration_blocks(project: Project) -> None:
+    committed_migration(project)
+    project.git("mv", MIGRATION, "api/migrations/versions/0001_init_v2.sql")
+    assert f"{MIGRATION} existed before this session" in reason(run(project))
+
+
+def test_renaming_and_editing_a_committed_migration_blocks(project: Project) -> None:
+    lines = "".join(f"create table t{i} (id int);\n" for i in range(30))
+    project.write(MIGRATION, lines)
+    commit_all(project)
+    base = project.git("rev-parse", "HEAD").stdout.strip()
+    project.write(".claude/alpha/state/session-base", base)
+    renamed = "api/migrations/versions/0001_init_v2.sql"
+    project.git("mv", MIGRATION, renamed)
+    project.write(renamed, lines.replace("t0 (id int)", "t0 (id bigint)"))
+    commit_all(project)
+    assert f"{MIGRATION} existed before this session" in reason(run(project))
+
+
+def test_a_migration_committed_in_an_earlier_turn_can_still_be_edited(
+    project: Project,
+) -> None:
+    start = committed_migration(project)
+    project.write(".claude/alpha/state/session-start", start)
+    project.write("api/migrations/versions/0002_more.sql", "alter table t add c int;\n")
+    commit_all(project)
+    # A clean Stop at the end of that turn moved the baseline to the new commit.
+    head = project.git("rev-parse", "HEAD").stdout.strip()
+    project.write(".claude/alpha/state/session-base", head)
+    project.write("api/migrations/versions/0002_more.sql", "alter table t add d int;\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    project.write(MIGRATION, "drop table t;\n")
+    assert f"git checkout {start} -- {MIGRATION}" in reason(run(project))
+
+
+def test_a_new_session_records_where_it_started(project: Project) -> None:
+    commit_all(project)
+    head = project.git("rev-parse", "HEAD").stdout.strip()
+    project.run_hook(
+        "session_start.py", {"hook_event_name": "SessionStart", "source": "startup"}
+    )
+    start = project.root / ".claude/alpha/state/session-start"
+    assert start.read_text().strip() == head
+    project.write("x.txt", "x\n")
+    commit_all(project)
+    project.run_hook(
+        "session_start.py", {"hook_event_name": "SessionStart", "source": "resume"}
+    )
+    assert start.read_text().strip() == head

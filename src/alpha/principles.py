@@ -33,10 +33,11 @@ _HEADER = """\
 
 
 def _budgets(a: Answers) -> dict[str, list[str]]:
-    """Each component's budgets, as "<metric> < <limit> (<measured by>)"."""
+    """Each component's budgets, as "<metric>: <limit> (<measured by>)"; the
+    limit is the user's text, so it keeps its own direction (e.g. "at least 90")."""
     plans = a.performance.components if a.performance else ()
     return {
-        p.name: [f"{b.metric} < {b.limit} ({b.measured_by})" for b in p.budgets]
+        p.name: [f"{b.metric}: {b.limit} ({b.measured_by})" for b in p.budgets]
         for p in plans
         if p.budgets
     }

@@ -19,14 +19,14 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 Stored data outlives the code, so every change to its shape must be repeatable and recoverable ("Safe migrations"); ML results must be repeatable too ("Reproducible"). This area covers components with `traits.persisted_data` and, for ML, the project's data and experiments. With neither there is nothing to decide: say so in one line, save the empty answer, and finish. Otherwise the project gets `docs/data.md`.
 
-Migrations are append-only: once a migration is in a commit, the Stop hook blocks any edit to it, and the fix is a new migration. Explain this to the user when they choose the migration files.
+Migrations are append-only: the Stop hook blocks any edit to a migration that existed when the session started (renaming or deleting one counts), and the fix is a new migration. Explain this to the user when they choose the migration files.
 
 ## Fields this area settles
 
 - `data.components[].name` - one entry per component that stores data, by name; none for the others.
 - `data.components[].storage` - what it stores data in, e.g. `"PostgreSQL"`, `"SQLite"`, `"Core Data"`.
 - `data.components[].migration_tool` - the tool that applies schema changes, in the user's words (e.g. `"Alembic"`, `"Prisma Migrate"`, `"sqlx"`), or `"none"` (a schemaless store, say).
-- `data.components[].migrations` - globs of its migration files, relative to the project root (e.g. `["api/migrations/**"]`); `[]` only when the tool is `"none"`.
+- `data.components[].migrations` - globs that match only its migration files, relative to the project root (e.g. `["api/migrations/versions/**"]` for Alembic); `[]` only when the tool is `"none"`. Leave out the tool's own config and scripts in the same folder (Alembic's `env.py`, Django's `__init__.py`, Prisma's `migration_lock.toml`): they change normally, and the append-only rule would block them.
 - `data.components[].reversible` - `true` when each migration has a down step.
 - `data.ml` - `null` unless a component does ML (`traits.ml`); then an object with:
 - `data.ml.versioning` - how datasets are versioned, e.g. `"DVC"`.
@@ -41,7 +41,7 @@ When no component stores data or does ML, ask nothing: save `{"components": [], 
 
 Otherwise run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it). There are no kit defaults here: every project's storage is its own. Facts first: look up what the component's stack usually uses and recommend from that.
 
-- Per component that stores data, one round: **storage** (from the requirements), **migration tool** (the stack's usual one), **migration files** (the tool's usual folder inside the component), **reversible** (recommend `true` wherever the tool supports down migrations). Explain the append-only rule.
+- Per component that stores data, one round: **storage** (from the requirements), **migration tool** (the stack's usual one), **migration files** (look up where the tool writes each migration, and match only those files), **reversible** (recommend `true` wherever the tool supports down migrations). Explain the append-only rule.
 - With ML, one round: **data versioning**, **seeds**, **experiment tracking**. Recommend tools that fit the stack and how the user works (local, or a team server).
 
 ## Writing the answers

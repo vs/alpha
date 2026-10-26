@@ -343,3 +343,23 @@ def test_unreadable_state_is_reported_at_session_start(project: Project) -> None
     out = project.run_hook("session_start.py", {"hook_event_name": "SessionStart"})
     text = json.loads(out.stdout)["hookSpecificOutput"]["additionalContext"]
     assert "review state was unreadable" in text
+
+
+def test_brief_shows_the_touched_components_params(project: Project) -> None:
+    principles = briefed(project).split("## Principles\n")[1].split("\n## ")[0]
+    line = next(x for x in principles.splitlines() if x.startswith("- perf-budgets "))
+    assert (
+        "[api: budgets=['p95 response time: 300 ms (k6 in CI against staging)']]"
+        in (line)
+    )
+    assert "web:" not in line  # web wasn't touched
+
+
+def test_brief_shows_the_tokens_of_a_touched_ui(project: Project) -> None:
+    project.write("web/package.json", "{}\n")
+    commit_all(project)
+    review.ensure_state(project.root)
+    project.write("web/src/app.ts", "export const x = 1;\n")
+    principles = review.brief(project.root).split("## Principles\n")[1]
+    line = next(x for x in principles.splitlines() if x.startswith("- visual-system "))
+    assert "[web: tokens=web/src/styles/tokens.css]" in line
