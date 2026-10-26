@@ -319,6 +319,39 @@ def write_count(path: Path, count: int) -> None:
     path.write_text(json.dumps({"count": count}))
 
 
+def existed_at(root: Path, ref: str, rel: str) -> bool:
+    return git_lines(root, "cat-file", "-e", f"{ref}:{rel}") is not None
+
+
+def migration_problems(
+    root: Path, principles: dict[str, Any], changed: list[str], base: str | None
+) -> list[str]:
+    """Changes to migrations that existed at the session's base (else HEAD)."""
+    data = principles.get("data")
+    raw = (
+        cast("dict[str, Any]", data).get("migration_paths")
+        if isinstance(data, dict)
+        else None
+    )
+    globs = [str(g) for g in cast("list[Any]", raw)] if isinstance(raw, list) else []
+    ref = base or head_sha(root)
+    if not globs or ref is None:
+        return []
+    problems: list[str] = []
+    for rel in changed:
+        if not _common.matches(rel, globs) or not _common.principle_applies(
+            principles, "safe-migrations", component_name(rel, principles)
+        ):
+            continue
+        if existed_at(root, ref, rel):
+            problems.append(
+                f"{rel} existed before this session and was changed. Migrations "
+                f"are append-only: put it back (git checkout {ref} -- {rel}) and "
+                "add a new migration instead. Principle safe-migrations."
+            )
+    return problems
+
+
 def is_behavior(rel: str, principles: dict[str, Any], docs: list[str]) -> bool:
     """Whether a changed file can change public behavior: not a doc, not a test
     and not a file its component excludes from checks."""
@@ -376,6 +409,8 @@ def find_problems(
                         f"Dependencies changed ({rel}) without an entry in "
                         f"{DEPENDENCY_LOG}. Record what was added and why."
                     )
+
+    problems += migration_problems(root, principles, changed, base)
 
     docs_map: dict[str, Any] = principles.get("docs_map", {})
     every_doc = [str(d) for docs in docs_map.values() for d in docs]

@@ -788,3 +788,90 @@ def test_the_repeat_marker_does_not_carry_into_the_next_turn(project: Project) -
     assert "tests-first-class" in reason(run(project))
     project.write("api/tests/test_app.py", "x = 1\n")
     assert "alpha review: open findings:" in reason(run_active(project))
+
+
+MIGRATION = "api/migrations/0001_init.sql"
+
+
+def committed_migration(project: Project) -> str:
+    """Commit a migration and make that commit the session's base."""
+    project.write(MIGRATION, "create table t (id int);\n")
+    commit_all(project)
+    base = project.git("rev-parse", "HEAD").stdout.strip()
+    project.write(".claude/alpha/state/session-base", base)
+    return base
+
+
+def test_editing_a_committed_migration_blocks(project: Project) -> None:
+    base = committed_migration(project)
+    project.write(MIGRATION, "create table t (id bigint);\n")
+    text = reason(run(project))
+    assert (
+        f"{MIGRATION} existed before this session and was changed. Migrations are "
+        f"append-only: put it back (git checkout {base} -- {MIGRATION}) and add a "
+        "new migration instead. Principle safe-migrations."
+    ) in text
+
+
+def test_deleting_a_committed_migration_blocks(project: Project) -> None:
+    committed_migration(project)
+    (project.root / MIGRATION).unlink()
+    assert f"{MIGRATION} existed before this session" in reason(run(project))
+
+
+def test_editing_a_committed_migration_blocks_without_a_recorded_base(
+    project: Project,
+) -> None:
+    committed_migration(project)
+    (project.root / ".claude/alpha/state/session-base").unlink()
+    project.write(MIGRATION, "drop table t;\n")
+    assert f"{MIGRATION} existed before this session" in reason(run(project))
+
+
+def test_a_new_migration_passes(project: Project) -> None:
+    committed_migration(project)
+    project.write("api/migrations/0002_more.sql", "alter table t add c int;\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def test_a_migration_created_and_edited_this_session_passes(project: Project) -> None:
+    committed_migration(project)
+    project.write("api/migrations/0002_more.sql", "alter table t add c int;\n")
+    commit_all(project)
+    project.write("api/migrations/0002_more.sql", "alter table t add d int;\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def test_dropped_safe_migrations_does_not_block(project: Project) -> None:
+    project.drop_principle("safe-migrations")
+    committed_migration(project)
+    project.write(MIGRATION, "create table t (id bigint);\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def test_files_outside_the_migration_paths_are_not_migrations(
+    project: Project,
+) -> None:
+    project.write("api/schema.sql", "create table t (id int);\n")
+    committed_migration(project)
+    project.write("api/schema.sql", "create table t (id bigint);\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def test_without_commits_migrations_are_not_checked(project: Project) -> None:
+    project.write(MIGRATION, "create table t (id int);\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+
+
+def test_a_subagent_editing_a_committed_migration_is_blocked(project: Project) -> None:
+    committed_migration(project)
+    project.write(MIGRATION, "create table t (id bigint);\n")
+    edited_by(project, "a1", MIGRATION)
+    assert f"{MIGRATION} existed before this session" in reason(
+        subagent_stop(project, "a1")
+    )

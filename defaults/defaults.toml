@@ -268,7 +268,7 @@ title = "Safe migrations"
 statement = "Every schema change is a migration, reversible where possible."
 rationale = "Persisted data outlives code, so changes to it must be repeatable and recoverable."
 applies = ["persisted_data"]
-checked_by = ["reviewer"]
+checked_by = ["reviewer", "hook:stop_checks"]
 core = false
 
 [[principles]]
