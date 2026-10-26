@@ -12,7 +12,10 @@
     "security": "done",
     "dependencies": "done",
     "observability": "done",
+    "releases": "done",
+    "data": "done",
     "accessibility": "done",
+    "performance": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -252,6 +255,50 @@
       }
     ]
   },
+  "releases": {
+    "scheme": "semver",
+    "changelog": "file",
+    "scope": "repo",
+    "process": "Tag vX.Y.Z on main; CI builds the container and the static site."
+  },
+  "data": {
+    "components": [
+      {
+        "name": "api",
+        "storage": "PostgreSQL",
+        "migration_tool": "Alembic",
+        "migrations": [
+          "api/migrations/**"
+        ],
+        "reversible": true
+      }
+    ],
+    "ml": null
+  },
+  "performance": {
+    "components": [
+      {
+        "name": "api",
+        "budgets": [
+          {
+            "metric": "p95 response time",
+            "limit": "300 ms",
+            "measured_by": "k6 in CI against staging"
+          }
+        ]
+      },
+      {
+        "name": "web",
+        "budgets": [
+          {
+            "metric": "JavaScript bundle",
+            "limit": "200 KB gzipped",
+            "measured_by": "the build's size report in CI"
+          }
+        ]
+      }
+    ]
+  },
   "overrides": [
     {
       "principle": "observability",
@@ -340,11 +387,32 @@
       "consequences": "One request can be followed across components."
     },
     {
+      "area": "releases",
+      "title": "Semantic versions for the whole repo",
+      "context": "web and api ship together.",
+      "decision": "One semver version for the repo, a CHANGELOG.md, and a tag on main per release.",
+      "consequences": "A breaking API change bumps the major version of both."
+    },
+    {
+      "area": "data",
+      "title": "PostgreSQL with Alembic migrations",
+      "context": "api stores uploads metadata.",
+      "decision": "api stores its data in PostgreSQL; every schema change is an Alembic migration with a downgrade.",
+      "consequences": "Migrations are append-only; a bad one is fixed by a new one."
+    },
+    {
       "area": "accessibility",
       "title": "WCAG 2.2 AA",
       "context": "Public users include keyboard and screen reader users.",
       "decision": "web targets WCAG 2.2 AA, checked by axe in the end-to-end tests.",
       "consequences": "An axe violation fails the end-to-end tests."
+    },
+    {
+      "area": "performance",
+      "title": "Response time and bundle budgets",
+      "context": "Users upload from slow connections.",
+      "decision": "api keeps p95 under 300 ms; web keeps its bundle under 200 KB gzipped.",
+      "consequences": "A change that breaks a budget needs a decision record."
     },
     {
       "area": "git",

@@ -12,7 +12,10 @@
     "security": "done",
     "dependencies": "done",
     "observability": "done",
+    "releases": "done",
+    "data": "done",
     "accessibility": "done",
+    "performance": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -141,6 +144,28 @@
     "level": "",
     "components": []
   },
+  "releases": {
+    "scheme": "calver",
+    "changelog": "none",
+    "scope": "repo",
+    "process": "Tag a calendar version on main when a model is promoted."
+  },
+  "data": {
+    "components": [],
+    "ml": {
+      "versioning": "DVC",
+      "seeds": "fixed seeds recorded in the run config",
+      "tracking": "MLflow"
+    }
+  },
+  "performance": {
+    "components": [
+      {
+        "name": "ml",
+        "budgets": []
+      }
+    ]
+  },
   "overrides": [],
   "decisions": [
     {
@@ -221,11 +246,32 @@
       "consequences": "Revisit with the first deployment."
     },
     {
+      "area": "releases",
+      "title": "Calendar versions per promoted model",
+      "context": "Releases are model promotions, not API changes.",
+      "decision": "A calver tag on main marks each promoted model.",
+      "consequences": "The tag names the code and data that produced the model."
+    },
+    {
+      "area": "data",
+      "title": "DVC data, fixed seeds, MLflow runs",
+      "context": "Results must be reproducible.",
+      "decision": "Datasets are versioned with DVC, seeds are fixed in the run config, runs are tracked in MLflow.",
+      "consequences": "Any result can be traced to its data, seed and code."
+    },
+    {
       "area": "accessibility",
       "title": "No accessibility target",
       "context": "The project has no user interface.",
       "decision": "No accessibility level is set.",
       "consequences": "The accessibility principle doesn't apply."
+    },
+    {
+      "area": "performance",
+      "title": "No performance budgets",
+      "context": "Training time varies with the data.",
+      "decision": "No budgets for now.",
+      "consequences": "The performance-budgets principle stays off."
     },
     {
       "area": "git",

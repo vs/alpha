@@ -13,9 +13,12 @@ from alpha import core_areas
 from alpha.core_areas import (
     Accessibility,
     Architecture,
+    Data,
     Dependencies,
     Errors,
     Observability,
+    Performance,
+    Releases,
     Security,
     Testing,
     Ui,
@@ -51,7 +54,10 @@ AREAS: tuple[str, ...] = (
     "security",
     "dependencies",
     "observability",
+    "releases",
+    "data",
     "accessibility",
+    "performance",
     "git",
     "agent_workflow",
 )
@@ -103,7 +109,10 @@ _TOP_KEYS = frozenset(
         "dependencies",
         "observability",
         "ui",
+        "releases",
+        "data",
         "accessibility",
+        "performance",
         "overrides",
         "decisions",
         "recipes",
@@ -231,7 +240,10 @@ class Answers:
     dependencies: Dependencies | None
     observability: Observability | None
     ui: Ui | None
+    releases: Releases | None
+    data: Data | None
     accessibility: Accessibility | None
+    performance: Performance | None
     overrides: tuple[Override, ...]
     decisions: tuple[Decision, ...]
     recipes: dict[str, Recipe]  # drafted in the interview, for stacks the kit lacks
@@ -730,9 +742,22 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         else None
     )
     ui = core_areas.ui(get(top, "ui", ""), comps_or_none) if active("ui") else None
+    releases = (
+        core_areas.releases(get(top, "releases", ""), comps_or_none)
+        if active("releases")
+        else None
+    )
+    data_area = (
+        core_areas.data(get(top, "data", ""), comps_or_none) if active("data") else None
+    )
     accessibility = (
         core_areas.accessibility(get(top, "accessibility", ""), comps_or_none)
         if active("accessibility")
+        else None
+    )
+    performance = (
+        core_areas.performance(get(top, "performance", ""), comps_or_none)
+        if active("performance")
         else None
     )
     decisions = tuple(
@@ -766,7 +791,10 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         dependencies,
         observability,
         ui,
+        releases,
+        data_area,
         accessibility,
+        performance,
         overrides,
         decisions,
         drafted,

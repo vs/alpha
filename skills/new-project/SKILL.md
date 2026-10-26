@@ -24,7 +24,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 
 - If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`; an area missing from `areas`, because the interview started on an older alpha, is pending), then continue with the first area in the order below that isn't done.
 - Otherwise create it:
-  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "pending", "errors": "pending", "testing": "pending", "ui": "pending", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "pending", "accessibility": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
+  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "pending", "errors": "pending", "testing": "pending", "ui": "pending", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "pending", "releases": "pending", "data": "pending", "accessibility": "pending", "performance": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
 
 ## 3. Load the kit defaults
 

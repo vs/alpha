@@ -99,6 +99,15 @@ def single_component(
             data[area]["components"] = [{**entries[0], "name": name}] if ui else []
     if "accessibility" in data and not ui:
         data["accessibility"]["level"] = ""
+    if "data" in data:
+        stores = data["data"]["components"]
+        stored = comp["traits"]["persisted_data"] and stores
+        data["data"]["components"] = [{**stores[0], "name": name}] if stored else []
+    if "performance" in data:
+        budgets = data["performance"]["components"][0]["budgets"]
+        data["performance"]["components"] = [{"name": name, "budgets": budgets}]
+    if "releases" in data:
+        data["releases"]["scope"] = "repo"
 
 
 def override_record(data: dict[str, Any], principle: str, index: int = 0) -> str:

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from alpha.validate import (
     NAME,
     as_list,
+    boolean,
     choice,
     fail,
     get,
@@ -45,6 +46,9 @@ CORRELATION: tuple[str, ...] = ("traceparent", "request-id", "none")
 TELEMETRY: tuple[str, ...] = ("none", "opentelemetry", "other")
 THEMING: tuple[str, ...] = ("light", "dark", "light-dark", "custom")
 A11Y_LEVELS: tuple[str, ...] = ("WCAG 2.2 A", "WCAG 2.2 AA", "WCAG 2.2 AAA")
+SCHEMES: tuple[str, ...] = ("semver", "calver", "none")
+CHANGELOGS: tuple[str, ...] = ("file", "github-releases", "none")
+RELEASE_SCOPES: tuple[str, ...] = ("repo", "component")
 
 
 @dataclass(frozen=True)
@@ -120,6 +124,54 @@ class LogPlan:
 @dataclass(frozen=True)
 class Observability:
     components: tuple[LogPlan, ...]
+
+
+@dataclass(frozen=True)
+class Releases:
+    scheme: str
+    changelog: str
+    scope: str
+    process: str
+
+
+@dataclass(frozen=True)
+class DataStore:
+    name: str
+    storage: str
+    migration_tool: str
+    migrations: tuple[str, ...]  # globs of its migration files
+    reversible: bool
+
+
+@dataclass(frozen=True)
+class MlData:
+    versioning: str
+    seeds: str
+    tracking: str
+
+
+@dataclass(frozen=True)
+class Data:
+    components: tuple[DataStore, ...]
+    ml: MlData | None
+
+
+@dataclass(frozen=True)
+class Budget:
+    metric: str
+    limit: str
+    measured_by: str
+
+
+@dataclass(frozen=True)
+class PerfPlan:
+    name: str
+    budgets: tuple[Budget, ...]
+
+
+@dataclass(frozen=True)
+class Performance:
+    components: tuple[PerfPlan, ...]
 
 
 @dataclass(frozen=True)
@@ -439,3 +491,102 @@ def accessibility(raw: object, comps: "Sequence[Component] | None") -> Accessibi
             f'Use one of: {", ".join(A11Y_LEVELS)}, or "" without a UI',
         )
     return Accessibility(level, tuple(entries))
+
+
+def releases(raw: object, comps: "Sequence[Component] | None") -> Releases:
+    w = "releases"
+    d = obj(raw, w)
+    scope = choice(d, "scope", w, RELEASE_SCOPES)
+    if scope == "component" and comps is not None and len(comps) < 2:
+        raise fail(
+            f"{w}.scope",
+            "is component but versioning per component needs more than one component",
+            'Set scope to "repo"',
+        )
+    return Releases(
+        choice(d, "scheme", w, SCHEMES),
+        choice(d, "changelog", w, CHANGELOGS),
+        scope,
+        string(d, "process", w),
+    )
+
+
+def data(raw: object, comps: "Sequence[Component] | None") -> Data:
+    w = "data"
+    d = obj(raw, w)
+    entries: list[DataStore] = []
+    for i, e in enumerate(as_list(get(d, "components", w), f"{w}.components")):
+        ew = f"{w}.components[{i}]"
+        eo = obj(e, ew)
+        tool = string(eo, "migration_tool", ew)
+        if tool.strip().lower() == "none":
+            migrations = strings(eo, "migrations", ew)
+            for j, glob in enumerate(migrations):
+                relative(glob, f"{ew}.migrations[{j}]")
+        else:
+            migrations = paths(eo, "migrations", ew)
+        entries.append(
+            DataStore(
+                string(eo, "name", ew),
+                string(eo, "storage", ew),
+                tool,
+                migrations,
+                boolean(eo, "reversible", ew),
+            )
+        )
+    if comps is not None:
+        per_component(
+            entries,
+            comps,
+            f"{w}.components",
+            ("storage", "migration_tool", "migrations", "reversible"),
+            only=lambda c: c.traits.persisted_data,
+            reason="doesn't store data",
+        )
+    raw_ml = get(d, "ml", w)
+    ml: MlData | None = None
+    if raw_ml is not None:
+        mw = f"{w}.ml"
+        mo = obj(raw_ml, mw)
+        ml = MlData(
+            string(mo, "versioning", mw),
+            string(mo, "seeds", mw),
+            string(mo, "tracking", mw),
+        )
+    if comps is not None:
+        does_ml = any(c.traits.ml for c in comps)
+        if does_ml and ml is None:
+            raise fail(
+                f"{w}.ml",
+                "is null but a component does ML",
+                'Add {"versioning": "…", "seeds": "…", "tracking": "…"}: how '
+                "data is versioned, how seeds are fixed, where experiments are "
+                "tracked",
+            )
+        if ml is not None and not does_ml:
+            raise fail(f"{w}.ml", "is set but no component does ML", "Set it to null")
+    return Data(tuple(entries), ml)
+
+
+def performance(raw: object, comps: "Sequence[Component] | None") -> Performance:
+    w = "performance"
+    d = obj(raw, w)
+    entries: list[PerfPlan] = []
+    for i, e in enumerate(as_list(get(d, "components", w), f"{w}.components")):
+        ew = f"{w}.components[{i}]"
+        eo = obj(e, ew)
+        budgets: list[Budget] = []
+        for j, b in enumerate(as_list(get(eo, "budgets", ew), f"{ew}.budgets")):
+            bw = f"{ew}.budgets[{j}]"
+            bo = obj(b, bw)
+            budgets.append(
+                Budget(
+                    string(bo, "metric", bw),
+                    string(bo, "limit", bw),
+                    string(bo, "measured_by", bw),
+                )
+            )
+        entries.append(PerfPlan(string(eo, "name", ew), tuple(budgets)))
+    if comps is not None:
+        per_component(entries, comps, f"{w}.components", ("budgets",))
+    return Performance(tuple(entries))

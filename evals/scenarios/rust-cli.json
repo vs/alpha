@@ -12,7 +12,10 @@
     "security": "done",
     "dependencies": "done",
     "observability": "done",
+    "releases": "done",
+    "data": "done",
     "accessibility": "done",
+    "performance": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -139,6 +142,30 @@
     "level": "",
     "components": []
   },
+  "releases": {
+    "scheme": "semver",
+    "changelog": "github-releases",
+    "scope": "repo",
+    "process": "Tag vX.Y.Z on main; CI builds the binaries and attaches them to the GitHub release."
+  },
+  "data": {
+    "components": [],
+    "ml": null
+  },
+  "performance": {
+    "components": [
+      {
+        "name": "cli",
+        "budgets": [
+          {
+            "metric": "startup",
+            "limit": "200 ms",
+            "measured_by": "hyperfine in CI"
+          }
+        ]
+      }
+    ]
+  },
   "overrides": [],
   "decisions": [
     {
@@ -219,11 +246,32 @@
       "consequences": "Revisit with a deployment."
     },
     {
+      "area": "releases",
+      "title": "Semver with GitHub releases",
+      "context": "Users install binaries from GitHub.",
+      "decision": "Semver tags on main; release notes live in GitHub releases.",
+      "consequences": "A breaking flag change bumps the major version."
+    },
+    {
+      "area": "data",
+      "title": "No stored data",
+      "context": "The CLI keeps no data of its own.",
+      "decision": "No storage and no migrations.",
+      "consequences": "The safe-migrations principle doesn't apply."
+    },
+    {
       "area": "accessibility",
       "title": "No accessibility target",
       "context": "The project has no user interface.",
       "decision": "No accessibility level is set.",
       "consequences": "The accessibility principle doesn't apply."
+    },
+    {
+      "area": "performance",
+      "title": "Startup under 200 ms",
+      "context": "The CLI runs in shell loops.",
+      "decision": "Startup stays under 200 ms, measured with hyperfine in CI.",
+      "consequences": "A slower startup needs a decision record."
     },
     {
       "area": "git",

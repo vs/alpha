@@ -352,3 +352,122 @@ def test_ui_areas_follow_renames(tmp_path: Path):
                 d[other]["components"][0]["name"] = "site"
         with pytest.raises(AnswersError, match=rf"{area}\.components"):
             check(tmp_path, d)
+
+
+def test_fixture_loads_releases_data_and_performance():
+    a = load_answers(FIXTURE)
+    assert a.releases and (a.releases.scheme, a.releases.scope) == ("semver", "repo")
+    assert a.data and [c.name for c in a.data.components] == ["api"]
+    assert a.data.components[0].migrations == ("api/migrations/**",)
+    assert a.data.components[0].reversible is True
+    assert a.data.ml is None
+    assert a.performance
+    assert [c.name for c in a.performance.components] == ["api", "web"]
+    assert a.performance.components[0].budgets[0].limit == "300 ms"
+
+
+def test_release_scope_component_needs_several_components(tmp_path: Path):
+    d = valid()
+    single_component(d)
+    d["releases"]["scope"] = "component"
+    with pytest.raises(
+        AnswersError, match=r"releases\.scope: .*more than one component"
+    ):
+        check(tmp_path, d)
+    d = valid()
+    d["releases"]["scope"] = "component"
+    assert check(tmp_path, d).releases
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("scheme", "romver"), ("changelog", "wiki"), ("scope", "team"), ("process", "")],
+)
+def test_release_fields(tmp_path: Path, key: str, value: str):
+    d = valid()
+    d["releases"][key] = value
+    with pytest.raises(AnswersError, match=rf"releases\.{key}: "):
+        check(tmp_path, d)
+
+
+def test_data_entries_need_a_component_that_stores_data(tmp_path: Path):
+    d = valid()
+    entry = {**d["data"]["components"][0], "name": "web"}
+    d["data"]["components"].append(entry)
+    with pytest.raises(
+        AnswersError, match=r"data\.components\[1\]\.name: .*doesn't store data"
+    ):
+        check(tmp_path, d)
+
+
+def test_migrations_are_needed_with_a_migration_tool(tmp_path: Path):
+    d = valid()
+    d["data"]["components"][0]["migrations"] = []
+    with pytest.raises(AnswersError, match=r"data\.components\[0\]\.migrations: "):
+        check(tmp_path, d)
+    d["data"]["components"][0]["migration_tool"] = "none"
+    assert check(tmp_path, d).data
+
+
+@pytest.mark.parametrize("glob", ["./api/migrations/**", "/migrations/**"])
+def test_migration_globs_must_match_something(tmp_path: Path, glob: str):
+    d = valid()
+    d["data"]["components"][0]["migrations"] = [glob]
+    with pytest.raises(AnswersError, match=r"data\.components\[0\]\.migrations\[0\]"):
+        check(tmp_path, d)
+
+
+def test_ml_data_follows_the_ml_trait(tmp_path: Path):
+    d = scenario("python-ml-single")
+    a = check(tmp_path, d)
+    assert a.data and a.data.components == () and a.data.ml
+    assert a.data.ml.versioning == "DVC"
+    d["data"]["ml"] = None
+    with pytest.raises(AnswersError, match=r"data\.ml: .*ML"):
+        check(tmp_path, d)
+    d = valid()
+    d["data"]["ml"] = {"versioning": "DVC", "seeds": "fixed", "tracking": "MLflow"}
+    with pytest.raises(AnswersError, match=r"data\.ml: .*no component does ML"):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize("field", ["versioning", "seeds", "tracking"])
+def test_ml_data_fields_are_required(tmp_path: Path, field: str):
+    d = scenario("python-ml-single")
+    d["data"]["ml"][field] = ""
+    with pytest.raises(AnswersError, match=rf"data\.ml\.{field}"):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize("field", ["metric", "limit", "measured_by"])
+def test_budget_fields_are_required(tmp_path: Path, field: str):
+    d = valid()
+    d["performance"]["components"][0]["budgets"][0][field] = " "
+    with pytest.raises(
+        AnswersError,
+        match=rf"performance\.components\[0\]\.budgets\[0\]\.{field}",
+    ):
+        check(tmp_path, d)
+
+
+def test_empty_budgets_are_fine(tmp_path: Path):
+    d = valid()
+    d["performance"]["components"][1]["budgets"] = []
+    a = check(tmp_path, d)
+    assert a.performance and a.performance.components[1].budgets == ()
+
+
+@pytest.mark.parametrize("area", ["data", "performance"])
+def test_data_and_performance_follow_renames(tmp_path: Path, area: str):
+    d = valid()
+    d["components"][0]["name"] = "server"
+    d["git"]["scopes"] = ["server", "web"]
+    for other in ("architecture", "errors", "testing", "build", "observability"):
+        d[other]["components"][0]["name"] = "server"
+    d["architecture"]["components"][1]["calls"] = ["server"]
+    d["overrides"][0]["scope"] = "component:server"
+    for other in ("data", "performance"):
+        if other != area:
+            d[other]["components"][0]["name"] = "server"
+    with pytest.raises(AnswersError, match=rf"{area}\.components"):
+        check(tmp_path, d)
