@@ -92,6 +92,13 @@ def single_component(
     log = {"log_format": "json", "correlation": "none", "telemetry": "none"}
     deployed = comp["traits"]["deployed"]
     data["observability"]["components"] = [{"name": name, **log}] if deployed else []
+    ui = comp["traits"]["has_ui"]
+    for area in ("ui", "accessibility"):
+        if area in data:
+            entries = data[area]["components"]
+            data[area]["components"] = [{**entries[0], "name": name}] if ui else []
+    if "accessibility" in data and not ui:
+        data["accessibility"]["level"] = ""
 
 
 def override_record(data: dict[str, Any], principle: str, index: int = 0) -> str:

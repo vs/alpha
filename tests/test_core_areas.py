@@ -253,3 +253,102 @@ def test_one_component_cannot_talk(tmp_path: Path):
     d["components_talk"] = True
     with pytest.raises(AnswersError, match=r"components_talk: .*only one component"):
         check(tmp_path, d)
+
+
+def scenario(name: str) -> dict[str, Any]:
+    from helpers import SCENARIOS
+
+    return json.loads((SCENARIOS / f"{name}.json").read_text())
+
+
+def test_fixture_loads_ui_and_accessibility():
+    a = load_answers(FIXTURE)
+    assert a.ui and [c.name for c in a.ui.components] == ["web"]
+    web = a.ui.components[0]
+    assert web.tokens == "web/src/styles/tokens.css"
+    assert web.theming == "light-dark"
+    assert a.accessibility and a.accessibility.level == "WCAG 2.2 AA"
+    assert a.accessibility.components[0].checks.startswith("axe")
+
+
+@pytest.mark.parametrize("area", ["ui", "accessibility"])
+def test_ui_areas_refuse_components_without_a_ui(tmp_path: Path, area: str):
+    d = valid()
+    entry = copy.deepcopy(d[area]["components"][0])
+    entry["name"] = "api"
+    d[area]["components"].insert(0, entry)
+    with pytest.raises(
+        AnswersError, match=rf"{area}\.components\[0\]\.name: .*has no UI"
+    ):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize("name", ["python-ml-single", "rust-cli"])
+def test_projects_without_a_ui_have_empty_ui_answers(tmp_path: Path, name: str):
+    a = check(tmp_path, scenario(name))
+    assert a.ui and a.ui.components == ()
+    assert a.accessibility and a.accessibility.level == ""
+    assert a.accessibility.components == ()
+
+
+def test_a_ui_needs_an_accessibility_level(tmp_path: Path):
+    d = valid()
+    d["accessibility"]["level"] = ""
+    with pytest.raises(AnswersError, match=r"accessibility\.level: .*WCAG 2\.2 AA"):
+        check(tmp_path, d)
+
+
+def test_no_ui_means_no_accessibility_level(tmp_path: Path):
+    d = scenario("rust-cli")
+    d["accessibility"]["level"] = "WCAG 2.2 AA"
+    with pytest.raises(AnswersError, match=r"accessibility\.level: .*no component"):
+        check(tmp_path, d)
+
+
+def test_bad_theming_lists_choices(tmp_path: Path):
+    d = valid()
+    d["ui"]["components"][0]["theming"] = "neon"
+    with pytest.raises(
+        AnswersError, match=r"ui\.components\[0\]\.theming: .*light-dark"
+    ):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize("tokens", ["./web/tokens.css", "/tokens.css", ""])
+def test_tokens_must_be_a_relative_path(tmp_path: Path, tokens: str):
+    d = valid()
+    d["ui"]["components"][0]["tokens"] = tokens
+    with pytest.raises(AnswersError, match=r"ui\.components\[0\]\.tokens"):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize(
+    ("area", "field"),
+    [
+        ("ui", "library"),
+        ("ui", "icons"),
+        ("ui", "typography"),
+        ("ui", "visual_regression"),
+        ("accessibility", "checks"),
+    ],
+)
+def test_ui_text_fields_are_required(tmp_path: Path, area: str, field: str):
+    d = valid()
+    d[area]["components"][0][field] = " "
+    with pytest.raises(AnswersError, match=rf"{area}\.components\[0\]\.{field}"):
+        check(tmp_path, d)
+
+
+def test_ui_areas_follow_renames(tmp_path: Path):
+    for area in ("ui", "accessibility"):
+        d = valid()
+        d["components"][1]["name"] = "site"
+        d["git"]["scopes"] = ["api", "site"]
+        for other in ("architecture", "errors", "testing", "build", "observability"):
+            d[other]["components"][1]["name"] = "site"
+        d["architecture"]["components"][1]["calls"] = ["api"]
+        for other in ("ui", "accessibility"):
+            if other != area:
+                d[other]["components"][0]["name"] = "site"
+        with pytest.raises(AnswersError, match=rf"{area}\.components"):
+            check(tmp_path, d)

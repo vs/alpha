@@ -11,12 +11,14 @@ from typing import Any, cast
 
 from alpha import core_areas
 from alpha.core_areas import (
+    Accessibility,
     Architecture,
     Dependencies,
     Errors,
     Observability,
     Security,
     Testing,
+    Ui,
 )
 from alpha.recipes import Recipe, RecipeBook, recipe_from_data, recipe_hash
 from alpha.validate import (
@@ -43,11 +45,13 @@ AREAS: tuple[str, ...] = (
     "architecture",
     "errors",
     "testing",
+    "ui",
     "documentation",
     "build",
     "security",
     "dependencies",
     "observability",
+    "accessibility",
     "git",
     "agent_workflow",
 )
@@ -98,6 +102,8 @@ _TOP_KEYS = frozenset(
         "security",
         "dependencies",
         "observability",
+        "ui",
+        "accessibility",
         "overrides",
         "decisions",
         "recipes",
@@ -224,6 +230,8 @@ class Answers:
     security: Security | None
     dependencies: Dependencies | None
     observability: Observability | None
+    ui: Ui | None
+    accessibility: Accessibility | None
     overrides: tuple[Override, ...]
     decisions: tuple[Decision, ...]
     recipes: dict[str, Recipe]  # drafted in the interview, for stacks the kit lacks
@@ -721,6 +729,12 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         if active("observability")
         else None
     )
+    ui = core_areas.ui(get(top, "ui", ""), comps_or_none) if active("ui") else None
+    accessibility = (
+        core_areas.accessibility(get(top, "accessibility", ""), comps_or_none)
+        if active("accessibility")
+        else None
+    )
     decisions = tuple(
         _decision(x, i)
         for i, x in enumerate(as_list(top.get("decisions", []), "decisions"))
@@ -751,6 +765,8 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         security,
         dependencies,
         observability,
+        ui,
+        accessibility,
         overrides,
         decisions,
         drafted,

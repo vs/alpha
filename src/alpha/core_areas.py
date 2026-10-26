@@ -43,6 +43,8 @@ SCHEDULES: tuple[str, ...] = ("daily", "weekly", "monthly")
 LOG_FORMATS: tuple[str, ...] = ("json", "logfmt")
 CORRELATION: tuple[str, ...] = ("traceparent", "request-id", "none")
 TELEMETRY: tuple[str, ...] = ("none", "opentelemetry", "other")
+THEMING: tuple[str, ...] = ("light", "dark", "light-dark", "custom")
+A11Y_LEVELS: tuple[str, ...] = ("WCAG 2.2 A", "WCAG 2.2 AA", "WCAG 2.2 AAA")
 
 
 @dataclass(frozen=True)
@@ -118,6 +120,34 @@ class LogPlan:
 @dataclass(frozen=True)
 class Observability:
     components: tuple[LogPlan, ...]
+
+
+@dataclass(frozen=True)
+class UiPlan:
+    name: str
+    library: str
+    tokens: str  # the design tokens file or folder; it may not exist yet
+    icons: str
+    typography: str
+    theming: str
+    visual_regression: str
+
+
+@dataclass(frozen=True)
+class Ui:
+    components: tuple[UiPlan, ...]
+
+
+@dataclass(frozen=True)
+class A11yCheck:
+    name: str
+    checks: str
+
+
+@dataclass(frozen=True)
+class Accessibility:
+    level: str  # "" when no component has a UI
+    components: tuple[A11yCheck, ...]
 
 
 def architecture(
@@ -325,3 +355,87 @@ def observability(raw: object, comps: "Sequence[Component] | None") -> Observabi
                     "followed across components",
                 )
     return Observability(tuple(entries))
+
+
+def _has_ui(c: "Component") -> bool:
+    return c.traits.has_ui
+
+
+def ui(raw: object, comps: "Sequence[Component] | None") -> Ui:
+    w = "ui"
+    d = obj(raw, w)
+    entries: list[UiPlan] = []
+    for i, e in enumerate(as_list(get(d, "components", w), f"{w}.components")):
+        ew = f"{w}.components[{i}]"
+        eo = obj(e, ew)
+        tokens = string(eo, "tokens", ew, blank=True)
+        relative(tokens, f"{ew}.tokens")
+        entries.append(
+            UiPlan(
+                string(eo, "name", ew),
+                string(eo, "library", ew),
+                tokens,
+                string(eo, "icons", ew),
+                string(eo, "typography", ew),
+                choice(eo, "theming", ew, THEMING),
+                string(eo, "visual_regression", ew),
+            )
+        )
+    if comps is not None:
+        per_component(
+            entries,
+            comps,
+            f"{w}.components",
+            (
+                "library",
+                "tokens",
+                "icons",
+                "typography",
+                "theming",
+                "visual_regression",
+            ),
+            only=_has_ui,
+            reason="has no UI",
+        )
+    return Ui(tuple(entries))
+
+
+def accessibility(raw: object, comps: "Sequence[Component] | None") -> Accessibility:
+    w = "accessibility"
+    d = obj(raw, w)
+    level = get(d, "level", w)
+    entries: list[A11yCheck] = []
+    for i, e in enumerate(as_list(get(d, "components", w), f"{w}.components")):
+        ew = f"{w}.components[{i}]"
+        eo = obj(e, ew)
+        entries.append(A11yCheck(string(eo, "name", ew), string(eo, "checks", ew)))
+    if comps is not None:
+        per_component(
+            entries,
+            comps,
+            f"{w}.components",
+            ("checks",),
+            only=_has_ui,
+            reason="has no UI",
+        )
+        if any(_has_ui(c) for c in comps):
+            if level not in A11Y_LEVELS:
+                raise fail(
+                    f"{w}.level",
+                    f"{level!r} is not a target level",
+                    f"Use one of: {', '.join(A11Y_LEVELS)} (WCAG 2.2 AA is the "
+                    "usual target)",
+                )
+        elif level != "":
+            raise fail(
+                f"{w}.level",
+                f"is {level!r} but no component has a UI",
+                'Set level to ""',
+            )
+    elif level != "" and level not in A11Y_LEVELS:
+        raise fail(
+            f"{w}.level",
+            f"{level!r} is not a target level",
+            f'Use one of: {", ".join(A11Y_LEVELS)}, or "" without a UI',
+        )
+    return Accessibility(level, tuple(entries))

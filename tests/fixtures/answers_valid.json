@@ -6,11 +6,13 @@
     "architecture": "done",
     "errors": "done",
     "testing": "done",
+    "ui": "done",
     "documentation": "done",
     "build": "done",
     "security": "done",
     "dependencies": "done",
     "observability": "done",
+    "accessibility": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -228,6 +230,28 @@
       }
     ]
   },
+  "ui": {
+    "components": [
+      {
+        "name": "web",
+        "library": "shadcn/ui",
+        "tokens": "web/src/styles/tokens.css",
+        "icons": "lucide",
+        "typography": "Inter, system fallback",
+        "theming": "light-dark",
+        "visual_regression": "Playwright screenshots"
+      }
+    ]
+  },
+  "accessibility": {
+    "level": "WCAG 2.2 AA",
+    "components": [
+      {
+        "name": "web",
+        "checks": "axe in the end-to-end tests, plus keyboard-only runs of R2"
+      }
+    ]
+  },
   "overrides": [
     {
       "principle": "observability",
@@ -274,6 +298,13 @@
       "consequences": "Tests name the requirement they cover."
     },
     {
+      "area": "ui",
+      "title": "shadcn/ui on one tokens file",
+      "context": "The web UI needs a consistent look without a designer on hand.",
+      "decision": "web builds on shadcn/ui, with every color, space and font in web/src/styles/tokens.css.",
+      "consequences": "Ad-hoc styles outside the tokens are review findings; screenshots catch visual regressions."
+    },
+    {
       "area": "documentation",
       "title": "User guide in docs/guide",
       "context": "Journalists need a guide to embedding and verifying images.",
@@ -307,6 +338,13 @@
       "context": "A browser request spans web and api.",
       "decision": "Both components log JSON and pass the W3C traceparent.",
       "consequences": "One request can be followed across components."
+    },
+    {
+      "area": "accessibility",
+      "title": "WCAG 2.2 AA",
+      "context": "Public users include keyboard and screen reader users.",
+      "decision": "web targets WCAG 2.2 AA, checked by axe in the end-to-end tests.",
+      "consequences": "An axe violation fails the end-to-end tests."
     },
     {
       "area": "git",

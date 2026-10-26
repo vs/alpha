@@ -12,7 +12,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 - No project.json: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
 - project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project arrives in a later version of alpha, and stop.
-- `areas.observability` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
+- `areas.accessibility` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
 - Otherwise go on. When the user called this skill directly, use the current answers as the recommendations, and when you finish, tell them to run `/alpha:new-project` to continue.
 
 ## Purpose

@@ -6,11 +6,13 @@
     "architecture": "done",
     "errors": "done",
     "testing": "done",
+    "ui": "done",
     "documentation": "done",
     "build": "done",
     "security": "done",
     "dependencies": "done",
     "observability": "done",
+    "accessibility": "done",
     "git": "done",
     "agent_workflow": "done"
   },
@@ -132,6 +134,13 @@
   "observability": {
     "components": []
   },
+  "ui": {
+    "components": []
+  },
+  "accessibility": {
+    "level": "",
+    "components": []
+  },
   "overrides": [],
   "decisions": [
     {
@@ -170,6 +179,13 @@
       "consequences": "Integration tests run on a small fixture dataset."
     },
     {
+      "area": "ui",
+      "title": "No UI",
+      "context": "The project has no user interface.",
+      "decision": "There is no visual system to define.",
+      "consequences": "The visual-system principle doesn't apply."
+    },
+    {
       "area": "documentation",
       "title": "README is the user documentation",
       "context": "A single model package used by its maintainer and a few gardeners.",
@@ -203,6 +219,13 @@
       "context": "Nothing is deployed.",
       "decision": "No logging setup until the model is served.",
       "consequences": "Revisit with the first deployment."
+    },
+    {
+      "area": "accessibility",
+      "title": "No accessibility target",
+      "context": "The project has no user interface.",
+      "decision": "No accessibility level is set.",
+      "consequences": "The accessibility principle doesn't apply."
     },
     {
       "area": "git",
