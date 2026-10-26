@@ -77,3 +77,11 @@ With only the identity area done, headless `claude -p --plugin-dir` ran the comp
 - The components skill handed off to stack-recipe, which looked up the installed toolchain and the current Rust setup action and drafted a recipe. It was stricter than the scenario's: `Cargo.toml` lints deny warnings and Clippy's `all` and `pedantic`; a `rust-toolchain.toml` pins Rust 1.93 with rustfmt and clippy; CI uses `actions-rust-lang/setup-rust-toolchain@v2.0.0`. There are no `src/` files.
 - `alpha recipe try` printed `ok: rust recipe proven`, and `answers check --area components` printed `ok`.
 - Editing the recipe afterwards (adding `-- -D warnings` to clippy) made `answers check` refuse it until it is proven again.
+
+### Remaining areas live check (2026-10-26)
+
+All three scenarios went through `bin/alpha` (`answers check`, `generate`, `bootstrap`, `commit-skeleton`) with all 17 areas answered. Each ended with a clean tree.
+
+- web+API: six commits; `docs/ui.md`, `docs/data.md`, `docs/performance.md`, `docs/releases.md`, plus `CHANGELOG.md` in the docs commit. ML single: `docs/data.md` with only the experiments section, no UI or performance doc. Rust CLI: no UI or data doc; `docs/performance.md` holds the startup budget. (The Rust bootstrap needed the toolchain's own `bin` on PATH, because the `~/.cargo/bin` links on this machine are broken.)
+- In the web+API project, a committed `api/migrations/0001_create_uploads.sql` was edited after SessionStart. The generated Stop hook blocked with the append-only message. After the `git checkout <base> -- …` it names and a new `0002` migration, the mechanical checks passed. The review gate then asked for the principles-reviewer, since migrations are risk paths.
+- Headless `claude -p --plugin-dir` ran releases, data, accessibility and performance in order, taking every recommendation (20 turns). All four checks print `ok`. The budgets are the per-kind defaults (api p95 < 300 ms; web LCP < 2.5 s and bundle < 200 KB gzipped), each with a measuring tool looked up for its stack (k6, Lighthouse CI, size-limit), and accessibility uses axe through Playwright. Claude built each save with a multi-line `python3` heredoc instead of the skills' one-line `answers write`. That ran here because `-p` doesn't prompt, but interactively it would ask once per save.
