@@ -140,3 +140,111 @@ def test_no_observability_doc_when_nothing_is_deployed(tmp_path: Path):
     out = render(load(tmp_path, SCENARIOS / "python-ml-single.json"))
     assert "docs/observability.md" not in out
     assert "Observability" not in out["CLAUDE.md"].split("## Docs")[1]
+
+
+def scenario(tmp_path: Path, name: str) -> Answers:
+    return load(tmp_path, SCENARIOS / f"{name}.json")
+
+
+def test_ui_doc_lists_the_visual_system_and_accessibility(tmp_path: Path):
+    doc = render(load(tmp_path))["docs/ui.md"]
+    assert doc.startswith("# UI\n")
+    visual = section(doc, "Visual system")
+    assert "| Component | Library | Tokens | Icons | Typography | Theming |" in visual
+    assert (
+        "| web | shadcn/ui | `web/src/styles/tokens.css` | lucide | "
+        "Inter, system fallback | light-dark |"
+    ) in visual
+    assert (
+        "Build the UI from these; no ad-hoc colors, spacing or fonts outside the "
+        "tokens." in visual
+    )
+    assert "- web: Playwright screenshots" in section(doc, "Visual regression")
+    a11y = section(doc, "Accessibility")
+    assert "Target: WCAG 2.2 AA." in a11y
+    assert "- web: axe in the end-to-end tests" in a11y
+    assert "Every UI works with a keyboard and a screen reader." in a11y
+
+
+def test_data_doc_lists_storage_and_the_migration_rules(tmp_path: Path):
+    doc = render(load(tmp_path))["docs/data.md"]
+    assert doc.startswith("# Data\n")
+    storage = section(doc, "Storage")
+    assert "| Component | Storage | Migrations | Reversible |" in storage
+    assert "| api | PostgreSQL | Alembic: `api/migrations/**` | yes |" in storage
+    assert "Every schema change is a migration." in storage
+    assert "Migrations are append-only" in storage
+    assert "(the Stop hook checks)" in storage
+    assert "## Experiments" not in doc
+
+
+def test_ml_data_doc_has_experiments_only(tmp_path: Path):
+    out = render(scenario(tmp_path, "python-ml-single"))
+    doc = out["docs/data.md"]
+    assert "## Storage" not in doc
+    experiments = section(doc, "Experiments")
+    assert "- Data versioning: DVC" in experiments
+    assert "- Seeds: fixed seeds recorded in the run config" in experiments
+    assert "- Experiment tracking: MLflow" in experiments
+    assert "docs/ui.md" not in out and "docs/performance.md" not in out
+
+
+def test_rust_cli_has_no_ui_or_data_docs(tmp_path: Path):
+    out = render(scenario(tmp_path, "rust-cli"))
+    assert "docs/ui.md" not in out and "docs/data.md" not in out
+    assert "| cli | startup | 200 ms | hyperfine in CI |" in out["docs/performance.md"]
+    assert "CHANGELOG.md" not in out
+
+
+def test_releases_doc_says_scheme_scope_changelog_and_process(tmp_path: Path):
+    doc = render(load(tmp_path))["docs/releases.md"]
+    assert doc.startswith("# Releases\n")
+    assert "Semantic versioning (MAJOR.MINOR.PATCH)" in doc
+    assert "One version for the whole repository." in doc
+    assert "Changes are recorded in [CHANGELOG.md](../CHANGELOG.md)" in doc
+    assert "Tag vX.Y.Z on main; CI builds the container and the static site." in doc
+
+
+def test_releases_doc_wording_follows_the_answers(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["releases"].update(
+            scheme="calver", changelog="github-releases", scope="component"
+        )
+
+    doc = render(load(tmp_path, mutate=mutate))["docs/releases.md"]
+    assert "Calendar versioning" in doc
+    assert "Each component is versioned on its own" in doc
+    assert "GitHub release notes" in doc
+
+
+def test_changelog_file_only_when_chosen(tmp_path: Path):
+    out = render(load(tmp_path))
+    log = out["CHANGELOG.md"]
+    assert log.startswith("# Changelog\n")
+    assert "semantic versioning" in log.lower()
+    assert "## Unreleased" in log
+
+
+def test_performance_doc_lists_every_budget(tmp_path: Path):
+    doc = render(load(tmp_path))["docs/performance.md"]
+    assert "| Component | Metric | Budget | Measured by |" in doc
+    assert "| api | p95 response time | 300 ms | k6 in CI against staging |" in doc
+    assert (
+        "| web | JavaScript bundle | 200 KB gzipped | the build's size report in CI |"
+        in doc
+    )
+
+
+def test_claude_md_links_the_new_docs(tmp_path: Path):
+    claude = render(load(tmp_path))["CLAUDE.md"]
+    for link in (
+        "- [UI](docs/ui.md)",
+        "- [Data](docs/data.md)",
+        "- [Releases](docs/releases.md)",
+        "- [Performance](docs/performance.md)",
+        "- [Changelog](CHANGELOG.md)",
+    ):
+        assert link in claude
+    rust = render(scenario(tmp_path / "r", "rust-cli"))["CLAUDE.md"]
+    assert "docs/ui.md" not in rust and "docs/data.md" not in rust
+    assert "- [Releases](docs/releases.md)" in rust

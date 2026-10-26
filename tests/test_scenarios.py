@@ -29,7 +29,7 @@ STANDARD_ROOT = {
 ROOT_ENTRIES = {  # what each scenario may add at the root: its components
     "python-ml-single": STANDARD_ROOT
     | {"pyproject.toml", "tests", ".python-version", ".github"},
-    "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web", ".github"},
+    "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web", ".github", "CHANGELOG.md"},
     "rust-cli": STANDARD_ROOT | {"Cargo.toml", "tests", ".github"},
 }
 SCENARIOS = ["python-ml-single", "web-ts-plus-python-api", "rust-cli"]
@@ -139,6 +139,7 @@ def test_commit_skeleton_groups_and_trailers(
         "README.md",
         "LICENSE",
         "CONTRIBUTING.md",
+        "CHANGELOG.md",
         "docs",
         ".gitignore",
     }

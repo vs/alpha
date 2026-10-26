@@ -8,7 +8,14 @@ from alpha.generate import GenerateError
 from alpha.render.ci import DEPENDABOT, WORKFLOW
 
 HOOKS_PATH = ".claude/alpha/githooks"
-_DOCS = ["README.md", "LICENSE", "CONTRIBUTING.md", "docs", ".gitignore"]
+_DOCS = [
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "docs",
+    ".gitignore",
+]
 _CLAUDE = ["CLAUDE.md", ".claude"]
 _CI = ".github"
 _MAX_DESCRIPTION = 50  # the commit-msg hook's limit

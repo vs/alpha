@@ -168,3 +168,160 @@ def observability_doc(a: Answers) -> str | None:
         "correlation id.",
     ]
     return "\n".join(lines) + "\n"
+
+
+def ui_doc(a: Answers) -> str | None:
+    """docs/ui.md: the visual system and accessibility, or None without a UI."""
+    assert a.ui is not None and a.accessibility is not None
+    if not a.ui.components:
+        return None
+    lines = [
+        "# UI",
+        "",
+        "## Visual system",
+        "",
+        "| Component | Library | Tokens | Icons | Typography | Theming |",
+        "|---|---|---|---|---|---|",
+    ]
+    lines += [
+        f"| {c.name} | {c.library} | `{c.tokens}` | {c.icons} | {c.typography} | "
+        f"{c.theming} |"
+        for c in a.ui.components
+    ]
+    lines += [
+        "",
+        "Build the UI from these; no ad-hoc colors, spacing or fonts outside the "
+        "tokens.",
+        "",
+        "## Visual regression",
+        "",
+    ]
+    lines += [f"- {c.name}: {c.visual_regression}" for c in a.ui.components]
+    lines += ["", "## Accessibility", "", f"Target: {a.accessibility.level}.", ""]
+    lines += [f"- {c.name}: {c.checks}" for c in a.accessibility.components]
+    lines += ["", "Every UI works with a keyboard and a screen reader."]
+    return "\n".join(lines) + "\n"
+
+
+def data_doc(a: Answers) -> str | None:
+    """docs/data.md: storage and migrations, and ML experiments; None when no
+    component stores data or does ML."""
+    assert a.data is not None
+    if not a.data.components and a.data.ml is None:
+        return None
+    lines = ["# Data", ""]
+    if a.data.components:
+        lines += [
+            "## Storage",
+            "",
+            "| Component | Storage | Migrations | Reversible |",
+            "|---|---|---|---|",
+        ]
+        for c in a.data.components:
+            globs = ", ".join(f"`{g}`" for g in c.migrations)
+            migrations = f"{c.migration_tool}: {globs}" if globs else c.migration_tool
+            reversible = "yes" if c.reversible else "no"
+            lines.append(f"| {c.name} | {c.storage} | {migrations} | {reversible} |")
+        lines += [
+            "",
+            "Every schema change is a migration. Migrations are append-only: once "
+            "one exists in a commit, add a new one instead of editing it (the Stop "
+            "hook checks). Write a down migration wherever the change can be "
+            "undone.",
+            "",
+        ]
+    if a.data.ml is not None:
+        ml = a.data.ml
+        lines += [
+            "## Experiments",
+            "",
+            f"- Data versioning: {ml.versioning}",
+            f"- Seeds: {ml.seeds}",
+            f"- Experiment tracking: {ml.tracking}",
+            "",
+            "Every result names the data version, seed and config that produced it.",
+            "",
+        ]
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+_SCHEMES = {
+    "semver": "Semantic versioning (MAJOR.MINOR.PATCH): a breaking change bumps "
+    "MAJOR, a new feature MINOR, a fix PATCH.",
+    "calver": "Calendar versioning: each version is the release date (e.g. 2026.10.1).",
+    "none": "No version numbers: every commit on the main branch is a release.",
+}
+_SCHEME_NAMES = {
+    "semver": "semantic versioning",
+    "calver": "calendar versioning",
+    "none": "no version numbers",
+}
+
+
+def releases_doc(a: Answers) -> str:
+    """docs/releases.md: the scheme, scope, changelog and process."""
+    assert a.releases is not None
+    r = a.releases
+    scope = (
+        "Each component is versioned on its own, with tags named "
+        "`<component>-v<version>`."
+        if r.scope == "component"
+        else "One version for the whole repository."
+    )
+    changelog = {
+        "file": "Changes are recorded in [CHANGELOG.md](../CHANGELOG.md) under "
+        "Unreleased as they land, and moved under the version at release.",
+        "github-releases": "Changes are written up in the GitHub release notes "
+        "for each version.",
+        "none": "No changelog is kept; the commit history is the record.",
+    }[r.changelog]
+    lines = [
+        "# Releases",
+        "",
+        _SCHEMES[r.scheme],
+        "",
+        scope,
+        "",
+        changelog,
+        "",
+        "## Cutting a release",
+        "",
+        r.process,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def changelog(a: Answers) -> str | None:
+    """CHANGELOG.md, when the project keeps one in a file."""
+    assert a.releases is not None
+    if a.releases.changelog != "file":
+        return None
+    return (
+        "# Changelog\n\n"
+        f"All notable changes, newest first. Versions follow "
+        f"{_SCHEME_NAMES[a.releases.scheme]}.\n\n"
+        "## Unreleased\n"
+    )
+
+
+def performance_doc(a: Answers) -> str | None:
+    """docs/performance.md, or None when no component has budgets."""
+    assert a.performance is not None
+    rows = [
+        f"| {c.name} | {b.metric} | {b.limit} | {b.measured_by} |"
+        for c in a.performance.components
+        for b in c.budgets
+    ]
+    if not rows:
+        return None
+    lines = [
+        "# Performance",
+        "",
+        "| Component | Metric | Budget | Measured by |",
+        "|---|---|---|---|",
+        *rows,
+        "",
+        "A change that breaks a budget is fixed, or the budget is changed by a "
+        "decision record.",
+    ]
+    return "\n".join(lines) + "\n"

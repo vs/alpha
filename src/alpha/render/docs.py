@@ -227,6 +227,15 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         lines.append("- [Glossary](docs/glossary.md)")
     if area_docs.observability_doc(a) is not None:
         lines.append("- [Observability](docs/observability.md)")
+    if area_docs.ui_doc(a) is not None:
+        lines.append("- [UI](docs/ui.md)")
+    if area_docs.data_doc(a) is not None:
+        lines.append("- [Data](docs/data.md)")
+    if area_docs.performance_doc(a) is not None:
+        lines.append("- [Performance](docs/performance.md)")
+    lines.append("- [Releases](docs/releases.md)")
+    if area_docs.changelog(a) is not None:
+        lines.append("- [Changelog](CHANGELOG.md)")
     return "\n".join(lines) + "\n"
 
 
@@ -413,7 +422,15 @@ def render_docs(
         "docs/dependencies.md": _dependencies(a, today),
         "docs/build.md": _build(a, principles),
         "docs/security.md": area_docs.security_doc(a, principles),
+        "docs/releases.md": area_docs.releases_doc(a),
     }
+    optional = {
+        "docs/ui.md": area_docs.ui_doc(a),
+        "docs/data.md": area_docs.data_doc(a),
+        "docs/performance.md": area_docs.performance_doc(a),
+        "CHANGELOG.md": area_docs.changelog(a),
+    }
+    out.update({path: text for path, text in optional.items() if text is not None})
     observability = area_docs.observability_doc(a)
     if observability is not None:
         out["docs/observability.md"] = observability
