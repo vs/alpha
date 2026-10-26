@@ -91,6 +91,28 @@ log_format = "json"         # or "logfmt"
 correlation = "traceparent" # W3C trace context; or "request-id"
 telemetry = "none"          # or "opentelemetry"
 
+[ui]
+theming = "light-dark"      # or "light", "dark", "custom"
+visual_regression = "screenshots in the end-to-end tests"
+
+[accessibility]
+level = "WCAG 2.2 AA"       # or "WCAG 2.2 A", "WCAG 2.2 AAA"
+
+[releases]
+scheme = "semver"           # or "calver", "none"
+changelog = "file"          # or "github-releases", "none"
+scope = "repo"              # or "component" (more than one component)
+
+# Starting budgets per kind; the interview adjusts them to the requirements.
+[performance.budgets]
+backend = ["p95 response time < 300 ms"]
+frontend = ["Largest Contentful Paint < 2.5 s", "JavaScript bundle < 200 KB gzipped"]
+mobile = ["cold start < 2 s"]
+cli = ["startup < 200 ms"]
+library = []
+ml = []
+worker = ["p95 job time < 30 s"]
+
 [[principles]]
 id = "simplest-architecture"
 title = "Simplest sufficient architecture"

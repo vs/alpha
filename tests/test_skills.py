@@ -22,11 +22,16 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "architecture": ("architecture", ("architecture",)),
     "errors": ("errors", ("errors",)),
     "testing": ("testing", ("testing",)),
+    "ui": ("ui", ("ui",)),
     "documentation": ("documentation", ("documentation",)),
     "build-and-hosting": ("build", ("build",)),
     "security": ("security", ("security",)),
     "dependencies": ("dependencies", ("dependencies",)),
     "observability": ("observability", ("observability",)),
+    "releases": ("releases", ("releases",)),
+    "data": ("data", ("data",)),
+    "accessibility": ("accessibility", ("accessibility",)),
+    "performance": ("performance", ("performance",)),
     "git-history": ("git", ("git",)),
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
@@ -330,9 +335,7 @@ def test_new_project_creates_every_area_as_pending():
 def test_new_project_reports_ci_and_no_longer_lists_these_areas_as_missing():
     report = _section("new-project", "7. Final report")
     assert "CI runs" in report
-    not_covered = report.split("**Not covered yet:**")[1].split("\n- **")[0]
-    assert "documentation" not in not_covered
-    assert "build/CI/hosting" not in not_covered
+    assert "Not covered yet" not in report
 
 
 def test_every_kind_has_an_error_format_and_test_levels():
@@ -370,10 +373,7 @@ def test_area_waits_for_the_area_before_it(skill: str):
 
 def test_new_project_no_longer_lists_the_core_areas_as_missing():
     report = _section("new-project", "7. Final report")
-    not_covered = report.split("**Not covered yet:**")[1].split("\n- **")[0]
-    for area in ("architecture", "errors", "testing", "security", "dependencies"):
-        assert area not in not_covered
-    assert "observability" not in not_covered
+    assert "Not covered yet" not in report
     assert "Dependabot" in report
 
 
@@ -390,8 +390,7 @@ def test_new_project_reports_the_reviewer():
         "or open review findings; findings you accept are recorded in the decision "
         "log." in report
     )
-    not_covered = report.split("**Not covered yet:**")[1].split("\n- **")[0]
-    assert "reviewer" not in not_covered
+    assert "Not covered yet" not in report
 
 
 def test_stack_recipe_skill_drafts_checks_and_tries():
@@ -441,3 +440,45 @@ def test_stack_recipe_skill_covers_what_trips_typical_stacks():
         "show the user what changed",
     ):
         assert fact in text, fact
+
+
+def test_every_remaining_area_default_is_a_choice():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    assert kit["ui"]["theming"] in core_areas.THEMING
+    assert kit["ui"]["visual_regression"].strip()
+    assert kit["accessibility"]["level"] in core_areas.A11Y_LEVELS
+    releases = kit["releases"]
+    assert releases["scheme"] in core_areas.SCHEMES
+    assert releases["changelog"] in core_areas.CHANGELOGS
+    assert releases["scope"] in core_areas.RELEASE_SCOPES
+
+
+def test_every_kind_has_starting_budgets():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    budgets = kit["performance"]["budgets"]
+    assert answers.KINDS <= set(budgets)
+    for kind in answers.KINDS:
+        for budget in budgets[kind]:
+            assert " < " in budget, f"{kind}: write budgets as '<metric> < <limit>'"
+
+
+def test_new_project_reports_append_only_migrations():
+    report = _section("new-project", "7. Final report")
+    assert "Claude can't edit a migration that existed before the session" in report
+
+
+@pytest.mark.parametrize("skill", ["ui", "accessibility", "data"])
+def test_areas_that_may_not_apply_ask_nothing(skill: str):
+    questions = _section(skill, "Questions")
+    assert "ask nothing" in questions
+
+
+def test_new_project_summary_covers_the_remaining_areas():
+    summary = _section("new-project", "5. Summary and confirmation")
+    for area in ("UI", "releases", "data", "accessibility", "performance"):
+        assert area in summary
+
+
+def test_data_skill_explains_the_append_only_rule():
+    text = _text("data")
+    assert "append-only" in text and "Stop hook" in text

@@ -43,13 +43,18 @@ Run the areas in this order, one at a time, never skipping one and never shortcu
 3. Architecture: `alpha:architecture`
 4. Errors: `alpha:errors`
 5. Testing: `alpha:testing`
-6. Documentation: `alpha:documentation`
-7. Build, CI and hosting: `alpha:build-and-hosting`
-8. Security and secrets: `alpha:security`
-9. Dependencies: `alpha:dependencies`
-10. Observability: `alpha:observability`
-11. Git history: `alpha:git-history`
-12. Agent workflow: `alpha:agent-workflow`
+6. UI: `alpha:ui`
+7. Documentation: `alpha:documentation`
+8. Build, CI and hosting: `alpha:build-and-hosting`
+9. Security and secrets: `alpha:security`
+10. Dependencies: `alpha:dependencies`
+11. Observability: `alpha:observability`
+12. Versioning and releases: `alpha:releases`
+13. Data and migrations: `alpha:data`
+14. Accessibility: `alpha:accessibility`
+15. Performance: `alpha:performance`
+16. Git history: `alpha:git-history`
+17. Agent workflow: `alpha:agent-workflow`
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 
@@ -57,7 +62,7 @@ Before each area, tell the user in one line which area comes next and what it se
 
 ## 5. Summary and confirmation
 
-Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), architecture (responsibilities, calls, contract, glossary), errors (format per component; categories), testing (levels per component), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, auth, extra protected paths), dependencies (updates and schedule), observability (per deployed component, or not applicable), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
+Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), architecture (responsibilities, calls, contract, glossary), errors (format per component; categories), testing (levels per component), UI (per UI component: library, tokens, theming, visual regression; or no UI), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, auth, extra protected paths), dependencies (updates and schedule), observability (per deployed component, or not applicable), releases (scheme, changelog, scope, process), data (per component that stores data: storage and migrations; ML data versioning, seeds and tracking; or nothing stored), accessibility (level and checks per UI component, or no UI), performance (budgets per component, or none), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
 
 If the user wants a change, save it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` on one line (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
 
@@ -82,10 +87,10 @@ Tell the user, briefly:
   - Claude can't edit protected files (secrets, lockfiles, and any extra protected paths), and must ask the user before skipping a test, adding an ignore comment or loosening strictness.
   - Every file Claude edits is formatted and linted right away.
   - Claude can't finish while it has added a secret, changed source without changing tests, changed a mapped path without its docs, added a dependency without a recorded reason, or left the type checks or tests failing.
+  - Claude can't edit a migration that existed before the session: migrations are append-only, so a fix is a new migration (when a component stores data).
   - CI runs every component's checks on each push to main and each pull request (when the user chose CI). Tell the user the workflow runs once they push the repository to GitHub.
   - Dependabot opens update pull requests on the chosen schedule (when chosen), also once the repository is on GitHub.
   - Claude can't finish, or push, with unreviewed changes past the thresholds or open review findings; findings you accept are recorded in the decision log.
   - Each session starts with a warning if the project setup is broken.
 - **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved to the kit.
-- **Not covered yet:** the remaining areas (UI/UX, versioning and releases, data and migrations, accessibility, performance) arrive in the next version of alpha. Their principles are already in `docs/principles.toml` at the kit defaults.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building.
