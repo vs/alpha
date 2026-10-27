@@ -1,7 +1,9 @@
 """Field validators for the interview answers; each failure says how to fix it."""
 
+import fnmatch
 import re
 from collections.abc import Callable, Mapping, Sequence
+from pathlib import PurePosixPath
 from typing import Any, Protocol, TypeVar, cast
 
 NAME = re.compile(r"[a-z][a-z0-9-]*")
@@ -83,10 +85,37 @@ def strings(d: Mapping[str, Any], key: str, where: str) -> tuple[str, ...]:
 
 def unmatchable(path: str) -> bool:
     """A relative path or glob no repository path can match: empty, absolute,
-    or with an empty, "." or ".." segment (as in "web/", "./web", "a//b")."""
-    return path.startswith("/") or any(
-        part in ("", ".", "..") for part in path.split("/")
+    with an empty, "." or ".." segment (as in "web/", "./web", "a//b"), or
+    with a line break."""
+    return (
+        path.startswith("/")
+        or "\n" in path
+        or "\r" in path
+        or any(part in ("", ".", "..") for part in path.split("/"))
     )
+
+
+def prefixed(path: str, glob: str) -> str:
+    """A component's glob, relative to the project root."""
+    return glob if path == "." else (PurePosixPath(path) / glob).as_posix()
+
+
+def match_parts(path: list[str], pat: list[str]) -> bool:
+    """Glob match by path segment, "**" spanning any depth (as the hooks match)."""
+    if not pat:
+        return not path
+    if pat[0] == "**":
+        return any(match_parts(path[k:], pat[1:]) for k in range(len(path) + 1))
+    if not path:
+        return False
+    return fnmatch.fnmatchcase(path[0], pat[0]) and match_parts(path[1:], pat[1:])
+
+
+def sample(glob: str) -> str:
+    """A path the glob matches: "**" spans nothing and wildcards stand for "x",
+    as in "api/tests/**/*.py" -> "api/tests/x.py"."""
+    parts = [p for p in glob.split("/") if p != "**"]
+    return "/".join(re.sub(r"\*+|\?|\[[^]]*\]", "x", p) for p in parts)
 
 
 def relative(value: str, where: str) -> None:
@@ -108,6 +137,11 @@ def paths(d: Mapping[str, Any], key: str, where: str) -> tuple[str, ...]:
     return paths
 
 
+def _example(field: str) -> str:
+    key, _, value = field.partition(":")
+    return f'"{key}": ' + (value or '"…"')
+
+
 class Named(Protocol):
     @property
     def name(self) -> str: ...
@@ -127,7 +161,8 @@ def per_component(
 ) -> None:
     """One entry per component that `only` selects, matched by name.
 
-    `fields` names the entry's other fields, for the fix of a missing entry;
+    `fields` names the entry's other fields, for the fix of a missing entry,
+    each as "name" (text) or "name:<example JSON>" (e.g. "levels:[\"unit\"]");
     `reason` says why a component `only` rejects can't have one.
     """
     names = [c.name for c in comps]
@@ -148,7 +183,7 @@ def per_component(
     named = [t.name for t in targets]
     for name in selected:
         if name not in named:
-            example = ", ".join([f'"name": "{name}"', *(f'"{f}": "…"' for f in fields)])
+            example = ", ".join([f'"name": "{name}"', *map(_example, fields)])
             raise fail(where, f"no entry for component {name!r}", f"Add {{{example}}}")
         if named.count(name) > 1:
             raise fail(

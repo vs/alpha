@@ -49,6 +49,16 @@ def test_calls_name_other_components(tmp_path: Path, call: str):
         check(tmp_path, d)
 
 
+def test_calls_are_listed_once(tmp_path: Path):
+    d = valid()
+    d["architecture"]["components"][1]["calls"] = ["api", "api"]
+    with pytest.raises(
+        AnswersError,
+        match=r"architecture\.components\[1\]\.calls: 'api' is listed twice",
+    ):
+        check(tmp_path, d)
+
+
 def test_talking_components_need_a_contract(tmp_path: Path):
     d = valid()
     d["architecture"]["contracts"] = {"format": "none", "paths": []}
@@ -473,16 +483,15 @@ def test_empty_budgets_are_fine(tmp_path: Path):
     assert a.performance and a.performance.components[1].budgets == ()
 
 
-@pytest.mark.parametrize("area", ["data", "performance"])
-def test_data_and_performance_follow_renames(tmp_path: Path, area: str):
+@pytest.mark.parametrize("area", ["build", "observability", "data", "performance"])
+def test_later_areas_follow_renames(tmp_path: Path, area: str):
     d = valid()
     d["components"][0]["name"] = "server"
     d["git"]["scopes"] = ["server", "web"]
-    for other in ("architecture", "errors", "testing", "build", "observability"):
-        d[other]["components"][0]["name"] = "server"
     d["architecture"]["components"][1]["calls"] = ["server"]
     d["overrides"][0]["scope"] = "component:server"
-    for other in ("data", "performance"):
+    renamed = ("architecture", "errors", "testing", "build", "observability")
+    for other in (*renamed, "data", "performance"):
         if other != area:
             d[other]["components"][0]["name"] = "server"
     with pytest.raises(AnswersError, match=rf"{area}\.components"):
@@ -497,3 +506,23 @@ def test_a_frontend_has_a_ui_whatever_its_trait_says(tmp_path: Path):
     d["ui"]["components"] = []
     with pytest.raises(AnswersError, match=r"ui\.components: no entry .*'web'"):
         check(tmp_path, d)
+
+
+@pytest.mark.parametrize(
+    ("area", "hint"),
+    [
+        ("data", '"migrations": [], "reversible": true'),
+        ("testing", '"levels": ["unit"]'),
+        ("architecture", '"responsibility": "…", "calls": []'),
+        ("performance", '"budgets": []'),
+    ],
+)
+def test_missing_entry_hint_shows_each_field_as_its_type(
+    tmp_path: Path, area: str, hint: str
+):
+    d = valid()
+    d[area]["components"] = [e for e in d[area]["components"] if e["name"] != "api"]
+    with pytest.raises(AnswersError) as e:
+        check(tmp_path, d)
+    assert "no entry for component 'api'" in str(e.value)
+    assert hint in str(e.value)

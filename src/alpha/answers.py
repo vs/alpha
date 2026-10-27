@@ -31,10 +31,13 @@ from alpha.validate import (
     choice,
     fail,
     get,
+    match_parts,
     obj,
     paths,
     per_component,
     pos_int,
+    prefixed,
+    sample,
     string,
     strings,
     unmatchable,
@@ -42,6 +45,8 @@ from alpha.validate import (
 from alpha.validate import AnswersError as AnswersError  # re-exported for callers
 
 PROJECT_JSON = ".claude/alpha/project.json"
+PRINCIPLES_FILE = "docs/principles.toml"
+DEPENDENCY_LOG = "docs/dependencies.md"  # the Stop hook requires it with new deps
 AREAS: tuple[str, ...] = (
     "identity",
     "components",
@@ -294,7 +299,8 @@ def drafted_recipes(
             raise fail(
                 where,
                 "not proven since it last changed",
-                f'Run "alpha recipe try <target> {stack}" until it prints ok',
+                f'Run "alpha recipe try <target> {stack}" until it prints ok, or '
+                "remove it from recipes if no component uses it",
             )
     return drafted
 
@@ -478,6 +484,13 @@ def _documentation(raw: object) -> Documentation:
                 f"{path!r} is not a folder under docs/",
                 'Use a folder inside docs/, e.g. "docs/guide"',
             )
+        if parts[1] == "decisions" or parts[-1].endswith((".md", ".toml")):
+            raise fail(
+                "documentation.external_path",
+                f"{path!r} is where alpha writes its own docs (docs/*.md, "
+                "docs/principles.toml, docs/decisions/)",
+                'Use a folder of its own, e.g. "docs/guide"',
+            )
     elif path:
         raise fail(
             "documentation.external_path",
@@ -558,6 +571,37 @@ def _build(
                 'Name at least one environment, e.g. ["production"]',
             )
     return Build(ci, environments, tuple(targets))
+
+
+def _check_protected(
+    security: Security,
+    comps: tuple[Component, ...],
+    documentation: Documentation | None,
+    book: RecipeBook,
+) -> None:
+    """Refuse an extra protected glob over a file alpha's checks require
+    changing: the principles, the dependency log, mapped docs, manifests and
+    tests (tests-first-class asks for them with every source change)."""
+    needed = [(p, p) for p in (PRINCIPLES_FILE, DEPENDENCY_LOG)]
+    if documentation is not None:
+        needed += [(d, d) for m in documentation.mappings for d in m.docs]
+    for c in comps:
+        recipe = book.get(c.stack)
+        needed += [(m, m) for m in (prefixed(c.path, m) for m in recipe.manifests)]
+        needed += [
+            (f"{t} (tests)", sample(t))
+            for t in (prefixed(c.path, g) for g in recipe.test_globs)
+        ]
+    for i, glob in enumerate(security.extra_protected):
+        for shown, path in needed:
+            if match_parts(path.split("/"), glob.split("/")):
+                raise fail(
+                    f"security.extra_protected[{i}]",
+                    f"{glob!r} covers {shown}, which alpha's checks may require "
+                    "changing",
+                    f"Protect something narrower: alpha's checks must be able to "
+                    f"change {shown}",
+                )
 
 
 def _override(raw: object, i: int, names: set[str] | None) -> Override:
@@ -737,6 +781,8 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
         if active("security")
         else None
     )
+    if security is not None and active("components"):
+        _check_protected(security, comps, documentation, RecipeBook(drafted))
     dependencies = (
         core_areas.dependencies(get(top, "dependencies", ""))
         if active("dependencies")

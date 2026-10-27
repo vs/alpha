@@ -170,6 +170,13 @@ def test_drafted_recipe_names(tmp_path: Path, name: str, problem: str):
         check(tmp_path, d, require_areas=["components"])
 
 
+def test_an_unproven_drafted_recipe_says_it_can_be_removed(tmp_path: Path):
+    d = valid()
+    d["recipes"] = {"shell": shell_recipe()}  # drafted, never tried, unused
+    with pytest.raises(AnswersError, match=r"recipes\.shell: .*or remove it"):
+        check(tmp_path, d, require_areas=["components"])
+
+
 def test_drafted_recipe_errors_name_the_field(tmp_path: Path):
     d = with_shell(valid())
     d["recipes"]["shell"]["commands"]["setup"] = ""
@@ -529,6 +536,32 @@ def test_external_folder_must_be_under_docs(tmp_path: Path, path: str):
     d = valid()
     d["documentation"]["external_path"] = path
     with pytest.raises(AnswersError, match=r"documentation\.external_path: .*docs/"):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["docs/build.md", "docs/principles.toml", "docs/decisions", "docs/decisions/x"],
+)
+def test_external_folder_stays_clear_of_generated_docs(tmp_path: Path, path: str):
+    d = valid()
+    d["documentation"]["external_path"] = path
+    for m in d["documentation"]["mappings"]:
+        m["docs"] = [f"{path}/**"]
+    with pytest.raises(
+        AnswersError, match=r"documentation\.external_path: .*alpha writes"
+    ):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize("field", ["external_path", "mapping"])
+def test_paths_with_line_breaks_are_refused(tmp_path: Path, field: str):
+    d = valid()
+    if field == "external_path":
+        d["documentation"]["external_path"] = "docs/gu\nide"
+    else:
+        d["documentation"]["mappings"][0]["paths"] = ["api/**\n"]
+    with pytest.raises(AnswersError, match=r"documentation\."):
         check(tmp_path, d)
 
 

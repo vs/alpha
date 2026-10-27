@@ -299,6 +299,8 @@ def test_extra_protected_and_contract_paths_reach_the_principles():
         ("**/package.json", "web/package.json"),
         ("docs/guide/**", "docs/guide/**"),
         ("docs/dependencies.md", "docs/dependencies.md"),
+        ("**/tests/**", "api/tests/**/*.py (tests)"),
+        ("web/**/*.test.ts", "web/**/*.test.ts (tests)"),
     ],
 )
 def test_protecting_what_checks_must_change_is_refused(
@@ -307,11 +309,12 @@ def test_protecting_what_checks_must_change_is_refused(
     def mutate(data: dict[str, Any]) -> None:
         data["security"]["extra_protected"] = ["api/keys/**", glob]
 
+    # answers check refuses it, before generate gets that far
     with pytest.raises(
         AnswersError,
         match=rf"security\.extra_protected\[1\]: .*{re.escape(blocked)}",
     ):
-        build_principles(D, variant(tmp_path, mutate), "0.1.0")
+        variant(tmp_path, mutate)
 
 
 def scenario_answers(tmp_path: Path, name: str, mutate: Any = None) -> Answers:

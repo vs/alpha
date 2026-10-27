@@ -184,6 +184,22 @@ def test_malformed_recipes_name_the_field(changes: dict[str, Any], where: str):
 
 
 @pytest.mark.parametrize(
+    ("changes", "where"),
+    [
+        ({"ignores": ["out/\nsecret"]}, r"recipes\.shell\.ignores\[0\]"),
+        ({"source_globs": ["src/**\n"]}, r"recipes\.shell\.source_globs\[0\]"),
+        ({"bootstrap": ["a\nb"]}, r"recipes\.shell\.bootstrap\[0\]"),
+        ({"commands__test": "sh a\nsh b"}, r"recipes\.shell\.commands\.test"),
+        ({"why": {"tool": "fast\nand small"}}, r"recipes\.shell\.why\.tool"),
+        ({"why": {"to\nol": "fast"}}, r"recipes\.shell\.why"),
+    ],
+)
+def test_recipe_text_fields_are_one_line(changes: dict[str, Any], where: str):
+    with pytest.raises(RecipeError, match=rf"{where}: .*line break"):
+        recipe_from_data("shell", drafted(**changes), "recipes.shell", None)
+
+
+@pytest.mark.parametrize(
     "uses",
     [
         "actions/checkout@v7",

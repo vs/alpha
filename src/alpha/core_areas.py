@@ -215,6 +215,8 @@ def architecture(
         name = string(eo, "name", ew)
         calls = strings(eo, "calls", ew)
         for call in calls:
+            if calls.count(call) > 1:
+                raise fail(f"{ew}.calls", f"{call!r} is listed twice", "List it once")
             if comps is not None and (call == name or call not in names):
                 raise fail(
                     f"{ew}.calls",
@@ -230,7 +232,7 @@ def architecture(
             )
         entries.append(Responsibility(name, string(eo, "responsibility", ew), calls))
     if comps is not None:
-        per_component(entries, comps, f"{w}.components", ("responsibility", "calls"))
+        per_component(entries, comps, f"{w}.components", ("responsibility", "calls:[]"))
     if talk and not any(e.calls for e in entries):
         raise fail(
             f"{w}.components",
@@ -341,7 +343,7 @@ def testing(raw: object, comps: "Sequence[Component] | None", talk: bool) -> Tes
             )
         entries.append(TestPlan(string(eo, "name", ew), levels))
     if comps is not None:
-        per_component(entries, comps, f"{w}.components", ("levels",))
+        per_component(entries, comps, f"{w}.components", ('levels:["unit"]',))
     return Testing(tuple(entries))
 
 
@@ -550,7 +552,7 @@ def data(raw: object, comps: "Sequence[Component] | None") -> Data:
             entries,
             comps,
             f"{w}.components",
-            ("storage", "migration_tool", "migrations", "reversible"),
+            ("storage", "migration_tool", "migrations:[]", "reversible:true"),
             only=lambda c: c.traits.persisted_data,
             reason="doesn't store data",
         )
@@ -599,5 +601,5 @@ def performance(raw: object, comps: "Sequence[Component] | None") -> Performance
             )
         entries.append(PerfPlan(string(eo, "name", ew), tuple(budgets)))
     if comps is not None:
-        per_component(entries, comps, f"{w}.components", ("budgets",))
+        per_component(entries, comps, f"{w}.components", ("budgets:[]",))
     return Performance(tuple(entries))

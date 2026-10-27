@@ -1,12 +1,10 @@
 """Principles file: merge defaults and interview answers into docs/principles.toml."""
 
-import fnmatch
-from collections.abc import Sequence
-from pathlib import PurePosixPath
 from typing import Any, cast
 
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
 from alpha.toml_write import dumps
+from alpha.validate import prefixed
 
 _COMPONENT_FACTS = (
     "has_ui",
@@ -23,8 +21,6 @@ _PROJECT_ONLY = (
     "domain_jargon",
 )
 
-PRINCIPLES_FILE = "docs/principles.toml"
-DEPENDENCY_LOG = "docs/dependencies.md"  # the Stop hook requires it with new deps
 _HEADER = """\
 # Single source of truth for this project's principles, review thresholds,
 # protected paths and component commands. Edit by hand or through alpha skills;
@@ -66,10 +62,6 @@ def compute_facts(a: Answers) -> dict[str, bool]:
     return facts
 
 
-def _prefixed(path: str, glob: str) -> str:
-    return glob if path == "." else (PurePosixPath(path) / glob).as_posix()
-
-
 def _dedupe(items: list[str]) -> list[str]:
     return list(dict.fromkeys(items))
 
@@ -85,29 +77,6 @@ def _applicable(applies: list[str], a: Answers, project: dict[str, bool]) -> lis
                 names.append(c.name)
                 break
     return names
-
-
-def _match_parts(path: list[str], pat: list[str]) -> bool:
-    """Glob match by path segment, "**" spanning any depth (as the hooks match)."""
-    if not pat:
-        return not path
-    if pat[0] == "**":
-        return any(_match_parts(path[k:], pat[1:]) for k in range(len(path) + 1))
-    if not path:
-        return False
-    return fnmatch.fnmatchcase(path[0], pat[0]) and _match_parts(path[1:], pat[1:])
-
-
-def _check_protected(extra: Sequence[str], needed: list[str]) -> None:
-    """Refuse a protected glob over a file alpha's checks require changing."""
-    for i, glob in enumerate(extra):
-        for path in needed:
-            if _match_parts(path.split("/"), glob.split("/")):
-                raise AnswersError(
-                    f"security.extra_protected[{i}]: {glob!r} covers {path}, which "
-                    "alpha's checks may require changing. Protect something "
-                    f"narrower: alpha's checks must be able to change {path}."
-                )
 
 
 def _docs_map(documentation: Documentation) -> dict[str, list[str]]:
@@ -158,18 +127,18 @@ def build_principles(
     book = a.book()
     for c in a.components:
         recipe = book.get(c.stack)
-        protected += [_prefixed(c.path, lock) for lock in recipe.lockfiles]
+        protected += [prefixed(c.path, lock) for lock in recipe.lockfiles]
         components.append(
             {
                 "name": c.name,
                 "path": c.path,
                 "kind": c.kind,
                 "stack": c.stack,
-                "manifests": [_prefixed(c.path, m) for m in recipe.manifests],
-                "lockfiles": [_prefixed(c.path, lock) for lock in recipe.lockfiles],
-                "source_globs": [_prefixed(c.path, g) for g in recipe.source_globs],
-                "test_globs": [_prefixed(c.path, g) for g in recipe.test_globs],
-                "exclude_globs": [_prefixed(c.path, g) for g in recipe.exclude_globs],
+                "manifests": [prefixed(c.path, m) for m in recipe.manifests],
+                "lockfiles": [prefixed(c.path, lock) for lock in recipe.lockfiles],
+                "source_globs": [prefixed(c.path, g) for g in recipe.source_globs],
+                "test_globs": [prefixed(c.path, g) for g in recipe.test_globs],
+                "exclude_globs": [prefixed(c.path, g) for g in recipe.exclude_globs],
                 "commands": dict(recipe.commands),
             }
         )
@@ -230,15 +199,6 @@ def build_principles(
 
     docs_map = _docs_map(a.documentation)
     protected += a.security.extra_protected
-    _check_protected(
-        a.security.extra_protected,
-        [
-            PRINCIPLES_FILE,
-            DEPENDENCY_LOG,
-            *(doc for docs in docs_map.values() for doc in docs),
-            *(m for c in components for m in c["manifests"]),
-        ],
-    )
     return {
         "schema": 1,
         "kit_version": kit_version,

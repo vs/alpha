@@ -152,6 +152,7 @@ def _texts(value: object, where: str, *, globs: bool = False) -> list[str]:
         here = f"{where}[{i}]"
         if not isinstance(item, str) or not item.strip():
             raise _fail(here, "must be non-empty text", "Remove it or fill it in")
+        _one_line(item, here)
         if globs and unmatchable(item):
             raise _fail(
                 here,
@@ -163,6 +164,13 @@ def _texts(value: object, where: str, *, globs: bool = False) -> list[str]:
             raise _fail(here, f"{item!r} starts with /", "Make it relative")
         out.append(item)
     return out
+
+
+def _one_line(text: str, where: str) -> None:
+    """Commands, globs and reasons land in one line of .gitignore, a shell
+    or a Markdown table, where a line break would split them."""
+    if "\n" in text or "\r" in text:
+        raise _fail(where, f"{text!r} has a line break", "Write it on one line")
 
 
 def _plain(value: object) -> bool:
@@ -237,6 +245,7 @@ def recipe_from_data(
         value = commands_in[key]
         if not isinstance(value, str):
             raise _fail(here, "must be text", "Write the shell command")
+        _one_line(value, here)
         if key in ("setup", "test") and not value.strip():
             raise _fail(
                 here, "is empty", "Every stack needs a setup and a test command"
@@ -257,6 +266,9 @@ def recipe_from_data(
     }
     ignores = _texts(get("ignores"), f"{where}.ignores")
     why = _mapping(get("why"), f"{where}.why")
+    for tool, reason in why.items():
+        _one_line(tool, f"{where}.why")
+        _one_line(reason, f"{where}.why.{tool}")
     ci_raw = get("ci")
     if not isinstance(ci_raw, dict):
         raise _fail(
