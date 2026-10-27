@@ -202,6 +202,9 @@ def test_amend_blocked_when_pushed(project: Project, tmp_path: Path) -> None:
         ("cd api && echo x > uv.lock", "api/uv.lock"),
         ("cd api; rm keys/a.txt", "api/keys/a.txt"),
         ("cd api && cd keys && tee a.txt", "api/keys/a.txt"),
+        ("cd -- api && echo x > uv.lock", "api/uv.lock"),
+        ("cd -P api; rm uv.lock", "api/uv.lock"),
+        ("echo a\\\\ > .env", ".env"),
     ],
 )
 def test_shell_writes_to_protected_paths_are_blocked(

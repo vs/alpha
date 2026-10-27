@@ -295,7 +295,9 @@ def redirect_segments(command: str) -> list[tuple[list[str], list[str]]]:
             continue
         if glued:
             segments.append(([], []))
-        escaped = not glued and i > 0 and tokens[i - 1].endswith("\\")
+        before = tokens[i - 1] if i > 0 else ""
+        backslashes = len(before) - len(before.rstrip("\\"))
+        escaped = not glued and backslashes % 2 == 1
         if in_test or escaped or i + 1 >= len(tokens):
             continue
         try:
@@ -330,13 +332,29 @@ def command_targets(segment: list[str]) -> list[str]:
 
 
 def _cd(here: Path, words: list[str]) -> Path:
-    """Where a `cd` segment leaves the shell; anything unclear stays put."""
-    if len(words) == 1:
+    """Where a `cd` segment leaves the shell (words are already unquoted);
+    `cd -` and anything else unclear stays put."""
+    args = words[1:]
+    while args and args[0] in ("-P", "-L", "-e", "-@"):
+        args = args[1:]
+    if args and args[0] == "--":
+        args = args[1:]
+    if not args:
         return Path.home()
-    arg = words[1]
-    if arg == "-" or arg.startswith("-"):
+    if args[0].startswith("-"):
         return here
-    return here / Path(arg).expanduser()
+    return here / Path(args[0]).expanduser()
+
+
+def _unquoted(words: list[str]) -> list[str]:
+    """Shell words with their quotes removed; one that can't be stays as is."""
+    out: list[str] = []
+    for word in words:
+        try:
+            out += shlex.split(word) or [""]
+        except ValueError:
+            out.append(word)
+    return out
 
 
 def _files(here: Path, word: str) -> list[Path]:
@@ -373,7 +391,7 @@ def write_targets(command: str, cwd: Path, depth: int = 0) -> list[Path]:
     here = cwd
     for words, redirected in redirect_segments(command):
         if words and words[0] == "cd":
-            here = _cd(here, [shlex.split(w)[0] if w else w for w in words[:2]])
+            here = _cd(here, _unquoted(words))
             continue
         for word in redirected:
             if word not in NOT_FILES:
