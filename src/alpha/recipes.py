@@ -380,7 +380,9 @@ def recipe_from_data(
 
 def kit_dirs() -> list[Path]:
     """Where kit recipes live: the live source's recipes/ (with recipes saved
-    from earlier projects) first, then the ones bundled with the plugin."""
+    from earlier projects) first, then the ones bundled with the plugin. The
+    first folder with a stack wins, so a live checkout's python and typescript
+    recipes replace the bundled ones too, even when that checkout is older."""
     dirs: list[Path] = []
     try:
         source = locate_source(RECIPES_DIR.parent, os.environ, Path.home())

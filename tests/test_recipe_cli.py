@@ -89,6 +89,31 @@ def test_try_says_to_install_a_missing_tool(
     assert "install no-such-tool-xyz" in capsys.readouterr().err
 
 
+def test_try_finds_the_missing_tool_after_cd(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    recipe = shell_recipe()
+    recipe["commands"]["setup"] = "cd . && no-such-tool-xyz sync"
+    target = project(tmp_path, recipe)
+    assert cli.main(["recipe", "try", str(target), "shell"]) == 1
+    err = capsys.readouterr().err
+    assert "no-such-tool-xyz wasn't found: install no-such-tool-xyz" in err
+    assert "package manager" in err
+
+
+def test_try_stops_a_command_that_hangs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr("alpha.recipe_cli._TIMEOUT", 0.5)
+    recipe = shell_recipe()
+    recipe["commands"]["setup"] = "sh -c 'sleep 5'"
+    target = project(tmp_path, recipe)
+    assert cli.main(["recipe", "try", str(target), "shell"]) == 1
+    err = capsys.readouterr().err
+    assert "took longer than 0.5s" in err
+    assert "waits for input" in err
+
+
 def scenario_with_shell(target: Path, recipe: dict[str, Any]) -> None:
     data = json.loads((SCENARIOS / "python-ml-single.json").read_text())
     single_component(data, dict(data["components"][0], stack="shell"))
@@ -141,6 +166,35 @@ def test_save_writes_the_recipe_and_commits(
     assert saved.templates == shell_recipe()["templates"]
     assert saved.commands == shell_recipe()["commands"]
     assert git(src.path, "status", "--porcelain") == ""
+
+
+def test_save_keeps_the_subject_short_for_a_long_slug(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    src = make_source(tmp_path / "src", repo=True)
+    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    path = target / ".claude/alpha/project.json"
+    data = json.loads(path.read_text())
+    data["identity"] = {"slug": "a-very-long-project-slug-for-testing"}
+    path.write_text(json.dumps(data))
+    save_recipe(target, "shell", src, [])
+    subject = git(src.path, "log", "-1", "--format=%s")
+    assert subject == "feat(recipes): Add shell recipe"
+
+
+def test_save_keeps_templates_whose_flat_names_would_collide(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    src = make_source(tmp_path / "src", repo=True)
+    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
+    recipe = shell_recipe()
+    recipe["templates"]["tests-setup.sh"] = "echo flat\n"
+    target = drafted_project(tmp_path / "p", proven(recipe))
+    save_recipe(target, "shell", src, [])
+    saved = RecipeBook().get("shell").templates
+    assert saved["tests/setup.sh"] == "test 1 -eq 1\n"
+    assert saved["tests-setup.sh"] == "echo flat\n"
 
 
 def test_save_needs_a_live_source(tmp_path: Path):

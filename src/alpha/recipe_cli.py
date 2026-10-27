@@ -1,7 +1,10 @@
 """`alpha recipe`: list kit recipes, and check, try and save a drafted one."""
 
 import json
+import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -22,6 +25,12 @@ from alpha.recipes import (
 
 _TAIL_LINES = 40
 _NOT_FOUND = 127
+_TIMEOUT = 600.0  # seconds per command: a toolchain download can be slow
+_SUBJECT = 50  # the commit convention's limit on the description
+# How sh, bash and zsh name a command they can't find.
+_MISSING = re.compile(
+    r"(?:^|: )([^\s:]+): (?:command )?not found$|command not found: (\S+)$", re.M
+)
 
 
 def list_recipes() -> list[str]:
@@ -65,17 +74,37 @@ def check(target: Path, stack: str) -> dict[str, Any]:
     return cast(dict[str, Any], drafted[stack])
 
 
-def _run(command: str, cwd: Path) -> tuple[int, str]:
+def _run(command: str, cwd: Path) -> tuple[int, str] | None:
+    """(exit code, output), or None when it ran past the timeout. Nothing
+    can answer a prompt, so stdin is empty."""
     print(f"alpha: try: {command}", file=sys.stderr, flush=True)
-    done = subprocess.run(
+    proc = subprocess.Popen(
         command,
         shell=True,
         cwd=cwd,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        start_new_session=True,  # so a timeout stops what it started, too
     )
-    return done.returncode, done.stdout
+    try:
+        output, _ = proc.communicate(timeout=_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        return None
+    return proc.returncode, output
+
+
+def _missing_tool(command: str, output: str) -> str:
+    """The tool the shell couldn't find: named in its output, else the first
+    word that isn't an assignment."""
+    found = _MISSING.search(output)
+    if found:
+        return found.group(1) or found.group(2)
+    words = [w for w in command.split() if "=" not in w]
+    return words[0] if words else command
 
 
 def _created_sources(root: Path, recipe: Recipe) -> list[str]:
@@ -109,13 +138,22 @@ def try_recipe(target: Path, stack: str) -> str | None:
         steps = [("bootstrap", c) for c in recipe.bootstrap]
         steps += check_commands(recipe.commands)
         for step, command in steps:
-            code, output = _run(command, root)
+            ran = _run(command, root)
+            if ran is None:
+                return (
+                    f'"{command}" took longer than {_TIMEOUT:g}s, so alpha stopped '
+                    f"it. If it waits for input, make the recipe's {step} command "
+                    "run without asking; otherwise find out why it's slow, fix it, "
+                    f'and run "alpha recipe try {target} {stack}" again.'
+                )
+            code, output = ran
             if code == 0:
                 continue
             tail = "\n".join(output.splitlines()[-_TAIL_LINES:])
-            tool = command.split()[0] if command.split() else command
+            tool = _missing_tool(command, output)
             fix = (
-                f"{tool} wasn't found: install {tool}, or fix the recipe's {step} "
+                f"{tool} wasn't found: install {tool} (with your system's package "
+                f"manager or the tool's own installer), or fix the recipe's {step} "
                 "command"
                 if code == _NOT_FOUND
                 else f"Fix the recipe's {step} command"
@@ -140,7 +178,9 @@ def try_recipe(target: Path, stack: str) -> str | None:
 
 
 def _template_name(rel: str) -> str:
-    return rel.replace("/", "-") + ".tmpl"
+    """Where a template is kept in recipes/<stack>/: its own path, so two
+    templates never share a file."""
+    return rel + ".tmpl"
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -207,10 +247,15 @@ def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -
     try:
         (folder / stack).mkdir(parents=True)
         for rel, template in templates.items():
-            (folder / stack / _template_name(rel)).write_text(template)
+            path = folder / stack / _template_name(rel)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(template)
         (folder / f"{stack}.toml").write_text(text)
         _git(source.path, "add", "--", *paths)
-        message = f"feat(recipes): Add {stack} recipe from {slug}"
+        subject = f"Add {stack} recipe from {slug}"
+        if len(subject) > _SUBJECT:
+            subject = f"Add {stack} recipe"
+        message = f"feat(recipes): {subject}"
         if trailers:
             message += "\n\n" + "\n".join(trailers)
         _git(source.path, "commit", "-q", "-m", message, "--", *paths)
