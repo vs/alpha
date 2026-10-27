@@ -1,8 +1,10 @@
-"""PreToolUse hook for Bash: blocks --no-verify, hooksPath changes, force-push and
-pushed amends."""
+"""PreToolUse hook for Bash: blocks --no-verify, hooksPath changes, force-push,
+pushed amends and git clean -x; shell writes to protected paths; pushes and pull
+requests with unreviewed work; and any change made by the principles-reviewer."""
 
 from __future__ import annotations
 
+import glob as globlib
 import posixpath
 import re
 import shlex
@@ -252,15 +254,27 @@ def check_command(command: str, root: Path, depth: int = 0) -> None:
         check_segment(segment, root)
 
 
-REDIRECTS = {">", ">>", ">|", "&>", "&>>"}
-WRITES_LAST = {"cp", "mv", "install", "ln"}  # the last argument is written
-WRITES_ALL = {"rm", "truncate", "tee"}  # every non-option argument is written
+REDIRECTS = (">>", ">|", ">")  # longest first; "&>" is "&" glued to ">"
+SEPARATOR_CHARS = set("&|;()")
+WRITES_LAST = {"cp", "install", "ln"}  # the last argument is written
+WRITES_ALL = {"rm", "truncate", "tee", "mv"}  # mv removes its sources, too
 NOT_FILES = {"", "-", "/dev/null", "/dev/stdout", "/dev/stderr"}
+GLOB_CHARS = set("*?[")
 
 
-def redirect_targets(command: str) -> list[str]:
-    """Files a command redirects output into. Lexed without POSIX quote
-    removal, so a quoted ">" (as in grep '>' f) stays a word, not a redirect."""
+def _redirect(token: str) -> str | None:
+    """The separator glued in front of a redirect token (`;>`, `)>`, `&&>`),
+    "" for a bare one, or None when the token isn't a redirect."""
+    for op in REDIRECTS:
+        if token.endswith(op) and set(token[: -len(op)]) <= SEPARATOR_CHARS:
+            return token[: -len(op)]
+    return None
+
+
+def redirect_segments(command: str) -> list[tuple[list[str], list[str]]]:
+    """(words, redirect targets) per segment. Lexed without POSIX quote
+    removal, so a quoted ">" (as in grep '>' f) stays a word, not a redirect;
+    an escaped \\> and a comparison inside [[ ]] aren't redirects either."""
     command = _newlines_to_semicolons(strip_heredocs(command).replace("\\\n", ""))
     lexer = shlex.shlex(command, posix=False, punctuation_chars=True)
     lexer.whitespace_split = True
@@ -268,14 +282,27 @@ def redirect_targets(command: str) -> list[str]:
         tokens = list(lexer)
     except ValueError:
         return []
-    targets: list[str] = []
-    for i, token in enumerate(tokens[:-1]):
-        if token in REDIRECTS:
-            try:
-                targets += shlex.split(tokens[i + 1])
-            except ValueError:
-                continue
-    return targets
+    segments: list[tuple[list[str], list[str]]] = [([], [])]
+    in_test = False
+    for i, token in enumerate(tokens):
+        glued = _redirect(token)
+        if glued is None and token and set(token) <= SEPARATOR_CHARS:
+            segments.append(([], []))
+            continue
+        if glued is None:
+            in_test = (in_test or token == "[[") and token != "]]"
+            segments[-1][0].append(token)
+            continue
+        if glued:
+            segments.append(([], []))
+        escaped = not glued and i > 0 and tokens[i - 1].endswith("\\")
+        if in_test or escaped or i + 1 >= len(tokens):
+            continue
+        try:
+            segments[-1][1].extend(shlex.split(tokens[i + 1]))
+        except ValueError:
+            continue
+    return segments
 
 
 def command_targets(segment: list[str]) -> list[str]:
@@ -289,37 +316,77 @@ def command_targets(segment: list[str]) -> list[str]:
         return plain
     if name in WRITES_LAST:
         return plain[-1:]
+    short = [a[1:] for a in args if a.startswith("-") and not a.startswith("--")]
     in_place = (
         name == "sed"
-        and any(a.startswith("-i") or a.startswith("--in-place") for a in args)
-    ) or (
-        name == "perl"
-        and any(a.startswith("-") and not a.startswith("--") and "i" in a for a in args)
-    )
+        and (
+            any("i" in a for a in short)
+            or any(a.startswith("--in-place") for a in args)
+        )
+    ) or (name == "perl" and any("i" in a for a in short))
     if in_place:
         return plain[1:]  # the first plain argument is the script
     return []
 
 
-def check_writes(
-    command: str, root: Path, cwd: Path, principles: dict[str, Any], depth: int = 0
-) -> None:
-    """Block a shell command that writes to a protected path."""
+def _cd(here: Path, words: list[str]) -> Path:
+    """Where a `cd` segment leaves the shell; anything unclear stays put."""
+    if len(words) == 1:
+        return Path.home()
+    arg = words[1]
+    if arg == "-" or arg.startswith("-"):
+        return here
+    return here / Path(arg).expanduser()
+
+
+def _files(here: Path, word: str) -> list[Path]:
+    """The paths a word names: a glob's matches, or the word itself."""
+    if GLOB_CHARS & set(word):
+        base = Path(word).expanduser()
+        pattern = str(base if base.is_absolute() else here / base)
+        found = [Path(p) for p in globlib.glob(pattern)]
+        if found:
+            return found
+    path = Path(word).expanduser()
+    return [path if path.is_absolute() else here / path]
+
+
+def write_targets(command: str, cwd: Path, depth: int = 0) -> list[Path]:
+    """Every file a shell command writes or deletes that alpha can see,
+    following cd from one segment to the next."""
     segments = split_segments(command)
     if segments is None:
-        return
-    targets = redirect_targets(command)
+        return []
+    targets: list[Path] = []
+    here = cwd
     for segment in segments:
         segment = strip_prefix(segment)
+        if segment and segment[0] == "cd":
+            here = _cd(here, segment)
+            continue
         script = shell_script(segment)
         if script is not None and depth < MAX_DEPTH:
-            check_writes(script, root, cwd, principles, depth + 1)
-        targets += command_targets(segment)
-    for target in targets:
-        if target in NOT_FILES:
+            targets += write_targets(script, here, depth + 1)
+        for word in command_targets(segment):
+            if word not in NOT_FILES:
+                targets += _files(here, word)
+    here = cwd
+    for words, redirected in redirect_segments(command):
+        if words and words[0] == "cd":
+            here = _cd(here, [shlex.split(w)[0] if w else w for w in words[:2]])
             continue
-        path = Path(target)
-        rel = _common.rel_to_root(root, str(path if path.is_absolute() else cwd / path))
+        for word in redirected:
+            if word not in NOT_FILES:
+                targets += _files(here, word)
+    return targets
+
+
+def check_writes(
+    command: str, root: Path, cwd: Path, principles: dict[str, Any]
+) -> None:
+    """Block a shell command that writes to a protected path."""
+    for target in write_targets(command, cwd):
+        rel = _common.rel_to_root(root, str(target))
         if rel is None:
             continue
         glob = _common.protected_glob(rel, principles)
@@ -352,12 +419,19 @@ def check_review(root: Path) -> None:
         _common.block(reason)
 
 
+def gh_command(segment: list[str]) -> list[str] | None:
+    """The words after `gh` and its repo option, for a gh segment."""
+    if not segment or posixpath.basename(segment[0]) != "gh":
+        return None
+    words = segment[1:]
+    while words and words[0].startswith("-"):
+        words = words[2:] if words[0] in ("-R", "--repo") else words[1:]
+    return words
+
+
 def check_segment(segment: list[str], root: Path) -> None:
-    if (
-        segment
-        and posixpath.basename(segment[0]) == "gh"
-        and segment[1:3] == ["pr", "create"]
-    ):
+    gh = gh_command(segment)
+    if gh is not None and gh[:1] == ["pr"] and gh[1:2] in (["create"], ["new"]):
         check_review(root)
     invocation = git_invocation(segment)
     if invocation is None:
@@ -407,6 +481,43 @@ def check_segment(segment: list[str], root: Path) -> None:
             )
 
 
+REVIEWER = "principles-reviewer"
+READ_ONLY_GIT = {
+    "diff",
+    "log",
+    "show",
+    "status",
+    "rev-parse",
+    "ls-files",
+    "ls-tree",
+    "cat-file",
+    "blame",
+    "grep",
+    "merge-base",
+    "describe",
+    "shortlog",
+}
+REVIEWER_MESSAGE = (
+    "The principles-reviewer only reads: it may run the brief, git diff, log, "
+    "show and status, and read files, but not write, delete or commit. Report "
+    "the problem as a finding instead."
+)
+
+
+def check_read_only(command: str, cwd: Path, depth: int = 0) -> None:
+    """Block anything the reviewer runs that writes, deletes or changes git."""
+    if write_targets(command, cwd):
+        _common.block(REVIEWER_MESSAGE)
+    for segment in split_segments(command) or []:
+        segment = strip_prefix(segment)
+        script = shell_script(segment)
+        if script is not None and depth < MAX_DEPTH:
+            check_read_only(script, cwd, depth + 1)
+        invocation = git_invocation(segment)
+        if invocation is not None and invocation[0] not in READ_ONLY_GIT:
+            _common.block(REVIEWER_MESSAGE)
+
+
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
@@ -425,6 +536,8 @@ def main() -> None:
     check_command(command, root)
     cwd_value = inp.get("cwd")
     cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else root
+    if inp.get("agent_type") == REVIEWER:
+        check_read_only(command, cwd)
     check_writes(command, root, cwd, principles)
     sys.exit(0)
 

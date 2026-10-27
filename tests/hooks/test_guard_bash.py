@@ -193,6 +193,15 @@ def test_amend_blocked_when_pushed(project: Project, tmp_path: Path) -> None:
         ("rm api/keys/old.txt", "api/keys/old.txt"),
         ("bash -c 'echo x >.env.local'", ".env.local"),
         ("echo x > ./api/../api/uv.lock", "api/uv.lock"),
+        ("sed -ni 's/a/b/p' api/uv.lock", "api/uv.lock"),
+        ("sed -Ei 's/a/b/' api/uv.lock", "api/uv.lock"),
+        ("mv api/uv.lock /tmp/x.lock", "api/uv.lock"),
+        ("echo x;>.env", ".env"),
+        ("(echo x)>.env", ".env"),
+        ("echo x&&>.env", ".env"),
+        ("cd api && echo x > uv.lock", "api/uv.lock"),
+        ("cd api; rm keys/a.txt", "api/keys/a.txt"),
+        ("cd api && cd keys && tee a.txt", "api/keys/a.txt"),
     ],
 )
 def test_shell_writes_to_protected_paths_are_blocked(
@@ -215,6 +224,9 @@ def test_shell_writes_to_protected_paths_are_blocked(
         "echo x > api/src/app.py",
         "ls 2>&1 api",
         "sed 's/a/b/' api/uv.lock",
+        "echo a \\> .env",
+        "[[ $x > .env ]] && echo later",
+        "cd web && echo x > uv.lock",
     ],
 )
 def test_reads_and_unprotected_writes_pass(project: Project, command: str) -> None:
@@ -228,6 +240,69 @@ def test_write_outside_the_project_passes(
     outside = tmp_path_factory.mktemp("outside")
     proc = bash(project, f"echo x > {outside}/.env")
     assert proc.returncode == 0, proc.stderr
+
+
+def test_a_cd_out_of_the_project_is_followed(
+    project: Project, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    outside = tmp_path_factory.mktemp("outside")
+    proc = bash(project, f"cd {outside} && echo x > .env")
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_globs_are_matched_against_the_files_they_name(project: Project) -> None:
+    project.write(".env.local", "KEY=1\n")
+    proc = bash(project, "rm .env*")
+    assert proc.returncode == 2
+    assert proc.stderr.startswith(".env.local is protected (")
+    project.write("api/keys/a.txt", "k\n")
+    proc = bash(project, "rm -f api/keys/*.txt")
+    assert proc.stderr.startswith("api/keys/a.txt is protected (")
+
+
+def reviewer(project: Project, command: str) -> subprocess.CompletedProcess[str]:
+    return project.run_hook(
+        "guard_bash.py",
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+            "agent_id": "a1",
+            "agent_type": "principles-reviewer",
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 .claude/alpha/hooks/review.py brief",
+        "git diff HEAD -- api",
+        "git log --oneline -5",
+        "git show HEAD:api/src/x.py",
+        "git status --short 2>/dev/null",
+        "cat api/src/x.py | head -20",
+    ],
+)
+def test_the_reviewer_may_read(project: Project, command: str) -> None:
+    proc = reviewer(project, command)
+    assert proc.returncode == 0, (command, proc.stderr)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo ok > notes.md",
+        "sed -i 's/a/b/' api/src/x.py",
+        "git commit -qm 'fix: X'",
+        "git stash",
+        "git checkout -- api/src/x.py",
+        "rm api/src/x.py",
+    ],
+)
+def test_the_reviewer_may_not_change_anything(project: Project, command: str) -> None:
+    proc = reviewer(project, command)
+    assert proc.returncode == 2, command
+    assert "principles-reviewer only reads" in proc.stderr
 
 
 def test_empty_quoted_argument_does_not_split_the_command(project: Project) -> None:
@@ -266,7 +341,15 @@ def committed(project: Project) -> None:
 
 
 @pytest.mark.parametrize(
-    "command", ["git push", "git push --dry-run origin main", "gh pr create --fill"]
+    "command",
+    [
+        "git push",
+        "git push --dry-run origin main",
+        "gh pr create --fill",
+        "gh pr new --fill",
+        "gh -R owner/repo pr create --fill",
+        "gh --repo=owner/repo pr new",
+    ],
 )
 def test_unreviewed_work_is_not_pushed(project: Project, command: str) -> None:
     committed(project)
