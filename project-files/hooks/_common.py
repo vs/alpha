@@ -300,14 +300,15 @@ def decision_index(root: Path) -> tuple[list[tuple[int, str, str, str]], list[st
     for path in sorted(folder.glob("*.md")):
         rel = f"{DECISIONS_DIR}/{path.name}"
         try:
-            lines = path.read_text(encoding="utf-8").splitlines()
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
         except (OSError, UnicodeDecodeError):
             warnings.append(f"{rel} can't be read as UTF-8 text; fix or remove it.")
             continue
         heading = _HEADING.fullmatch(lines[0].strip()) if lines else None
         if heading is None:
             warnings.append(
-                f'{rel} has no "# NNNN. Title" heading; fix it or rename it.'
+                f'{rel} has no "# NNNN. Title" first line; add one, or move it out '
+                f"of {DECISIONS_DIR}/ if it isn't a decision record."
             )
             continue
         status = next(
@@ -323,19 +324,27 @@ def decision_index(root: Path) -> tuple[list[tuple[int, str, str, str]], list[st
             continue
         records.append((int(heading.group(1)), heading.group(2).strip(), status, rel))
     records.sort()
+    numbers = [r[0] for r in records]
+    for n in sorted({n for n in numbers if numbers.count(n) > 1}):
+        paths = ", ".join(r[3] for r in records if r[0] == n)
+        warnings.append(
+            f"{n:04d} is the number of more than one record ({paths}); renumber "
+            "all but one."
+        )
     return records, warnings
 
 
-def _record_change(root: Path, record: str) -> str | None:
-    """What a record's "Principle: id (change, scope ...)" header line says."""
+def _record_change(root: Path, record: str, principle: str) -> str | None:
+    """What a record's "Principle: <id> (change, scope ...)" header line says
+    about this principle; a record may change several."""
     try:
-        lines = (root / record).read_text(encoding="utf-8").splitlines()[:12]
+        lines = (root / record).read_text(encoding="utf-8-sig").splitlines()[:12]
     except (OSError, UnicodeDecodeError):
         return None
     for line in lines:
-        found = re.fullmatch(r"Principle: \S+ \((.+)\)", line.strip())
-        if found:
-            return found.group(1)
+        found = re.fullmatch(r"Principle: (\S+) \((.+)\)", line.strip())
+        if found and found.group(1) == principle:
+            return found.group(2)
     return None
 
 
@@ -348,11 +357,16 @@ def overrides_in_effect(
         record = p.get("override_decision")
         if not record:
             continue
-        change = _record_change(root, str(record)) if root is not None else None
+        pid = str(p.get("id"))
+        change = _record_change(root, str(record), pid) if root is not None else None
         if change is None:  # no readable record: say what the principles file says
-            state = "active" if p.get("active") else "inactive"
-            comps = ", ".join(str(c) for c in p.get("components", [])) or "none"
-            change = f"{state}, components {comps}"
+            parts: list[str] = []
+            if "active" in p:
+                parts.append("active" if p["active"] else "inactive")
+            if "components" in p:
+                comps = ", ".join(str(c) for c in p["components"]) or "none"
+                parts.append(f"components {comps}")
+            change = ", ".join(parts) or "overridden, see the record"
         lines.append(f"{p.get('id')}: {change} ({record})")
     return lines
 

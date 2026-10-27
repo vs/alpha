@@ -127,3 +127,50 @@ def test_override_line_says_what_the_record_changed(project: Project) -> None:
     )
     (line,) = _common.overrides_in_effect(project.principles(), project.root)
     assert line == f"observability: loosen, scope component:api ({path})"
+
+
+def test_a_record_naming_two_principles_reports_each_change(project: Project) -> None:
+    path = "docs/decisions/0013-overrides.md"
+    project.write(
+        path,
+        "# 0013. Overrides\n\nDate: 2026-10-23\nStatus: accepted\n"
+        "Principle: perf-budgets (drop, scope project)\n"
+        "Principle: observability (loosen, scope component:api)\n\n## Context\n\nc\n",
+    )
+    principles = project.principles()
+    for p in principles["principles"]:
+        if p["id"] in ("perf-budgets", "observability"):
+            p["override_decision"] = path
+    lines = _common.overrides_in_effect(principles, project.root)
+    assert f"observability: loosen, scope component:api ({path})" in lines
+    assert f"perf-budgets: drop, scope project ({path})" in lines
+
+
+def test_fallback_line_says_only_what_the_file_has(project: Project) -> None:
+    principles = project.principles()
+    target = next(p for p in principles["principles"] if p["override_decision"])
+    del target["active"], target["components"]
+    (line,) = _common.overrides_in_effect(principles)
+    assert "inactive" not in line and "none" not in line
+    assert line.startswith(f"{target['id']}: overridden, see the record (")
+
+
+def test_a_byte_order_mark_doesnt_hide_the_heading(project: Project) -> None:
+    project.write(
+        "docs/decisions/0001-bom.md",
+        "﻿# 0001. With a BOM\n\nDate: 2026-10-23\nStatus: accepted\n",
+    )
+    records, warnings = _common.decision_index(project.root)
+    assert [r[1] for r in records] == ["With a BOM"] and warnings == []
+
+
+def test_duplicate_numbers_and_headingless_files_get_clear_warnings(
+    project: Project,
+) -> None:
+    record(project, 1, "Product identity")
+    record(project, 1, "Second one")
+    project.write("docs/decisions/notes.md", "just notes\n")
+    _records, warnings = _common.decision_index(project.root)
+    assert any("0001" in w and "more than one record" in w for w in warnings)
+    notes = next(w for w in warnings if "notes.md" in w)
+    assert "rename it" not in notes and "move it out of docs/decisions/" in notes

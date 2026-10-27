@@ -33,8 +33,8 @@ def _run(
     root: Path, *args: str, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str] | None:
     try:
-        return subprocess.run(
-            ["git", *args],
+        return subprocess.run(  # quotepath off: non-ASCII names as they are
+            ["git", "-c", "core.quotepath=false", *args],
             cwd=root,
             capture_output=True,
             text=True,
@@ -108,8 +108,29 @@ def load_state(root: Path) -> dict[str, Any]:
         data = json.loads(path.read_text())
     except (OSError, ValueError):
         return {"unreadable": True}
+    if not isinstance(data, dict):
+        return {"unreadable": True}
+    state = cast("dict[str, Any]", data)
+    findings: object = state.get("findings", [])
+    if not isinstance(findings, list) or not all(
+        _well_formed(f) for f in cast("list[object]", findings)
+    ):
+        return {"unreadable": True}
+    return state
+
+
+_FINDING_TEXT = ("id", "principle", "file", "problem", "fix")
+
+
+def _well_formed(finding: object) -> bool:
+    """A finding as review_record.py writes it."""
+    if not isinstance(finding, dict):
+        return False
+    f = cast("dict[str, Any]", finding)
     return (
-        cast("dict[str, Any]", data) if isinstance(data, dict) else {"unreadable": True}
+        all(isinstance(f.get(k), str) for k in _FINDING_TEXT)
+        and isinstance(f.get("line"), int)
+        and isinstance(f.get("accepted", False), bool)
     )
 
 
@@ -304,8 +325,11 @@ def _principle_line(p: dict[str, Any], touched: set[str] | None) -> str:
     return line
 
 
-def _diff(root: Path, old: str, new: str) -> list[str]:
-    out = _git(root, "diff", "--no-renames", old, new) or ""
+def _diff(root: Path, old: str, new: str, leave_out: list[str]) -> list[str]:
+    """The diff, without the files in leave_out (lockfiles: long, and only
+    the package manager writes them)."""
+    excluded = [f":(exclude,literal){path}" for path in leave_out]
+    out = _git(root, "diff", "--no-renames", old, new, "--", ".", *excluded) or ""
     lines = out.splitlines()
     if len(lines) <= DIFF_LINES:
         return lines
@@ -365,7 +389,19 @@ def brief(root: Path) -> str:
         ]
     lines += ["", "## Changed files", ""]
     lines += [f"{count}\t{path}" for count, path in stats]
-    lines += ["", "## Diff", "", *_diff(root, reviewed, current)]
+    lockfiles = {
+        str(lock)
+        for comp in principles.get("components", [])
+        for lock in comp.get("lockfiles", [])
+    }
+    changed_locks = [path for path in files if path in lockfiles]
+    lines += ["", "## Diff", ""]
+    if changed_locks:
+        lines += [
+            f"Lockfiles changed (diff left out): {', '.join(changed_locks)}",
+            "",
+        ]
+    lines += _diff(root, reviewed, current, changed_locks)
     return "\n".join(lines) + "\n"
 
 
@@ -384,10 +420,6 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
 
 
 _ACCEPTS = re.compile(r"F-[0-9a-f]{6}")
@@ -531,3 +563,7 @@ def absorb_outside_changes(root: Path) -> None:
             if merged:
                 state["reviewed_tree"] = merged.splitlines()[0].strip()
     save_state(root, state)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,10 +1,11 @@
 """UserPromptSubmit hook: changes made between turns, and the user accepting
 a review finding.
 
-Only a prompt that is exactly "accept F-xxxxxx" (several ids allowed) counts.
-Claude Code also runs this hook for subagent reports and messages from other
-sessions, and gives no field to tell them apart, so anything more than the bare
-command is ignored.
+Only a prompt that is exactly "accept F-xxxxxx" (several ids allowed, any case)
+counts. Claude Code also runs this hook for subagent reports and messages from
+other sessions, and gives no field to tell them apart, so anything more than the
+bare command accepts nothing. A short prompt that starts like the command but
+isn't quite it gets a note saying how to send it.
 """
 
 from __future__ import annotations
@@ -19,7 +20,8 @@ import _common  # noqa: E402
 import review  # noqa: E402
 
 _COMMAND = re.compile(r"accept\s+(F-[0-9a-f]{6}(?:[\s,]+F-[0-9a-f]{6})*)", re.I)
-_ID = re.compile(r"F-[0-9a-f]{6}")
+_ID = re.compile(r"F-[0-9a-f]{6}", re.I)
+_NEAR_MISS = 80  # longer prompts that start with "accept" are something else
 
 
 def say(text: str) -> None:
@@ -44,10 +46,19 @@ def main() -> None:
         sys.exit(0)
     review.absorb_outside_changes(root)
     text = inp.get("prompt")
-    command = _COMMAND.fullmatch(text.strip()) if isinstance(text, str) else None
+    text = text.strip() if isinstance(text, str) else ""
+    command = _COMMAND.fullmatch(text)
     if command is None:
+        near = _ID.findall(text)
+        if text[:6].lower() == "accept" and near and len(text) <= _NEAR_MISS:
+            ids = " ".join(f"F-{i[2:].lower()}" for i in near)
+            say(
+                "alpha: this looks like accepting a review finding, but nothing was "
+                f'accepted. To accept, the user should reply with exactly "accept '
+                f'{ids}", nothing else on the line.'
+            )
         sys.exit(0)
-    wanted = _ID.findall(command.group(1))
+    wanted = [f"F-{i[2:].lower()}" for i in _ID.findall(command.group(1))]
     state = review.ensure_state(root)
     findings = list(state.get("findings", []))
     open_ids = [str(f["id"]) for f in findings if not f.get("accepted")]

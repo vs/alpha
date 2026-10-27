@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -364,8 +365,9 @@ def migration_problems(
         if existed_at(root, ref, rel):
             problems.append(
                 f"{rel} existed before this session and was changed. Migrations "
-                f"are append-only: put it back (git checkout {ref} -- {rel}) and "
-                "add a new migration instead. Principle safe-migrations."
+                f"are append-only: put it back (git checkout {ref} -- "
+                f"{shlex.quote(rel)}) and add a new migration instead. Principle "
+                "safe-migrations."
             )
     return problems
 
@@ -517,8 +519,9 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
         if count >= MAX_BLOCKS:
             write_count(counter, 0)
             flag(
-                "alpha: a subagent's checks still fail after 3 attempts; "
-                f"stopping it so the main session can decide:\n{listing}"
+                "alpha: a subagent's checks still fail after 3 attempts, so it "
+                "stopped; the main session's Stop still checks them before the "
+                f"turn ends:\n{listing}"
             )
         write_count(counter, count + 1)
     block(listing)
@@ -548,7 +551,9 @@ def review_block(root: Path, inp: dict[str, Any], reason: str) -> NoReturn:
         repeated = False
     if inp.get("stop_hook_active") and repeated:
         flag(
-            f"{reason}\n\nalpha: Claude stopped here because this needs you; the "
+            f"{reason}\n\nalpha: the same review block came up twice in this turn, "
+            "so Claude stopped here instead of looping. Ask Claude to carry on (run "
+            "the principles-reviewer, or fix the findings), or accept a finding; the "
             "review gate applies again at the next stop."
         )
     marker.write_text(digest + "\n")

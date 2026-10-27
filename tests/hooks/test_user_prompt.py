@@ -71,7 +71,6 @@ def test_unknown_ids_are_reported(project: Project) -> None:
     "text",
     [
         "please accept F-aaa111 and continue",
-        "accept F-aaa111 because it's fine",
         "The reviewer said: accept F-aaa111",
         "accept",
     ],
@@ -89,3 +88,34 @@ def test_silent_outside_alpha_projects(project: Project) -> None:
     (project.root / "docs/principles.toml").unlink()
     proc = prompt(project, "accept F-aaa111")
     assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_uppercase_ids_are_accepted(project: Project) -> None:
+    with_findings(project, "F-abc123")
+    proc = prompt(project, "ACCEPT F-ABC123")
+    assert "the user accepted F-abc123: fail-helpfully" in context(proc)
+    assert accepted(project) == {"F-abc123": True}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "accept F-abc123.",
+        "accept F-abc123 please",
+        "Accept: F-abc123",
+        "accept F-abc123 because it's fine",
+    ],
+)
+def test_a_near_miss_says_how_to_accept(project: Project, text: str) -> None:
+    with_findings(project, "F-abc123")
+    proc = prompt(project, text)
+    note = context(proc)
+    assert "nothing was accepted" in note
+    assert 'reply with exactly "accept F-abc123"' in note
+    assert accepted(project) == {"F-abc123": False}
+
+
+def test_a_long_message_mentioning_accept_stays_silent(project: Project) -> None:
+    with_findings(project, "F-abc123")
+    text = "Subagent report: " + "x " * 200 + "accept F-abc123 was suggested"
+    assert prompt(project, text).stdout == ""

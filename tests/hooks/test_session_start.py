@@ -163,3 +163,14 @@ def test_session_start_creates_the_review_state(project: Project) -> None:
     state = json.loads((project.root / ".claude/alpha/state/review.json").read_text())
     tree = project.git("rev-parse", f"{sha}^{{tree}}").stdout.strip()
     assert state["reviewed_tree"] == tree
+
+
+def test_startup_clears_subagent_records_left_behind(project: Project) -> None:
+    state = project.root / ".claude/alpha/state"
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "agent-a1.json").write_text('{"files": ["api/src/x.py"]}')
+    (state / "agent-a1-blocks").write_text('{"count": 2}')
+    project.run_hook("session_start.py", {"source": "resume"})
+    assert (state / "agent-a1.json").exists()
+    project.run_hook("session_start.py", {"source": "startup"})
+    assert not list(state.glob("agent-*"))

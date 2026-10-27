@@ -238,6 +238,47 @@ def test_brief_truncates_long_diffs_and_names_the_rest(project: Project) -> None
     assert "api/src/big.py" in tail and "web/src/z.ts" in tail
 
 
+def test_brief_leaves_lockfile_diffs_out(project: Project) -> None:
+    briefed(project)
+    project.write("api/uv.lock", lines(3000))
+    text = review.brief(project.root)
+    files = text.split("## Changed files\n")[1].split("\n## ")[0]
+    assert "api/uv.lock" in files
+    diff = text.split("## Diff\n")[1]
+    assert "diff --git a/api/uv.lock" not in diff
+    assert "+def f() -> int:" in diff
+    assert "Lockfiles changed (diff left out): api/uv.lock" in diff
+    assert "truncated" not in diff
+
+
+def test_brief_names_non_ascii_files_as_they_are(project: Project) -> None:
+    briefed(project)
+    project.write("api/src/café.py", lines(2000))
+    diff = review.brief(project.root).split("## Diff\n")[1]
+    assert "diff --git a/api/src/café.py b/api/src/café.py" in diff
+    tail = diff.splitlines()[-1]
+    assert "api/src/café.py" in tail and '"' not in tail
+
+
+@pytest.mark.parametrize(
+    "finding",
+    [
+        "F-abc123",
+        {"id": "F-abc123"},
+        {"id": 1, "principle": "p", "file": "f", "line": 1, "problem": "x", "fix": "y"},
+    ],
+)
+def test_malformed_findings_restart_the_review(project: Project, finding: object) -> None:
+    base(project)
+    path = project.root / ".claude/alpha/state/review.json"
+    state = review.ensure_state(project.root)
+    state["findings"] = [finding]
+    path.write_text(json.dumps(state))
+    assert review.load_state(project.root) == {"unreadable": True}
+    review.gate(project.root, project.principles())  # no KeyError
+    assert review.ensure_state(project.root)["findings"] == []
+
+
 def test_brief_cli_outside_an_alpha_project(project: Project) -> None:
     (project.root / "docs/principles.toml").unlink()
     proc = project.run_hook("review.py", {})  # no "brief" argument either

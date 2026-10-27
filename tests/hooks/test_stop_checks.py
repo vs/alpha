@@ -609,7 +609,10 @@ def test_subagent_blocks_count_separately_from_the_main_session(
         reason(subagent_stop(project, "a1"))
     assert counter(project) == 0
     proc = subagent_stop(project, "a1")
-    assert "decision" not in json.loads(proc.stdout)  # gave up after three
+    out = json.loads(proc.stdout)
+    assert "decision" not in out  # gave up after three
+    assert "main session can decide" not in out["systemMessage"]
+    assert "the main session's Stop still checks them" in out["systemMessage"]
 
 
 def test_subagent_implementing_tests_the_session_wrote_is_not_blocked(
@@ -748,6 +751,8 @@ def test_a_repeated_review_block_ends_the_turn_with_a_message(project: Project) 
     assert "decision" not in out
     assert out["systemMessage"].startswith("alpha review: open findings:")
     assert "applies again at the next stop" in out["systemMessage"]
+    assert "came up twice in this turn" in out["systemMessage"]
+    assert "needs you" not in out["systemMessage"]
     assert "alpha review: open findings:" in reason(run(project))  # next turn
 
 
@@ -811,6 +816,14 @@ def test_editing_a_committed_migration_blocks(project: Project) -> None:
         f"append-only: put it back (git checkout {base} -- {MIGRATION}) and add a "
         "new migration instead. Principle safe-migrations."
     ) in text
+
+
+def test_checkout_advice_quotes_a_path_with_spaces(project: Project) -> None:
+    spaced = "api/migrations/versions/0002 add index.sql"
+    project.write(spaced, "create index i on t (id);\n")
+    base = committed_migration(project)
+    project.write(spaced, "drop index i;\n")
+    assert f"git checkout {base} -- '{spaced}'" in reason(run(project))
 
 
 def test_deleting_a_committed_migration_blocks(project: Project) -> None:
