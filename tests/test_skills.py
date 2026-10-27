@@ -286,6 +286,10 @@ def test_new_project_saves_through_the_cli_and_says_what_to_approve():
     assert f"{CLI} answers write <target> --json '" in start
     assert "<<" not in start
     assert "don't ask again" in start
+    # A headless run built each save with a python3 heredoc instead.
+    assert (
+        "never build it with python3, a heredoc, a script or a temporary file" in start
+    )
 
 
 @pytest.mark.parametrize("skill", ALL_SKILLS)

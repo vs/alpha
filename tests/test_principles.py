@@ -403,3 +403,25 @@ def test_project_override_of_level_wins(tmp_path: Path):
 
     out = build_principles(D, variant(tmp_path, mutate), "0.1.0")
     assert principle(out, "accessibility")["params"]["level"] == "WCAG 2.2 AAA"
+
+
+def test_ml_answers_reach_the_reproducible_principle(tmp_path: Path):
+    a = scenario_answers(tmp_path, "python-ml-single")
+    assert a.data and a.data.ml
+    name = a.components[0].name
+    p = principle(build_principles(D, a, "0.1.0"), "reproducible")
+    assert p["component_params"] == {
+        name: {
+            "data_versioning": a.data.ml.versioning,
+            "seeds": a.data.ml.seeds,
+            "tracking": a.data.ml.tracking,
+        }
+    }
+
+
+def test_accessibility_checks_reach_the_principle():
+    p = principle(build_principles(D, A, "0.1.0"), "accessibility")
+    assert p["params"]["level"] == "WCAG 2.2 AA"
+    assert p["component_params"] == {
+        "web": {"checks": "axe in the end-to-end tests, plus keyboard-only runs of R2"}
+    }

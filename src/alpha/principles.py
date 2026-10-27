@@ -174,6 +174,18 @@ def build_principles(
     by_id["visual-system"]["component_params"].update(
         {name: {"tokens": t} for name, t in tokens.items()}
     )
+    by_id["accessibility"]["component_params"].update(
+        {c.name: {"checks": c.checks} for c in a.accessibility.components}
+    )
+    if a.data.ml is not None:
+        ml = {
+            "data_versioning": a.data.ml.versioning,
+            "seeds": a.data.ml.seeds,
+            "tracking": a.data.ml.tracking,
+        }
+        by_id["reproducible"]["component_params"].update(
+            {c.name: dict(ml) for c in a.components if c.traits.ml}
+        )
     decision_paths = override_decision_paths(a, len(a.decisions) + 1)
     for i, o in enumerate(a.overrides):
         target = by_id.get(o.principle)

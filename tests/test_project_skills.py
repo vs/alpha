@@ -34,6 +34,12 @@ def test_decision_skill_states_the_record_format():
     assert len(text.splitlines()) <= 120
 
 
+def test_decision_skill_keeps_claude_md_in_step_with_overrides():
+    text = DECISION.read_text()
+    change = text.split("## 4. Changing a principle")[1].split("\n## ")[0]
+    assert "CLAUDE.md" in change and "(overridden: see " in change
+
+
 def test_decision_skill_matches_the_interview_format():
     record = _decision(7, "Use OpenAPI", date(2026, 10, 23), "c", "d", "q")
     lines = record.splitlines()

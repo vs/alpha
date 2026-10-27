@@ -268,7 +268,9 @@ def test_brief_names_non_ascii_files_as_they_are(project: Project) -> None:
         {"id": 1, "principle": "p", "file": "f", "line": 1, "problem": "x", "fix": "y"},
     ],
 )
-def test_malformed_findings_restart_the_review(project: Project, finding: object) -> None:
+def test_malformed_findings_restart_the_review(
+    project: Project, finding: object
+) -> None:
     base(project)
     path = project.root / ".claude/alpha/state/review.json"
     state = review.ensure_state(project.root)

@@ -54,6 +54,8 @@ Never supersede a decision without the user's agreement.
 
 Loosening, dropping or tightening a principle also changes `docs/principles.toml`, the source of truth the hooks read: update the principle's `active`, `components` or `params`, and set its `override_decision` to the new record's path. Editing that file asks the user first; that's intended.
 
+Then bring the principle's line under `## Principles` in CLAUDE.md in step: end it with ` (overridden: see <record path>)`, replacing any earlier one, or remove the line when the principle is now off for the whole project.
+
 ## 5. Commit
 
 Commit the record together with the change it explains, following the project's commit convention (see CLAUDE.md and CONTRIBUTING.md). A record on its own is a `docs:` commit.

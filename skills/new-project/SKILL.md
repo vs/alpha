@@ -20,7 +20,7 @@ Folder argument: `$ARGUMENTS`
 
 ## 2. Start or resume
 
-Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` (one line; each top-level key sent replaces that key in project.json), never by editing the file. If Claude Code asks to allow it, tell the user that choosing "don't ask again" covers every later save.
+Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` (one line; each top-level key sent replaces that key in project.json), never by editing the file. Type the JSON straight into that one command: never build it with python3, a heredoc, a script or a temporary file, which Claude Code would ask about on every save. If Claude Code asks to allow it, tell the user that choosing "don't ask again" covers every later save.
 
 - If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`; an area missing from `areas`, because the interview started on an older alpha, is pending), then continue with the first area in the order below that isn't done.
 - Otherwise create it:
