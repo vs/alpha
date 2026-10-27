@@ -9,7 +9,7 @@ from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles
 from alpha.recipes import check_commands
-from alpha.render.ci import DEPENDABOT, WORKFLOW, render_ci, render_dependabot
+from alpha.render.ci import DEPENDABOT, WORKFLOW, _expand, render_ci, render_dependabot
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 PRINCIPLES = build_principles(
@@ -54,6 +54,17 @@ def test_root_component_paths_have_no_prefix():
     found = values(job)
     assert not [v for v in found if "${dir}" in v or v.startswith("./")]
     assert "pnpm-lock.yaml" in found
+
+
+def test_checkout_keeps_no_credentials():
+    for job in workflow(PRINCIPLES)["jobs"].values():
+        assert job["steps"][0]["with"] == {"persist-credentials": False}
+
+
+def test_dir_expansion_leaves_other_dollars_alone():
+    assert _expand("${dir}a $$ $HOME ${{ env.X }}", "api/") == (
+        "api/a $$ $HOME ${{ env.X }}"
+    )
 
 
 def test_triggers_and_permissions():

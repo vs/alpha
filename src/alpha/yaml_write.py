@@ -5,15 +5,29 @@ import re
 from collections.abc import Mapping, Sized
 from typing import cast
 
-_PLAIN_KEY = re.compile(r"[A-Za-z0-9_-]+")
-# YAML 1.1 reads these as booleans, so a bare `on:` key would become `true:`.
-_BOOL_WORDS = frozenset({"on", "off", "yes", "no", "true", "false", "y", "n"})
+# Starting with a letter keeps numbers (1, 0x1f) and list dashes out.
+_PLAIN_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+# YAML 1.1 reads these as booleans or null, so a bare `on:` key would become
+# `true:`.
+_NOT_STRINGS = frozenset({"on", "off", "yes", "no", "true", "false", "y", "n", "null"})
+# What YAML keeps as written in a double-quoted string: printable characters
+# other than line breaks (NEL and the Unicode separators fold into spaces).
+_UNPRINTABLE = re.compile(
+    "[^\t\n\r\x20-\x7e\xa0-\u2027\u202a-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]"
+)
+
+
+def _quoted(text: str) -> str:
+    """A double-quoted YAML string; a JSON string is one, once characters
+    outside the BMP are written as themselves instead of surrogate pairs."""
+    body = json.dumps(text, ensure_ascii=False)
+    return _UNPRINTABLE.sub(lambda m: f"\\u{ord(m.group()):04x}", body)
 
 
 def _key(key: str) -> str:
-    if _PLAIN_KEY.fullmatch(key) and key.lower() not in _BOOL_WORDS:
+    if _PLAIN_KEY.fullmatch(key) and key.lower() not in _NOT_STRINGS:
         return key
-    return json.dumps(key)
+    return _quoted(key)
 
 
 def _is_block(value: object) -> bool:
@@ -31,7 +45,7 @@ def _inline(value: object, where: str) -> str:
     if isinstance(value, int):
         return str(value)
     if isinstance(value, str):
-        return json.dumps(value)  # a JSON string is a valid double-quoted YAML one
+        return _quoted(value)
     raise TypeError(f"cannot write {type(value)!r} at {where}")
 
 
