@@ -324,3 +324,37 @@ def test_contributing_names_the_review_checkpoint(tmp_path: Path):
         "Claude runs the principles reviewer before it pushes or opens a pull "
         "request; people can push by hand." in branching
     )
+
+
+def _cells(row: str) -> int:
+    """Columns in a Markdown table row: its pipes, minus escaped ones."""
+    return row.replace("\\|", "").count("|") - 1
+
+
+def test_pipes_and_line_breaks_in_answers_stay_inside_table_cells(tmp_path: Path):
+    odd = "a | b\nc"
+
+    def mutate(data: dict[str, Any]) -> None:
+        data["identity"]["requirements"][0]["text"] = odd
+        data["identity"]["requirements"][0]["acceptance"] = odd
+        data["architecture"]["components"][0]["responsibility"] = odd
+        data["architecture"]["glossary"][0]["meaning"] = odd
+        data["build"]["components"][0]["hosting"] = odd
+        data["ui"]["components"][0]["library"] = odd
+        data["data"]["components"][0]["storage"] = odd
+        data["performance"]["components"][0]["budgets"][0]["measured_by"] = odd
+
+    out = render(load(tmp_path, mutate))
+    checked = 0
+    for name, text in out.items():
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith("|") and i and not lines[i - 1].startswith("|"):
+                header = _cells(line)
+                for row in lines[i + 1 :]:
+                    if not row.startswith("|"):
+                        break
+                    assert _cells(row) == header, f"{name}: {row}"
+                    checked += 1
+        assert "a | b" not in text, name
+    assert checked > 20

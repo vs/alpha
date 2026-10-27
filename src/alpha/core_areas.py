@@ -496,6 +496,8 @@ def accessibility(raw: object, comps: "Sequence[Component] | None") -> Accessibi
 def releases(raw: object, comps: "Sequence[Component] | None") -> Releases:
     w = "releases"
     d = obj(raw, w)
+    scheme = choice(d, "scheme", w, SCHEMES)
+    changelog = choice(d, "changelog", w, CHANGELOGS)
     scope = choice(d, "scope", w, RELEASE_SCOPES)
     if scope == "component" and comps is not None and len(comps) < 2:
         raise fail(
@@ -503,12 +505,21 @@ def releases(raw: object, comps: "Sequence[Component] | None") -> Releases:
             "is component but versioning per component needs more than one component",
             'Set scope to "repo"',
         )
-    return Releases(
-        choice(d, "scheme", w, SCHEMES),
-        choice(d, "changelog", w, CHANGELOGS),
-        scope,
-        string(d, "process", w),
-    )
+    if scheme == "none" and scope == "component":
+        raise fail(
+            f"{w}.scope",
+            "is component, but per-component tags need version numbers and the "
+            "scheme is none",
+            'Set scope to "repo", or pick a scheme',
+        )
+    if scheme == "none" and changelog == "github-releases":
+        raise fail(
+            f"{w}.changelog",
+            "is github-releases, but GitHub releases need version tags and the "
+            "scheme is none",
+            'Use "file" or "none", or pick a scheme',
+        )
+    return Releases(scheme, changelog, scope, string(d, "process", w))
 
 
 def data(raw: object, comps: "Sequence[Component] | None") -> Data:

@@ -11,6 +11,7 @@ from alpha.principles import override_decision_paths
 from alpha.recipes import check_commands
 from alpha.render import area_docs
 from alpha.render.ci import WORKFLOW
+from alpha.render.markdown import row
 
 LICENSES_DIR = Path(__file__).resolve().parents[1] / "licenses"
 _STEPS = ("setup", "test", "lint", "format", "format_check", "typecheck")
@@ -93,8 +94,7 @@ def _docs_section(docs: Documentation) -> list[str]:
     if docs.mappings:
         lines += ["| When these change | Update |", "|---|---|"]
         lines += [
-            f"| {_ticked(list(m.paths))} | {_ticked(list(m.docs))} |"
-            for m in docs.mappings
+            row(_ticked(list(m.paths)), _ticked(list(m.docs))) for m in docs.mappings
         ]
         lines += [
             "",
@@ -125,16 +125,15 @@ def _build(a: Answers, principles: dict[str, Any]) -> str:
             "|---|---|",
         ]
         lines += [
-            f"| {c['name']} | "
-            + ", ".join(f"`{cmd}`" for _, cmd in check_commands(c["commands"]))
-            + " |"
+            row(
+                c["name"],
+                ", ".join(f"`{cmd}`" for _, cmd in check_commands(c["commands"])),
+            )
             for c in principles["components"]
         ]
     lines += ["", "## Components", "", "| Component | Artifact | Hosting |"]
     lines.append("|---|---|---|")
-    lines += [
-        f"| {t.name} | {t.artifact} | {t.hosting or '-'} |" for t in a.build.components
-    ]
+    lines += [row(t.name, t.artifact, t.hosting or "-") for t in a.build.components]
     lines += ["", "## Environments", ""]
     if a.build.environments:
         lines += [f"- {env}" for env in a.build.environments]
@@ -164,7 +163,7 @@ def _command_table(c: Component, comp: dict[str, Any]) -> list[str]:
         "| Step | Command |",
         "|---|---|",
     ]
-    rows += [f"| {s} | `{commands[s]}` |" for s in _STEPS]
+    rows += [row(s, f"`{commands[s]}`") for s in _STEPS]
     rows.append("| run | add when the entry point exists |")
     return rows
 
@@ -229,7 +228,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         lines.append("- [Observability](docs/observability.md)")
     if area_docs.ui_doc(a) is not None:
         lines.append("- [UI](docs/ui.md)")
-    if area_docs.data_doc(a) is not None:
+    if area_docs.data_doc(a, principles) is not None:
         lines.append("- [Data](docs/data.md)")
     if area_docs.performance_doc(a) is not None:
         lines.append("- [Performance](docs/performance.md)")
@@ -327,7 +326,7 @@ def _product(a: Answers) -> str:
         "| ID | Requirement | Acceptance check |",
         "|---|---|---|",
     ]
-    lines += [f"| {r.id} | {r.text} | {r.acceptance} |" for r in ident.requirements]
+    lines += [row(r.id, r.text, r.acceptance) for r in ident.requirements]
     return "\n".join(lines) + "\n"
 
 
@@ -344,10 +343,7 @@ def _architecture(a: Answers) -> str:
         "| Name | Path | Kind | Stack | Traits |",
         "|---|---|---|---|---|",
     ]
-    lines += [
-        f"| {c.name} | {c.path} | {c.kind} | {c.stack} | {_traits(c)} |"
-        for c in a.components
-    ]
+    lines += [row(c.name, c.path, c.kind, c.stack, _traits(c)) for c in a.components]
     talk = (
         "Components communicate with each other; keep their contract explicit."
         if a.components_talk
@@ -381,7 +377,7 @@ def _dependencies(a: Answers, today: date) -> str:
     ]
     for c in a.components:
         lines += [
-            f"| {tool} | {c.name} | {why} | {today.isoformat()} |"
+            row(tool, c.name, why, today.isoformat())
             for tool, why in a.book().get(c.stack).why.items()
         ]
     return "\n".join(lines) + "\n"
@@ -426,7 +422,7 @@ def render_docs(
     }
     optional = {
         "docs/ui.md": area_docs.ui_doc(a),
-        "docs/data.md": area_docs.data_doc(a),
+        "docs/data.md": area_docs.data_doc(a, principles),
         "docs/performance.md": area_docs.performance_doc(a),
         "CHANGELOG.md": area_docs.changelog(a),
     }

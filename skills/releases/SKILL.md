@@ -32,7 +32,7 @@ Users and other components need to know what changed and whether an upgrade is s
 
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round:
 
-- **Scheme** - recommend `defaults.releases.scheme` for anything others install or call (a library, a CLI, an API); `calver` suits releases tied to dates or model promotions; `none` suits a service deployed on every merge.
+- **Scheme** - recommend `defaults.releases.scheme` for anything others install or call (a library, a CLI, an API); `calver` suits releases tied to dates or model promotions; `none` suits a service deployed on every merge. Without version numbers there are no tags, so `none` goes with scope `repo` and a changelog that is a `file` (by date) or `none`.
 - **Changelog** - recommend `defaults.releases.changelog`. Explain: a file travels with the code and works offline; GitHub releases suit binaries attached to each release.
 - **Scope** - ask only with more than one component: recommend `defaults.releases.scope` when the components ship together, `component` when they're published separately (e.g. a library and an app). With one component, save `"repo"` without asking.
 - **Process** - draft it from the build area (CI provider, each component's artifact and hosting), e.g. "Tag vX.Y.Z on main; CI builds the container and deploys it", and ask the user to confirm or correct it.

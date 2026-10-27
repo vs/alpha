@@ -3,6 +3,7 @@
 from typing import Any
 
 from alpha.answers import Answers
+from alpha.render.markdown import row
 
 _ERROR_FORMATS = {
     "problem-json": "HTTP errors as problem details (RFC 9457): type, title, detail.",
@@ -30,7 +31,7 @@ def architecture_sections(a: Answers) -> list[str]:
         "|---|---|---|",
     ]
     lines += [
-        f"| {c.name} | {c.responsibility} | {', '.join(c.calls) or '-'} |"
+        row(c.name, c.responsibility, ", ".join(c.calls) or "-")
         for c in a.architecture.components
     ]
     lines += ["", "## Contracts", ""]
@@ -53,8 +54,7 @@ def architecture_sections(a: Answers) -> list[str]:
         "|---|---|---|",
     ]
     lines += [
-        f"| {c.name} | {c.format} | {_ERROR_FORMATS[c.format]} |"
-        for c in a.errors.components
+        row(c.name, c.format, _ERROR_FORMATS[c.format]) for c in a.errors.components
     ]
     lines += ["", "Categories:", ""]
     lines += [f"- {category}" for category in a.errors.categories]
@@ -75,7 +75,7 @@ def glossary(a: Answers, principles: dict[str, Any]) -> str | None:
     ]
     if terms:
         lines += ["| Term | Meaning |", "|---|---|"]
-        lines += [f"| {t.term} | {t.meaning} |" for t in terms]
+        lines += [row(t.term, t.meaning) for t in terms]
     else:
         lines.append("Add terms as they come up.")
     return "\n".join(lines) + "\n"
@@ -85,7 +85,7 @@ def testing_section(a: Answers) -> list[str]:
     """CONTRIBUTING's Testing section, ending with a blank line."""
     assert a.testing is not None
     lines = ["## Testing", "", "| Component | Levels |", "|---|---|"]
-    lines += [f"| {c.name} | {', '.join(c.levels)} |" for c in a.testing.components]
+    lines += [row(c.name, ", ".join(c.levels)) for c in a.testing.components]
     lines += [
         "",
         "Put each level's tests under `tests/<level>/` in the component.",
@@ -109,7 +109,8 @@ def security_doc(a: Answers, principles: dict[str, Any]) -> str:
         f"Production secrets live in: {store}." if store else "Nothing is deployed.",
         "",
         "Locally, secrets live in `.env` files, which git ignores; never commit "
-        "them. The Stop hook blocks a change that adds one.",
+        "them. Claude can't edit them, and the Stop hook blocks a change that adds "
+        "a secret to the repository.",
         "",
         "## Auth",
         "",
@@ -117,7 +118,8 @@ def security_doc(a: Answers, principles: dict[str, Any]) -> str:
         "",
         "## Protected paths",
         "",
-        "Claude can't edit these; change them by hand.",
+        "Claude can't edit these. Lockfiles change only through the package "
+        "manager; change the others by hand.",
         "",
     ]
     lines += [f"- `{glob}`" for glob in principles["protected"]["paths"]]
@@ -129,9 +131,14 @@ def dependency_policy(a: Answers) -> list[str]:
     assert a.dependencies is not None
     deps = a.dependencies
     if deps.updates == "dependabot":
+        actions = (
+            " and for the CI actions"
+            if a.build is not None and a.build.ci != "none"
+            else ""
+        )
         upgrading = (
-            f"Dependabot opens {deps.schedule} update pull requests, per component "
-            "and for the CI actions."
+            f"Dependabot opens {deps.schedule} update pull requests, per "
+            f"component{actions}."
         )
     else:
         upgrading = f"Upgrades are manual: check for updates {deps.schedule}."
@@ -159,7 +166,7 @@ def observability_doc(a: Answers) -> str | None:
         "|---|---|---|---|",
     ]
     lines += [
-        f"| {c.name} | {c.log_format} | {c.correlation} | {c.telemetry} |"
+        row(c.name, c.log_format, c.correlation, c.telemetry)
         for c in a.observability.components
     ]
     lines += [
@@ -184,8 +191,7 @@ def ui_doc(a: Answers) -> str | None:
         "|---|---|---|---|---|---|",
     ]
     lines += [
-        f"| {c.name} | {c.library} | `{c.tokens}` | {c.icons} | {c.typography} | "
-        f"{c.theming} |"
+        row(c.name, c.library, f"`{c.tokens}`", c.icons, c.typography, c.theming)
         for c in a.ui.components
     ]
     lines += [
@@ -203,7 +209,7 @@ def ui_doc(a: Answers) -> str | None:
     return "\n".join(lines) + "\n"
 
 
-def data_doc(a: Answers) -> str | None:
+def data_doc(a: Answers, principles: dict[str, Any]) -> str | None:
     """docs/data.md: storage and migrations, and ML experiments; None when no
     component stores data or does ML."""
     assert a.data is not None
@@ -221,15 +227,17 @@ def data_doc(a: Answers) -> str | None:
             globs = ", ".join(f"`{g}`" for g in c.migrations)
             migrations = f"{c.migration_tool}: {globs}" if globs else c.migration_tool
             reversible = "yes" if c.reversible else "no"
-            lines.append(f"| {c.name} | {c.storage} | {migrations} | {reversible} |")
-        lines += [
-            "",
-            "Every schema change is a migration. Migrations are append-only: once "
-            "one exists in a commit, add a new one instead of editing it (the Stop "
-            "hook checks). Write a down migration wherever the change can be "
-            "undone.",
-            "",
-        ]
+            lines.append(row(c.name, c.storage, migrations, reversible))
+        lines.append("")
+        migrated = any(c.migrations for c in a.data.components)
+        if migrated and _active(principles, "safe-migrations"):
+            lines += [
+                "Every schema change is a migration. Migrations are append-only: "
+                "once one exists in a commit, add a new one instead of editing it "
+                "(the Stop hook checks). Write a down migration wherever the change "
+                "can be undone.",
+                "",
+            ]
     if a.data.ml is not None:
         ml = a.data.ml
         lines += [
@@ -254,7 +262,6 @@ _SCHEMES = {
 _SCHEME_NAMES = {
     "semver": "semantic versioning",
     "calver": "calendar versioning",
-    "none": "no version numbers",
 }
 
 
@@ -268,9 +275,13 @@ def releases_doc(a: Answers) -> str:
         if r.scope == "component"
         else "One version for the whole repository."
     )
+    recorded = (
+        "as they land, under the date it reached main."
+        if r.scheme == "none"
+        else "under Unreleased as they land, and moved under the version at release."
+    )
     changelog = {
-        "file": "Changes are recorded in [CHANGELOG.md](../CHANGELOG.md) under "
-        "Unreleased as they land, and moved under the version at release.",
+        "file": f"Changes are recorded in [CHANGELOG.md](../CHANGELOG.md) {recorded}",
         "github-releases": "Changes are written up in the GitHub release notes "
         "for each version.",
         "none": "No changelog is kept; the commit history is the record.",
@@ -296,6 +307,12 @@ def changelog(a: Answers) -> str | None:
     assert a.releases is not None
     if a.releases.changelog != "file":
         return None
+    if a.releases.scheme == "none":
+        return (
+            "# Changelog\n\n"
+            "All notable changes, newest first, grouped by the date they reached "
+            "main.\n"
+        )
     return (
         "# Changelog\n\n"
         f"All notable changes, newest first. Versions follow "
@@ -308,7 +325,7 @@ def performance_doc(a: Answers) -> str | None:
     """docs/performance.md, or None when no component has budgets."""
     assert a.performance is not None
     rows = [
-        f"| {c.name} | {b.metric} | {b.limit} | {b.measured_by} |"
+        row(c.name, b.metric, b.limit, b.measured_by)
         for c in a.performance.components
         for b in c.budgets
     ]

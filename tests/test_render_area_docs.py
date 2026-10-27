@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from helpers import SCENARIOS, TODAY, single_component
 
 from alpha.answers import Answers, load_answers
@@ -102,6 +103,9 @@ def test_security_doc(tmp_path: Path):
     assert "- `api/keys/**`" in protected
     assert "- `api/uv.lock`" in protected
     assert "Claude can't edit these" in protected
+    assert "Lockfiles change only through the package manager" in protected
+    secrets = section(doc, "Secrets")
+    assert "the Stop hook blocks a change that adds a secret" in secrets
     assert "- [Security](docs/security.md)" in out["CLAUDE.md"]
 
 
@@ -116,6 +120,26 @@ def test_dependency_policy_precedes_the_log(tmp_path: Path):
     assert "Adding:" in policy and "Pinning:" in policy
     assert "Dependabot opens weekly update pull requests" in policy
     assert doc.index("## Policy") < doc.index("## Log") < doc.index("| Dependency |")
+
+
+def test_dependabot_policy_without_ci_leaves_out_the_actions(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["build"]["ci"] = "none"
+        data["overrides"].append(
+            {
+                "principle": "build-hosting-upfront",
+                "scope": "project",
+                "change": "loosen",
+                "params": {},
+                "reason": "No CI yet.",
+            }
+        )
+
+    policy = section(
+        render(load(tmp_path, mutate=mutate))["docs/dependencies.md"], "Policy"
+    )
+    assert "Dependabot opens weekly update pull requests, per component." in policy
+    assert "CI actions" not in policy
 
 
 def test_manual_updates_policy(tmp_path: Path):
@@ -180,6 +204,30 @@ def test_data_doc_lists_storage_and_the_migration_rules(tmp_path: Path):
     assert "## Experiments" not in doc
 
 
+@pytest.mark.parametrize("change", ["no-migrations", "dropped"])
+def test_data_doc_states_migration_rules_only_where_they_apply(
+    tmp_path: Path, change: str
+):
+    def mutate(data: dict[str, Any]) -> None:
+        if change == "no-migrations":
+            entry = data["data"]["components"][0]
+            entry.update(migration_tool="none", migrations=[])
+        else:
+            data["overrides"].append(
+                {
+                    "principle": "safe-migrations",
+                    "scope": "project",
+                    "change": "drop",
+                    "params": {},
+                    "reason": "Schema-less store.",
+                }
+            )
+
+    doc = render(load(tmp_path, mutate=mutate))["docs/data.md"]
+    assert "| api | PostgreSQL |" in doc
+    assert "append-only" not in doc and "Stop hook" not in doc
+
+
 def test_ml_data_doc_has_experiments_only(tmp_path: Path):
     out = render(scenario(tmp_path, "python-ml-single"))
     doc = out["docs/data.md"]
@@ -225,6 +273,19 @@ def test_changelog_file_only_when_chosen(tmp_path: Path):
     assert log.startswith("# Changelog\n")
     assert "semantic versioning" in log.lower()
     assert "## Unreleased" in log
+
+
+def test_changelog_without_version_numbers_goes_by_date(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["releases"]["scheme"] = "none"
+
+    out = render(load(tmp_path, mutate=mutate))
+    log = out["CHANGELOG.md"]
+    assert "grouped by the date they reached main" in log
+    assert "Unreleased" not in log and "version" not in log.lower()
+    doc = out["docs/releases.md"]
+    assert "under the date it reached main" in doc
+    assert "moved under the version" not in doc
 
 
 def test_performance_doc_lists_every_budget(tmp_path: Path):

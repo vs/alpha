@@ -380,6 +380,22 @@ def test_release_scope_component_needs_several_components(tmp_path: Path):
 
 
 @pytest.mark.parametrize(
+    ("key", "value", "problem"),
+    [
+        ("scope", "component", "per-component tags need version numbers"),
+        ("changelog", "github-releases", "GitHub releases need version tags"),
+    ],
+)
+def test_no_version_numbers_rules_out_tags(
+    tmp_path: Path, key: str, value: str, problem: str
+):
+    d = valid()
+    d["releases"].update({"scheme": "none", key: value})
+    with pytest.raises(AnswersError, match=rf"releases\.{key}: .*{problem}"):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize(
     ("key", "value"),
     [("scheme", "romver"), ("changelog", "wiki"), ("scope", "team"), ("process", "")],
 )
