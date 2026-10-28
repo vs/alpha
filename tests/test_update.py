@@ -446,7 +446,51 @@ def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env):
         "docs/principles.toml: alpha's change wasn't merged in (proposal: "
         ".claude/alpha/state/update/docs/principles.toml)."
     ]
+
+
+def conflicting_update(target: Path) -> Path:
+    """Edit max_lines by hand, then change it in the answers: a conflict."""
+    principles = target / "docs/principles.toml"
+    principles.write_text(
+        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+    )
+    commit(target, "docs: Review smaller batches")
+    data = answers(target)
+    data["agent_workflow"]["max_lines"] = 120
+    data["decisions"].append(dict(DECISION))
+    save(target, data)
+    apply_update(target, plan(target))
+    return principles
+
+
+def test_commit_update_keeps_proposals_of_unmerged_conflicts(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    conflicting_update(target)
+    commit_the_update(target)
+    # The baseline moved on, so alpha won't propose the change again.
+    assert (target / PROPOSALS / "docs/principles.toml").is_file()
+    assert not (target / UPDATE_STATE).exists()
+
+
+def test_commit_update_deletes_proposals_of_merged_conflicts(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    principles = conflicting_update(target)
+    principles.write_text(principles.read_text().replace("150", "120"))
+    _, notes = commit_the_update(target)
+    assert not [n for n in notes if "wasn't merged" in n]
     assert not (target / PROPOSALS).exists()
+
+
+def test_later_update_leaves_an_earlier_kept_proposal(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    conflicting_update(target)
+    commit_the_update(target)
+    kept = (target / PROPOSALS / "docs/principles.toml").read_bytes()
+    data = answers(target)
+    data["decisions"].append({**DECISION, "title": "Another decision"})
+    save(target, data)
+    apply_update(target, plan(target))
+    assert (target / PROPOSALS / "docs/principles.toml").read_bytes() == kept
 
 
 def test_commit_update_absorbs_alphas_changes_into_review(

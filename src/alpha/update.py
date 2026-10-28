@@ -9,7 +9,6 @@ user's edits stay and kit changes since generation cancel out.
 import difflib
 import hashlib
 import json
-import shutil
 import subprocess
 from dataclasses import dataclass
 from datetime import date
@@ -269,9 +268,11 @@ def _write(path: Path, text: str) -> None:
 
 
 def apply_update(target: Path, plan: UpdatePlan) -> None:
-    """Write alpha's side of each change; overlapping ones go to proposals."""
+    """Write alpha's side of each change; overlapping ones go to proposals.
+
+    Only this run's proposals are written: one kept from an earlier update is
+    still the only copy of a change the user hasn't merged."""
     before_tree = _review_snapshot(target)
-    shutil.rmtree(target / PROPOSALS, ignore_errors=True)  # an earlier run's
     for c in plan.changes:
         if c.text is None:
             continue

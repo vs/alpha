@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import shutil
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
@@ -179,6 +178,17 @@ def _absorb_review(target: Path, before_tree: str, after_tree: str) -> bool:
     return done.returncode == 0
 
 
+def _remove_proposal(target: Path, path: str) -> None:
+    """Delete a merged conflict's proposal and the folders it leaves empty."""
+    folder = target / PROPOSALS
+    proposal = folder / path
+    proposal.unlink(missing_ok=True)
+    parent = proposal.parent
+    while parent != folder.parent and parent.is_dir() and not any(parent.iterdir()):
+        parent.rmdir()
+        parent = parent.parent
+
+
 def commit_update(
     target: Path, principles: dict[str, Any], trailers: list[str]
 ) -> tuple[list[str], list[str]]:
@@ -233,12 +243,18 @@ def commit_update(
         target, [g for g in groups if g[1]], trailers, "commit-update"
     )
 
-    notes += [
-        f"{path}: alpha's change wasn't merged in (proposal: {PROPOSALS}/{path})."
-        for path, recorded in sorted(conflicts.items())
-        if (target / path).is_file()  # a deleted file was resolved by the user
-        and hashlib.sha256((target / path).read_bytes()).hexdigest() == recorded
-    ]
+    for path, recorded in sorted(conflicts.items()):
+        file = target / path
+        unmerged = (  # a deleted file was resolved by the user
+            file.is_file() and hashlib.sha256(file.read_bytes()).hexdigest() == recorded
+        )
+        if unmerged:  # the baseline moved on: its proposal is the only copy left
+            notes.append(
+                f"{path}: alpha's change wasn't merged in (proposal: "
+                f"{PROPOSALS}/{path})."
+            )
+        else:
+            _remove_proposal(target, path)
     before, after = state.get("before_tree"), state.get("after_tree")
     carried = (
         isinstance(before, str)
@@ -248,5 +264,4 @@ def commit_update(
     if not carried:
         notes.append("The reviewer will look at alpha's changes at the next Stop.")
     state_file.unlink()
-    shutil.rmtree(target / PROPOSALS, ignore_errors=True)
     return hashes, notes
