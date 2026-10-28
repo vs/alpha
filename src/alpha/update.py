@@ -9,6 +9,7 @@ user's edits stay and kit changes since generation cancel out.
 import difflib
 import hashlib
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from datetime import date
@@ -318,6 +319,9 @@ def _review_hook(target: Path, *args: str) -> str | None:
         done = subprocess.run(
             ["python3", str(script), *args],
             cwd=target,
+            # The hook finds its project here before cwd: in a Claude Code
+            # session that is the session's project, which may not be target.
+            env={**os.environ, "CLAUDE_PROJECT_DIR": str(target)},
             capture_output=True,
             text=True,
         )

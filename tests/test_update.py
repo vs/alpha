@@ -659,6 +659,31 @@ def test_absorb_leaves_edits_after_the_update_as_debt(
     assert "worker/pyproject.toml" not in debt["files"]
 
 
+def test_review_hook_acts_on_the_target_not_the_sessions_project(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
+    import review
+
+    session, target = tmp_path / "session", tmp_path / "target"
+    session.mkdir()
+    target.mkdir()
+    generated_repo(session, SCENARIO)
+    generated_repo(target, SCENARIO)
+    review.ensure_state(session)
+    review.ensure_state(target)
+    session_state = review.load_state(session)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(session))  # the hook's root
+    add_worker(target)
+    assert apply_update(target, plan(target)) == []
+    state = json.loads((target / UPDATE_STATE).read_text())
+    assert state["before_tree"] != state["after_tree"]  # target's trees, not session's
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR")
+    debt = review.debt(target, load_project_principles(target))
+    assert debt["files"] == [PROJECT_JSON]
+    assert review.load_state(session) == session_state
+
+
 FAILING_ABSORB = """\
 import runpy, sys
 from pathlib import Path
