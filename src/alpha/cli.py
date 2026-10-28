@@ -220,6 +220,9 @@ def _update(target: Path, dry_run: bool) -> None:
         print(describe(plan, target))
         print(plan_diff(plan, target), end="")
         return
+    if not plan.changes and not plan.new_components:
+        print(describe(plan, target))  # nothing to change: write nothing
+        return
     apply_update(target, plan)
     print(describe(plan, target))
     for c in plan.changes:

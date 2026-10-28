@@ -184,6 +184,12 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     """Work out what the change in the answers does to each file; write nothing."""
     top, manifest = _load(target)
     records, added, year = _baseline(target, manifest)
+    if (target / UPDATE_STATE).exists():
+        raise GenerateError(
+            "An update is waiting to be committed. Merge any proposals in "
+            f"{PROPOSALS}/, run alpha commit-update {target}, then run alpha "
+            "update again."
+        )
     applied = cast(dict[str, Any], manifest["applied"])
     defaults = load_defaults(source)
     try:

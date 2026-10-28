@@ -293,13 +293,41 @@ def test_applied_update_becomes_the_new_baseline(tmp_path: Path, git_env):
     smaller_reviews(data)
     save(target, data)
     apply_update(target, plan(target))
-    assert describe(plan(target), target) == "alpha update: nothing to change"
     after = answers(target)
     assert after["manifest"]["applied"] == answers_snapshot(after)
     assert after["manifest"]["updated_at"] == "2026-11-02"
     state = json.loads((target / UPDATE_STATE).read_text())
     assert "before_tree" in state
     assert state["groups"]["docs/principles.toml"] == "docs"
+    (target / UPDATE_STATE).unlink()  # as commit-update does when it's done
+    assert describe(plan(target), target) == "alpha update: nothing to change"
+
+
+def test_update_refuses_while_an_update_awaits_commit(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    principles = target / "docs/principles.toml"
+    principles.write_text(
+        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+    )
+    commit(target, "docs: Review smaller batches")
+    data = answers(target)
+    data["agent_workflow"]["max_lines"] = 120
+    save(target, data)
+    apply_update(target, plan(target))
+    with pytest.raises(GenerateError, match="An update is waiting to be committed"):
+        plan(target)
+    assert (target / UPDATE_STATE).is_file()
+    assert (target / PROPOSALS / "docs/principles.toml").is_file()
+
+
+def test_update_with_nothing_to_change_writes_nothing(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    before = (target / PROJECT_JSON).read_bytes()
+    out = run_cli("update", str(target), env={"ALPHA_SOURCE": str(PLUGIN_ROOT)})
+    assert out.returncode == 0, out.stderr
+    assert out.stdout == "alpha update: nothing to change\n"
+    assert (target / PROJECT_JSON).read_bytes() == before
+    assert not (target / UPDATE_STATE).exists()
 
 
 def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env):
