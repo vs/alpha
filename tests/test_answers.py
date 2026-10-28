@@ -7,10 +7,18 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import proven, shell_recipe, single_component
+from helpers import place_answers, proven, shell_recipe, single_component
 
 from alpha import cli
-from alpha.answers import AREAS, AnswersError, load_answers, write_answers
+from alpha.answers import (
+    AREAS,
+    AnswersError,
+    answers_snapshot,
+    load_answers,
+    parse_answers,
+    write_answers,
+)
+from alpha.validate import area_of, fail
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 
@@ -655,3 +663,35 @@ def test_bad_artifact_lists_choices(tmp_path: Path):
         AnswersError, match=r"build\.components\[0\]\.artifact: .*container"
     ):
         check(tmp_path, d)
+
+
+def test_area_of_maps_fields_to_their_area():
+    assert area_of("testing.components[1].levels") == "testing"
+    assert area_of("agent_workflow.max_lines") == "agent_workflow"
+    for where in (
+        "layout",
+        "components_talk",
+        "components[0].path",
+        "recipes.rust.commands",
+    ):
+        assert area_of(where) == "components"
+    for where in ("decisions", "overrides[0].principle", "schema", ""):
+        assert area_of(where) is None
+
+
+def test_fail_keeps_where():
+    assert fail("ui.components", "is wrong", "Fix it").where == "ui.components"
+
+
+def test_parse_answers_matches_load_answers(tmp_path: Path):
+    path = place_answers(tmp_path, "web-ts-plus-python-api")
+    top = json.loads(path.read_text())
+    assert parse_answers(top, tmp_path) == load_answers(path)
+
+
+def test_snapshot_leaves_out_the_manifest():
+    top = {"schema": 1, "manifest": {"files": {}}, "decisions": [{"area": "git"}]}
+    snap = answers_snapshot(top)
+    assert snap == {"schema": 1, "decisions": [{"area": "git"}]}
+    snap["decisions"].append({})
+    assert len(top["decisions"]) == 1

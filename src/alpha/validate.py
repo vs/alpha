@@ -10,11 +10,26 @@ NAME = re.compile(r"[a-z][a-z0-9-]*")
 
 
 class AnswersError(Exception):
-    pass
+    def __init__(self, message: str, where: str = "") -> None:
+        super().__init__(message)
+        self.where = where
 
 
 def fail(where: str, problem: str, fix: str) -> AnswersError:
-    return AnswersError(f"{where}: {problem}. {fix}")
+    return AnswersError(f"{where}: {problem}. {fix}", where)
+
+
+_COMPONENTS_FIELDS = ("layout", "components_talk", "components", "recipes")
+
+
+def area_of(where: str) -> str | None:
+    """The interview area a field path belongs to, or None if it has none."""
+    from alpha.answers import AREAS  # answers imports this module
+
+    head = re.split(r"[.\[]", where, maxsplit=1)[0]
+    if head in AREAS:
+        return head
+    return "components" if head in _COMPONENTS_FIELDS else None
 
 
 def join(parent: str, key: str) -> str:

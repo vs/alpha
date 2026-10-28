@@ -1,10 +1,11 @@
 """Interview answers (.claude/alpha/project.json): model and validation."""
 
+import copy
 import json
 import os
 import re
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -656,6 +657,11 @@ def _decision(raw: object, i: int) -> Decision:
     )
 
 
+def answers_snapshot(top: Mapping[str, Any]) -> dict[str, Any]:
+    """A deep copy of the answers without the manifest."""
+    return {k: copy.deepcopy(v) for k, v in top.items() if k != "manifest"}
+
+
 def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     """Parse and validate the answers file.
 
@@ -683,6 +689,19 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
             str(path), f"not valid JSON ({e.msg} at line {e.lineno})", "Fix the syntax"
         ) from None
     top = obj(data, str(path))
+    return parse_answers(top, _project_root(path), require_areas)
+
+
+def parse_answers(
+    top: Mapping[str, Any],
+    base: Path,
+    require_areas: Sequence[str] = AREAS,
+    generated: bool | None = None,
+) -> Answers:
+    """Validate answers already parsed; base is the project root.
+
+    generated=None means the answers carry a manifest.
+    """
     for key in top:
         if key not in _TOP_KEYS:
             raise fail(
@@ -718,9 +737,8 @@ def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     drafted = drafted_recipes(
         top.get("recipes", {}),
         require_proven=active("components"),
-        generated="manifest" in top,
+        generated="manifest" in top if generated is None else generated,
     )
-    base = _project_root(path)
     identity = _identity(get(top, "identity", ""), base) if active("identity") else None
     layout: str | None = None
     comps: tuple[Component, ...] = ()
