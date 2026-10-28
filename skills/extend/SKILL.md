@@ -50,7 +50,7 @@ Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the 
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`.
 
 - For each conflict, read its proposal under `.claude/alpha/state/update/`. It holds the user's version, the version before, and alpha's. Edit the real file so it keeps the user's edits and adds alpha's change, never just alpha's side, and show the user the result.
-- Stale files: ask before deleting any.
+- Stale files: ask before deleting any. commit-update commits only alpha's writes, so `git rm` each one the user lets go and commit the deletion yourself after step 7 (e.g. `docs: Remove CHANGELOG.md`, body wrapped at 72).
 
 ## 6. Bootstrap
 

@@ -568,3 +568,9 @@ def test_extend_keeps_area_skills_from_pointing_to_new_project():
     what = _section("extend", "2. What changes")
     assert "Don't tell the user to run `/alpha:new-project` afterwards" in what
     assert "continue with step 3" in what
+
+
+def test_extend_commits_deleted_stale_files_itself():
+    apply = _section("extend", "5. Apply")
+    assert "commit-update commits only alpha's writes" in apply
+    assert "commit the deletion yourself after step 7" in apply
