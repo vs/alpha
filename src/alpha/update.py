@@ -290,12 +290,14 @@ def apply_update(target: Path, plan: UpdatePlan) -> None:
         for c in plan.changes
         if c.kind == "conflict"
     }
+    after_tree = _review_snapshot(target)  # every write is in, project.json too
     state = target / UPDATE_STATE
     state.parent.mkdir(parents=True, exist_ok=True)
     write_json(
         state,
         {
             "before_tree": before_tree,
+            "after_tree": after_tree,
             "groups": plan.groups,
             "new_components": list(plan.new_components),
             "conflicts": conflicts,

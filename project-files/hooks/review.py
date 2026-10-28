@@ -266,8 +266,8 @@ def review_due(principles: dict[str, Any], debt: dict[str, Any]) -> str | None:
 DIFF_LINES = 1500
 USAGE = (
     "Run it as: python3 .claude/alpha/hooks/review.py brief (or snapshot, or "
-    "absorb <tree>), from the root of an alpha project (one with "
-    "docs/principles.toml)."
+    "absorb <before-tree> <after-tree>), from the root of an alpha project "
+    "(one with docs/principles.toml)."
 )
 
 
@@ -411,7 +411,7 @@ def main() -> None:
     root = _common.project_root({})
     args = sys.argv[1:]
     valid = args in (["brief"], ["snapshot"]) or (
-        len(args) == 2 and args[0] == "absorb"
+        len(args) == 3 and args[0] == "absorb"
     )
     if not valid or not (root / "docs" / "principles.toml").is_file():
         print(USAGE, file=sys.stderr)
@@ -422,7 +422,13 @@ def main() -> None:
         elif args[0] == "snapshot":
             print(snapshot(root))
         else:
-            absorb(root, args[1])
+            if not absorb(root, args[1], args[2]):
+                print(
+                    "review.py: some of alpha's changes clash with edits the "
+                    "reviewer hasn't seen; they stay under review.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
     except SnapshotError as e:
         print(
             f"review.py: can't snapshot the working tree ({e}). Fix that, then run "
@@ -547,28 +553,26 @@ def _commit(root: Path, tree: str) -> str | None:
     return out.strip() if out else None
 
 
-def _carry(root: Path, state: dict[str, Any], left: str) -> None:
-    """Carry what changed between the tree `left` and the working tree now onto
-    state["reviewed_tree"], with a three-way merge based on `left`. On a
-    conflict, or anything git can't do, nothing is carried."""
+def _carry(root: Path, state: dict[str, Any], left: str, right: str) -> bool:
+    """Carry the change from tree `left` to tree `right` onto
+    state["reviewed_tree"], with a three-way merge based on `left`. Returns
+    False, carrying nothing, on a conflict or anything git can't do."""
     reviewed = state.get("reviewed_tree")
     if not isinstance(reviewed, str):
-        return
-    try:
-        current = snapshot(root)
-    except SnapshotError:
-        return
-    if current == left:
-        return
-    commits = [_commit(root, t) for t in (left, reviewed, current)]
+        return False
+    if right == left:
+        return True
+    commits = [_commit(root, t) for t in (left, reviewed, right)]
     if not all(commits):
-        return
+        return False
     base, ours, theirs = cast("list[str]", commits)
     merged = _git(
         root, "merge-tree", "--write-tree", f"--merge-base={base}", ours, theirs
     )
-    if merged:
-        state["reviewed_tree"] = merged.splitlines()[0].strip()
+    if not merged:
+        return False
+    state["reviewed_tree"] = merged.splitlines()[0].strip()
+    return True
 
 
 def absorb_outside_changes(root: Path) -> None:
@@ -581,17 +585,72 @@ def absorb_outside_changes(root: Path) -> None:
     if not isinstance(left, str) or not isinstance(state.get("reviewed_tree"), str):
         return
     state.pop("left_tree", None)
-    _carry(root, state, left)
+    try:
+        current = snapshot(root)
+    except SnapshotError:
+        save_state(root, state)
+        return
+    _carry(root, state, left, current)
     save_state(root, state)
 
 
-def absorb(root: Path, before: str) -> None:
-    """Treat what changed since the tree `before` (alpha's update) as reviewed."""
+def _entries(root: Path, tree: str, paths: list[str]) -> dict[str, tuple[str, str]]:
+    """path -> (mode, blob id) of the files `paths` names in a tree."""
+    out = _git(root, "ls-tree", "-z", tree, "--", *paths)
+    entries: dict[str, tuple[str, str]] = {}
+    for row in (out or "").split("\0"):
+        meta, _, path = row.partition("\t")
+        parts = meta.split()
+        if len(parts) == 3 and path:
+            entries[path] = (parts[0], parts[2])
+    return entries
+
+
+def _carry_paths(root: Path, state: dict[str, Any], before: str, after: str) -> bool:
+    """Carry each path alpha changed (before to after) that the reviewed tree
+    still has as `before` did; the rest stay debt. True when none was left."""
+    reviewed = state.get("reviewed_tree")
+    names = _git(root, "diff", "--name-only", "-z", "--no-renames", before, after)
+    if not isinstance(reviewed, str) or names is None:
+        return False
+    paths = [p for p in names.split("\0") if p]
+    was = _entries(root, before, paths)
+    now = _entries(root, reviewed, paths)
+    new = _entries(root, after, paths)
+    take = [p for p in paths if now.get(p) == was.get(p)]
+    if take:
+        git_dir = Path(_must(root, "rev-parse", "--absolute-git-dir").strip())
+        index = git_dir / f"{INDEX_FILE}.absorb"
+        env = {**os.environ, "GIT_INDEX_FILE": str(index)}
+        try:
+            _must(root, "read-tree", reviewed, env=env)
+            for p in take:
+                if p in new:
+                    mode, blob = new[p]
+                    info = f"{mode},{blob},{p}"
+                    _must(root, "update-index", "--add", "--cacheinfo", info, env=env)
+                else:
+                    _must(root, "update-index", "--force-remove", "--", p, env=env)
+            state["reviewed_tree"] = _must(root, "write-tree", env=env).strip()
+        except SnapshotError:
+            return False
+        finally:
+            index.unlink(missing_ok=True)
+    return len(take) == len(paths)
+
+
+def absorb(root: Path, before: str, after: str) -> bool:
+    """Treat alpha's update, the change from tree `before` to tree `after`, as
+    reviewed. On a conflict, carry the paths that don't clash. True when all of
+    it was carried."""
     state = load_state(root)
     if not isinstance(state.get("reviewed_tree"), str):
-        return  # no state yet, or an unreadable one: leave it for ensure_state
-    _carry(root, state, before)
+        return True  # no state yet, or an unreadable one: ensure_state starts clean
+    done = _carry(root, state, before, after) or _carry_paths(
+        root, state, before, after
+    )
     save_state(root, state)
+    return done
 
 
 if __name__ == "__main__":

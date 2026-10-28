@@ -294,7 +294,8 @@ def test_absorb_carries_changes_since_the_tree_onto_reviewed(
     base(project)
     before = review.snapshot(project.root)
     project.write("api/src/from_alpha.py", "x = 1\n")
-    review.absorb(project.root, before)
+    after = review.snapshot(project.root)
+    assert review.absorb(project.root, before, after) is True
     assert review.debt(project.root, project.principles())["files"] == []
 
 
@@ -303,9 +304,41 @@ def test_absorb_keeps_earlier_unreviewed_edits(project: Project) -> None:
     project.write("api/src/mine.py", "x = 1\n")
     before = review.snapshot(project.root)
     project.write("api/src/from_alpha.py", "y = 2\n")
-    review.absorb(project.root, before)
+    after = review.snapshot(project.root)
+    review.absorb(project.root, before, after)
     debt = review.debt(project.root, project.principles())
     assert debt["files"] == ["api/src/mine.py"]
+
+
+def test_absorb_stops_at_the_after_tree(project: Project) -> None:
+    base(project)
+    before = review.snapshot(project.root)
+    project.write("api/src/from_alpha.py", "y = 2\n")
+    after = review.snapshot(project.root)
+    project.write("api/src/later.py", "z = 3\n")
+    review.absorb(project.root, before, after)
+    debt = review.debt(project.root, project.principles())
+    assert debt["files"] == ["api/src/later.py"]
+
+
+def test_absorb_carries_per_path_on_a_conflict(project: Project) -> None:
+    project.write("api/src/clash.py", "a = 1\nb = 2\nc = 3\n")
+    base(project)  # reviewed at HEAD, where b = 2
+    project.write("api/src/clash.py", "a = 1\nb = 'mine'\nc = 3\n")
+    before = review.snapshot(project.root)
+    project.write("api/src/clash.py", "a = 1\nb = 'alpha'\nc = 3\n")
+    project.write("api/src/other.py", "o = 1\n")
+    after = review.snapshot(project.root)
+    proc = subprocess.run(
+        [sys.executable, str(HOOKS / "review.py"), "absorb", before, after],
+        cwd=project.root,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(project.root)},
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    debt = review.debt(project.root, project.principles())
+    assert debt["files"] == ["api/src/clash.py"]
 
 
 def test_snapshot_subcommand_prints_the_tree(project: Project) -> None:

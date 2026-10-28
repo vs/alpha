@@ -1,5 +1,4 @@
 import json
-import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -450,16 +449,99 @@ def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env):
     assert not (target / PROPOSALS).exists()
 
 
-def test_commit_update_absorbs_alphas_changes_into_review(tmp_path: Path, git_env):
-    sys.path.insert(0, str(PLUGIN_ROOT / "project-files/hooks"))
+def test_commit_update_absorbs_alphas_changes_into_review(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
     import review
 
     target = generated_repo(tmp_path, SCENARIO)
+    review.ensure_state(target)  # reviewed at HEAD, before the answers change
     add_worker(target)
-    commit(target, "docs: Add a worker to the answers")
-    review.ensure_state(target)  # reviewed at HEAD, the tree the update starts from
     apply_update(target, plan(target))
     _, notes = commit_the_update(target)
     assert notes == []
     debt = review.debt(target, load_project_principles(target))
-    assert debt["files"] == []
+    assert debt["files"] == [PROJECT_JSON]  # the answers edit is the user's debt
+
+
+def test_absorb_leaves_edits_after_the_update_as_debt(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
+    import review
+
+    target = generated_repo(tmp_path, SCENARIO)
+    review.ensure_state(target)
+    add_worker(target)
+    apply_update(target, plan(target))
+    (target / "api/app_code.py").write_text("x = 1\n")
+    commit_the_update(target)
+    debt = review.debt(target, load_project_principles(target))
+    assert "api/app_code.py" in debt["files"]
+    assert "worker/pyproject.toml" not in debt["files"]
+
+
+def test_commit_update_errors_name_commit_update(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    smaller_reviews(data)
+    save(target, data)
+    apply_update(target, plan(target))
+    for role in ("AUTHOR", "COMMITTER"):  # no identity left anywhere
+        monkeypatch.delenv(f"GIT_{role}_NAME")
+        monkeypatch.delenv(f"GIT_{role}_EMAIL")
+    with pytest.raises(GenerateError) as e:
+        commit_the_update(target)
+    assert f'"alpha commit-update {target}"' in str(e.value)
+    assert "commit-skeleton" not in str(e.value)
+
+
+def test_commit_update_new_root_component_commits_only_alphas_files(
+    tmp_path: Path, git_env
+):
+    # A root component can't be added next to others (folders may not nest), so
+    # the state is written as alpha update would leave it for a lone root one.
+    target = generated_repo(tmp_path, "python-ml-single")
+    principles = load_project_principles(target)
+    name = principles["components"][0]["name"]
+    (target / "tool.txt").write_text("alpha\n")
+    (target / "notes.txt").write_text("mine\n")
+    (target / UPDATE_STATE).parent.mkdir(parents=True, exist_ok=True)
+    (target / UPDATE_STATE).write_text(
+        json.dumps(
+            {
+                "before_tree": None,
+                "groups": {"tool.txt": f"build:{name}"},
+                "new_components": [name],
+                "conflicts": {},
+            }
+        )
+    )
+    _, notes = commit_update(target, principles, [])
+    assert git(target, "status", "--porcelain") == "?? notes.txt"
+    assert notes[0] == (
+        f"{name} is at the project root, so only alpha's files were committed; "
+        "commit any files its bootstrap made (such as lockfiles) yourself."
+    )
+
+
+def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    principles = target / "docs/principles.toml"
+    principles.write_text(
+        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+    )
+    commit(target, "docs: Review smaller batches")
+    data = answers(target)
+    data["agent_workflow"]["max_lines"] = 120
+    data["decisions"].append(dict(DECISION))
+    save(target, data)
+    apply_update(target, plan(target))
+    loaded = load_project_principles(target)
+    principles.unlink()  # the user resolved the conflict by deleting the file
+    _, notes = commit_update(target, loaded, [])
+    assert not [n for n in notes if "wasn't merged" in n]  # nothing to hash
+    assert not (target / UPDATE_STATE).exists()
