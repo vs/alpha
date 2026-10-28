@@ -22,6 +22,8 @@ claude --plugin-dir /Users/vs/workspace/alpha
 /alpha:new-project ~/code/my-new-project
 ```
 
+To change a project alpha generated (add a component, revisit an area's decisions), run `/alpha:extend <what to change>` from inside it. It re-asks only what the change affects, merges alpha's files without overwriting your edits, and commits.
+
 Optional: to stop Claude Code asking before each alpha CLI call during the interview, add `"Bash(/Users/vs/workspace/alpha/bin/alpha *)"` to `permissions.allow` in `~/.claude/settings.json` (for an installed plugin, use the `bin/alpha` path the prompt shows).
 
 Install it for every session later with `claude plugin marketplace add /Users/vs/workspace/alpha`, then `claude plugin install alpha@alpha-local`. `claude plugin validate .claude-plugin/marketplace.json` checks the manifests.
@@ -87,3 +89,15 @@ All three scenarios went through `bin/alpha` (`answers check`, `generate`, `boot
 - web+API: six commits; `docs/ui.md`, `docs/data.md`, `docs/performance.md`, `docs/releases.md`, plus `CHANGELOG.md` in the docs commit. ML single: `docs/data.md` with only the experiments section, no UI or performance doc. Rust CLI: no UI or data doc; `docs/performance.md` holds the startup budget. (The Rust bootstrap needed the toolchain's own `bin` on PATH, because the `~/.cargo/bin` links on this machine are broken.)
 - In the web+API project, a committed `api/migrations/0001_create_uploads.sql` was edited after SessionStart. The generated Stop hook blocked with the append-only message. After the `git checkout <base> -- …` it names and a new `0002` migration, the mechanical checks passed. The review gate then asked for the principles-reviewer, since migrations are risk paths.
 - Headless `claude -p --plugin-dir` ran releases, data, accessibility and performance in order, taking every recommendation (20 turns). All four checks print `ok`. The budgets are the per-kind defaults (api p95 < 300 ms; web LCP < 2.5 s and bundle < 200 KB gzipped), each with a measuring tool looked up for its stack (k6, Lighthouse CI, size-limit), and accessibility uses axe through Playwright. Claude built each save with a multi-line `python3` heredoc instead of the skills' one-line `answers write`. That ran here because `-p` doesn't prompt, but interactively it would ask once per save.
+
+### Extend live check (2026-10-28)
+
+`bin/alpha` took the `web-ts-plus-python-api` scenario through `answers check`, `generate`, `bootstrap` and `commit-skeleton`. A hand edit at the end of CLAUDE.md was committed, then a `worker` component (a clone of api, with a components decision and the git scope) was saved with one `answers write`.
+
+- `update --dry-run`, `update`, `bootstrap --component worker` and `commit-update` made five commits (docs, chore, `build(worker)`, two `ci`), through the commit-msg hook. The hand edit stayed (CLAUDE.md merged cleanly), `worker/` checks pass, the tree was clean and a second `update --dry-run` printed "nothing to change".
+- Headless `claude -p --plugin-dir` ran `/alpha:extend switch the changelog off` (16 turns). Extend invoked the releases skill, kept all 18 decisions verbatim and added decision 0020; `update` listed CHANGELOG.md as stale and CLAUDE.md as a conflict (the team note sat next to the removed changelog link). Claude merged it, keeping the note, and `commit-update` committed. The Stop hook passed.
+- Fixed in the extend skill (Task 6's review): decisions and overrides are sent whole; a repeated "Revisit" message goes to the user; nothing generated is written before the user confirms; an unapplied or uncommitted update resumes at the right step; area skills don't point back to `/alpha:new-project`.
+- Fixed: commit-update commits only alpha's writes, so the deleted CHANGELOG.md stayed staged and Claude improvised its commit (rejected once for the 72-char wrap). The skill now says to commit the deletion after commit-update. The next run did it in one try.
+- In the first run, the prompt said "yes to every confirmation", so grilling's defaults question ran `alpha defaults set`, which committed to the alpha checkout's current branch (here a feature branch; reverted). In live checks, answer no to making anything a default.
+- Open: dry-run diffs of long files (docs/principles.toml) show some unchanged lines as removed and re-added, because difflib's autojunk heuristic treats lines that repeat often as junk. The diff still applies correctly; it is only noisy.
+- Not verified: interactive prompts. Claude read project.json with `python3 -c` and wrote a scratch file to `/tmp`; interactively, each such Bash call would ask, unlike the Read tool.
