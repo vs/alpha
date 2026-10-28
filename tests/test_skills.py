@@ -593,3 +593,9 @@ def test_extend_relays_the_reviewer_note_after_update():
     commit = _section("extend", "7. Commit")
     assert "the reviewer will look at alpha's changes at the next Stop" in apply
     assert "next Stop" not in commit
+
+
+def test_extend_says_a_removed_components_override_stops_applying():
+    what = _section("extend", "2. What changes")
+    assert "An override for a removed or renamed component stops applying" in what
+    assert "add a new override for the new name" in what

@@ -184,6 +184,7 @@ def build_principles(
             {c.name: dict(ml) for c in a.components if c.traits.ml}
         )
     override_paths = (records or record_paths(a)).overrides
+    present = {c.name for c in a.components}
     for i, o in enumerate(a.overrides):
         target = by_id.get(o.principle)
         if target is None:
@@ -192,6 +193,8 @@ def build_principles(
                 f"Known ids: {', '.join(sorted(by_id))}."
             )
         comp = o.scope.removeprefix("component:") if o.scope != "project" else None
+        if comp is not None and comp not in present:
+            continue  # its component was removed or renamed: it no longer applies
         if o.change in ("tighten", "loosen"):
             if comp is None:
                 cast(dict[str, Any], target["params"]).update(o.params)

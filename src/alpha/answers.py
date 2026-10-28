@@ -5,7 +5,7 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -657,6 +657,33 @@ def _decision(raw: object, i: int) -> Decision:
     )
 
 
+def generated_components(applied: Mapping[str, Any]) -> set[str]:
+    """The components named in answers alpha generated from: their components,
+    and those their overrides are scoped to (which may be gone by then)."""
+
+    def entries(key: str) -> list[Mapping[str, object]]:
+        raw: object = applied.get(key)
+        items = cast(list[object], raw) if isinstance(raw, list) else []
+        return [cast(Mapping[str, object], e) for e in items if isinstance(e, dict)]
+
+    names = {n for c in entries("components") if isinstance(n := c.get("name"), str)}
+    for o in entries("overrides"):
+        scope = o.get("scope")
+        if isinstance(scope, str) and scope.startswith("component:"):
+            names.add(scope.removeprefix("component:"))
+    return names
+
+
+def _generated_components(top: Mapping[str, Any]) -> set[str]:
+    manifest: object = top.get("manifest")
+    if not isinstance(manifest, dict):
+        return set()
+    applied: object = cast(dict[str, object], manifest).get("applied")
+    if not isinstance(applied, dict):
+        return set()
+    return generated_components(cast(dict[str, Any], applied))
+
+
 def answers_snapshot(top: Mapping[str, Any]) -> dict[str, Any]:
     """A deep copy of the answers without the manifest."""
     return {k: copy.deepcopy(v) for k, v in top.items() if k != "manifest"}
@@ -697,10 +724,12 @@ def parse_answers(
     base: Path,
     require_areas: Sequence[str] = AREAS,
     generated: bool | None = None,
+    former: Collection[str] = (),
 ) -> Answers:
     """Validate answers already parsed; base is the project root.
 
-    generated=None means the answers carry a manifest.
+    generated=None means the answers carry a manifest. former names components
+    the project had before, besides those its manifest records.
     """
     for key in top:
         if key not in _TOP_KEYS:
@@ -749,7 +778,13 @@ def parse_answers(
     workflow = (
         _workflow(get(top, "agent_workflow", "")) if active("agent_workflow") else None
     )
-    names = {c.name for c in comps} if active("components") else None
+    # An override for a component the project was generated with stays valid
+    # after the component goes: it is history, and it no longer applies.
+    names = (
+        {c.name for c in comps} | set(former) | _generated_components(top)
+        if active("components")
+        else None
+    )
     overrides = tuple(
         _override(o, i, names)
         for i, o in enumerate(as_list(top.get("overrides", []), "overrides"))

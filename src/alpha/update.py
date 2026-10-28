@@ -15,7 +15,13 @@ from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
-from alpha.answers import PROJECT_JSON, Answers, answers_snapshot, parse_answers
+from alpha.answers import (
+    PROJECT_JSON,
+    Answers,
+    answers_snapshot,
+    generated_components,
+    parse_answers,
+)
 from alpha.defaults import Source, load_defaults
 from alpha.generate import (
     GenerateError,
@@ -203,7 +209,9 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     applied = cast(dict[str, Any], manifest["applied"])
     defaults = load_defaults(source)
     try:
-        was = parse_answers(applied, target, generated=True)
+        was = parse_answers(
+            applied, target, generated=True, former=generated_components(applied)
+        )
         before = render_project(target, was, defaults, year, today, records, added)
     except (AnswersError, GenerateError, ValueError, KeyError) as e:
         raise GenerateError(

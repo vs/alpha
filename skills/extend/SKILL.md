@@ -27,7 +27,7 @@ Take the request from `$ARGUMENTS`, or ask. Pick the area: `components` to add, 
 
 - Use the current answers as the recommendations and ask only what the change affects.
 - Keep every other answer as it is.
-- Keep every existing entry of `decisions` and `overrides` unchanged, and add one new decision for this change (`area` = the area; the title says what changed; the context says why). This overrides "replacing any earlier one". `answers write` replaces each top-level key, so send the whole `decisions` array: every existing entry verbatim, then the new one. Do the same for `overrides`.
+- Keep every existing entry of `decisions` and `overrides` unchanged, and add one new decision for this change (`area` = the area; the title says what changed; the context says why). This overrides "replacing any earlier one". `answers write` replaces each top-level key, so send the whole `decisions` array: every existing entry verbatim, then the new one. Do the same for `overrides`. An override for a removed or renamed component stops applying; if it should carry over, add a new override for the new name, with its own new decision.
 - Don't tell the user to run `/alpha:new-project` afterwards; when the area skill is done, continue with step 3.
 - Moving a component's folder (e.g. a root CLI moving to `cli/` so a second component can be added) means moving app code, which alpha doesn't do. The user moves it with `git mv` and commits (you can do that as ordinary work, outside alpha's files), then continues.
 

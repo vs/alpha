@@ -93,6 +93,28 @@ def move_component(data: dict[str, Any], name: str, new: str) -> None:
             c["path"] = new
 
 
+def remove_component(data: dict[str, Any], name: str) -> None:
+    """Drop a component from every area (decisions and overrides stay history)."""
+    data["components"] = [c for c in data["components"] if c["name"] != name]
+    for key, section in data.items():
+        if key in ("decisions", "overrides", "manifest") or not isinstance(
+            section, dict
+        ):
+            continue
+        entries = section.get("components")
+        if isinstance(entries, list):
+            section["components"] = [
+                e
+                for e in entries
+                if not (isinstance(e, dict) and e.get("name") == name)
+            ]
+            for e in section["components"]:
+                if isinstance(e, dict) and isinstance(e.get("calls"), list):
+                    e["calls"] = [c for c in e["calls"] if c != name]
+    data["git"]["scopes"] = [s for s in data["git"]["scopes"] if s != name]
+    data["components_talk"] = False
+
+
 def test_refuses_a_folder_alpha_did_not_generate(tmp_path: Path):
     with pytest.raises(GenerateError, match="out of scope"):
         plan(tmp_path)
@@ -284,6 +306,62 @@ def test_moved_component_waits_for_its_files(tmp_path: Path, generate_scenario):
     save(tmp_path, data)
     with pytest.raises(GenerateError, match="git mv"):
         plan(tmp_path)
+
+
+OVERRIDE_RECORD = "docs/decisions/0018-override-observability.md"
+
+
+def test_removing_a_component_with_a_scoped_override_plans_cleanly(
+    tmp_path: Path, git_env
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    assert data["overrides"][0]["scope"] == "component:api"
+    assert OVERRIDE_RECORD in (target / "docs/principles.toml").read_text()
+    remove_component(data, "api")
+    data["architecture"]["contracts"] = {"format": "none", "paths": []}
+    data["decisions"].append({**DECISION, "area": "components", "title": "Drop api"})
+    save(target, data)
+    p = plan(target)
+    assert OVERRIDE_RECORD not in kinds(p)  # its record stays, at the same number
+    principles = text_of(p, "docs/principles.toml")
+    assert OVERRIDE_RECORD not in principles  # inert: it changes no principle
+    apply_update(target, p)
+    commit_the_update(target)
+    # The new baseline has no api either; the override still loads.
+    data = answers(target)
+    smaller_reviews(data)
+    save(target, data)
+    assert kinds(plan(target))["docs/principles.toml"] == "change"
+
+
+def test_renaming_a_component_leaves_its_override_inert(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    clone_component(data, "api", "backend", "api")
+    remove_component(data, "api")
+    data["components_talk"] = True
+    next(c for c in data["architecture"]["components"] if c["name"] == "web")[
+        "calls"
+    ] = ["backend"]
+    data["decisions"].append(
+        {**DECISION, "area": "components", "title": "Rename api to backend"}
+    )
+    save(target, data)
+    p = plan(target)
+    assert OVERRIDE_RECORD not in kinds(p)
+    assert OVERRIDE_RECORD not in text_of(p, "docs/principles.toml")
+
+
+def test_override_for_a_component_that_never_existed_is_refused(
+    tmp_path: Path, git_env
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    data["overrides"].append({**data["overrides"][0], "scope": "component:ghost"})
+    save(target, data)
+    with pytest.raises(GenerateError, match="there is no component named 'ghost'"):
+        plan(target)
 
 
 def test_moved_component_merges_against_its_old_files(tmp_path: Path, git_env):
