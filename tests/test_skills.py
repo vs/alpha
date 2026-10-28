@@ -586,3 +586,10 @@ def test_extend_goes_on_to_the_new_request_after_a_resumed_commit():
     checks = _section("extend", "1. Target and checks")
     assert "then go on to step 2 for the new request" in checks
     assert "Then continue." not in checks
+
+
+def test_extend_relays_the_reviewer_note_after_update():
+    apply = _section("extend", "5. Apply")
+    commit = _section("extend", "7. Commit")
+    assert "the reviewer will look at alpha's changes at the next Stop" in apply
+    assert "next Stop" not in commit

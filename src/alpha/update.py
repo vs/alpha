@@ -31,6 +31,8 @@ from alpha.validate import AnswersError, area_of
 
 _WRITES = ("new", "change", "merge", "conflict")  # what the count and git cover
 _ORDER = ("new", "change", "merge", "conflict", "stale", "skipped")
+REVIEW = ".claude/alpha/hooks/review.py"
+REVIEW_NOTE = "The reviewer will look at alpha's changes at the next Stop."
 _NOTES = {
     "merge": " (your edits kept)",
     "conflict": " (your edits overlap alpha's change: merge by hand)",
@@ -175,17 +177,17 @@ def _dirty(target: Path, paths: list[str]) -> list[str]:
             "the project to git first, then run this again."
         )
     fields = done.stdout.split("\0")
-    paths: list[str] = []
+    seen: list[str] = []
     i = 0
     while i < len(fields):
         entry = fields[i]
         i += 1
         if not entry:
             continue
-        paths.append(entry[3:])
+        seen.append(entry[3:])
         if entry[0] in "RC":  # a rename or copy: its source path comes next
             i += 1
-    return paths
+    return seen
 
 
 def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
@@ -265,23 +267,26 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     )
 
 
-def _review_snapshot(target: Path) -> str | None:
-    """The review hook's tree id of the working tree, or None without one."""
-    script = target / ".claude/alpha/hooks/review.py"
+def _review_hook(target: Path, *args: str) -> str | None:
+    """Run the project's review hook on target; its output, or None if it failed."""
+    script = target / REVIEW
     if not script.is_file():
         return None
     try:
         done = subprocess.run(
-            ["python3", str(script), "snapshot"],
+            ["python3", str(script), *args],
             cwd=target,
             capture_output=True,
             text=True,
         )
     except OSError:
         return None
-    if done.returncode != 0:
-        return None
-    return done.stdout.strip() or None
+    return done.stdout if done.returncode == 0 else None
+
+
+def _review_snapshot(target: Path) -> str | None:
+    """The review hook's tree id of the working tree, or None without one."""
+    return (_review_hook(target, "snapshot") or "").strip() or None
 
 
 def _write(path: Path, text: str) -> None:
@@ -289,8 +294,9 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8", newline="")
 
 
-def apply_update(target: Path, plan: UpdatePlan) -> None:
+def apply_update(target: Path, plan: UpdatePlan) -> list[str]:
     """Write alpha's side of each change; overlapping ones go to proposals.
+    Returns notes for the user.
 
     Only this run's proposals are written: one kept from an earlier update is
     still the only copy of a change the user hasn't merged."""
@@ -314,6 +320,13 @@ def apply_update(target: Path, plan: UpdatePlan) -> None:
         if c.kind == "conflict"
     }
     after_tree = _review_snapshot(target)  # every write is in, project.json too
+    # alpha's writes aren't Claude's: tell the review hook now, since a Stop can
+    # come before commit-update.
+    carried = (
+        before_tree is not None
+        and after_tree is not None
+        and _review_hook(target, "absorb", before_tree, after_tree) is not None
+    )
     state = target / UPDATE_STATE
     state.parent.mkdir(parents=True, exist_ok=True)
     write_json(
@@ -326,6 +339,7 @@ def apply_update(target: Path, plan: UpdatePlan) -> None:
             "conflicts": conflicts,
         },
     )
+    return [] if carried else [REVIEW_NOTE]
 
 
 def describe(plan: UpdatePlan, target: Path) -> str:

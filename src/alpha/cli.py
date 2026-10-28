@@ -244,11 +244,13 @@ def _update(target: Path, dry_run: bool) -> None:
     if not plan.changes and not plan.new_components:
         print(describe(plan, target))  # nothing to change: write nothing
         return
-    apply_update(target, plan)
+    notes = apply_update(target, plan)
     print(describe(plan, target))
     for c in plan.changes:
         if c.kind == "conflict":
             print(f"{c.path}: merge by hand; proposal: {PROPOSALS}/{c.path}")
+    for note in notes:
+        print(note)
 
 
 def _project(args: argparse.Namespace) -> int:

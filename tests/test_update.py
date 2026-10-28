@@ -508,7 +508,7 @@ def test_later_update_leaves_an_earlier_kept_proposal(tmp_path: Path, git_env):
     assert (target / PROPOSALS / "docs/principles.toml").read_bytes() == kept
 
 
-def test_commit_update_absorbs_alphas_changes_into_review(
+def test_apply_update_absorbs_alphas_changes_into_review(
     tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
@@ -517,11 +517,12 @@ def test_commit_update_absorbs_alphas_changes_into_review(
     target = generated_repo(tmp_path, SCENARIO)
     review.ensure_state(target)  # reviewed at HEAD, before the answers change
     add_worker(target)
-    apply_update(target, plan(target))
-    _, notes = commit_the_update(target)
-    assert notes == []
+    # A Stop can come before commit-update (the skill asks about stale files).
+    assert apply_update(target, plan(target)) == []
     debt = review.debt(target, load_project_principles(target))
     assert debt["files"] == [PROJECT_JSON]  # the answers edit is the user's debt
+    _, notes = commit_the_update(target)
+    assert notes == []
 
 
 def test_absorb_leaves_edits_after_the_update_as_debt(
@@ -535,10 +536,37 @@ def test_absorb_leaves_edits_after_the_update_as_debt(
     add_worker(target)
     apply_update(target, plan(target))
     (target / "api/app_code.py").write_text("x = 1\n")
-    commit_the_update(target)
     debt = review.debt(target, load_project_principles(target))
     assert "api/app_code.py" in debt["files"]
     assert "worker/pyproject.toml" not in debt["files"]
+
+
+FAILING_ABSORB = """\
+import runpy, sys
+from pathlib import Path
+if sys.argv[1:2] == ["absorb"]:
+    sys.exit(1)
+runpy.run_path(str(Path(__file__).with_name("review_real.py")), run_name="__main__")
+"""
+
+
+def test_cli_update_says_the_reviewer_will_look_when_absorb_fails(
+    tmp_path: Path, git_env
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    hooks = target / ".claude/alpha/hooks"
+    (hooks / "review.py").rename(hooks / "review_real.py")
+    (hooks / "review.py").write_text(FAILING_ABSORB)
+    data = answers(target)
+    smaller_reviews(data)
+    save(target, data)
+    out = run_cli("update", str(target), env={"ALPHA_SOURCE": str(PLUGIN_ROOT)})
+    assert out.returncode == 0, out.stderr
+    state = json.loads((target / UPDATE_STATE).read_text())
+    assert state["before_tree"] and state["after_tree"]  # snapshots still ran
+    assert out.stdout.splitlines()[-1] == (
+        "The reviewer will look at alpha's changes at the next Stop."
+    )
 
 
 def test_commit_update_errors_name_commit_update(

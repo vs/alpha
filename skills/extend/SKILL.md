@@ -47,7 +47,7 @@ Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the 
 
 ## 5. Apply
 
-Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`.
+Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`. If it prints that the reviewer will look at alpha's changes at the next Stop, tell the user.
 
 - For each conflict, read its proposal under `.claude/alpha/state/update/`. It holds the user's version, the version before, and alpha's. Edit the real file so it keeps the user's edits and adds alpha's change, never just alpha's side, and show the user the result.
 - Stale files: ask before deleting any. commit-update commits only alpha's writes, so `git rm` each one the user lets go and commit the deletion yourself after step 7: a conventional message (e.g. `docs: Remove CHANGELOG.md`; description at most 50 chars, imperative, capitalized, no trailing period; body lines at most 72 chars), ending with the same attribution lines as step 7, as trailer lines.
@@ -58,7 +58,7 @@ For each new component, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target
 
 ## 7. Commit
 
-Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-update <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, as new-project does for its commits. Never invent co-author lines. Relay its notes: a file whose "alpha's change wasn't merged in (proposal: …)" (merge it by hand), that the reviewer will look at alpha's changes at the next Stop, and that a root component's bootstrap files must be committed by hand.
+Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-update <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, as new-project does for its commits. Never invent co-author lines. Relay its notes: a file whose "alpha's change wasn't merged in (proposal: …)" (merge it by hand; the proposal is kept until you delete it), and that a root component's bootstrap files must be committed by hand.
 
 ## 8. Report
 

@@ -23,7 +23,6 @@ _DOCS = [
 _CLAUDE = ["CLAUDE.md", ".claude"]
 UPDATE_STATE = ".claude/alpha/state/update.json"  # written by alpha update
 PROPOSALS = ".claude/alpha/state/update"  # its proposals for conflicting files
-_REVIEW = ".claude/alpha/hooks/review.py"
 _CI = ".github"
 _MAX_DESCRIPTION = 50  # the commit-msg hook's limit
 
@@ -160,24 +159,6 @@ def _update_subject(name: str, scopes: list[str]) -> str:
     return f"build: {description}"
 
 
-def _absorb_review(target: Path, before_tree: str, after_tree: str) -> bool:
-    """Tell the review hook alpha's writes (before to after) are not Claude's;
-    False if it can't carry them all."""
-    script = target / _REVIEW
-    if not script.is_file():
-        return False
-    try:
-        done = subprocess.run(
-            ["python3", str(script), "absorb", before_tree, after_tree],
-            cwd=target,
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return False
-    return done.returncode == 0
-
-
 def _remove_proposal(target: Path, path: str) -> None:
     """Delete a merged conflict's proposal and the folders it leaves empty."""
     folder = target / PROPOSALS
@@ -255,13 +236,5 @@ def commit_update(
             )
         else:
             _remove_proposal(target, path)
-    before, after = state.get("before_tree"), state.get("after_tree")
-    carried = (
-        isinstance(before, str)
-        and isinstance(after, str)
-        and _absorb_review(target, before, after)
-    )
-    if not carried:
-        notes.append("The reviewer will look at alpha's changes at the next Stop.")
     state_file.unlink()
     return hashes, notes
