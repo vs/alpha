@@ -18,8 +18,8 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 
 - No `<target>/.claude/alpha/project.json`: say alpha only changes projects it generated, and that existing projects are out of scope for v1. Stop.
 - project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`. Stop.
-- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` first. If it lists changes, an earlier change was never applied: show them and ask whether to apply them now.
-- If it refuses because an update is waiting to be committed ("Merge any proposals in .claude/alpha/state/update/, run commit-update"), treat it the same way: tell the user, help merge any proposals (step 5), run step 7's commit, then continue.
+- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` first. If it lists changes, an earlier change was never applied: show them and ask whether to apply them now; on yes, go to step 4 (show and confirm), then step 5; on no, stop.
+- If it refuses because an update is waiting to be committed ("Merge any proposals in .claude/alpha/state/update/, run commit-update"), that update is already applied. Tell the user, merge any proposals as step 5 says, then run step 7's commit-update. Don't rerun update first. Then continue.
 
 ## 2. What changes
 
@@ -27,14 +27,15 @@ Take the request from `$ARGUMENTS`, or ask. Pick the area: `components` to add, 
 
 - Use the current answers as the recommendations and ask only what the change affects.
 - Keep every other answer as it is.
-- Keep every existing entry of `decisions` and `overrides` unchanged, and add one new decision for this change (`area` = the area; the title says what changed; the context says why). This overrides "replacing any earlier one".
+- Keep every existing entry of `decisions` and `overrides` unchanged, and add one new decision for this change (`area` = the area; the title says what changed; the context says why). This overrides "replacing any earlier one". `answers write` replaces each top-level key, so send the whole `decisions` array: every existing entry verbatim, then the new one. Do the same for `overrides`.
+- Don't tell the user to run `/alpha:new-project` afterwards; when the area skill is done, continue with step 3.
 - Moving a component's folder (e.g. a root CLI moving to `cli/` so a second component can be added) means moving app code, which alpha doesn't do. The user moves it with `git mv` and commits (you can do that as ordinary work, outside alpha's files), then continues.
 
 ## 3. Loop until valid
 
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` and read the first line it prints.
 
-- "Revisit the <area> area: …": invoke that area's skill for this change, then rerun.
+- "Revisit the <area> area: …": invoke that area's skill for this change, then rerun. If the same message comes back twice, show it to the user and ask what to change instead of invoking the area again.
 - "Fix .claude/alpha/project.json: …": fix it with one one-line `answers write` call, never a heredoc or python3 script (ask the user when the fix needs a decision), then rerun.
 - After a component change, also offer the git area, so the commit scopes cover the component.
 
@@ -42,7 +43,7 @@ Go on when it lists the changes with no problem.
 
 ## 4. Show and confirm
 
-Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the docs, and say which files will need a hand merge (each shows as `<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`). Write nothing until the user confirms.
+Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the docs, and say which files will need a hand merge (each shows as `<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`). Write nothing to generated files (CLAUDE.md, docs, principles, component configs) until the user confirms; the answers in project.json are already saved.
 
 ## 5. Apply
 

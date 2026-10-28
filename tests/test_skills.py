@@ -533,3 +533,38 @@ def test_new_project_hands_generated_projects_to_extend():
         "`alpha:extend` with the Skill tool to change it." in text
     )
     assert "arrives in a later version" not in text
+
+
+def test_extend_sends_whole_decision_arrays():
+    what = _section("extend", "2. What changes")
+    assert "send the whole `decisions` array" in what
+    assert "every existing entry verbatim, then the new one" in what
+    assert "Do the same for `overrides`" in what
+
+
+def test_extend_asks_when_a_revisit_repeats():
+    loop = _section("extend", "3. Loop until valid")
+    assert "comes back twice" in loop
+    assert "ask what to change instead of invoking the area again" in loop
+
+
+def test_extend_writes_no_generated_files_before_confirming():
+    confirm = _section("extend", "4. Show and confirm")
+    assert (
+        "Write nothing to generated files (CLAUDE.md, docs, principles, component "
+        "configs) until the user confirms; the answers in project.json are already "
+        "saved" in confirm
+    )
+
+
+def test_extend_resumes_unapplied_and_uncommitted_updates():
+    checks = _section("extend", "1. Target and checks")
+    assert "on yes, go to step 4 (show and confirm), then step 5; on no, stop" in checks
+    assert "Don't rerun update first" in checks
+    assert "then run step 7's commit-update" in checks
+
+
+def test_extend_keeps_area_skills_from_pointing_to_new_project():
+    what = _section("extend", "2. What changes")
+    assert "Don't tell the user to run `/alpha:new-project` afterwards" in what
+    assert "continue with step 3" in what
