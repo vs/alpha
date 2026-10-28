@@ -1,0 +1,316 @@
+import json
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+import pytest
+from helpers import (
+    clone_component,
+    generated_repo,
+    git,
+    place_answers,
+    run_cli,
+)
+
+from alpha.answers import PROJECT_JSON, answers_snapshot, write_answers
+from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
+from alpha.generate import GenerateError
+from alpha.gitops import commit_group
+from alpha.render.ci import DEPENDABOT, WORKFLOW
+from alpha.update import (
+    PROPOSALS,
+    UPDATE_STATE,
+    UpdatePlan,
+    apply_update,
+    describe,
+    plan_update,
+)
+
+SCENARIO = "web-ts-plus-python-api"
+SOURCE = Source(PLUGIN_ROOT, True, "")
+TODAY = date(2026, 11, 2)
+DECISION = {
+    "area": "agent_workflow",
+    "title": "Smaller review batches",
+    "context": "Reviews of 200 lines took too long to read well.",
+    "decision": "Review at most 120 changed lines at a time.",
+    "consequences": "More reviews, each one shorter.",
+}
+
+
+def answers(target: Path) -> dict[str, Any]:
+    return json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
+
+
+def save(target: Path, data: dict[str, Any]) -> None:
+    """Write every key but the manifest back, as the interview's skills do."""
+    write_answers(target, json.dumps(answers_snapshot(data)))
+
+
+def plan(target: Path) -> UpdatePlan:
+    return plan_update(target, SOURCE, TODAY)
+
+
+def kinds(p: UpdatePlan) -> dict[str, str]:
+    return {c.path: c.kind for c in p.changes}
+
+
+def text_of(p: UpdatePlan, path: str) -> str:
+    text = next(c.text for c in p.changes if c.path == path)
+    assert text is not None
+    return text
+
+
+def commit(target: Path, message: str) -> None:
+    git(target, "add", "-A")
+    git(target, "commit", "-q", "-m", message)
+
+
+def smaller_reviews(data: dict[str, Any]) -> None:
+    data["agent_workflow"]["max_lines"] = 120
+    data["decisions"].append(dict(DECISION))
+
+
+def move_component(data: dict[str, Any], name: str, new: str) -> None:
+    """Give a component a new folder in every area (decisions stay history)."""
+    old = next(c["path"] for c in data["components"] if c["name"] == name)
+
+    def moved(value: Any) -> Any:
+        if isinstance(value, str) and value.startswith(f"{old}/"):
+            return f"{new}/{value[len(old) + 1 :]}"
+        if isinstance(value, list):
+            return [moved(v) for v in value]
+        if isinstance(value, dict):
+            return {k: moved(v) for k, v in value.items()}
+        return value
+
+    for key in list(data):
+        if key not in ("decisions", "overrides", "manifest"):
+            data[key] = moved(data[key])
+    for c in data["components"]:
+        if c["name"] == name:
+            c["path"] = new
+
+
+def test_refuses_a_folder_alpha_did_not_generate(tmp_path: Path):
+    with pytest.raises(GenerateError, match="out of scope"):
+        plan(tmp_path)
+
+
+def test_unfinished_interview_points_to_new_project(tmp_path: Path):
+    place_answers(tmp_path, SCENARIO)
+    with pytest.raises(GenerateError, match="/alpha:new-project"):
+        plan(tmp_path)
+
+
+def test_refuses_a_project_without_applied_answers(tmp_path: Path, generate_scenario):
+    generate_scenario(tmp_path, SCENARIO)
+    data = answers(tmp_path)
+    del data["manifest"]["applied"]
+    (tmp_path / PROJECT_JSON).write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(GenerateError, match="generated before alpha kept"):
+        plan(tmp_path)
+
+
+def test_commit_group_sorts_paths_by_what_made_them():
+    component_of = {"api/pyproject.toml": "api"}
+    assert commit_group("api/pyproject.toml", component_of) == "build:api"
+    assert commit_group(WORKFLOW, component_of) == "ci"
+    assert commit_group(DEPENDABOT, component_of) == "dependabot"
+    assert commit_group("CLAUDE.md", component_of) == "chore"
+    assert commit_group(".claude/settings.json", component_of) == "chore"
+    assert commit_group("docs/x.md", component_of) == "docs"
+    assert commit_group("README.md", component_of) == "docs"
+
+
+def test_nothing_to_change_after_generation(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    p = plan(target)
+    assert p.changes == ()
+    assert describe(p, target) == "alpha update: nothing to change"
+
+
+def test_invalid_answers_name_the_area_to_revisit(tmp_path: Path, generate_scenario):
+    generate_scenario(tmp_path, SCENARIO)
+    data = answers(tmp_path)
+    data["components"].append(
+        {**data["components"][0], "name": "worker", "path": "worker"}
+    )
+    data["layout"] = "monorepo"
+    save(tmp_path, data)
+    with pytest.raises(GenerateError) as err:
+        plan(tmp_path)
+    assert str(err.value).startswith("Revisit the architecture area:")
+
+
+def test_changed_decision_is_refused(tmp_path: Path, generate_scenario):
+    generate_scenario(tmp_path, SCENARIO)
+    data = answers(tmp_path)
+    data["decisions"][0]["title"] = "A better title"
+    save(tmp_path, data)
+    with pytest.raises(GenerateError, match=r"decisions\[0\] changed"):
+        plan(tmp_path)
+
+
+def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    claude_md = target / "CLAUDE.md"
+    claude_md.write_text(claude_md.read_text() + "Team rule: ask before deploys.\n")
+    commit(target, "docs: Add a team rule")
+    data = answers(target)
+    smaller_reviews(data)
+    data["git"]["scopes"].append("deps")  # CLAUDE.md lists the scopes
+    save(target, data)
+    p = plan(target)
+    assert kinds(p)["docs/principles.toml"] == "change"
+    assert kinds(p)["CLAUDE.md"] == "merge"
+    apply_update(target, p)
+    assert "max_lines = 120\n" in (target / "docs/principles.toml").read_text()
+    text = claude_md.read_text()
+    assert text.endswith("Team rule: ask before deploys.\n")
+    assert "scopes: api, web, deps," in text
+
+
+def test_new_decision_is_numbered_after_the_projects_own_records(
+    tmp_path: Path, git_env
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    records = target / "docs" / "decisions"
+    (records / "0020-use-sqlite.md").write_text("# 0020. Use SQLite\n")
+    commit(target, "docs: Record the SQLite decision")
+    earlier = {p.name: p.read_bytes() for p in records.iterdir()}
+    data = answers(target)
+    data["decisions"].append(dict(DECISION))
+    save(target, data)
+    p = plan(target)
+    new = "docs/decisions/0021-smaller-review-batches.md"
+    assert kinds(p)[new] == "new"
+    apply_update(target, p)
+    assert "Date: 2026-11-02\n" in (target / new).read_text()
+    assert {
+        name: path.read_bytes()
+        for name, path in ((p.name, p) for p in records.iterdir())
+        if name in earlier
+    } == earlier
+
+
+def test_overlapping_edit_leaves_the_file_and_writes_a_proposal(
+    tmp_path: Path, git_env
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    principles = target / "docs/principles.toml"
+    edited = principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+    principles.write_text(edited)
+    commit(target, "docs: Review smaller batches")
+    data = answers(target)
+    data["agent_workflow"]["max_lines"] = 120
+    save(target, data)
+    p = plan(target)
+    assert kinds(p)["docs/principles.toml"] == "conflict"
+    apply_update(target, p)
+    assert principles.read_text() == edited
+    assert "<<<<<<< yours" in (target / PROPOSALS / "docs/principles.toml").read_text()
+    assert "merge by hand" in describe(p, target)
+
+
+def test_uncommitted_change_in_a_file_alpha_changes_is_refused(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    claude_md = target / "CLAUDE.md"
+    claude_md.write_text(claude_md.read_text() + "Draft rule.\n")
+    data = answers(target)
+    data["git"]["scopes"].append("deps")
+    save(target, data)
+    with pytest.raises(GenerateError) as err:
+        plan(target)
+    assert "CLAUDE.md" in str(err.value)
+    assert "Commit or stash" in str(err.value)
+
+
+def test_stale_files_are_listed_not_deleted(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    data["releases"]["changelog"] = "none"
+    data["decisions"].append({**DECISION, "area": "releases", "title": "No changelog"})
+    save(target, data)
+    p = plan(target)
+    assert kinds(p)["CHANGELOG.md"] == "stale"
+    apply_update(target, p)
+    assert (target / "CHANGELOG.md").is_file()
+    assert "stale     CHANGELOG.md" in describe(p, target)
+
+
+def test_added_component_gets_templates_ci_and_dated_rows(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    clone_component(data, "api", "worker", "worker")
+    data["decisions"].append(
+        {**DECISION, "area": "components", "title": "Add a worker"}
+    )
+    save(target, data)
+    p = plan(target)
+    assert p.new_components == ("worker",)
+    assert kinds(p)["worker/pyproject.toml"] == "new"
+    assert kinds(p)[WORKFLOW] == "change"
+    assert "worker" in text_of(p, WORKFLOW)
+    rows = text_of(p, "docs/dependencies.md").splitlines()
+    worker = [r for r in rows if r.startswith("| ") and " | worker | " in r]
+    api = [r for r in rows if r.startswith("| ") and " | api | " in r]
+    assert worker and all(r.endswith("| 2026-11-02 |") for r in worker)
+    assert api and all(r.endswith("| 2026-10-19 |") for r in api)
+    assert 'name = "worker"' in text_of(p, "docs/principles.toml")
+    assert "alpha bootstrap" in describe(p, target)
+
+
+def test_moved_component_waits_for_its_files(tmp_path: Path, generate_scenario):
+    generate_scenario(tmp_path, SCENARIO)
+    data = answers(tmp_path)
+    move_component(data, "api", "backend")
+    save(tmp_path, data)
+    with pytest.raises(GenerateError, match="git mv"):
+        plan(tmp_path)
+
+
+def test_moved_component_merges_against_its_old_files(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    git(target, "mv", "api", "backend")
+    commit(target, "refactor: Move the API to backend")
+    data = answers(target)
+    move_component(data, "api", "backend")
+    data["decisions"].append(
+        {**DECISION, "area": "components", "title": "Move the API to backend"}
+    )
+    save(target, data)
+    p = plan(target)
+    assert [c.path for c in p.changes if c.kind == "conflict"] == []
+    assert kinds(p).get("backend/pyproject.toml") not in ("new", "conflict")
+    assert p.changes  # the docs and CI follow the new folder
+
+
+def test_applied_update_becomes_the_new_baseline(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    smaller_reviews(data)
+    save(target, data)
+    apply_update(target, plan(target))
+    assert describe(plan(target), target) == "alpha update: nothing to change"
+    after = answers(target)
+    assert after["manifest"]["applied"] == answers_snapshot(after)
+    assert after["manifest"]["updated_at"] == "2026-11-02"
+    state = json.loads((target / UPDATE_STATE).read_text())
+    assert "before_tree" in state
+    assert state["groups"]["docs/principles.toml"] == "docs"
+
+
+def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    smaller_reviews(data)
+    save(target, data)
+    out = run_cli(
+        "update", str(target), "--dry-run", env={"ALPHA_SOURCE": str(PLUGIN_ROOT)}
+    )
+    assert out.returncode == 0, out.stderr
+    assert "files to change" in out.stdout
+    assert "--- a/docs/principles.toml" in out.stdout.splitlines()
+    assert git(target, "status", "--porcelain") == f"M {PROJECT_JSON}"

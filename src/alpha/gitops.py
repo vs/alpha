@@ -1,6 +1,7 @@
 """Commit a generated skeleton in a few convention-following commits."""
 
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,19 @@ _DOCS = [
 _CLAUDE = ["CLAUDE.md", ".claude"]
 _CI = ".github"
 _MAX_DESCRIPTION = 50  # the commit-msg hook's limit
+
+
+def commit_group(path: str, component_of: Mapping[str, str]) -> str:
+    """The commit a changed file belongs in, by what made it."""
+    if path in component_of:
+        return f"build:{component_of[path]}"
+    if path == WORKFLOW:
+        return "ci"
+    if path == DEPENDABOT:
+        return "dependabot"
+    if path == "CLAUDE.md" or path.startswith(".claude/"):
+        return "chore"
+    return "docs"
 
 
 def _git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:

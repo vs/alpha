@@ -8,6 +8,8 @@ from typing import cast
 
 from alpha.answers import Answers
 
+_NUMBERED = re.compile(r"\d+")
+
 
 def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "decision"
@@ -33,7 +35,9 @@ class Records:
             if not isinstance(paths, list):
                 return None
             items = cast(list[object], paths)
-            if not all(isinstance(p, str) for p in items):
+            if not all(
+                isinstance(p, str) and _NUMBERED.match(Path(p).name) for p in items
+            ):
                 return None
             out.append(tuple(cast(list[str], items)))
         return Records(out[0], out[1])

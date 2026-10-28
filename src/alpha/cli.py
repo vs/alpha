@@ -16,6 +16,7 @@ from alpha.generate import (
     load_project_principles,
 )
 from alpha.gitops import commit_skeleton
+from alpha.update import PROPOSALS, apply_update, describe, plan_diff, plan_update
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -70,6 +71,11 @@ def build_parser() -> argparse.ArgumentParser:
     cs = sub.add_parser("commit-skeleton", help="commit the skeleton in groups")
     cs.add_argument("target", type=Path, help="a generated project")
     cs.add_argument("--trailer", action="append", default=[], help="commit trailer")
+    up = sub.add_parser("update", help="merge changed answers into the project")
+    up.add_argument("target", type=Path, help="a generated project")
+    up.add_argument(
+        "--dry-run", action="store_true", help="show the changes, write nothing"
+    )
     return parser
 
 
@@ -207,6 +213,20 @@ def _commit_skeleton(target: Path, trailers: list[str]) -> None:
         print(log.stdout, end="")
 
 
+def _update(target: Path, dry_run: bool) -> None:
+    source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+    plan = plan_update(target, source, date.today())
+    if dry_run:
+        print(describe(plan, target))
+        print(plan_diff(plan, target), end="")
+        return
+    apply_update(target, plan)
+    print(describe(plan, target))
+    for c in plan.changes:
+        if c.kind == "conflict":
+            print(f"{c.path}: merge by hand; proposal: {PROPOSALS}/{c.path}")
+
+
 def _project(args: argparse.Namespace) -> int:
     target: Path = args.target
     generating = args.command == "generate"
@@ -216,6 +236,8 @@ def _project(args: argparse.Namespace) -> int:
             _generate(target)
         elif args.command == "bootstrap":
             _bootstrap(target)
+        elif args.command == "update":
+            _update(target, args.dry_run)
         else:
             _commit_skeleton(target, args.trailer)
     except (GenerateError, answers.AnswersError, defaults.DefaultsError) as e:
@@ -263,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
         return _answers(args)
     if args.command == "recipe":
         return _recipe(args)
-    if args.command in ("generate", "bootstrap", "commit-skeleton"):
+    if args.command in ("generate", "bootstrap", "commit-skeleton", "update"):
         return _project(args)
     return 2  # unreachable: argparse rejects unknown commands
 

@@ -11,11 +11,13 @@ import pytest
 import yaml
 from helpers import (
     SCENARIOS,
+    SHIM,
     TODAY,
     git,
     override_record,
     place_answers,
     proven,
+    run_cli,
     shell_recipe,
     single_component,
 )
@@ -28,17 +30,7 @@ from alpha.generate import GenerateError, bootstrap, generate
 
 ROOT = PLUGIN_ROOT
 SRC = Source(ROOT, True, "")
-SHIM = ROOT / "bin" / "alpha"
 PROJECT_JSON = ".claude/alpha/project.json"
-
-
-def run_cli(*args: str, env: dict[str, str] | None = None):
-    return subprocess.run(
-        [sys.executable, str(SHIM), *args],
-        capture_output=True,
-        text=True,
-        env={**os.environ, **(env or {})},
-    )
 
 
 def test_refuses_non_empty_folder(tmp_path: Path):

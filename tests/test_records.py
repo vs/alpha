@@ -53,6 +53,10 @@ def test_records_json_round_trip_and_malformed():
     assert Records.from_json("x") is None
     assert Records.from_json({"decisions": [1], "overrides": []}) is None
     assert Records.from_json({"decisions": []}) is None
+    assert (
+        Records.from_json({"decisions": ["docs/decisions/x.md"], "overrides": []})
+        is None
+    )
 
 
 def test_dependency_rows_use_each_components_added_date():

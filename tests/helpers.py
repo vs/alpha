@@ -1,15 +1,22 @@
 """Plain helpers shared by the generator tests (fixtures live in conftest.py)."""
 
 import ast
+import copy
+import os
 import shutil
 import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
+from alpha.generate import generate, load_project_principles
+from alpha.gitops import commit_skeleton
 
 SCENARIOS = PLUGIN_ROOT / "evals" / "scenarios"
+SHIM = PLUGIN_ROOT / "bin" / "alpha"
 TODAY = date(2026, 10, 19)
 
 
@@ -24,6 +31,42 @@ def git(cwd: Path, *args: str) -> str:
     return subprocess.run(
         ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
     ).stdout.strip()
+
+
+def run_cli(*args: str, env: dict[str, str] | None = None):
+    return subprocess.run(
+        [sys.executable, str(SHIM), *args],
+        capture_output=True,
+        text=True,
+        env={**os.environ, **(env or {})},
+    )
+
+
+def generated_repo(tmp_path: Path, scenario: str) -> Path:
+    """Generate the scenario in tmp_path and commit it (needs the git_env fixture)."""
+    place_answers(tmp_path, scenario)
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    git(tmp_path, "init", "-q", "-b", "main")
+    commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
+    return tmp_path
+
+
+def clone_component(data: dict[str, Any], source: str, name: str, path: str) -> None:
+    """Add a copy of the source component, in every per-component area too."""
+    comp = next(c for c in data["components"] if c["name"] == source)
+    data["components"].append({**copy.deepcopy(comp), "name": name, "path": path})
+    for section in data.values():
+        if not isinstance(section, dict) or not isinstance(
+            section.get("components"), list
+        ):
+            continue
+        entries: list[Any] = section["components"]
+        for entry in list(entries):
+            if isinstance(entry, dict) and entry.get("name") == source:
+                entries.append({**copy.deepcopy(entry), "name": name})
+    if name not in data["git"]["scopes"]:
+        data["git"]["scopes"].append(name)
+    data["layout"] = "monorepo"
 
 
 def old_python() -> str | None:
