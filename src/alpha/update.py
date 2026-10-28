@@ -159,7 +159,7 @@ def _dirty(target: Path, paths: list[str]) -> list[str]:
     """The paths git sees changes to; refuses a folder that isn't a repository."""
     try:
         done = subprocess.run(
-            ["git", "status", "--porcelain", "--", *paths],
+            ["git", "status", "--porcelain", "-z", "-uall", "--", *paths],
             cwd=target,
             capture_output=True,
             text=True,
@@ -174,7 +174,18 @@ def _dirty(target: Path, paths: list[str]) -> list[str]:
             "can't tell your uncommitted edits from the generated files. Commit "
             "the project to git first, then run this again."
         )
-    return [line[3:] for line in done.stdout.splitlines() if line]
+    fields = done.stdout.split("\0")
+    paths: list[str] = []
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if not entry:
+            continue
+        paths.append(entry[3:])
+        if entry[0] in "RC":  # a rename or copy: its source path comes next
+            i += 1
+    return paths
 
 
 def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
@@ -228,6 +239,17 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
             "merges its changes into the committed files."
         )
     old_names = {c.name for c in was.components}
+    for c in now.components:
+        if c.name in old_names or c.path == ".":
+            continue
+        # Its folder is committed in alpha's build commit: the user's files
+        # there would go in with it.
+        theirs = _dirty(target, [c.path])
+        if theirs:
+            raise GenerateError(
+                f"Commit or move your files in {c.path}/ first "
+                f"({', '.join(theirs[:5])}), then run alpha update {target} again."
+            )
     return UpdatePlan(
         changes=tuple(changes),
         new_components=tuple(c.name for c in now.components if c.name not in old_names),

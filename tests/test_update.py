@@ -262,6 +262,21 @@ def test_added_component_gets_templates_ci_and_dated_rows(tmp_path: Path, git_en
     assert "alpha bootstrap" in describe(p, target)
 
 
+def test_new_component_folder_with_uncommitted_files_is_refused(
+    tmp_path: Path, git_env
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    (target / "worker").mkdir()
+    (target / "worker/notes.txt").write_text("mine\n")
+    add_worker(target)
+    with pytest.raises(GenerateError) as err:
+        plan(target)
+    assert str(err.value) == (
+        "Commit or move your files in worker/ first (worker/notes.txt), then "
+        f"run alpha update {target} again."
+    )
+
+
 def test_moved_component_waits_for_its_files(tmp_path: Path, generate_scenario):
     generate_scenario(tmp_path, SCENARIO)
     data = answers(tmp_path)
