@@ -288,6 +288,40 @@ def test_brief_cli_outside_an_alpha_project(project: Project) -> None:
     assert "python3 .claude/alpha/hooks/review.py brief" in proc.stderr
 
 
+def test_absorb_carries_changes_since_the_tree_onto_reviewed(
+    project: Project,
+) -> None:
+    base(project)
+    before = review.snapshot(project.root)
+    project.write("api/src/from_alpha.py", "x = 1\n")
+    review.absorb(project.root, before)
+    assert review.debt(project.root, project.principles())["files"] == []
+
+
+def test_absorb_keeps_earlier_unreviewed_edits(project: Project) -> None:
+    base(project)
+    project.write("api/src/mine.py", "x = 1\n")
+    before = review.snapshot(project.root)
+    project.write("api/src/from_alpha.py", "y = 2\n")
+    review.absorb(project.root, before)
+    debt = review.debt(project.root, project.principles())
+    assert debt["files"] == ["api/src/mine.py"]
+
+
+def test_snapshot_subcommand_prints_the_tree(project: Project) -> None:
+    base(project)
+    project.write("api/src/new.py", "x = 1\n")
+    proc = subprocess.run(
+        [sys.executable, str(HOOKS / "review.py"), "snapshot"],
+        cwd=project.root,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(project.root)},
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == review.snapshot(project.root)
+
+
 def test_snapshot_works_when_the_state_folder_is_gitignored(project: Project) -> None:
     # Generated projects ignore .claude/alpha/state/, as their .gitignore says.
     project.write(".gitignore", ".claude/alpha/state/\n")

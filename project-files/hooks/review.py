@@ -265,8 +265,9 @@ def review_due(principles: dict[str, Any], debt: dict[str, Any]) -> str | None:
 
 DIFF_LINES = 1500
 USAGE = (
-    "Run it as: python3 .claude/alpha/hooks/review.py brief, from the root of an "
-    "alpha project (one with docs/principles.toml)."
+    "Run it as: python3 .claude/alpha/hooks/review.py brief (or snapshot, or "
+    "absorb <tree>), from the root of an alpha project (one with "
+    "docs/principles.toml)."
 )
 
 
@@ -408,11 +409,20 @@ def brief(root: Path) -> str:
 def main() -> None:
     _common.check_python()
     root = _common.project_root({})
-    if sys.argv[1:] != ["brief"] or not (root / "docs" / "principles.toml").is_file():
+    args = sys.argv[1:]
+    valid = args in (["brief"], ["snapshot"]) or (
+        len(args) == 2 and args[0] == "absorb"
+    )
+    if not valid or not (root / "docs" / "principles.toml").is_file():
         print(USAGE, file=sys.stderr)
         sys.exit(1)
     try:
-        print(brief(root), end="")
+        if args[0] == "brief":
+            print(brief(root), end="")
+        elif args[0] == "snapshot":
+            print(snapshot(root))
+        else:
+            absorb(root, args[1])
     except SnapshotError as e:
         print(
             f"review.py: can't snapshot the working tree ({e}). Fix that, then run "
@@ -537,6 +547,30 @@ def _commit(root: Path, tree: str) -> str | None:
     return out.strip() if out else None
 
 
+def _carry(root: Path, state: dict[str, Any], left: str) -> None:
+    """Carry what changed between the tree `left` and the working tree now onto
+    state["reviewed_tree"], with a three-way merge based on `left`. On a
+    conflict, or anything git can't do, nothing is carried."""
+    reviewed = state.get("reviewed_tree")
+    if not isinstance(reviewed, str):
+        return
+    try:
+        current = snapshot(root)
+    except SnapshotError:
+        return
+    if current == left:
+        return
+    commits = [_commit(root, t) for t in (left, reviewed, current)]
+    if not all(commits):
+        return
+    base, ours, theirs = cast("list[str]", commits)
+    merged = _git(
+        root, "merge-tree", "--write-tree", f"--merge-base={base}", ours, theirs
+    )
+    if merged:
+        state["reviewed_tree"] = merged.splitlines()[0].strip()
+
+
 def absorb_outside_changes(root: Path) -> None:
     """Changes made between Claude's turns (the user's edits, a pull) aren't
     Claude's work: carry them onto the reviewed tree with a three-way merge
@@ -544,24 +578,19 @@ def absorb_outside_changes(root: Path) -> None:
     a conflict, or anything git can't do, nothing is absorbed."""
     state = load_state(root)
     left = state.get("left_tree")
-    reviewed = state.get("reviewed_tree")
-    if not isinstance(left, str) or not isinstance(reviewed, str):
+    if not isinstance(left, str) or not isinstance(state.get("reviewed_tree"), str):
         return
     state.pop("left_tree", None)
-    try:
-        current = snapshot(root)
-    except SnapshotError:
-        save_state(root, state)
-        return
-    if current != left:
-        commits = [_commit(root, t) for t in (left, reviewed, current)]
-        if all(commits):
-            base, ours, theirs = cast("list[str]", commits)
-            merged = _git(
-                root, "merge-tree", "--write-tree", f"--merge-base={base}", ours, theirs
-            )
-            if merged:
-                state["reviewed_tree"] = merged.splitlines()[0].strip()
+    _carry(root, state, left)
+    save_state(root, state)
+
+
+def absorb(root: Path, before: str) -> None:
+    """Treat what changed since the tree `before` (alpha's update) as reviewed."""
+    state = load_state(root)
+    if not isinstance(state.get("reviewed_tree"), str):
+        return  # no state yet, or an unreadable one: leave it for ensure_state
+    _carry(root, state, before)
     save_state(root, state)
 
 

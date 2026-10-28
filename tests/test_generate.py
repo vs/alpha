@@ -281,6 +281,35 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
     assert out.out == ""
 
 
+def test_bootstrap_only_named_components(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
+    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    bootstrap(project, principles, only=["api"])
+    ran = (tmp_path / "tools.log").read_text().splitlines()
+    assert ran and all(line.startswith("api: ") for line in ran)
+
+
+def test_bootstrap_unknown_component_is_explained(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
+    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    with pytest.raises(GenerateError) as e:
+        bootstrap(project, principles, only=["worker"])
+    assert str(e.value) == (
+        "No component named worker in docs/principles.toml (components: api, web)."
+    )
+    assert not (tmp_path / "tools.log").exists()
+
+
 def test_bootstrap_refreshes_the_manifest_hashes(
     tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
 ):

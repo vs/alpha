@@ -1,4 +1,5 @@
 import json
+import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -15,8 +16,8 @@ from helpers import (
 from alpha.answers import PROJECT_JSON, answers_snapshot, write_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import GenerateError
-from alpha.gitops import commit_group
+from alpha.generate import GenerateError, load_project_principles
+from alpha.gitops import commit_group, commit_update
 from alpha.render.ci import DEPENDABOT, WORKFLOW
 from alpha.update import (
     PROPOSALS,
@@ -342,3 +343,123 @@ def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env):
     assert "files to change" in out.stdout
     assert "--- a/docs/principles.toml" in out.stdout.splitlines()
     assert git(target, "status", "--porcelain") == f"M {PROJECT_JSON}"
+
+
+def add_worker(target: Path) -> None:
+    data = answers(target)
+    clone_component(data, "api", "worker", "worker")
+    data["decisions"].append(
+        {**DECISION, "area": "components", "title": "Add a worker"}
+    )
+    save(target, data)
+
+
+def commit_the_update(target: Path) -> tuple[list[str], list[str]]:
+    return commit_update(target, load_project_principles(target), [])
+
+
+def test_commit_update_commits_only_alphas_files_in_groups(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    base = git(target, "rev-parse", "HEAD")
+    add_worker(target)
+    p = plan(target)
+    apply_update(target, p)
+    (target / "notes.txt").write_text("mine\n")
+    hashes, notes = commit_the_update(target)
+    subjects = git(target, "log", "--reverse", "--format=%s", f"{base}..HEAD")
+    expected = [
+        "docs: Update docs and decision records",
+        "chore: Update Claude Code rules and settings",
+        "build(worker): Set up python toolchain and tests",
+        "ci: Update the CI checks",
+    ]
+    if DEPENDABOT in p.groups:
+        expected.append("ci: Update the dependency update schedule")
+    assert subjects.splitlines() == expected
+    assert len(hashes) == len(expected)
+    assert notes == []
+    assert git(target, "status", "--porcelain") == "?? notes.txt"
+    assert not (target / UPDATE_STATE).exists()
+    assert not (target / PROPOSALS).exists()
+
+
+def test_commit_update_names_an_existing_components_changed_templates(
+    tmp_path: Path, git_env
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    base = git(target, "rev-parse", "HEAD")
+    (target / UPDATE_STATE).parent.mkdir(parents=True, exist_ok=True)
+    (target / "api/extra.txt").write_text("x\n")
+    (target / UPDATE_STATE).write_text(
+        json.dumps(
+            {
+                "before_tree": None,
+                "groups": {"api/extra.txt": "build:api"},
+                "new_components": [],
+                "conflicts": {},
+            }
+        )
+    )
+    commit_the_update(target)
+    subjects = git(target, "log", "--reverse", "--format=%s", f"{base}..HEAD")
+    assert subjects.splitlines() == ["build(api): Update toolchain settings"]
+
+
+def test_commit_update_with_only_the_manifest_commits_it_and_clears_state(
+    tmp_path: Path, git_env
+):
+    target = generated_repo(tmp_path, SCENARIO)
+    base = git(target, "rev-parse", "HEAD")
+    p = plan(target)
+    (target / PROJECT_JSON).write_text(
+        (target / PROJECT_JSON).read_text().replace("\n}\n", ',\n  "note": 1\n}\n')
+    )
+    apply_update(target, p)  # no changes: only the manifest moves
+    assert (target / UPDATE_STATE).is_file()
+    hashes, notes = commit_the_update(target)
+    subjects = git(target, "log", "--format=%s", f"{base}..HEAD")
+    assert subjects.splitlines() == ["chore: Update Claude Code rules and settings"]
+    assert len(hashes) == 1 and notes == []
+    assert git(target, "status", "--porcelain") == ""
+    assert not (target / UPDATE_STATE).exists()
+
+
+def test_commit_update_without_an_update_is_explained(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    with pytest.raises(GenerateError, match="Nothing to commit: run alpha update"):
+        commit_the_update(target)
+
+
+def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    principles = target / "docs/principles.toml"
+    principles.write_text(
+        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+    )
+    commit(target, "docs: Review smaller batches")
+    data = answers(target)
+    data["agent_workflow"]["max_lines"] = 120
+    data["decisions"].append(dict(DECISION))
+    save(target, data)
+    apply_update(target, plan(target))
+    _, notes = commit_the_update(target)
+    assert notes == [
+        "docs/principles.toml: alpha's change wasn't merged in (proposal: "
+        ".claude/alpha/state/update/docs/principles.toml)."
+    ]
+    assert not (target / PROPOSALS).exists()
+
+
+def test_commit_update_absorbs_alphas_changes_into_review(tmp_path: Path, git_env):
+    sys.path.insert(0, str(PLUGIN_ROOT / "project-files/hooks"))
+    import review
+
+    target = generated_repo(tmp_path, SCENARIO)
+    add_worker(target)
+    commit(target, "docs: Add a worker to the answers")
+    review.ensure_state(target)  # reviewed at HEAD, the tree the update starts from
+    apply_update(target, plan(target))
+    _, notes = commit_the_update(target)
+    assert notes == []
+    debt = review.debt(target, load_project_principles(target))
+    assert debt["files"] == []

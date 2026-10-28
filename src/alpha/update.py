@@ -25,13 +25,11 @@ from alpha.generate import (
     render_project,
     write_json,
 )
-from alpha.gitops import commit_group
+from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group
 from alpha.merge import Change, classify
 from alpha.records import Records, record_paths, taken_numbers
 from alpha.validate import AnswersError, area_of
 
-UPDATE_STATE = ".claude/alpha/state/update.json"
-PROPOSALS = ".claude/alpha/state/update"
 _WRITES = ("new", "change", "merge", "conflict")  # what the count and git cover
 _ORDER = ("new", "change", "merge", "conflict", "stale", "skipped")
 _NOTES = {

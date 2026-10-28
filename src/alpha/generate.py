@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -289,8 +289,11 @@ def project_book(target: Path) -> RecipeBook:
     return RecipeBook(drafted_recipes(raw, generated=True))
 
 
-def bootstrap(target: Path, principles: dict[str, Any]) -> None:
-    """Per component: install the toolchain, then run every check CI runs.
+def bootstrap(
+    target: Path, principles: dict[str, Any], only: Sequence[str] = ()
+) -> None:
+    """Per component (just those in `only`, when given): install the toolchain,
+    then run every check CI runs.
 
     Then rehash the manifest, so it matches the files commit-skeleton commits.
     """
@@ -298,8 +301,17 @@ def bootstrap(target: Path, principles: dict[str, Any]) -> None:
         "Fix the failing step (is the component's toolchain installed?) and rerun "
         f'"alpha bootstrap {target}"'
     )
+    known = [c["name"] for c in principles["components"]]
+    for name in only:
+        if name not in known:
+            raise GenerateError(
+                f"No component named {name} in {PRINCIPLES_TOML} "
+                f"(components: {', '.join(known)})."
+            )
     book = project_book(target)
     for c in principles["components"]:
+        if only and c["name"] not in only:
+            continue
         cwd = target / c["path"]
         if not cwd.is_dir():
             raise GenerateError(

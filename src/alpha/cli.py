@@ -15,7 +15,7 @@ from alpha.generate import (
     generate,
     load_project_principles,
 )
-from alpha.gitops import commit_skeleton
+from alpha.gitops import commit_skeleton, commit_update
 from alpha.update import PROPOSALS, apply_update, describe, plan_diff, plan_update
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -68,9 +68,18 @@ def build_parser() -> argparse.ArgumentParser:
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
     boot = sub.add_parser("bootstrap", help="install toolchains and run the tests")
     boot.add_argument("target", type=Path, help="a generated project")
+    boot.add_argument(
+        "--component",
+        action="append",
+        default=[],
+        help="bootstrap only this component (repeatable)",
+    )
     cs = sub.add_parser("commit-skeleton", help="commit the skeleton in groups")
     cs.add_argument("target", type=Path, help="a generated project")
     cs.add_argument("--trailer", action="append", default=[], help="commit trailer")
+    cu = sub.add_parser("commit-update", help="commit what alpha update wrote")
+    cu.add_argument("target", type=Path, help="a generated project")
+    cu.add_argument("--trailer", action="append", default=[], help="commit trailer")
     up = sub.add_parser("update", help="merge changed answers into the project")
     up.add_argument("target", type=Path, help="a generated project")
     up.add_argument(
@@ -194,15 +203,14 @@ def _generate(target: Path) -> None:
     print(f'Next: "alpha bootstrap {target}".')
 
 
-def _bootstrap(target: Path) -> None:
+def _bootstrap(target: Path, only: list[str]) -> None:
     principles = load_project_principles(target)
-    bootstrap(target, principles)
-    names = ", ".join(c["name"] for c in principles["components"])
+    bootstrap(target, principles, only)
+    names = ", ".join(only or [c["name"] for c in principles["components"]])
     print(f"Bootstrapped {names}: toolchains installed, tests green.")
 
 
-def _commit_skeleton(target: Path, trailers: list[str]) -> None:
-    hashes = commit_skeleton(target, load_project_principles(target), trailers)
+def _show_commits(target: Path, hashes: list[str]) -> None:
     print(f"Committed {len(hashes)} commits in {target}:")
     if hashes:
         log = subprocess.run(
@@ -211,6 +219,19 @@ def _commit_skeleton(target: Path, trailers: list[str]) -> None:
             text=True,
         )
         print(log.stdout, end="")
+
+
+def _commit_skeleton(target: Path, trailers: list[str]) -> None:
+    _show_commits(
+        target, commit_skeleton(target, load_project_principles(target), trailers)
+    )
+
+
+def _commit_update(target: Path, trailers: list[str]) -> None:
+    hashes, notes = commit_update(target, load_project_principles(target), trailers)
+    _show_commits(target, hashes)
+    for note in notes:
+        print(note)
 
 
 def _update(target: Path, dry_run: bool) -> None:
@@ -238,9 +259,11 @@ def _project(args: argparse.Namespace) -> int:
         if generating:
             _generate(target)
         elif args.command == "bootstrap":
-            _bootstrap(target)
+            _bootstrap(target, args.component)
         elif args.command == "update":
             _update(target, args.dry_run)
+        elif args.command == "commit-update":
+            _commit_update(target, args.trailer)
         else:
             _commit_skeleton(target, args.trailer)
     except (GenerateError, answers.AnswersError, defaults.DefaultsError) as e:
@@ -288,7 +311,13 @@ def main(argv: list[str] | None = None) -> int:
         return _answers(args)
     if args.command == "recipe":
         return _recipe(args)
-    if args.command in ("generate", "bootstrap", "commit-skeleton", "update"):
+    if args.command in (
+        "generate",
+        "bootstrap",
+        "commit-skeleton",
+        "commit-update",
+        "update",
+    ):
         return _project(args)
     return 2  # unreachable: argparse rejects unknown commands
 
