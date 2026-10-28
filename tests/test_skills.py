@@ -530,7 +530,8 @@ def test_new_project_hands_generated_projects_to_extend():
     text = _text("new-project")
     assert (
         "the project is already generated. Tell the user, then invoke "
-        "`alpha:extend` with the Skill tool to change it." in text
+        "`alpha:extend` with the Skill tool to change it, passing `<target>` as "
+        "its arguments." in text
     )
     assert "arrives in a later version" not in text
 
@@ -599,3 +600,29 @@ def test_extend_says_a_removed_components_override_stops_applying():
     what = _section("extend", "2. What changes")
     assert "An override for a removed or renamed component stops applying" in what
     assert "add a new override for the new name" in what
+
+
+def test_extend_targets_the_handed_off_folder_or_the_working_directory():
+    checks = _section("extend", "1. Target and checks")
+    assert (
+        "`<target>` is the folder the hand-off names, if one was given "
+        "(`/alpha:new-project` passes its own); otherwise the current working "
+        "directory." in checks
+    )
+    what = _section("extend", "2. What changes")
+    assert "with `<target>` as its target folder" in what
+
+
+def test_extend_quotes_what_each_update_prints_for_a_conflict():
+    confirm = _section("extend", "4. Show and confirm")
+    apply = _section("extend", "5. Apply")
+    dry_run = "`conflict  <path> (your edits overlap alpha's change: merge by hand)`"
+    applied = "`<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`"
+    assert dry_run in confirm and applied not in confirm
+    assert applied in apply
+
+
+def test_extend_bootstraps_moved_components_too():
+    bootstrap = _section("extend", "6. Bootstrap")
+    assert "For each new or moved component" in bootstrap
+    assert "node_modules" in bootstrap and ".venv" in bootstrap

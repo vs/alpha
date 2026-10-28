@@ -14,7 +14,7 @@ Folder argument: `$ARGUMENTS`
 ## 1. Resolve the target folder
 
 1. If a folder was given above, use it (expand `~`, resolve to an absolute path, and create it if it doesn't exist). If nothing was given, use the current working directory. Call it `<target>` from here on.
-2. If `<target>/.claude/alpha/project.json` has a `manifest` key, the project is already generated. Tell the user, then invoke `alpha:extend` with the Skill tool to change it.
+2. If `<target>/.claude/alpha/project.json` has a `manifest` key, the project is already generated. Tell the user, then invoke `alpha:extend` with the Skill tool to change it, passing `<target>` as its arguments.
 3. List everything in `<target>`, including hidden entries and the contents of `.claude/`. It counts as empty when it holds nothing but `.DS_Store` files, `.claude/alpha/project.json` and `.claude/settings.local.json`.
 4. If anything else is there, stop and tell the user: "`<target>` isn't empty (found: <entries>). alpha v0.1 starts projects only in empty folders. Run `/alpha:new-project <new folder>` with a new folder, or move these files out and run it again."
 

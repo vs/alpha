@@ -14,7 +14,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 
 ## 1. Target and checks
 
-`<target>` is the current working directory.
+`<target>` is the folder the hand-off names, if one was given (`/alpha:new-project` passes its own); otherwise the current working directory. A folder in `$ARGUMENTS` is the target, not the change.
 
 - No `<target>/.claude/alpha/project.json`: say alpha only changes projects it generated, and that existing projects are out of scope for v1. Stop.
 - project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`. Stop.
@@ -23,7 +23,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 
 ## 2. What changes
 
-Take the request from `$ARGUMENTS`, or ask. Pick the area: `components` to add, remove, rename or move a component; otherwise the area that owns the decision. Invoke its skill (`alpha:<area skill>`) with the Skill tool. These rules win over the area skill's own:
+Take the request from `$ARGUMENTS`, or ask. Pick the area: `components` to add, remove, rename or move a component; otherwise the area that owns the decision. Invoke its skill (`alpha:<area skill>`) with the Skill tool, with `<target>` as its target folder. These rules win over the area skill's own:
 
 - Use the current answers as the recommendations and ask only what the change affects.
 - Keep every other answer as it is.
@@ -37,24 +37,25 @@ Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` and read the f
 
 - "Revisit the <area> area: …": invoke that area's skill for this change, then rerun. If the same message comes back twice, show it to the user and ask what to change instead of invoking the area again.
 - "Fix .claude/alpha/project.json: …": fix it with one one-line `answers write` call, never a heredoc or python3 script (ask the user when the fix needs a decision), then rerun.
+- Any other refusal (such as files to commit first): show it to the user and do what it says, then rerun.
 - After a component change, also offer the git area, so the commit scopes cover the component.
 
 Go on when it lists the changes with no problem.
 
 ## 4. Show and confirm
 
-Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the docs, and say which files will need a hand merge (each shows as `<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`). Write nothing to generated files (CLAUDE.md, docs, principles, component configs) until the user confirms; the answers in project.json are already saved.
+Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the docs, and say which files will need a hand merge (the dry run shows each as `conflict  <path> (your edits overlap alpha's change: merge by hand)`). Write nothing to generated files (CLAUDE.md, docs, principles, component configs) until the user confirms; the answers in project.json are already saved.
 
 ## 5. Apply
 
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`. If it prints that the reviewer will look at alpha's changes at the next Stop, tell the user.
 
-- For each conflict, read its proposal under `.claude/alpha/state/update/`. It holds the user's version, the version before, and alpha's. Edit the real file so it keeps the user's edits and adds alpha's change, never just alpha's side, and show the user the result.
+- For each conflict (printed as `<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`), read that proposal. It holds the user's version, the version before, and alpha's. Edit the real file so it keeps the user's edits and adds alpha's change, never just alpha's side, and show the user the result.
 - Stale files: ask before deleting any. commit-update commits only alpha's writes, so `git rm` each one the user lets go and commit the deletion yourself after step 7: a conventional message (e.g. `docs: Remove CHANGELOG.md`; description at most 50 chars, imperative, capitalized, no trailing period; body lines at most 72 chars), ending with the same attribution lines as step 7, as trailer lines.
 
 ## 6. Bootstrap
 
-For each new component, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --component <name>`.
+For each new or moved component, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --component <name>` (`git mv` leaves ignored env folders such as node_modules or .venv behind).
 
 ## 7. Commit
 
