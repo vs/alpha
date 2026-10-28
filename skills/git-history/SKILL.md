@@ -1,6 +1,6 @@
 ---
 name: git-history
-description: Settle a new project's git history rules in the alpha interview - commit convention, commit scopes and branching model. Use only inside an alpha project interview (/alpha:new-project) or when the user asks to revisit the git history rules of a project alpha is setting up.
+description: Settle a new project's git history rules in the alpha interview - commit convention, commit scopes and branching model. Use only inside an alpha project interview (/alpha:new-project) or alpha:extend or when the user asks to revisit the git history rules of a project alpha is setting up.
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -11,7 +11,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 `<target>` is the folder `/alpha:new-project` is working in; when the user calls this skill directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`. Check it first:
 
 - No project.json: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
-- project.json has a `manifest` key: the project is already generated. Tell the user that extending a generated project arrives in a later version of alpha, and stop.
+- project.json has a `manifest` key: the project is already generated. If the `alpha:extend` skill sent you here, go on as it says. Otherwise invoke `alpha:extend` with the Skill tool and follow it; it brings you back here.
 - `areas.performance` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
 - Otherwise go on. When the user called this skill directly, use the current answers as the recommendations, and when you finish, tell them to run `/alpha:new-project` to continue.
 

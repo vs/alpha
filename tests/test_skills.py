@@ -35,7 +35,7 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "git-history": ("git", ("git",)),
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
-ALL_SKILLS = ["grilling", *AREA_SKILLS, "stack-recipe", "new-project"]
+ALL_SKILLS = ["grilling", *AREA_SKILLS, "stack-recipe", "new-project", "extend"]
 CLI_SKILLS = ALL_SKILLS  # every skill calls the CLI
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 AREA_SECTIONS = [
@@ -486,3 +486,50 @@ def test_new_project_summary_covers_the_remaining_areas():
 def test_data_skill_explains_the_append_only_rule():
     text = _text("data")
     assert "append-only" in text and "Stop hook" in text
+
+
+EXTEND_BULLET = (
+    "- project.json has a `manifest` key: the project is already generated. If the "
+    "`alpha:extend` skill sent you here, go on as it says. Otherwise invoke "
+    "`alpha:extend` with the Skill tool and follow it; it brings you back here."
+)
+
+
+def test_extend_runs_the_update_loop():
+    text = _text("extend")
+    for part in (
+        "update <target> --dry-run",
+        "update <target>",
+        "bootstrap <target> --component",
+        "commit-update <target>",
+        "Revisit the",
+        ".claude/alpha/state/update/",
+        "new Claude Code session",
+    ):
+        assert part in text, part
+
+
+def test_extend_keeps_earlier_decisions():
+    text = _text("extend")
+    assert "add one new decision" in text and "unchanged" in text
+
+
+def test_extend_refuses_projects_alpha_did_not_generate():
+    assert "out of scope" in _text("extend")
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_skills_hand_generated_projects_to_extend(skill: str):
+    text = _text(skill)
+    assert EXTEND_BULLET in text
+    assert "arrives in a later version" not in text
+    assert "or alpha:extend" in _frontmatter(skill)["description"]
+
+
+def test_new_project_hands_generated_projects_to_extend():
+    text = _text("new-project")
+    assert (
+        "the project is already generated. Tell the user, then invoke "
+        "`alpha:extend` with the Skill tool to change it." in text
+    )
+    assert "arrives in a later version" not in text
