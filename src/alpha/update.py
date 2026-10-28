@@ -154,15 +154,30 @@ def _check_history(applied: dict[str, Any], current: dict[str, Any]) -> None:
                 )
 
 
-def _moves(target: Path, before: Answers, after: Answers) -> dict[str, tuple[str, str]]:
-    """Components whose folder changed, by name: (old path, new path)."""
+def _moves(
+    target: Path, before: Answers, after: Answers, rendered: tuple[Rendered, Rendered]
+) -> dict[str, tuple[str, str]]:
+    """Components whose folder changed, by name: (old path, new path). Refuses
+    until the user has moved the files: each template the component had is in
+    the new folder (or, with no templates, the new folder exists)."""
+    was, now = rendered
     old = {c.name: c.path for c in before.components}
     moves: dict[str, tuple[str, str]] = {}
     for c in after.components:
         if c.name not in old or old[c.name] == c.path:
             continue
-        manifests = after.book().get(c.stack).manifests
-        if not all((target / c.path / m).is_file() for m in manifests):
+        moved = [
+            path
+            for path, name in now.component_of.items()
+            if name == c.name
+            and _moved_from(path, old[c.name], c.path) in was.component_of
+        ]
+        there = (
+            all((target / p).is_file() for p in moved)
+            if moved
+            else (target / c.path).is_dir()
+        )
+        if not there:
             raise GenerateError(
                 f"The {c.name} component moves from {old[c.name]} to {c.path}. "
                 "alpha doesn't move app code: move its files yourself (git mv), "
@@ -172,15 +187,18 @@ def _moves(target: Path, before: Answers, after: Answers) -> dict[str, tuple[str
     return moves
 
 
+def _moved_from(path: str, old: str, new: str) -> str:
+    """Where a path in a moved component's new folder was in its old one."""
+    return (PurePosixPath(old) / PurePosixPath(path).relative_to(new)).as_posix()
+
+
 def _before_text(
     path: str, before: Rendered, after: Rendered, moves: dict[str, tuple[str, str]]
 ) -> str | None:
     """What "before" had for an "after" path: a moved template is under its old path."""
     name = after.component_of.get(path)
     if name in moves:
-        old, new = moves[name]
-        rel = PurePosixPath(path).relative_to(new)
-        return before.texts.get((PurePosixPath(old) / rel).as_posix())
+        return before.texts.get(_moved_from(path, *moves[name]))
     return before.texts.get(path)
 
 
@@ -244,11 +262,10 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
             raise GenerateError(f"Revisit the {area} area: {e}") from None
         raise GenerateError(f"Fix {PROJECT_JSON}: {e}") from None
     _check_history(applied, top)
-    moves = _moves(target, was, now)
-
     new_records = record_paths(now, known=records, taken=taken_numbers(target))
     dates = {c.name: added.get(c.name, today) for c in now.components}
     after = render_project(target, now, defaults, year, today, new_records, dates)
+    moves = _moves(target, was, now, (before, after))
     changes: list[Change] = []
     for path in sorted({*before.texts, *after.texts}):
         disk = _read(target / path)

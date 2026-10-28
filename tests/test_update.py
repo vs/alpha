@@ -9,13 +9,15 @@ from helpers import (
     generated_repo,
     git,
     place_answers,
+    proven,
     run_cli,
+    shell_recipe,
 )
 
 from alpha.answers import PROJECT_JSON, answers_snapshot, write_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import GenerateError, load_project_principles
+from alpha.generate import GenerateError, generate, load_project_principles
 from alpha.gitops import commit_group, commit_update
 from alpha.render.ci import DEPENDABOT, WORKFLOW
 from alpha.update import (
@@ -385,6 +387,21 @@ def test_override_for_a_component_that_never_existed_is_refused(
     save(target, data)
     with pytest.raises(GenerateError, match="there is no component named 'ghost'"):
         plan(target)
+
+
+def test_moved_component_without_manifests_waits_for_its_files(tmp_path: Path):
+    data = json.loads(place_answers(tmp_path, SCENARIO).read_text())
+    recipe = {**shell_recipe(), "manifests": []}
+    data["recipes"] = {"shell": proven(recipe)}
+    next(c for c in data["components"] if c["name"] == "api")["stack"] = "shell"
+    (tmp_path / PROJECT_JSON).write_text(json.dumps(data))
+    generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, date(2026, 10, 19))
+    assert (tmp_path / "api/tool.cfg").is_file()
+    data = answers(tmp_path)
+    move_component(data, "api", "backend")
+    save(tmp_path, data)
+    with pytest.raises(GenerateError, match="git mv"):
+        plan(tmp_path)
 
 
 def test_moved_component_merges_against_its_old_files(tmp_path: Path, git_env):
