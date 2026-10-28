@@ -9,7 +9,8 @@ from alpha.answers import Answers, load_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles
-from alpha.render.docs import _slug, render_docs
+from alpha.records import slug as _slug
+from alpha.render.docs import render_docs
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 D = load_defaults(Source(PLUGIN_ROOT, True, ""))

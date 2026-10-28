@@ -1,14 +1,14 @@
 """Render the project's prose files: README, LICENSE, CONTRIBUTING, CLAUDE.md, docs."""
 
-import re
+from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
 from string import Template
 from typing import Any
 
 from alpha.answers import Answers, Component, Documentation, Identity
-from alpha.principles import override_decision_paths
 from alpha.recipes import check_commands
+from alpha.records import Records, record_number, record_paths
 from alpha.render import area_docs
 from alpha.render.ci import WORKFLOW
 from alpha.render.markdown import row
@@ -38,10 +38,6 @@ _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
     "each leaving the checks green.",
 }
-
-
-def _slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "decision"
 
 
 def _identity(a: Answers) -> Identity:
@@ -105,15 +101,14 @@ def _docs_section(docs: Documentation) -> list[str]:
     return lines
 
 
-def _build(a: Answers, principles: dict[str, Any]) -> str:
+def _build(a: Answers, principles: dict[str, Any], records: Records) -> str:
     assert a.build is not None
     lines = ["# Build, CI and hosting", "", "## CI", ""]
     if a.build.ci == "none":
-        first = len(a.decisions) + 1
         record = next(
             path
-            for i, path in override_decision_paths(a, first).items()
-            if a.overrides[i].principle == "build-hosting-upfront"
+            for o, path in zip(a.overrides, records.overrides, strict=True)
+            if o.principle == "build-hosting-upfront"
         )
         lines.append(f"No CI. Why: see [the decision]({record.removeprefix('docs/')}).")
     else:
@@ -363,7 +358,7 @@ def _architecture(a: Answers) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _dependencies(a: Answers, today: date) -> str:
+def _dependencies(a: Answers, today: date, added: Mapping[str, date]) -> str:
     lines = [
         "# Dependencies",
         "",
@@ -377,7 +372,7 @@ def _dependencies(a: Answers, today: date) -> str:
     ]
     for c in a.components:
         lines += [
-            row(tool, c.name, why, today.isoformat())
+            row(tool, c.name, why, added.get(c.name, today).isoformat())
             for tool, why in a.book().get(c.stack).why.items()
         ]
     return "\n".join(lines) + "\n"
@@ -407,7 +402,10 @@ def render_docs(
     year: int,
     today: date,
     root: Path = Path(),
+    records: Records | None = None,
+    added: Mapping[str, date] | None = None,
 ) -> dict[str, str]:
+    records = records or record_paths(a)
     out = {
         "README.md": _readme(a, principles),
         "LICENSE": _license(a, year, root),
@@ -415,8 +413,8 @@ def render_docs(
         "CLAUDE.md": _claude_md(a, principles),
         "docs/product.md": _product(a),
         "docs/architecture.md": _architecture(a),
-        "docs/dependencies.md": _dependencies(a, today),
-        "docs/build.md": _build(a, principles),
+        "docs/dependencies.md": _dependencies(a, today, added or {}),
+        "docs/build.md": _build(a, principles, records),
         "docs/security.md": area_docs.security_doc(a, principles),
         "docs/releases.md": area_docs.releases_doc(a),
     }
@@ -439,15 +437,13 @@ def render_docs(
             f"# {_identity(a).name} guide\n\n"
             f"User-facing documentation for {_identity(a).name} lives here.\n"
         )
-    for i, d in enumerate(a.decisions, 1):
-        out[f"docs/decisions/{i:04d}-{_slug(d.title)}.md"] = _decision(
-            i, d.title, today, d.context, d.decision, d.consequences
-        )
-    first = len(a.decisions) + 1
-    for i, path in override_decision_paths(a, first).items():
-        o = a.overrides[i]
+    for d, path in zip(a.decisions, records.decisions, strict=True):
         out[path] = _decision(
-            first + i,
+            record_number(path), d.title, today, d.context, d.decision, d.consequences
+        )
+    for o, path in zip(a.overrides, records.overrides, strict=True):
+        out[path] = _decision(
+            record_number(path),
             f"Override {o.principle}",
             today,
             o.reason,

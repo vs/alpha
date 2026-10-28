@@ -14,9 +14,9 @@ from alpha.defaults import Source, load_defaults
 from alpha.principles import (
     build_principles,
     compute_facts,
-    override_decision_paths,
     render_principles,
 )
+from alpha.records import Records
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 D = load_defaults(Source(PLUGIN_ROOT, True, ""))
@@ -225,10 +225,11 @@ def test_facts():
     assert facts["budgets_set"] and not facts["ml"]
 
 
-def test_override_decision_paths():
-    assert override_decision_paths(A, 5) == {
-        0: "docs/decisions/0005-override-observability.md"
-    }
+def test_override_decision_comes_from_the_records():
+    records = Records((), ("docs/decisions/0042-override-observability.md",))
+    p = build_principles(D, A, "0.1.0", records)
+    by_id = {x["id"]: x for x in p["principles"]}
+    assert by_id["observability"]["override_decision"] == records.overrides[0]
 
 
 def test_output_parses_and_is_deterministic():

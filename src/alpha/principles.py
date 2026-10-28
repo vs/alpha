@@ -3,6 +3,7 @@
 from typing import Any, cast
 
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
+from alpha.records import Records, record_paths
 from alpha.toml_write import dumps
 from alpha.validate import prefixed
 
@@ -88,15 +89,11 @@ def _docs_map(documentation: Documentation) -> dict[str, list[str]]:
     return out
 
 
-def override_decision_paths(a: Answers, first_number: int) -> dict[int, str]:
-    return {
-        i: f"docs/decisions/{first_number + i:04d}-override-{o.principle}.md"
-        for i, o in enumerate(a.overrides)
-    }
-
-
 def build_principles(
-    defaults: dict[str, Any], a: Answers, kit_version: str
+    defaults: dict[str, Any],
+    a: Answers,
+    kit_version: str,
+    records: Records | None = None,
 ) -> dict[str, Any]:
     missing = [area for area in AREAS if area != "components" and not getattr(a, area)]
     if missing:
@@ -186,7 +183,7 @@ def build_principles(
         by_id["reproducible"]["component_params"].update(
             {c.name: dict(ml) for c in a.components if c.traits.ml}
         )
-    decision_paths = override_decision_paths(a, len(a.decisions) + 1)
+    override_paths = (records or record_paths(a)).overrides
     for i, o in enumerate(a.overrides):
         target = by_id.get(o.principle)
         if target is None:
@@ -207,7 +204,7 @@ def build_principles(
                 target["active"] = False
         else:
             target["active"] = False
-        target["override_decision"] = decision_paths[i]
+        target["override_decision"] = override_paths[i]
 
     docs_map = _docs_map(a.documentation)
     protected += a.security.extra_protected

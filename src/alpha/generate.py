@@ -11,10 +11,16 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha import VERSION
-from alpha.answers import PROJECT_JSON, drafted_recipes, load_answers
+from alpha.answers import (
+    PROJECT_JSON,
+    answers_snapshot,
+    drafted_recipes,
+    load_answers,
+)
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
 from alpha.recipes import RecipeBook, check_commands, render_component
+from alpha.records import record_paths
 from alpha.render.ci import render_ci, render_dependabot
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
@@ -128,13 +134,14 @@ def generate(
         )
     answers_path = target / PROJECT_JSON
     a = load_answers(answers_path)
-    principles = build_principles(load_defaults(source), a, VERSION)
+    records = record_paths(a)
+    principles = build_principles(load_defaults(source), a, VERSION, records)
     book = a.book()
 
     # Render everything before writing anything, so a failure leaves no debris.
     texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
     today = today or date.today()
-    texts.update(render_docs(a, principles, year, today, root=target))
+    texts.update(render_docs(a, principles, year, today, root=target, records=records))
     component_files: dict[str, tuple[str, str]] = {}  # path -> (text, stack)
     for c in a.components:
         rendered = render_component(c, principles["project"]["slug"], book.get(c.stack))
@@ -185,6 +192,9 @@ def generate(
             "commit": _source_commit(source),
         },
         "files": _hashes(target, generated),
+        "applied": answers_snapshot(data),
+        "records": records.to_json(),
+        "added": {c.name: today.isoformat() for c in a.components},
     }
     _write_json(answers_path, data)
     return sorted([*generated, PROJECT_JSON])
