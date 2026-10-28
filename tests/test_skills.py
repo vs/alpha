@@ -574,3 +574,15 @@ def test_extend_commits_deleted_stale_files_itself():
     apply = _section("extend", "5. Apply")
     assert "commit-update commits only alpha's writes" in apply
     assert "commit the deletion yourself after step 7" in apply
+
+
+def test_extend_signs_a_stale_deletion_like_step_7():
+    apply = _section("extend", "5. Apply")
+    assert "the same attribution lines as step 7, as trailer lines" in apply
+    assert "at most 50 chars" in apply and "at most 72 chars" in apply
+
+
+def test_extend_goes_on_to_the_new_request_after_a_resumed_commit():
+    checks = _section("extend", "1. Target and checks")
+    assert "then go on to step 2 for the new request" in checks
+    assert "Then continue." not in checks

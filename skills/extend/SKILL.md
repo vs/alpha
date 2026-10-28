@@ -19,7 +19,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 - No `<target>/.claude/alpha/project.json`: say alpha only changes projects it generated, and that existing projects are out of scope for v1. Stop.
 - project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`. Stop.
 - Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` first. If it lists changes, an earlier change was never applied: show them and ask whether to apply them now; on yes, go to step 4 (show and confirm), then step 5; on no, stop.
-- If it refuses because an update is waiting to be committed ("Merge any proposals in .claude/alpha/state/update/, run commit-update"), that update is already applied. Tell the user, merge any proposals as step 5 says, then run step 7's commit-update. Don't rerun update first. Then continue.
+- If it refuses because an update is waiting to be committed ("Merge any proposals in .claude/alpha/state/update/, run commit-update"), that update is already applied. Tell the user, merge any proposals as step 5 says, then run step 7's commit-update. Don't rerun update first; then go on to step 2 for the new request.
 
 ## 2. What changes
 
@@ -50,7 +50,7 @@ Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the 
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`.
 
 - For each conflict, read its proposal under `.claude/alpha/state/update/`. It holds the user's version, the version before, and alpha's. Edit the real file so it keeps the user's edits and adds alpha's change, never just alpha's side, and show the user the result.
-- Stale files: ask before deleting any. commit-update commits only alpha's writes, so `git rm` each one the user lets go and commit the deletion yourself after step 7 (e.g. `docs: Remove CHANGELOG.md`, body wrapped at 72).
+- Stale files: ask before deleting any. commit-update commits only alpha's writes, so `git rm` each one the user lets go and commit the deletion yourself after step 7: a conventional message (e.g. `docs: Remove CHANGELOG.md`; description at most 50 chars, imperative, capitalized, no trailing period; body lines at most 72 chars), ending with the same attribution lines as step 7, as trailer lines.
 
 ## 6. Bootstrap
 
