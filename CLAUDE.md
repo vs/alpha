@@ -7,6 +7,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - `uv run pytest`
 - `uv run ruff check` and `uv run ruff format`
 - `uv run pyright`
+- `bin/alpha-evals run [scenario ...]`: the interview evals (spec §12). Each scenario runs the real `/alpha:new-project` headlessly, with a simulated user answering from `evals/briefs/<scenario>.toml`, then checks the generated skeleton and probes the reviewer. It spends real tokens (capped by `--max-usd`, $20 per scenario by default): check the cost column in the `summary.md` it prints. `bin/alpha-evals check <project> <scenario>` reruns only the skeleton checks.
 
 ## Rules
 
@@ -102,3 +103,17 @@ All three scenarios went through `bin/alpha` (`answers check`, `generate`, `boot
 - Open: dry-run diffs of long files (docs/principles.toml) show some unchanged lines as removed and re-added, because difflib's autojunk heuristic treats lines that repeat often as junk. The diff still applies correctly; it is only noisy.
 - Not verified: interactive prompts. Claude read project.json with `python3 -c` and wrote a scratch file to `/tmp`; interactively, each such Bash call would ask, unlike the Read tool.
 - Found by the final branch review and fixed after this live check, with tests but not exercised live: commit-update keeps the proposals of conflicts that weren't merged (alpha update no longer clears earlier ones); alpha update refuses a new component's folder that holds uncommitted files; alpha update absorbs its own writes into the review state, so a Stop before commit-update doesn't review them, and runs the review hook with `CLAUDE_PROJECT_DIR` set to the target; an override scoped to a removed or renamed component stays valid and stops applying; the two refusals without a next step now give one; a moved component is checked by its templates, not its manifests; and the extend skill's quoted output, `<target>` and bootstrap step were corrected.
+
+### Interview evals (2026-10-29)
+
+`bin/alpha-evals run` drove all three scenarios through the real `/alpha:new-project` (kit 5aa99cc, Opus interviewer in auto mode, Sonnet simulated user, $20 cap per scenario). All three stopped at the cap before generating anything, so the skeleton checks and the reviewer probe were skipped. The run cost $64.66.
+
+- How far each got: ML single had 14 of 17 areas done after 17 exchanges (performance in progress); web+API had 10 after 19; Rust CLI had 8 after 17.
+- Cost grows with each exchange, from $0.28 for the first call to $2.2–3.0 by the 17th, because every resumed call carries the whole interview. A complete interview in one session would cost roughly $50 or more on Opus. Open: a fresh interviewer session every few exchanges (new-project resumes from project.json) would keep calls near the first one's cost, and would test the resume path too.
+- Every answer recorded so far matched the briefs: ML 9 of 9, web+API 12 of 12, Rust 6 of 6. Free-text fields are compared by containment (a `~` pointer), after "MLflow with a local file store" failed an exact match for MLflow.
+- Auto mode denied nothing (`prompts: pass`).
+- Smoke runs found three harness bugs, now fixed:
+  - a relative `--out` gave the interviewer relative plugin paths, so the plugin didn't load;
+  - `dontAsk` mode denied the skill's opening `mkdir`/`ls`;
+  - the interviewer guessed the project type from the scenario name in the folder path, so projects now live in `<run>/projects/<slug>`.
+- Not verified live: the files, settings, hooks, commands, commits and reviewer checks. They only have offline tests, against deterministic skeletons and a fake `claude`.
