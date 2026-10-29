@@ -1,6 +1,8 @@
 """PreToolUse hook for Bash: blocks --no-verify, hooksPath changes, force-push,
-pushed amends and git clean -x; shell writes to protected paths; pushes and pull
-requests with unreviewed work; and any change made by the principles-reviewer."""
+pushed amends and git clean -x; git commands that stage, stash or discard
+changes nobody named (add -A, commit -a, reset --hard, checkout ., stash);
+shell writes to protected paths; pushes and pull requests with
+unreviewed work; and any change made by the principles-reviewer."""
 
 from __future__ import annotations
 
@@ -447,6 +449,67 @@ def gh_command(segment: list[str]) -> list[str] | None:
     return words
 
 
+SHARED = "some may be the user's or another session's"
+WHOLE_TREE = {".", "./", ":", ":/", "*"}
+STAGE_ALL = {"-A", "--all", "-u", "--update", "--no-ignore-removal"}
+STASH_READS = {"list", "show"}
+
+
+def pathspecs(raw_args: list[str]) -> list[str]:
+    """The non-option words of a git command, and everything after `--`."""
+    cut = raw_args.index("--") if "--" in raw_args else len(raw_args)
+    words = [a for a in raw_args[:cut] if not a.startswith("-")]
+    return words + raw_args[cut + 1 :]
+
+
+def check_shared_work(sub: str, raw_args: list[str], args: list[str]) -> None:
+    """Block git commands that stage, stash or discard changes Claude didn't name:
+    the tree may hold the user's or another session's uncommitted work."""
+    whole = next((p for p in pathspecs(raw_args) if p in WHOLE_TREE), None)
+    if sub == "add":
+        flag = next(
+            (a for a in args if a in STAGE_ALL or set("Au") & set(short_flags(a, sub))),
+            None,
+        )
+        if flag or whole:
+            _common.block(
+                f"git add {flag or whole} stages every change in the tree, and "
+                f"{SHARED}. Stage the files you changed by path: git add <path> …"
+            )
+    if sub == "commit":
+        flag = next(
+            (a for a in args if a == "--all" or "a" in short_flags(a, sub)), None
+        )
+        if flag:
+            _common.block(
+                f"git commit {flag} commits every tracked change, and {SHARED}. "
+                "Stage the files you changed by path (git add <path> …), then "
+                "commit without -a."
+            )
+    if sub == "reset" and "--hard" in args:
+        _common.block(
+            f"git reset --hard discards every uncommitted change, and {SHARED}. "
+            "Put back your own files by path (git restore <path>), or ask the "
+            "user to run it."
+        )
+    # restore --staged alone only unstages; the files themselves stay.
+    staged_only = bool({"--staged", "-S"} & set(args)) and not (
+        {"--worktree", "-W"} & set(args)
+    )
+    if sub in ("checkout", "restore") and whole and not staged_only:
+        _common.block(
+            f"git {sub} {whole} discards every uncommitted change under it, and "
+            f"{SHARED}. Put back your own files by path (git restore <path>), or "
+            "ask the user to run it."
+        )
+    if sub == "stash" and not (raw_args and raw_args[0] in STASH_READS):
+        _common.block(
+            f"git stash takes uncommitted changes out of the tree, and {SHARED}; "
+            "a forgotten stash loses them. Commit or put back your own files by "
+            "path instead, or ask the user to run it."
+        )
+
+
 def check_segment(segment: list[str], root: Path) -> None:
     gh = gh_command(segment)
     if gh is not None and gh[:1] == ["pr"] and gh[1:2] in (["create"], ["new"]):
@@ -490,6 +553,7 @@ def check_segment(segment: list[str], root: Path) -> None:
             f"in {_common.STATE_DIR}/. Delete the files you mean by name, or ask the "
             "user to run it."
         )
+    check_shared_work(sub, raw_args, args)
     if sub == "commit" and "--amend" in args:
         branches = pushed_branches(root)
         if branches:
@@ -551,11 +615,12 @@ def main() -> None:
         command = tool_input.get("command")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
     if not isinstance(command, str):
         sys.exit(0)
-    check_command(command, root)
     cwd_value = inp.get("cwd")
     cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else root
+    # First, so the reviewer hears it only reads rather than another rule.
     if inp.get("agent_type") == REVIEWER:
         check_read_only(command, cwd)
+    check_command(command, root)
     check_writes(command, root, cwd, principles)
     sys.exit(0)
 

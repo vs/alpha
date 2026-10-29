@@ -434,3 +434,74 @@ def test_git_clean_of_ignored_files_is_blocked(project: Project, command: str) -
 def test_plain_git_clean_and_reading_the_state_pass(project: Project) -> None:
     assert bash(project, "git clean -fd").returncode == 0
     assert bash(project, "cat .claude/alpha/state/review.json").returncode == 0
+
+
+SWEEP = "may be the user's or another session's"
+
+
+@pytest.mark.parametrize(
+    ("command", "needle"),
+    [
+        ("git add -A", "git add -A stages every change"),
+        ("git add --all", "git add --all stages every change"),
+        ("git add -u", "git add -u stages every change"),
+        ("git add --update", "git add --update stages every change"),
+        ("git add -Av", "git add -Av stages every change"),
+        ("git add .", "git add . stages every change"),
+        ("cd api && git add .", "git add . stages every change"),
+        ("git add -- .", "git add . stages every change"),
+        ("git add ':/'", "git add :/ stages every change"),
+        ("git add '*'", "git add * stages every change"),
+        ("git commit -am x", "git commit -am commits every tracked change"),
+        ("git commit -a -m x", "git commit -a commits every tracked change"),
+        ("git commit --all -m x", "git commit --all commits every tracked change"),
+        ("git reset --hard", "git reset --hard discards"),
+        ("git reset --hard HEAD~1", "git reset --hard discards"),
+        ("git checkout .", "git checkout . discards"),
+        ("git checkout -- .", "git checkout . discards"),
+        ("git checkout HEAD -- .", "git checkout . discards"),
+        ("git restore .", "git restore . discards"),
+        ("git restore --staged --worktree .", "git restore . discards"),
+        ("git stash", "git stash takes"),
+        ("git stash -u", "git stash takes"),
+        ("git stash push -m wip", "git stash takes"),
+        ("git stash pop", "git stash takes"),
+        ("git stash drop", "git stash takes"),
+        ("bash -c 'git stash'", "git stash takes"),
+    ],
+)
+def test_commands_that_sweep_up_shared_work_are_blocked(
+    project: Project, command: str, needle: str
+) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 2, (command, proc.stderr)
+    assert needle in proc.stderr
+    assert SWEEP in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git add api/app/main.py docs/guide/upload.md",
+        "git add -p api/app/main.py",
+        "git add docs/.",
+        "git commit -m x",
+        "git commit -m 'add -a flag' api/app/main.py",
+        "git commit -ma",
+        "git reset",
+        "git reset HEAD~1",
+        "git reset --soft HEAD~1",
+        "git checkout main",
+        "git checkout -b topic",
+        "git checkout docs/principles.toml",
+        "git checkout 1a2b3c -- api/migrations/0001_create_uploads.sql",
+        "git restore api/app/main.py",
+        "git restore --staged .",
+        "git stash list",
+        "git stash show -p",
+    ],
+)
+def test_commands_that_name_their_files_pass(project: Project, command: str) -> None:
+    mark_reviewed(project)
+    proc = bash(project, command)
+    assert proc.returncode == 0, (command, proc.stderr)

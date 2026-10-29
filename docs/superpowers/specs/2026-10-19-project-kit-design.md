@@ -336,6 +336,10 @@ fail-helpfully principle: what's wrong, and how to fix it.
 - `commit-msg`: type, scope, subject length, imperative mood → reject.
 - `--no-verify`, force-push, and `--amend` of pushed commits → block (for
   Claude, via Claude Code hooks; see §9).
+- Git commands that stage, stash or discard changes nobody named (`git add
+  -A`/`.`, `commit -a`, `reset --hard`, `checkout .`/`restore .`, `stash`)
+  → block (for Claude); `git clean` stays allowed, except `-x`/`-X`. The tree may hold the
+  user's or another session's uncommitted work; Claude names its files.
 - Disabling or skipping tests, or loosening lint/type settings → block (or
   flag for user approval).
 
@@ -363,7 +367,8 @@ agent signals done, a cheap script decides whether the reviewer runs:
    the machine unreviewed.**
 
 **Who it binds (user decision):** review-before-push and the git guardrails
-(no `--no-verify`, no force-push, no amending pushed commits) are enforced
+(no `--no-verify`, no force-push, no amending pushed commits, nothing that
+sweeps up or discards unnamed changes) are enforced
 on **Claude only**, through Claude Code hooks. The user can push by hand
 freely. The only git hook that binds everyone is `commit-msg` (format
 check). No headless reviewer runs from git hooks.
