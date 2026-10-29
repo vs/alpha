@@ -55,3 +55,14 @@ def test_a_brief_without_expect_is_refused(tmp_path: Path):
     (tmp_path / "evals/briefs/x.toml").write_text('brief = "hi"\n')
     with pytest.raises(ScenarioError, match="expect"):
         load_brief("x", root=tmp_path)
+
+
+def test_a_tilde_pointer_accepts_text_that_contains_the_value():
+    expected = {"data": {"tracking": "MLflow"}}
+    ok = {"data": {"tracking": "MLflow with a local file store"}}
+    other = {"data": {"tracking": "Weights & Biases"}}
+    assert compare(expected, ok, ["~/data/tracking"]) == []
+    assert compare(expected, other, ["~/data/tracking"]) == [
+        Mismatch("~/data/tracking", "MLflow", "Weights & Biases", False)
+    ]
+    assert compare(expected, ok, ["/data/tracking"]) != []  # exact without ~

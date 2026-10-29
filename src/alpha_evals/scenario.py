@@ -84,9 +84,9 @@ def _step(node: Any, segment: str, pointer: str) -> Any:
 
 
 def resolve(data: Any, pointer: str) -> Any:
-    """The value at a pointer like /components[name=api]/stack."""
+    """The value at a pointer like /components[name=api]/stack (~ ignored)."""
     node = data
-    for segment in pointer.strip("/").split("/"):
+    for segment in pointer.removeprefix("~").strip("/").split("/"):
         node = _step(node, segment, pointer)
     return node
 
@@ -104,12 +104,18 @@ def compare(
 ) -> list[Mismatch]:
     out: list[Mismatch] = []
     for pointer in pointers:
-        want = resolve(expected, pointer)
+        # "~/a/b": free text, so the answer only has to contain the value.
+        loose = pointer.startswith("~")
+        path = pointer.removeprefix("~")
+        want = resolve(expected, path)
         try:
-            got = resolve(actual, pointer)
+            got = resolve(actual, path)
         except KeyError:
             out.append(Mismatch(pointer, want, None, True))
             continue
-        if not _same(want, got):
+        if loose and isinstance(want, str) and isinstance(got, str):
+            if want.lower() not in got.lower():
+                out.append(Mismatch(pointer, want, got, False))
+        elif not _same(want, got):
             out.append(Mismatch(pointer, want, got, False))
     return out

@@ -191,8 +191,7 @@ def test_a_relative_out_becomes_absolute(
     plugin_dir = Path(argv[argv.index("--plugin-dir") + 1])
     assert plugin_dir == tmp_path / "out" / "kit"
     assert (
-        fake.calls()[0]["stdin"]
-        == f"/alpha:new-project {tmp_path}/out/projects/tidy"
+        fake.calls()[0]["stdin"] == f"/alpha:new-project {tmp_path}/out/projects/tidy"
     )
 
 

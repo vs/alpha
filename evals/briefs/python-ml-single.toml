@@ -9,8 +9,8 @@ expect = [
   "/agent_workflow/extra_risk_paths",
   "/releases/scheme",
   "/releases/changelog",
-  "/data/ml/versioning",
-  "/data/ml/tracking",
+  "~/data/ml/versioning",
+  "~/data/ml/tracking",
 ]
 brief = """
 You are starting a project called Leaf Lens. It spots common houseplant diseases from a single leaf photo. It is for hobby gardeners who want a quick second opinion before treating a plant.
