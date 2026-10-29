@@ -12,6 +12,7 @@ from typing import Any
 from alpha_evals.interview import Config
 from alpha_evals.run import (
     PLUGIN_ROOT,
+    crashed_report,
     eval_env,
     prepare_kit,
     project_checks,
@@ -80,9 +81,12 @@ def _run(args: argparse.Namespace) -> int:
     )
     reports: list[dict[str, Any]] = []
     for name in names:
-        report = run_scenario(
-            name, run_dir, kit, env, config, not args.no_reviewer, commit, dirty
-        )
+        try:
+            report = run_scenario(
+                name, run_dir, kit, env, config, not args.no_reviewer, commit, dirty
+            )
+        except Exception as e:  # one broken scenario must not lose the others
+            report = crashed_report(name, e)
         cells = " ".join(f"{c['name']}={c['status']}" for c in report["checks"])
         print(f"{name}: {cells} (${report['cost_usd']:.2f})", flush=True)
         reports.append(report)

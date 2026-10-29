@@ -50,6 +50,8 @@ def prepare_kit(repo: Path, dest: Path) -> tuple[str, bool]:
         check=True,
         capture_output=True,
     )
+    # No way back to the real checkout: an eval session must not push to it.
+    _git(dest, "remote", "remove", "origin")
     dirty = bool(_git(repo, "status", "--porcelain"))
     return _git(dest, "rev-parse", "HEAD"), dirty
 
@@ -138,8 +140,11 @@ def run_scenario(
     elif checks[1].status == "skip" or not _generated(project):
         checks.append(Check("reviewer", "skip", "interview did not finish"))
     else:
-        found, turn = check_reviewer(project, env, config)
-        cost += turn.cost_usd
+        try:
+            found, turn = check_reviewer(project, env, config, config.max_usd - cost)
+            cost += turn.cost_usd
+        except Exception as e:  # a broken check must not lose the report
+            found = Check("reviewer", "fail", f"crashed: {type(e).__name__}: {e}")
         checks.append(found)
     report: dict[str, Any] = {
         "scenario": name,
@@ -151,6 +156,20 @@ def run_scenario(
     }
     (folder / "report.json").write_text(json.dumps(report, indent=2) + "\n", "utf-8")
     return report
+
+
+def crashed_report(name: str, error: Exception) -> dict[str, Any]:
+    """The report of a scenario whose run raised before it wrote one."""
+    detail = f"crashed: {type(error).__name__}: {error}"
+    checks = [Check("interview", "fail", detail)] + [
+        Check(n, "skip", "interview did not finish") for n in CHECKS[1:]
+    ]
+    return {
+        "scenario": name,
+        "cost_usd": 0.0,
+        "exchanges": 0,
+        "checks": [c.to_json() for c in checks],
+    }
 
 
 def summary(reports: Sequence[dict[str, Any]], kit_commit: str, kit_dirty: bool) -> str:

@@ -203,3 +203,45 @@ def test_a_run_folder_inside_the_kit_is_refused(
     assert "outside" in capsys.readouterr().err
     assert not inside.exists()
     assert fake.calls() == []
+
+
+def test_the_kit_clone_has_no_remote(tmp_path: Path, git_env):
+    prepare_kit(Path(run.PLUGIN_ROOT), tmp_path / "kit")
+    assert git(tmp_path / "kit", "remote") == ""
+
+
+def test_a_crashing_reviewer_is_recorded(
+    monkeypatch: pytest.MonkeyPatch, fake, tmp_path: Path, git_env, stub_tools
+):
+    def boom(*args, **kwargs):
+        raise RuntimeError("bad principles")
+
+    monkeypatch.setattr(run, "check_reviewer", boom)
+    fake_interview(fake, "python-ml-single")
+    out = tmp_path / "out"
+    assert main(run_args(fake, out, "python-ml-single")) == 1
+    checks = {c["name"]: c for c in report_of(out, "python-ml-single")["checks"]}
+    assert checks["reviewer"]["status"] == "fail"
+    assert checks["reviewer"]["detail"] == "crashed: RuntimeError: bad principles"
+
+
+def test_a_crashing_scenario_does_not_stop_the_run(
+    monkeypatch: pytest.MonkeyPatch, fake, tmp_path: Path, git_env
+):
+    import alpha_evals.__main__ as cli
+
+    real = cli.run_scenario
+
+    def flaky(name, *args, **kwargs):
+        if name == "rust-cli":
+            raise RuntimeError("disk full")
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(cli, "run_scenario", flaky)
+    fake.fail(exit=1, stderr="x")  # python-ml-single's interview fails fast
+    out = tmp_path / "out"
+    assert main(run_args(fake, out, "rust-cli", "python-ml-single")) == 1
+    text = (out / "summary.md").read_text()
+    assert "| rust-cli | fail |" in text
+    assert "rust-cli / interview (fail): crashed: RuntimeError: disk full" in text
+    assert "| python-ml-single | fail |" in text

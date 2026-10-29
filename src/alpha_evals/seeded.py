@@ -14,6 +14,8 @@ from alpha.recipes import check_commands as ci_steps
 from alpha_evals.checks import SETTINGS, Check
 
 EDIT_MATCHER = "Edit|Write|MultiEdit"
+HOOK_TIMEOUT = 1200.0  # the generated settings' longest hook timeout
+COMMAND_TIMEOUT = 900.0  # per CI step
 _TAIL = 5
 
 
@@ -70,17 +72,26 @@ class _Hooks:
             if entry.get("matcher") != matcher:
                 continue
             for hook in cast(list[dict[str, Any]], entry.get("hooks", [])):
-                done.append(
-                    subprocess.run(
-                        str(hook["command"]),
-                        shell=True,
-                        cwd=self.root,
-                        env={**os.environ, "CLAUDE_PROJECT_DIR": str(self.root)},
-                        input=json.dumps(payload),
-                        capture_output=True,
-                        text=True,
+                command = str(hook["command"])
+                try:
+                    done.append(
+                        subprocess.run(
+                            command,
+                            shell=True,
+                            cwd=self.root,
+                            env={**os.environ, "CLAUDE_PROJECT_DIR": str(self.root)},
+                            input=json.dumps(payload),
+                            capture_output=True,
+                            text=True,
+                            timeout=HOOK_TIMEOUT,
+                        )
                     )
-                )
+                except subprocess.TimeoutExpired:
+                    done.append(
+                        subprocess.CompletedProcess(
+                            command, -1, "", f"timed out after {HOOK_TIMEOUT:g}s"
+                        )
+                    )
         return done
 
 
@@ -89,6 +100,8 @@ def _got(runs: list[subprocess.CompletedProcess[str]]) -> str:
         return "no hook wired"
     last = runs[-1]
     lines = (last.stderr or last.stdout).strip().splitlines()
+    if last.returncode == -1:
+        return lines[0]  # timed out
     return f"exit {last.returncode}: {lines[0] if lines else '(no output)'}"
 
 
@@ -197,14 +210,21 @@ def check_commands(project: Path) -> Check:
     problems: list[str] = []
     for c in cast(list[dict[str, Any]], principles["components"]):
         for _, command in ci_steps(cast(dict[str, str], c.get("commands", {}))):
-            done = subprocess.run(
-                command,
-                shell=True,
-                cwd=project / str(c["path"]),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
+            try:
+                done = subprocess.run(
+                    command,
+                    shell=True,
+                    cwd=project / str(c["path"]),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=COMMAND_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                problems.append(
+                    f'{c["name"]}: "{command}" timed out after {COMMAND_TIMEOUT:g}s'
+                )
+                break
             if done.returncode != 0:
                 tail = " | ".join(done.stdout.strip().splitlines()[-_TAIL:])
                 problems.append(

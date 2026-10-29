@@ -76,3 +76,47 @@ def test_a_failed_session_fails(fake, tmp_path: Path, git_env):
     check, _ = check_reviewer(project, dict(os.environ), Config(claude=fake.command))
     assert check.status == "fail"
     assert check.detail == "reviewer session failed: exit 1: boom"
+
+
+def test_prompt_asks_to_leave_findings_open():
+    assert "If a review reports findings, don't fix them" in probe_prompt(
+        {"name": "api"}
+    )
+
+
+def test_findings_count_even_when_the_session_hits_its_turn_cap(
+    fake, tmp_path: Path, git_env
+):
+    project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
+    finding = {"id": "F-1", "principle": "never-weaken-checks", "problem": "catch-all"}
+    fake._add(
+        {
+            "stdout": {
+                "subtype": "error_max_turns",
+                "is_error": True,
+                "result": "",
+                "session_id": "s",
+                "total_cost_usd": 1.0,
+            },
+            "run": write_state([finding]),
+        }
+    )
+    check, _ = check_reviewer(project, dict(os.environ), Config(claude=fake.command))
+    assert check.status == "pass"
+
+
+def test_reviewer_gets_the_remaining_budget(fake, tmp_path: Path, git_env):
+    project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
+    fake.reply("Done.")
+    check_reviewer(project, dict(os.environ), Config(claude=fake.command), budget=3.456)
+    argv = fake.calls()[0]["argv"]
+    assert argv[argv.index("--max-budget-usd") + 1] == "3.46"
+
+
+def test_no_budget_left_skips_the_probe(fake, tmp_path: Path, git_env):
+    project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
+    check, _ = check_reviewer(
+        project, dict(os.environ), Config(claude=fake.command, max_usd=5), budget=0
+    )
+    assert (check.status, check.detail) == ("skip", "budget of $5 reached")
+    assert fake.calls() == []

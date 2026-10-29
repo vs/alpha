@@ -142,3 +142,36 @@ def test_run_claude_reports_a_missing_binary(tmp_path: Path):
     turn = run_claude(("no-such-claude-x",), [], "", tmp_path, dict(os.environ))
     assert not turn.ok
     assert "no-such-claude-x" in turn.error
+
+
+def test_a_failed_json_result_keeps_its_reason_and_cost(fake, tmp_path: Path):
+    fake._add(
+        {
+            "stdout": {
+                "subtype": "success",
+                "is_error": True,
+                "result": "Invalid API key",
+                "session_id": "s",
+                "total_cost_usd": 0.02,
+            },
+            "exit": 1,
+        }
+    )
+    _, _, t = go(fake, tmp_path)
+    assert "Invalid API key" in t.outcome.detail
+    assert t.cost_usd == 0.02
+
+
+def test_a_failure_reported_on_stdout_is_shown(fake, tmp_path: Path):
+    fake.fail(exit=1, stdout="Rate limited, retry later")
+    _, _, t = go(fake, tmp_path)
+    assert "Rate limited, retry later" in t.outcome.detail
+
+
+def test_each_call_gets_the_remaining_budget(fake, tmp_path: Path):
+    fake.reply("Q?", cost=0.25)
+    fake.reply("<<END>>", cost=0.5)
+    go(fake, tmp_path, max_usd=2)
+    first, second = fake.calls()
+    assert arg_after(first["argv"], "--max-budget-usd") == "2.00"
+    assert arg_after(second["argv"], "--max-budget-usd") == "1.75"

@@ -7,7 +7,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - `uv run pytest`
 - `uv run ruff check` and `uv run ruff format`
 - `uv run pyright`
-- `bin/alpha-evals run [scenario ...]`: the interview evals (spec §12). Each scenario runs the real `/alpha:new-project` headlessly, with a simulated user answering from `evals/briefs/<scenario>.toml`, then checks the generated skeleton and probes the reviewer. It spends real tokens (capped by `--max-usd`, $20 per scenario by default): check the cost column in the `summary.md` it prints. `bin/alpha-evals check <project> <scenario>` reruns only the skeleton checks.
+- `bin/alpha-evals run [scenario ...]`: the interview evals (spec §12). Each scenario runs the real `/alpha:new-project` headlessly, with a simulated user answering from `evals/briefs/<scenario>.toml`, then checks the generated skeleton and probes the reviewer. It spends real tokens: each call gets the scenario's remaining `--max-usd` budget ($20 by default), and a call that fails or times out counts as $0, so check the cost column in the `summary.md` it prints. The $20 default stops an Opus interview before generation (see below); a complete run needs about `--max-usd 60`, or a cheaper `--interviewer-model`. `bin/alpha-evals check <project> <scenario>` reruns only the skeleton checks.
 
 ## Rules
 
@@ -111,9 +111,10 @@ All three scenarios went through `bin/alpha` (`answers check`, `generate`, `boot
 - How far each got: ML single had 14 of 17 areas done after 17 exchanges (performance in progress); web+API had 10 after 19; Rust CLI had 8 after 17.
 - Cost grows with each exchange, from $0.28 for the first call to $2.2–3.0 by the 17th, because every resumed call carries the whole interview. A complete interview in one session would cost roughly $50 or more on Opus. Open: a fresh interviewer session every few exchanges (new-project resumes from project.json) would keep calls near the first one's cost, and would test the resume path too.
 - Every answer recorded so far matched the briefs: ML 9 of 9, web+API 12 of 12, Rust 6 of 6. Free-text fields are compared by containment (a `~` pointer), after "MLflow with a local file store" failed an exact match for MLflow.
-- Auto mode denied nothing (`prompts: pass`).
-- Smoke runs found three harness bugs, now fixed:
+- The interviewer runs in auto mode, the mode alpha is used in here. Auto mode denied nothing (`prompts: pass`).
+- In a smoke run under `dontAsk` (no approvals at all), the skill's opening `mkdir`/`ls` of the target folder was denied. In default permission mode, that step asks before it runs. Open.
+- Smoke runs found two harness bugs, now fixed:
   - a relative `--out` gave the interviewer relative plugin paths, so the plugin didn't load;
-  - `dontAsk` mode denied the skill's opening `mkdir`/`ls`;
   - the interviewer guessed the project type from the scenario name in the folder path, so projects now live in `<run>/projects/<slug>`.
-- Not verified live: the files, settings, hooks, commands, commits and reviewer checks. They only have offline tests, against deterministic skeletons and a fake `claude`.
+- The six skeleton checks (answers through commits) pass on all three scenarios when run with `bin/alpha-evals check`. Each project was generated, bootstrapped with real uv, pnpm and Rust, and committed from the scenario files, not from an interview.
+- Not verified live: the reviewer probe, and the checks on a skeleton an interview produced.

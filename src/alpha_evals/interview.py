@@ -103,7 +103,10 @@ def interview(
             args, cwd = interviewer_args(kit, config), project
         else:
             args, cwd = user_args, project.parent
-        turn = run_claude(config.claude, args, prompt, cwd, env, sessions[role])
+        budget = ["--max-budget-usd", f"{config.max_usd - t.cost_usd:.2f}"]
+        turn = run_claude(
+            config.claude, [*args, *budget], prompt, cwd, env, sessions[role]
+        )
         t.cost_usd += turn.cost_usd
         if not turn.ok:
             t.outcome = Check("interview", "fail", f"{role} call failed: {turn.error}")

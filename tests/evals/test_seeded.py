@@ -108,3 +108,36 @@ def test_commands_flag_checks_that_change_files(tmp_path: Path, git_env):
     check = check_commands(project)
     assert check.status == "fail"
     assert "checks left changes" in check.detail
+
+
+def test_a_hung_command_times_out(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    from alpha_evals import seeded
+
+    monkeypatch.setattr(seeded, "COMMAND_TIMEOUT", 0.5)
+    project = generated_repo(tmp_path / "p", "python-ml-single")
+    stub_commands(project, test="sleep 5")
+    check = check_commands(project)
+    assert check.status == "fail"
+    assert 'ml: "sleep 5" timed out after 0.5s' in check.detail
+
+
+def test_a_hung_hook_times_out(
+    tmp_path: Path, git_env, stub_tools, monkeypatch: pytest.MonkeyPatch
+):
+    from alpha_evals import seeded
+
+    monkeypatch.setattr(seeded, "HOOK_TIMEOUT", 0.5)
+    project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
+    path = project / ".claude/settings.json"
+    settings = json.loads(path.read_text())
+    for entry in settings["hooks"]["PreToolUse"]:
+        if entry.get("matcher") == "Bash":
+            entry["hooks"][0]["command"] = "sleep 5"
+    path.write_text(json.dumps(settings))
+    check = check_hooks(project, tmp_path / "scratch")
+    assert check.status == "fail"
+    assert "1. git commit --no-verify: expected a block, got timed out after 0.5s" in (
+        check.detail
+    )

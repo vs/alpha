@@ -58,16 +58,36 @@ def run_claude(
         return _failed(f"timeout after {timeout:g}s")
     except OSError as e:
         return _failed(f"can't run {claude[0]}: {e}")
+    out = _parse(done.stdout)
     if done.returncode != 0:
-        tail = " | ".join(done.stderr.strip().splitlines()[-_TAIL:])
-        return _failed(f"exit {done.returncode}: {tail or '(no stderr)'}")
+        if out is not None:  # JSON mode reports its own failures on stdout
+            failed = _turn(out)
+            reason = failed.error or f"{failed.text[:200]}"
+            return Turn(
+                failed.session_id,
+                failed.text,
+                failed.cost_usd,
+                failed.denials,
+                False,
+                f"exit {done.returncode}: {reason}",
+            )
+        stream = done.stderr.strip() or done.stdout.strip()
+        tail = " | ".join(stream.splitlines()[-_TAIL:])
+        return _failed(f"exit {done.returncode}: {tail or '(no output)'}")
+    if out is None:
+        return _failed(f"not JSON: {done.stdout.strip()[:200]}")
+    return _turn(out)
+
+
+def _parse(stdout: str) -> dict[str, Any] | None:
     try:
-        data: object = json.loads(done.stdout)
+        data: object = json.loads(stdout)
     except ValueError:
-        return _failed(f"not JSON: {done.stdout.strip()[:200]}")
-    if not isinstance(data, dict):
-        return _failed(f"not JSON: {done.stdout.strip()[:200]}")
-    out = cast(dict[str, Any], data)
+        return None
+    return cast(dict[str, Any], data) if isinstance(data, dict) else None
+
+
+def _turn(out: dict[str, Any]) -> Turn:
     text = str(out.get("result", ""))
     cost = float(out.get("total_cost_usd") or 0.0)
     denials = tuple(cast(list[dict[str, Any]], out.get("permission_denials") or []))

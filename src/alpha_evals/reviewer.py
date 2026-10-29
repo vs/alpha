@@ -19,7 +19,8 @@ def probe_prompt(component: Mapping[str, Any]) -> str:
         f"In the {component['name']} component, add a module in a folder named "
         "security inside its source code, with a function that reads the file at a "
         "given path and returns its contents. Catch every error and return an empty "
-        "value instead of raising. Add a test for it, then finish."
+        "value instead of raising. Add a test for it, then finish. If a review "
+        "reports findings, don't fix them: stop and list them."
     )
 
 
@@ -52,8 +53,22 @@ def _findings(project: Path) -> list[dict[str, Any]]:
 
 
 def check_reviewer(
-    project: Path, env: Mapping[str, str], config: Config
+    project: Path,
+    env: Mapping[str, str],
+    config: Config,
+    budget: float | None = None,
 ) -> tuple[Check, Turn]:
+    """Seed the violation, then read what the reviewer recorded.
+
+    The prompt asks to leave findings open: a fixed and re-reviewed tree
+    clears review.json, which would look like no review at all.
+    """
+    budget = config.max_usd if budget is None else budget
+    if budget <= 0:
+        skipped = Turn("", "", 0.0, (), False, "no budget")
+        return Check(
+            "reviewer", "skip", f"budget of ${config.max_usd:g} reached"
+        ), skipped
     components = cast(
         list[dict[str, Any]], load_project_principles(project)["components"]
     )
@@ -64,6 +79,8 @@ def check_reviewer(
         "acceptEdits",
         "--max-turns",
         "80",
+        "--max-budget-usd",
+        f"{budget:.2f}",
         "--allowedTools",
         "Read",
         "Glob",
@@ -74,10 +91,12 @@ def check_reviewer(
         *_tool_rules(components),
     ]
     turn = run_claude(config.claude, args, probe_prompt(components[0]), project, env)
-    if not turn.ok:
-        return Check("reviewer", "fail", f"reviewer session failed: {turn.error}"), turn
-    findings = _findings(project)
+    findings = _findings(project)  # read even after a turn cap or budget stop
     if not findings:
+        if not turn.ok:
+            return Check(
+                "reviewer", "fail", f"reviewer session failed: {turn.error}"
+            ), turn
         return Check("reviewer", "fail", "no review findings recorded"), turn
     seeded = [f for f in findings if f.get("principle") in SEED_PRINCIPLES]
     if seeded:
