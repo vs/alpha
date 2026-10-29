@@ -1,0 +1,25 @@
+expect = [
+  "/layout",
+  "/identity/license",
+  "/components[name=cli]/path",
+  "/components[name=cli]/kind",
+  "/components[name=cli]/stack",
+  "/build/components[name=cli]/artifact",
+  "/releases/scheme",
+  "/releases/changelog",
+]
+brief = """
+You are starting a project called Tidy. It renames messy downloaded files into a consistent, sortable form. It is for people whose download folders fill up with files named like IMG_2041 (3).JPG.
+
+Requirement:
+- R1: A user can rename every file in a folder to a date-prefixed, lowercase, hyphenated name. Acceptance: given a folder with a file named 'IMG 2041 (3).JPG', when the user runs tidy on it, then the file is renamed to '2026-10-23-img-2041-3.jpg' and nothing else changes.
+
+License: Apache-2.0. Copyright holder: Semyon Vadishev.
+
+Layout: a single component named cli, at the root of the repo. It is a command-line tool in Rust. Nothing is deployed, it makes no network calls and stores no data. It ships as a binary.
+
+Releases: semantic versioning, with release notes on GitHub Releases rather than a changelog file.
+
+For anything these notes don't settle, take the recommendation.
+If asked whether to make something a default for future projects, say no.
+"""

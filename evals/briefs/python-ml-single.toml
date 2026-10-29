@@ -1,0 +1,32 @@
+expect = [
+  "/layout",
+  "/identity/license",
+  "/components[name=ml]/path",
+  "/components[name=ml]/kind",
+  "/components[name=ml]/stack",
+  "/git/scopes",
+  "/agent_workflow/review_mode",
+  "/agent_workflow/extra_risk_paths",
+  "/releases/scheme",
+  "/releases/changelog",
+  "/data/ml/versioning",
+  "/data/ml/tracking",
+]
+brief = """
+You are starting a project called Leaf Lens. It spots common houseplant diseases from a single leaf photo. It is for hobby gardeners who want a quick second opinion before treating a plant.
+
+Requirement:
+- R1: A user can classify a leaf photo into a known disease or healthy. Acceptance: given a labelled validation set, when the model classifies it, then top-1 accuracy is at least 85%.
+
+License: Apache-2.0. Copyright holder: Semyon Vadishev.
+
+Layout: a single component named ml, at the root of the repo. It is an ML pipeline in Python. Nothing is deployed, it makes no network calls and stores no app data.
+
+Git: conventional commits, with ml as the only scope.
+Agent workflow: review after every task, and treat everything under data/ as a risk path (data/**).
+Releases: calendar versioning, with no changelog.
+ML data: version datasets with DVC and track experiments with MLflow.
+
+For anything these notes don't settle, take the recommendation.
+If asked whether to make something a default for future projects, say no.
+"""

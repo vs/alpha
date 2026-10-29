@@ -1,0 +1,44 @@
+expect = [
+  "/layout",
+  "/identity/slug",
+  "/identity/license",
+  "/components[name=api]/path",
+  "/components[name=api]/kind",
+  "/components[name=api]/stack",
+  "/components[name=web]/path",
+  "/components[name=web]/kind",
+  "/components[name=web]/stack",
+  "/git/convention",
+  "/git/scopes",
+  "/build/ci",
+  "/dependencies/updates",
+  "/dependencies/schedule",
+  "/releases/scheme",
+  "/releases/changelog",
+  "/data/components[name=api]/storage",
+  "/agent_workflow/review_mode",
+  "/agent_workflow/max_lines",
+  "/overrides[principle=observability]/change",
+]
+brief = """
+You are starting a project called Pico Trust (slug: pico-trust). It hides short trust signals inside ordinary images so they survive re-sharing. It is for journalists and fact-checkers who publish photos and need provenance to travel with them.
+
+Requirements:
+- R1: A user can embed a signed trust payload into an image. Acceptance: given a PNG and a payload, when the user embeds it, then the returned image decodes back to the same payload.
+- R2: A user can verify an image from the browser. Acceptance: given an embedded image, when the user opens it in the web app, then the app shows the payload and whether it is intact.
+
+License: MIT. Copyright holder: Semyon Vadishev.
+
+Layout: a monorepo with two components that talk to each other.
+- api: a backend in Python, in the folder api. It embeds and verifies payloads, is deployed, makes network calls and stores data in PostgreSQL.
+- web: a frontend in TypeScript, in the folder web. It lets users verify an image in the browser, is deployed and calls the api.
+
+Git: conventional commits, with the component names (api, web) as scopes.
+CI: GitHub Actions. Dependency updates: Dependabot, weekly.
+Releases: semantic versioning, with a changelog file in the repo.
+Agent workflow: review in batches, at most 200 changed lines per review.
+Observability: loosen it for the api only. The api is a single-process prototype; structured logs are enough until it is deployed beyond one host.
+
+For anything these notes don't settle, take the recommendation.
+If asked whether to make something a default for future projects, say no.
+"""
