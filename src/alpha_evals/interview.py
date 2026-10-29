@@ -67,7 +67,7 @@ def interviewer_args(kit: Path, config: Config) -> list[str]:
         "--model",
         config.interviewer_model,
         "--permission-mode",
-        "dontAsk",
+        "auto",
         "--allowedTools",
         f"Bash({kit}/bin/alpha *)",
         "Read",

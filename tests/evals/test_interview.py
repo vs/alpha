@@ -44,7 +44,7 @@ def test_loop_alternates_and_ends_on_the_token(fake, tmp_path: Path):
     assert first["stdin"] == f"/alpha:new-project {project}"
     assert first["cwd"] == str(project)
     assert arg_after(first["argv"], "--plugin-dir") == str(kit)
-    assert arg_after(first["argv"], "--permission-mode") == "dontAsk"
+    assert arg_after(first["argv"], "--permission-mode") == "auto"
     assert arg_after(first["argv"], "--setting-sources") == "project,local"
     assert f"Bash({kit}/bin/alpha *)" in first["argv"]
     assert "--resume" not in first["argv"]
