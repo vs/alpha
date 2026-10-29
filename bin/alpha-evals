@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""alpha evals shim (kit development only). Python 3.9-compatible up to the check."""
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "src"))
+
+from alpha.pyguard import check_python  # noqa: E402
+
+problem = check_python(sys.version_info[:2])
+if problem:
+    print(problem, file=sys.stderr)
+    sys.exit(1)
+
+from alpha_evals.__main__ import main  # noqa: E402
+
+sys.exit(main())

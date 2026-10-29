@@ -1,0 +1,181 @@
+"""One eval run: a kit clone, each scenario's interview, checks and reports."""
+
+import json
+import os
+import subprocess
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+from alpha.answers import PROJECT_JSON
+from alpha.cli import PLUGIN_ROOT
+from alpha_evals.checks import (
+    Check,
+    check_answers,
+    check_commits,
+    check_files,
+    check_settings,
+)
+from alpha_evals.interview import Config, interview
+from alpha_evals.reviewer import check_reviewer
+from alpha_evals.scenario import Brief, load_brief
+from alpha_evals.seeded import check_commands, check_hooks
+
+__all__ = ["PLUGIN_ROOT", "eval_env", "prepare_kit", "run_scenario", "summary"]
+
+CHECKS = (
+    "interview",
+    "answers",
+    "files",
+    "settings",
+    "hooks",
+    "commands",
+    "commits",
+    "prompts",
+    "reviewer",
+)
+_GITCONFIG = "[user]\n\tname = Alpha Evals\n\temail = evals@example.com\n"
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def prepare_kit(repo: Path, dest: Path) -> tuple[str, bool]:
+    """Clone the kit's HEAD; return its sha and whether the checkout was dirty."""
+    subprocess.run(
+        ["git", "clone", "-q", "--no-hardlinks", str(repo), str(dest)],
+        check=True,
+        capture_output=True,
+    )
+    dirty = bool(_git(repo, "status", "--porcelain"))
+    return _git(dest, "rev-parse", "HEAD"), dirty
+
+
+def eval_env(run_dir: Path, kit: Path) -> dict[str, str]:
+    """The environment every eval session gets: the clone as defaults, own git."""
+    config = run_dir / "gitconfig"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(_GITCONFIG, encoding="utf-8")
+    return {
+        **os.environ,
+        "ALPHA_SOURCE": str(kit),
+        "GIT_CONFIG_GLOBAL": str(config),
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+
+
+def _safe(name: str, check: Callable[[], Check]) -> Check:
+    try:
+        return check()
+    except Exception as e:  # a broken check must not lose the report
+        return Check(name, "fail", f"crashed: {type(e).__name__}: {e}")
+
+
+def project_checks(project: Path, brief: Brief, scratch: Path) -> list[Check]:
+    """The deterministic checks, answers through commits."""
+    return [
+        _safe("answers", lambda: check_answers(project, brief)),
+        _safe("files", lambda: check_files(project)),
+        _safe("settings", lambda: check_settings(project)),
+        _safe("hooks", lambda: check_hooks(project, scratch)),
+        _safe("commands", lambda: check_commands(project)),
+        _safe("commits", lambda: check_commits(project)),
+    ]
+
+
+def _prompts(denials: Sequence[Mapping[str, Any]]) -> Check:
+    if not denials:
+        return Check("prompts", "pass")
+    lines = [
+        f"{d.get('tool_name')}: {json.dumps(d.get('tool_input'))[:120]}"
+        for d in denials
+    ]
+    return Check("prompts", "warn", "\n".join(lines))
+
+
+def _generated(project: Path) -> bool:
+    try:
+        return "manifest" in json.loads((project / PROJECT_JSON).read_text("utf-8"))
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def run_scenario(
+    name: str,
+    run_dir: Path,
+    kit: Path,
+    env: Mapping[str, str],
+    config: Config,
+    reviewer: bool,
+    kit_commit: str = "",
+    kit_dirty: bool = False,
+) -> dict[str, Any]:
+    brief = load_brief(name)
+    folder = run_dir / name
+    project = folder / "project"
+    project.mkdir(parents=True)
+    t = interview(brief, project, kit, env, config)
+    (folder / "transcript.json").write_text(
+        json.dumps(t.exchanges, indent=2, ensure_ascii=False) + "\n", "utf-8"
+    )
+    cost = t.cost_usd
+    checks: list[Check] = [t.outcome]
+    if t.outcome.status == "pass" and _generated(project):
+        checks += project_checks(project, brief, folder)
+    elif t.outcome.status == "pass":
+        checks.append(Check("answers", "fail", f"{PROJECT_JSON} has no manifest"))
+        checks += [Check(n, "skip", "interview did not finish") for n in CHECKS[2:7]]
+    else:
+        checks += [Check(n, "skip", "interview did not finish") for n in CHECKS[1:7]]
+    checks.append(_prompts(t.denials))
+    if not reviewer:
+        checks.append(Check("reviewer", "skip", "--no-reviewer"))
+    elif checks[1].status == "skip" or not _generated(project):
+        checks.append(Check("reviewer", "skip", "interview did not finish"))
+    else:
+        found, turn = check_reviewer(project, env, config)
+        cost += turn.cost_usd
+        checks.append(found)
+    report: dict[str, Any] = {
+        "scenario": name,
+        "kit_commit": kit_commit,
+        "kit_dirty": kit_dirty,
+        "cost_usd": round(cost, 4),
+        "exchanges": len(t.exchanges),
+        "checks": [c.to_json() for c in checks],
+    }
+    (folder / "report.json").write_text(json.dumps(report, indent=2) + "\n", "utf-8")
+    return report
+
+
+def summary(reports: Sequence[dict[str, Any]], kit_commit: str, kit_dirty: bool) -> str:
+    lines = [f"# alpha interview evals (kit {kit_commit[:7]})", ""]
+    if kit_dirty:
+        lines += [
+            "Warning: the kit checkout has uncommitted changes; these evals ran "
+            f"HEAD {kit_commit[:7]}.",
+            "",
+        ]
+    lines += [
+        f"| scenario | {' | '.join(CHECKS)} | cost |",
+        f"|---|{'---|' * len(CHECKS)}---|",
+    ]
+    problems: list[str] = []
+    for r in reports:
+        by_name = {c["name"]: c for c in r["checks"]}
+        cells = [by_name[n]["status"] if n in by_name else "-" for n in CHECKS]
+        lines.append(
+            f"| {r['scenario']} | {' | '.join(cells)} | ${r['cost_usd']:.2f} |"
+        )
+        for c in r["checks"]:
+            if c["status"] != "pass":
+                first = (c["detail"].splitlines() or [""])[0]
+                problems.append(
+                    f"- {r['scenario']} / {c['name']} ({c['status']}): {first}"
+                )
+    if problems:
+        lines += ["", "## Problems", "", *problems]
+    return "\n".join(lines) + "\n"
