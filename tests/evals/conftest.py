@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from pathlib import Path
@@ -31,3 +32,49 @@ def snapshot(project: Path) -> dict[str, bytes]:
         .startswith((".git/", ".claude/alpha/state/"))
         and "__pycache__" not in p.parts
     }
+
+
+FAKE = Path(__file__).with_name("fake_claude.py")
+
+
+class FakeClaude:
+    def __init__(self, folder: Path) -> None:
+        self.folder = folder
+        self.command = (sys.executable, str(FAKE))
+        (folder / "replies.jsonl").write_text("")
+
+    def _add(self, reply: dict) -> None:
+        with (self.folder / "replies.jsonl").open("a") as f:
+            f.write(json.dumps(reply) + "\n")
+
+    def reply(self, text, session="s-a", cost=0.01, denials=(), run=None) -> None:
+        self._add(
+            {
+                "stdout": {
+                    "type": "result",
+                    "subtype": "success",
+                    "is_error": False,
+                    "result": text,
+                    "session_id": session,
+                    "total_cost_usd": cost,
+                    "permission_denials": list(denials),
+                },
+                "run": run,
+            }
+        )
+
+    def fail(self, exit=1, stderr="", stdout="") -> None:
+        self._add({"stdout": stdout, "exit": exit, "stderr": stderr})
+
+    def calls(self) -> list[dict]:
+        path = self.folder / "calls.jsonl"
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+@pytest.fixture
+def fake(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    folder = tmp_path_factory.mktemp("fake-claude")
+    monkeypatch.setenv("FAKE_CLAUDE_DIR", str(folder))
+    return FakeClaude(folder)
