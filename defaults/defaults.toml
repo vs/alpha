@@ -170,8 +170,8 @@ core = true
 [[principles]]
 id = "validate-at-edges"
 title = "Validate at the edges, trust the inside"
-statement = "External input is parsed into typed data once, at the boundary."
-rationale = "Parsing once at the boundary means inner code can rely on its types instead of re-checking everywhere."
+statement = "External input is parsed into typed data once, at the boundary. Inside, code doesn't re-check what its own modules return; each remaining cast or runtime check says which boundary or invariant it serves."
+rationale = "Parsing once at the boundary means inner code can rely on its types instead of re-checking everywhere, and a check that names its reason can be judged and removed when the reason goes."
 applies = ["always"]
 checked_by = ["reviewer"]
 core = true
@@ -199,6 +199,24 @@ id = "no-dead-code"
 title = "No dead code"
 statement = "No commented-out code, no speculative options."
 rationale = "Unused code still has to be read and maintained, and version control already remembers what was removed."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "comments-say-why"
+title = "Comments say why"
+statement = "A comment explains a non-obvious why (a cost, a race, a decided rule), never what the next line does."
+rationale = "The code already says what it does; the reason behind it is what a reader can't recover and what a later change must respect."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "generated-from-source"
+title = "Generated files come from their source"
+statement = "A generated file changes only by changing its source and regenerating it, never by hand."
+rationale = "A hand edit to generated output is lost on the next regeneration, and the source no longer describes what runs."
 applies = ["always"]
 checked_by = ["reviewer"]
 core = true
@@ -314,7 +332,7 @@ core = true
 [[principles]]
 id = "clean-history"
 title = "Clean, readable history"
-statement = "Each commit is one logical change, passes checks on its own, and has a message that explains why."
+statement = "Each commit is one logical change, holds only the files changed for it, passes checks on its own, and has a message that explains why."
 rationale = "Readable history makes review, bisecting, and reverting practical."
 applies = ["always"]
 checked_by = ["reviewer", "hook:commit_msg"]
@@ -332,7 +350,7 @@ core = true
 [[principles]]
 id = "never-weaken-checks"
 title = "Never weaken a check to pass it"
-statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. If a check is wrong, raise it with the user."
+statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong, raise it with the user."
 rationale = "A check bent to pass proves nothing; a wrong check is a decision for the user, not a shortcut for the agent."
 applies = ["always"]
 checked_by = ["reviewer", "hook:guard_paths"]

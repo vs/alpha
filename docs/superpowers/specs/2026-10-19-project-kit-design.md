@@ -210,11 +210,17 @@ both), and any parameters.
 
 **Code shape**
 - ★ **Validate at the edges, trust the inside.** External input is parsed into
-  typed data once, at the boundary.
+  typed data once, at the boundary. Inside, code doesn't re-check what its own
+  modules return; each remaining cast or runtime check says which boundary or
+  invariant it serves.
 - ★ **Strict types.** TypeScript `strict`, Python type-checked in strict mode.
 - **Logic in the middle, side effects at the edges.** *When: the component has
   non-trivial business logic.*
 - ★ **No dead code.** No commented-out code, no speculative options.
+- ★ **Comments say why.** A comment explains a non-obvious why (a cost, a
+  race, a decided rule), never what the next line does.
+- ★ **Generated files come from their source.** A generated file changes only
+  by changing its source and regenerating it, never by hand.
 
 **Between components**
 - **Contracts are the source of truth.** *When: ≥2 components talk to each
@@ -245,15 +251,17 @@ both), and any parameters.
 - ★ **Every new dependency has a recorded reason** and is pinned.
 
 **History**
-- ★ **Clean, readable history.** Each commit is one logical change, passes
-  checks on its own, and has a message that explains why.
+- ★ **Clean, readable history.** Each commit is one logical change, holds
+  only the files changed for it, passes checks on its own, and has a message
+  that explains why.
 
 **Agent conduct**
 - ★ **Evidence before "done."** No claim of success without running the check
   that shows it.
 - ★ **Never weaken a check to pass it.** No skipped tests, loosened lint, or
-  catch-all exception handlers, and no mocking the thing under test. If a
-  check is wrong, raise it with the user.
+  catch-all exception handlers, and no mocking the thing under test. A type
+  error from an outdated dependency is fixed by upgrading it, not by removing
+  or downgrading code. If a check is wrong, raise it with the user.
 - ★ **Stay in scope.** No drive-by refactors inside a task.
 - ★ **Ask when ambiguous**, and record the answer in the decision log.
 - ★ **Definition of done:** tests written and passing, types and lint clean,
