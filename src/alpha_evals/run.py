@@ -115,7 +115,9 @@ def run_scenario(
 ) -> dict[str, Any]:
     brief = load_brief(name)
     folder = run_dir / name
-    project = folder / "project"
+    folder.mkdir(parents=True)
+    # Named like a user's own folder: a path with the scenario in it is a hint.
+    project = run_dir / "projects" / str(brief.answers["identity"]["slug"])
     project.mkdir(parents=True)
     t = interview(brief, project, kit, env, config)
     (folder / "transcript.json").write_text(

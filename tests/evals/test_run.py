@@ -192,7 +192,7 @@ def test_a_relative_out_becomes_absolute(
     assert plugin_dir == tmp_path / "out" / "kit"
     assert (
         fake.calls()[0]["stdin"]
-        == f"/alpha:new-project {tmp_path}/out/rust-cli/project"
+        == f"/alpha:new-project {tmp_path}/out/projects/tidy"
     )
 
 
