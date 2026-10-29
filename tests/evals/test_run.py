@@ -179,3 +179,28 @@ def test_shim_runs_the_cli():
     )
     assert done.returncode == 2, done.stderr
     assert "Choose from" in done.stderr
+
+
+def test_a_relative_out_becomes_absolute(
+    fake, tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.chdir(tmp_path)
+    fake.fail(exit=1, stderr="x")
+    main(["run", "rust-cli", "--out", "out", "--claude", shlex.join(fake.command)])
+    argv = fake.calls()[0]["argv"]
+    plugin_dir = Path(argv[argv.index("--plugin-dir") + 1])
+    assert plugin_dir == tmp_path / "out" / "kit"
+    assert (
+        fake.calls()[0]["stdin"]
+        == f"/alpha:new-project {tmp_path}/out/rust-cli/project"
+    )
+
+
+def test_a_run_folder_inside_the_kit_is_refused(
+    fake, capsys: pytest.CaptureFixture[str]
+):
+    inside = Path(run.PLUGIN_ROOT) / ".superpowers" / "eval-run"
+    assert main(run_args(fake, inside, "rust-cli")) == 2
+    assert "outside" in capsys.readouterr().err
+    assert not inside.exists()
+    assert fake.calls() == []

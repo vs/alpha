@@ -52,7 +52,17 @@ def _run(args: argparse.Namespace) -> int:
         )
         return 2
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    run_dir: Path = args.out or Path(tempfile.gettempdir()) / "alpha-evals" / stamp
+    run_dir: Path = (
+        args.out or Path(tempfile.gettempdir()) / "alpha-evals" / stamp
+    ).resolve()
+    if run_dir.is_relative_to(PLUGIN_ROOT.resolve()):
+        # Sessions there would load the kit's own CLAUDE.md and settings.
+        print(
+            f"{run_dir} is inside the kit checkout. Choose a run folder outside "
+            f"{PLUGIN_ROOT}, or leave out --out to use a temp folder.",
+            file=sys.stderr,
+        )
+        return 2
     run_dir.mkdir(parents=True, exist_ok=True)
     kit = run_dir / "kit"
     commit, dirty = prepare_kit(PLUGIN_ROOT, kit)
