@@ -277,7 +277,10 @@ the builder's, with these constraints:
   (when-it-applies flags, thresholds, risk path patterns, per-component
   overrides, doc-mapping). The format is the builder's (e.g. YAML, or Markdown
   with structured front matter).
-- **CLAUDE.md**: short. The principles in brief, per-component commands
+- **CLAUDE.md**: short. The principles in brief, working rules for the
+  agent (read before editing, commit only its own files, re-read before
+  reporting), how it talks to the user (answer first, say whether it agrees,
+  concise), per-component commands
   (setup/test/run/lint/typecheck), the definition of done, the commit
   convention, and pointers to the principles file and docs. It does not
   duplicate the principles file's parameters.

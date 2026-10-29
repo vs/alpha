@@ -31,8 +31,27 @@ _WORKING_RULES = (
     "supersedes it. Ask the user first, then record it with the decision skill.",
     "- When a requirement is ambiguous, ask the user, then record the answer with "
     "the decision skill.",
+    "- Read a file in full before you edit it, and every file a wide change "
+    "touches; search snippets aren't enough.",
+    "- Look up a dependency's API in its installed source or types instead of "
+    "guessing it.",
+    "- Ask before removing code or behavior that looks intentional.",
+    "- Commit only the files you changed for the work, staged by path. Other "
+    "changes in the tree may be the user's or another session's, so don't stage, "
+    "stash or reset them; the hooks block the commands that would.",
     "- Subagents work under the same principles, decisions and checks.",
+    "- Before you report work as done, re-read every changed file top to bottom "
+    "as a stranger would.",
     "- At the end of a planned piece of work, run the principles-reviewer agent.",
+)
+_COMMUNICATION = (
+    "- Answer a question before making edits or running commands for it.",
+    "- When responding to feedback or a review, say first whether you agree, "
+    "then what you changed.",
+    "- Be concise and direct: plain technical prose, no filler, no emojis. "
+    "Define jargon you can't avoid.",
+    "- Explain a non-trivial problem or design as the problem, a concrete example "
+    "or short trace, then the solution and why it's needed.",
 )
 _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
@@ -185,6 +204,10 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "## Working rules",
         "",
         *_WORKING_RULES,
+        "",
+        "## Communication",
+        "",
+        *_COMMUNICATION,
         "",
         "## Commands",
         "",

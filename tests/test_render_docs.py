@@ -298,8 +298,27 @@ WORKING_RULES = [
     "supersedes it. Ask the user first, then record it with the decision skill.",
     "- When a requirement is ambiguous, ask the user, then record the answer with "
     "the decision skill.",
+    "- Read a file in full before you edit it, and every file a wide change "
+    "touches; search snippets aren't enough.",
+    "- Look up a dependency's API in its installed source or types instead of "
+    "guessing it.",
+    "- Ask before removing code or behavior that looks intentional.",
+    "- Commit only the files you changed for the work, staged by path. Other "
+    "changes in the tree may be the user's or another session's, so don't stage, "
+    "stash or reset them; the hooks block the commands that would.",
     "- Subagents work under the same principles, decisions and checks.",
+    "- Before you report work as done, re-read every changed file top to bottom "
+    "as a stranger would.",
     "- At the end of a planned piece of work, run the principles-reviewer agent.",
+]
+COMMUNICATION = [
+    "- Answer a question before making edits or running commands for it.",
+    "- When responding to feedback or a review, say first whether you agree, "
+    "then what you changed.",
+    "- Be concise and direct: plain technical prose, no filler, no emojis. "
+    "Define jargon you can't avoid.",
+    "- Explain a non-trivial problem or design as the problem, a concrete example "
+    "or short trace, then the solution and why it's needed.",
 ]
 
 
@@ -307,7 +326,10 @@ def test_claude_md_has_working_rules(tmp_path: Path):
     md = render(load(tmp_path))["CLAUDE.md"]
     section = md.split("## Working rules\n\n")[1].split("\n\n## ")[0]
     assert section.splitlines() == WORKING_RULES
-    order = [md.index(h) for h in ("## Principles", "## Working rules", "## Commands")]
+    talk = md.split("## Communication\n\n")[1].split("\n\n## ")[0]
+    assert talk.splitlines() == COMMUNICATION
+    headings = ("## Principles", "## Working rules", "## Communication", "## Commands")
+    order = [md.index(h) for h in headings]
     assert order == sorted(order)
 
 
