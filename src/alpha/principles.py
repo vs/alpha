@@ -137,6 +137,9 @@ def build_principles(
                 "test_globs": [prefixed(c.path, g) for g in recipe.test_globs],
                 "exclude_globs": [prefixed(c.path, g) for g in recipe.exclude_globs],
                 "commands": dict(recipe.commands),
+                "rules": [
+                    {"id": f"{c.stack}:{r.id}", "rule": r.rule} for r in recipe.rules
+                ],
             }
         )
 

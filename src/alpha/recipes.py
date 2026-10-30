@@ -37,6 +37,14 @@ class CiSetup:
 
 
 @dataclass(frozen=True)
+class StackRule:
+    """A rule for code on the stack that no tool in the recipe can check."""
+
+    id: str
+    rule: str
+
+
+@dataclass(frozen=True)
 class Recipe:
     stack: str
     bootstrap: list[str]
@@ -53,6 +61,7 @@ class Recipe:
     why: dict[str, str]  # bootstrap tool -> reason, for the dependency log
     ci: CiSetup
     proven: bool  # False for a recipe drafted in a project interview
+    rules: list[StackRule]
 
 
 class RecipeError(AnswersError):
@@ -79,6 +88,7 @@ _RECIPE_KEYS = frozenset(
         "dependabot",
         "templates",
         "files",
+        "rules",
     }
 )
 _STEP_KEYS = frozenset({"uses", "with", "name", "id", "env"})
@@ -124,6 +134,7 @@ DEPENDABOT_ECOSYSTEMS = frozenset(
 _RESERVED = (".git", ".claude", ".github")
 _ALLOW = re.compile(r"Bash\(([A-Za-z0-9_.-]+)((?: [A-Za-z0-9_.=/-]+)*):\*\)")
 _ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@(v\d+(\.\d+){0,2}|[0-9a-f]{40})")
+_RULE_ID = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 _TEMPLATE_VALUE = re.compile(r"(?<!\$)\$(?:\{(name|slug)\}|(name|slug)\b)")
 
 
@@ -211,6 +222,34 @@ def _mapping(value: object, where: str) -> dict[str, str]:
     if not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
         raise _fail(where, "must map text to text", 'Write e.g. {"a": "b"}')
     return cast("dict[str, str]", data)
+
+
+def _rules(value: object, where: str) -> list[StackRule]:
+    if not isinstance(value, list):
+        raise _fail(
+            where, "must be a list", 'Write e.g. [{"id": "no-x", "rule": "Don\'t x."}]'
+        )
+    rules: list[StackRule] = []
+    for i, item in enumerate(cast("list[object]", value)):
+        here = f"{where}[{i}]"
+        if not isinstance(item, dict):
+            raise _fail(here, "must be an object", 'Write {"id": "…", "rule": "…"}')
+        data = cast("dict[str, object]", item)
+        _unknown(data, ("id", "rule"), here)
+        rule_id, text = data.get("id"), data.get("rule")
+        if not isinstance(rule_id, str) or not _RULE_ID.fullmatch(rule_id):
+            raise _fail(
+                f"{here}.id",
+                f"{rule_id!r} isn't a lowercase id with hyphens",
+                'Write e.g. "typed-boundaries"',
+            )
+        if any(r.id == rule_id for r in rules):
+            raise _fail(f"{here}.id", f"{rule_id!r} is used twice", "Rename one")
+        if not isinstance(text, str) or not text.strip():
+            raise _fail(f"{here}.rule", "must be non-empty text", "Write the rule")
+        _one_line(text, f"{here}.rule")
+        rules.append(StackRule(id=rule_id, rule=text))
+    return rules
 
 
 def recipe_from_data(
@@ -375,6 +414,7 @@ def recipe_from_data(
         why=why,
         ci=CiSetup(steps=steps, env=env),
         proven=proven,
+        rules=_rules(data.get("rules", []), f"{where}.rules"),
     )
 
 

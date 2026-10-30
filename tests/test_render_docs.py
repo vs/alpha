@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from helpers import TODAY, override_record, single_component
+from helpers import TODAY, clone_component, override_record, single_component
 
 from alpha.answers import Answers, load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -381,3 +381,43 @@ def test_pipes_and_line_breaks_in_answers_stay_inside_table_cells(tmp_path: Path
                     checked += 1
         assert "a | b" not in text, name
     assert checked > 20
+
+
+def test_claude_md_lists_each_stacks_rules_once(tmp_path: Path):
+    md = render(
+        load(tmp_path, lambda d: clone_component(d, "api", "worker", "worker"))
+    )["CLAUDE.md"]
+    section = md.split("## Stack rules\n\n")[1].split("\n## ")[0]
+    assert section.splitlines() == [
+        "### python (api, worker)",
+        "",
+        "- **python:uv-for-dependencies**: Add and remove dependencies with "
+        "`uv add` and `uv remove`, never by editing the dependency lists in "
+        "`pyproject.toml` or with `pip`.",
+        "- **python:typed-boundaries**: Parse external input (JSON, files, "
+        "environment, requests) into dataclasses or typed models at the "
+        "boundary; don't pass `dict[str, Any]` inward.",
+        "",
+        "### typescript (web)",
+        "",
+        "- **typescript:top-level-imports**: Import at the top of the file only: "
+        'no `await import()` and no `import("pkg").Type` in types.',
+        "- **typescript:unknown-at-boundaries**: External data (JSON, request "
+        "bodies, environment) enters as `unknown` and is narrowed by a schema or "
+        "a type guard, never by `as`.",
+        "- **typescript:pnpm-for-dependencies**: Add and remove dependencies with "
+        "`pnpm add` and `pnpm remove`, and don't approve a dependency's install "
+        "scripts (`pnpm approve-builds`) without asking the user.",
+    ]
+    headings = ("## Communication", "## Stack rules", "## Commands")
+    assert [md.index(h) for h in headings] == sorted(md.index(h) for h in headings)
+
+
+def test_claude_md_has_no_stack_rules_section_without_rules(tmp_path: Path):
+    a = load(tmp_path)
+    principles = build_principles(D, a, "0.1.0")
+    for comp in principles["components"]:
+        comp["rules"] = []
+    md = render_docs(a, principles, 2026, TODAY)["CLAUDE.md"]
+    assert "## Stack rules" not in md
+    assert "## Communication" in md and "## Commands" in md

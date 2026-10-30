@@ -64,3 +64,17 @@ with = { package_json_file = "${dir}package.json" }
 [[ci.steps]]
 uses = "actions/setup-node@v7"
 with = { node-version-file = "${dir}.node-version", cache = "pnpm", cache-dependency-path = "${dir}pnpm-lock.yaml" }
+
+# Rules for code on this stack that no tool here checks; the Biome and
+# tsconfig settings cover the rest.
+[[rules]]
+id = "top-level-imports"
+rule = "Import at the top of the file only: no `await import()` and no `import(\"pkg\").Type` in types."
+
+[[rules]]
+id = "unknown-at-boundaries"
+rule = "External data (JSON, request bodies, environment) enters as `unknown` and is narrowed by a schema or a type guard, never by `as`."
+
+[[rules]]
+id = "pnpm-for-dependencies"
+rule = "Add and remove dependencies with `pnpm add` and `pnpm remove`, and don't approve a dependency's install scripts (`pnpm approve-builds`) without asking the user."

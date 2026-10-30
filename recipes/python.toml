@@ -40,3 +40,13 @@ env = { UV_LOCKED = "1" }  # uv fails instead of updating a stale uv.lock
 [[ci.steps]]
 uses = "astral-sh/setup-uv@v10.3.2"
 with = { enable-cache = true, cache-dependency-glob = "${dir}uv.lock" }
+
+# Rules for code on this stack that no tool here checks; the linter settings
+# in pyproject.toml.tmpl cover the rest.
+[[rules]]
+id = "uv-for-dependencies"
+rule = "Add and remove dependencies with `uv add` and `uv remove`, never by editing the dependency lists in `pyproject.toml` or with `pip`."
+
+[[rules]]
+id = "typed-boundaries"
+rule = "Parse external input (JSON, files, environment, requests) into dataclasses or typed models at the boundary; don't pass `dict[str, Any]` inward."

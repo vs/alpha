@@ -202,6 +202,42 @@ def test_brief_omits_principles_of_untouched_components(project: Project) -> Non
     assert "- contracts " in principles  # applies to api too
 
 
+def test_brief_lists_the_stack_rules_of_touched_components(project: Project) -> None:
+    rules = briefed(project).split("## Stack rules\n")[1].split("\n## ")[0]
+    assert rules.strip().splitlines() == [
+        "- python:uv-for-dependencies: Add and remove dependencies with `uv add` "
+        "and `uv remove`, never by editing the dependency lists in "
+        "`pyproject.toml` or with `pip`. [components: api]",
+        "- python:typed-boundaries: Parse external input (JSON, files, "
+        "environment, requests) into dataclasses or typed models at the "
+        "boundary; don't pass `dict[str, Any]` inward. [components: api]",
+    ]  # only api changed, so no typescript rules
+
+
+def test_brief_lists_every_stacks_rules_for_a_change_outside_components(
+    project: Project,
+) -> None:
+    review.ensure_state(project.root)
+    project.write("notes.txt", "x\n")
+    rules = review.brief(project.root).split("## Stack rules\n")[1].split("\n## ")[0]
+    ids = [line.split(": ")[0] for line in rules.strip().splitlines()]
+    assert ids == [
+        "- python:uv-for-dependencies",
+        "- python:typed-boundaries",
+        "- typescript:top-level-imports",
+        "- typescript:unknown-at-boundaries",
+        "- typescript:pnpm-for-dependencies",
+    ]
+
+
+def test_brief_has_no_stack_rules_section_without_rules(project: Project) -> None:
+    data = project.principles()
+    for comp in data["components"]:
+        comp["rules"] = []
+    project.write_principles(data)
+    assert "## Stack rules" not in briefed(project)
+
+
 def test_brief_skips_superseded_decisions(project: Project) -> None:
     decisions = briefed(project).split("## Decisions\n")[1].split("\n## ")[0]
     assert "Use REST" not in decisions and "Use gRPC" in decisions

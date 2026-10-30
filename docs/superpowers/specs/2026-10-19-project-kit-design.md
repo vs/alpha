@@ -82,7 +82,7 @@ installed once and used everywhere.
 | `new-project` skill | User-invoked entry point. Runs the interview across all areas, then generates the skeleton. Resumable. |
 | `grilling` skill | Shared interview primitive used by `new-project` and every area skill (design tree, rounds, recommended answers; see §4). |
 | Area skills | One per area in §5. Each owns its questions, its principles, and the files it writes. Callable by `new-project` and directly. |
-| Stack recipes | Per-stack data and templates: test runner, linter/formatter, type checker, commands, permission lists. Full for Python and TypeScript, generic fallback for others. |
+| Stack recipes | Per-stack data and templates: test runner, linter/formatter, type checker, commands, permission lists, and stack rules. Full for Python and TypeScript, generic fallback for others. |
 | Hook scripts | The mechanical checks in §8. Shipped by the kit, wired into each project's `.claude/settings.json` and git hooks. |
 | `principles-reviewer` agent | The judgment-based reviewer in §9. |
 | `commit` skill + `committer` agent | Ported from the user's `~/.claude/commands/commit.md` and `~/.claude/agents/committer.md` (see §10). |
@@ -130,7 +130,10 @@ minimum. The exact question wording is the builder's.
    (single package or monorepo). Suggest a stack from the component type (ML →
    Python + uv + pytest + ruff + pyright; web → TypeScript + the user's chosen
    framework + Vitest + ESLint/Prettier or Biome). The tool picks are the
-   builder's to finalize per recipe.
+   builder's to finalize per recipe. A stack's rules for code are enforced
+   by its linter and compiler settings wherever a tool can check them; the
+   recipe lists the rest as **stack rules**, which go into CLAUDE.md under
+   the components on that stack and are checked by the reviewer (§9).
 3. **Architecture.** Simplest design that solves the problem. Component
    boundaries and contracts between components.
 4. **Errors.** Detect early. Every user-facing error says what went wrong *and*

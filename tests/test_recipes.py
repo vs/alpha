@@ -151,6 +151,27 @@ def test_a_drafted_recipe_loads():
     recipe = recipe_from_data("shell", shell_recipe(), "recipes.shell", None)
     assert recipe.proven is False
     assert recipe.templates["tests/setup.sh"] == "test 1 -eq 1\n"
+    assert recipe.rules == []
+
+
+def test_a_drafted_recipe_carries_its_rules():
+    rules = [{"id": "quote-variables", "rule": "Quote every `$var`."}]
+    recipe = recipe_from_data("shell", drafted(rules=rules), "recipes.shell", None)
+    assert [(r.id, r.rule) for r in recipe.rules] == [
+        ("quote-variables", "Quote every `$var`.")
+    ]
+
+
+def test_kit_recipes_carry_stack_rules():
+    assert [r.id for r in load_recipe("python").rules] == [
+        "uv-for-dependencies",
+        "typed-boundaries",
+    ]
+    assert [r.id for r in load_recipe("typescript").rules] == [
+        "top-level-imports",
+        "unknown-at-boundaries",
+        "pnpm-for-dependencies",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -176,6 +197,16 @@ def test_a_drafted_recipe_loads():
         ({"templates": {}}, r"recipes\.shell\.templates"),
         ({"templates": {"tool.cfg": "x"}}, r"recipes\.shell\.templates: .*setup test"),
         ({"templates": {"../x": "y", "tests/a.sh": "z"}}, r"recipes\.shell\.templates"),
+        ({"rules": {"id": "a"}}, r"recipes\.shell\.rules: must be a list"),
+        ({"rules": ["no x"]}, r"recipes\.shell\.rules\[0\]: must be an object"),
+        ({"rules": [{"id": "No X", "rule": "x"}]}, r"recipes\.shell\.rules\[0\]\.id"),
+        ({"rules": [{"id": "a", "rule": " "}]}, r"recipes\.shell\.rules\[0\]\.rule"),
+        ({"rules": [{"id": "a", "rule": "x\ny"}]}, r"rules\[0\]\.rule: .*line break"),
+        ({"rules": [{"id": "a", "rule": "x", "why": "y"}]}, r"rules\[0\]: .*why"),
+        (
+            {"rules": [{"id": "a", "rule": "x"}, {"id": "a", "rule": "y"}]},
+            r"recipes\.shell\.rules\[1\]\.id: 'a' is used twice",
+        ),
     ],
 )
 def test_malformed_recipes_name_the_field(changes: dict[str, Any], where: str):

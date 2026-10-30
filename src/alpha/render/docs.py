@@ -182,6 +182,23 @@ def _command_table(c: Component, comp: dict[str, Any]) -> list[str]:
     return rows
 
 
+def _stack_rules(principles: dict[str, Any]) -> list[str]:
+    """Each stack's rules once, under the components that use the stack."""
+    by_stack: dict[str, list[dict[str, Any]]] = {}
+    for comp in principles["components"]:
+        by_stack.setdefault(comp["stack"], []).append(comp)
+    lines: list[str] = []
+    for stack, comps in by_stack.items():
+        rules: list[dict[str, str]] = comps[0]["rules"]
+        if rules:
+            names = ", ".join(c["name"] for c in comps)
+            lines += [f"### {stack} ({names})", ""]
+            lines += [f"- **{r['id']}**: {r['rule']}" for r in rules] + [""]
+    if not lines:
+        return []
+    return ["## Stack rules", "", *lines]
+
+
 def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     ident = _identity(a)
     assert a.git is not None
@@ -209,6 +226,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "",
         *_COMMUNICATION,
         "",
+        *_stack_rules(principles),
         "## Commands",
         "",
     ]

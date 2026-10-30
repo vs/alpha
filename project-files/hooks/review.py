@@ -326,6 +326,22 @@ def _principle_line(p: dict[str, Any], touched: set[str] | None) -> str:
     return line
 
 
+def _stack_rules(principles: dict[str, Any], touched: set[str] | None) -> list[str]:
+    """The stack rules of the changed components, each once with its components."""
+    found: dict[str, tuple[str, list[str]]] = {}
+    for comp in principles.get("components", []):
+        name = str(comp.get("name"))
+        if touched is not None and name not in touched:
+            continue
+        for r in comp.get("rules", []):
+            _, names = found.setdefault(str(r.get("id")), (str(r.get("rule")), []))
+            names.append(name)
+    return [
+        f"- {rule_id}: {rule} [components: {', '.join(names)}]"
+        for rule_id, (rule, names) in found.items()
+    ]
+
+
 def _diff(root: Path, old: str, new: str, leave_out: list[str]) -> list[str]:
     """The diff, without the files in leave_out (lockfiles: long, and only
     the package manager writes them)."""
@@ -368,6 +384,9 @@ def brief(root: Path) -> str:
     lines += [
         _principle_line(p, touched) for p in _relevant_principles(principles, files)
     ]
+    rules = _stack_rules(principles, touched)
+    if rules:
+        lines += ["", "## Stack rules", "", *rules]
     lines += ["", "## Decisions", ""]
     lines += [
         f"- {n:04d} {title} ({path})"

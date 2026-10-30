@@ -426,3 +426,20 @@ def test_accessibility_checks_reach_the_principle():
     assert p["component_params"] == {
         "web": {"checks": "axe in the end-to-end tests, plus keyboard-only runs of R2"}
     }
+
+
+def test_components_carry_their_stacks_rules_with_prefixed_ids():
+    comps = {c["name"]: c for c in build_principles(D, A, "0.1.0")["components"]}
+    assert comps["api"]["rules"][1] == {
+        "id": "python:typed-boundaries",
+        "rule": "Parse external input (JSON, files, environment, requests) into "
+        "dataclasses or typed models at the boundary; don't pass "
+        "`dict[str, Any]` inward.",
+    }
+    assert [r["id"] for r in comps["web"]["rules"]] == [
+        "typescript:top-level-imports",
+        "typescript:unknown-at-boundaries",
+        "typescript:pnpm-for-dependencies",
+    ]
+    out = tomllib.loads(render_principles(build_principles(D, A, "0.1.0")))
+    assert out["components"][0]["rules"] == comps["api"]["rules"]
