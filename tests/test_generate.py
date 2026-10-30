@@ -265,7 +265,7 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
         "web: pnpm pkg set packageManager=pnpm@$(pnpm --version)",
         "web: pnpm install",
         "web: pnpm biome format .",
-        "web: pnpm biome lint .",
+        "web: pnpm biome lint --error-on-warnings .",
         "web: pnpm tsc --noEmit",
         "web: pnpm vitest run",
     ]

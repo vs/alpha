@@ -326,7 +326,7 @@ def test_generated_hooks_enforce_the_generated_principles(
         "api: uv run ruff format main.py",
         "api: uv run ruff check main.py",
         "web: pnpm biome format --write app/page.tsx",
-        "web: pnpm biome lint app/page.tsx",
+        "web: pnpm biome lint --error-on-warnings app/page.tsx",
     ]
 
     stop = hook("Stop", None, {"stop_hook_active": False})

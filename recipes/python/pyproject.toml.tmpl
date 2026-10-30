@@ -15,6 +15,12 @@ testpaths = ["tests"]
 
 [tool.pyright]
 typeCheckingMode = "strict"
+reportUnnecessaryTypeIgnoreComment = "error"
+
+[tool.ruff]
+extend-exclude = [".claude"]  # alpha's hooks, not this project's code
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+# BLE: no catch-all except. ERA: no commented-out code. PGH, RUF100: no blanket
+# or stale suppressions. PLC0415: imports at the top. TRY002: raise specific types.
+select = ["E", "F", "I", "UP", "B", "BLE", "ERA", "PGH", "RUF100", "PLC0415", "TRY002"]

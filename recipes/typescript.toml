@@ -33,12 +33,12 @@ allow = [
 [commands]
 setup = "pnpm install"
 test = "pnpm vitest run"
-lint = "pnpm biome lint ."
+lint = "pnpm biome lint --error-on-warnings ."
 format = "pnpm biome format --write ."
 format_check = "pnpm biome format ."
 typecheck = "pnpm tsc --noEmit"
 format_file = "pnpm biome format --write {file}"
-lint_file = "pnpm biome lint {file}"
+lint_file = "pnpm biome lint --error-on-warnings {file}"
 
 [files]
 "package.json" = "package.json.tmpl"

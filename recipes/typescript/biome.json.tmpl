@@ -10,5 +10,12 @@
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space" },
-  "linter": { "enabled": true, "rules": { "preset": "recommended" } }
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": { "noExplicitAny": "error", "noTsIgnore": "error" },
+      "style": { "noNonNullAssertion": "error", "useThrowOnlyError": "error" }
+    }
+  }
 }
