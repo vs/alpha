@@ -1,0 +1,60 @@
+# alpha
+
+[![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-D97757?logo=claude&logoColor=white)](https://code.claude.com/docs/en/plugins)
+[![Python recipe](https://img.shields.io/badge/recipe-Python-3776AB?logo=python&logoColor=white)](recipes/python.toml)
+[![TypeScript recipe](https://img.shields.io/badge/recipe-TypeScript-3178C6?logo=typescript&logoColor=white)](recipes/typescript.toml)
+[![Any stack](https://img.shields.io/badge/recipe-any_stack-555)](skills/stack-recipe/SKILL.md)
+
+alpha interviews you about a new project, then writes what agents build on:
+principles, docs, decision records, Claude Code and git hooks, CI, and a test
+setup per component that passes from the first commit. It writes no app code.
+Each principle is checked, by a hook or by a reviewer agent that blocks
+"done".
+
+```sh
+git clone https://github.com/vs/alpha ~/workspace/alpha
+claude --plugin-dir ~/workspace/alpha
+```
+
+```
+/alpha:new-project ~/code/my-app
+```
+
+## What you get
+
+| | |
+|---|---|
+| `docs/principles.toml` | the one file CLAUDE.md, hooks and reviewer read |
+| `docs/decisions/` | a record per interview area and per override |
+| `.claude/` | permissions, hooks, the principles reviewer, a commit skill |
+| each component | strict lint, types and tests, wired up with no `src/` |
+| `.github/` | CI running the same checks, Dependabot |
+
+## Change it later
+
+```
+/alpha:extend add a worker component
+```
+
+It asks again only what the change affects, and merges into files you edited.
+
+## Install
+
+```sh
+claude plugin marketplace add vs/alpha
+claude plugin install alpha@alpha-local
+```
+
+When you override a default, alpha asks whether to keep it for the next
+project. A yes is committed to your checkout: `ALPHA_SOURCE`, or
+`~/workspace/alpha`.
+
+## Develop
+
+```sh
+uv run pytest
+uv run ruff check && uv run pyright
+bin/alpha-evals run   # real interviews; spends tokens
+```
+
+Design: [docs/superpowers/specs/2026-10-19-project-kit-design.md](docs/superpowers/specs/2026-10-19-project-kit-design.md)
