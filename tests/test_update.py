@@ -171,6 +171,8 @@ def test_commit_group_sorts_paths_by_what_made_them():
     assert commit_group(".claude/settings.json", component_of) == "chore"
     assert commit_group("docs/x.md", component_of) == "docs"
     assert commit_group("README.md", component_of) == "docs"
+    for tooling in ("mise.toml", "_typos.toml", "lychee.toml", ".betterleaks.toml"):
+        assert commit_group(tooling, component_of) == "tooling"
 
 
 def test_nothing_to_change_after_generation(tmp_path: Path, git_env):

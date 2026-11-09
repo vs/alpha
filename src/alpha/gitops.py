@@ -9,6 +9,7 @@ from typing import Any
 from alpha.answers import PROJECT_JSON
 from alpha.generate import GenerateError, digest
 from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
+from alpha.render.tooling import BETTERLEAKS, LYCHEE, MISE, RUMDL, TYPOS
 
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = [
@@ -19,7 +20,7 @@ _DOCS = [
     "docs",
     ".gitignore",
 ]
-_TOOLING = ["mise.toml", "_typos.toml", ".rumdl.toml", "lychee.toml"]
+_TOOLING = [MISE, TYPOS, RUMDL, LYCHEE, BETTERLEAKS]
 _TOOLING_SUBJECT = "build: Pin the repository's check tools"
 _CLAUDE = ["CLAUDE.md", ".claude"]
 UPDATE_STATE = ".claude/alpha/state/update.json"  # written by alpha update

@@ -473,8 +473,7 @@ def test_contributing_documents_the_checks(tmp_path: Path):
     assert "| Check | What it checks | Runs |" in section
     rows = section.splitlines()
     assert (
-        "| secrets | Secrets in the repo and its history (betterleaks) | pull request |"
-        in rows
+        "| secrets | Secrets in the working tree (betterleaks) | pull request |" in rows
     )
     assert (
         "| typos | Spelling in code and docs (typos) | pull request, at Stop |" in rows

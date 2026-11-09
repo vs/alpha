@@ -698,6 +698,7 @@ def test_tooling_commit(tmp_path: Path, git_env):
     assert len(tooling) == 1
     files = git(repo, "show", "--name-only", "--format=", tooling[0]).splitlines()
     assert sorted(files) == [
+        ".betterleaks.toml",
         ".rumdl.toml",
         "_typos.toml",
         "lychee.toml",

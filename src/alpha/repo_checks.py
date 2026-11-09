@@ -12,6 +12,7 @@ from alpha.registry import Registry, RegistryError
 
 When = Literal["pr", "schedule", "both"]
 
+BETTERLEAKS_CONFIG = ".betterleaks.toml"  # rendered by alpha.render.tooling
 _MIGRATIONS = "python3 .claude/alpha/checks/diff_checks.py immutable-migrations"
 _SQUAWK = "python3 .claude/alpha/checks/diff_checks.py squawk"
 _REVIEW_DATES = "python3 .claude/alpha/checks/review_dates.py"
@@ -77,7 +78,8 @@ def repo_checks(
                 "GitHub Actions workflows",
             )
         )
-    secrets = _command(registry, "betterleaks")
+    # The config skips what git ignores, where local secrets belong (.env).
+    secrets = f"{_command(registry, 'betterleaks')} --config {BETTERLEAKS_CONFIG}"
     checks.append(
         RepoCheck(
             "secrets",
@@ -86,7 +88,7 @@ def repo_checks(
             ("**",),
             False,
             "pr",
-            "Secrets in the repo and its history",
+            "Secrets in the working tree",  # `dir` doesn't read git history
         )
     )
     if lockfiles:

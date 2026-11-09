@@ -42,6 +42,7 @@ STANDARD_ROOT = {
     "_typos.toml",
     ".rumdl.toml",
     "lychee.toml",
+    ".betterleaks.toml",
 }
 ROOT_ENTRIES = {  # what each scenario may add at the root: its components
     "python-ml-single": STANDARD_ROOT
@@ -166,6 +167,7 @@ def test_commit_skeleton_groups_and_trailers(
         "_typos.toml",
         ".rumdl.toml",
         "lychee.toml",
+        ".betterleaks.toml",
     }
     assert {f.split("/")[0] for f in files_in(claude)} == {"CLAUDE.md", ".claude"}
     assert all(f.startswith("api/") for f in files_in(api))
