@@ -40,6 +40,9 @@ Work the tree in **rounds**. The **frontier** is every decision whose prerequisi
 
 Format a round like so:
 
+<!-- rumdl-disable MD013 -->
+<!-- The template's long lines are literal text Claude copies. -->
+
 ```text
 ❓ **Q1** - **<question title>**: <question body, might be multiple paragraphs, including multiple choices>
 
@@ -51,6 +54,8 @@ Format a round like so:
 
 ➡️ <your recommended answer>
 ```
+
+<!-- rumdl-enable MD013 -->
 
 Word each question so "yes" accepts your recommended answer. Number questions across the whole interview (Q1, Q2, … keep counting in later rounds).
 

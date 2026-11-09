@@ -12,8 +12,3 @@ exclude = [
 
 [MD013]
 paragraphs = false
-
-# The grilling skill's round template is one literal block that Claude copies;
-# wrapping its long lines would change the format it prints.
-[per-file-ignores]
-"skills/grilling/SKILL.md" = ["MD013"]
