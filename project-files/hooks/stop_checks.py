@@ -180,10 +180,33 @@ def secret_problems(
     return problems
 
 
-def run_step(command: str, cwd: Path, timeout: float | None = None) -> tuple[str, str]:
-    """(status, output); status is ok, failed, missing or timeout."""
+def slot_problem(command: str) -> str:
+    return (
+        f"waited for other agents' checks until alpha's {BUDGET}s budget ran "
+        f"out; run {command} by hand"
+    )
+
+
+def run_step(
+    command: str,
+    cwd: Path,
+    timeout: float | None = None,
+    deadline: float | None = None,
+) -> tuple[str, str]:
+    """(status, output); status is ok, failed, missing, timeout or slot.
+
+    The command takes a machine-wide slot first (see _common.heavy_slot); "slot"
+    means the deadline passed while waiting for one, and nothing ran.
+    """
+    limit = timeout or TIMEOUT
+    wait_until = deadline if deadline is not None else time.monotonic() + limit
     try:
-        code, output = _common.run_command(command, cwd, timeout or TIMEOUT)
+        with _common.heavy_slot(wait_until) as got:
+            if not got:
+                return "slot", ""
+            if deadline is not None:
+                limit = max(1.0, min(limit, deadline - time.monotonic()))
+            code, output = _common.run_command(command, cwd, limit)
     except _common.TimedOut:
         return "timeout", ""
     if code == _common.NOT_FOUND:
@@ -289,10 +312,13 @@ def run_steps(
             )
             continue
         timeout = min(TIMEOUT, remaining)
-        status, output = run_step(command, cwd, timeout)
+        status, output = run_step(command, cwd, timeout, deadline)
         if status == "ok":
             continue
-        if status == "timeout":
+        if status == "slot":
+            complete = False
+            problems.append(f"{name}: {key} {slot_problem(command)}")
+        elif status == "timeout":
             complete = False
             problems.append(
                 f"{name}: {key} took longer than {int(timeout)}s ({command}). Run it "
@@ -376,12 +402,14 @@ def repo_check_problems(
             )
             continue
         timeout = min(TIMEOUT, remaining)
-        status, output = run_step(command, root, timeout)
+        status, output = run_step(command, root, timeout, deadline)
         if status == "missing":  # installing the tool doesn't change the files
             problems.append(MISSING_MISE)
             break
         if status == "ok":
             found: list[str] = []
+        elif status == "slot":
+            found = [f"repo check {check_id}: " + slot_problem(command)]
         elif status == "timeout":
             found = [
                 f"repo check {check_id} took longer than {int(timeout)}s "

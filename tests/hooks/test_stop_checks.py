@@ -1108,3 +1108,31 @@ def test_deleted_matched_file_does_not_crash(project: Project) -> None:
     (project.root / "README.md").unlink()
     proc = run_with(project, fake_mise(project))
     assert proc.returncode == 0 and proc.stdout == "", proc.stderr
+
+
+def test_slot_wait_past_deadline_is_a_problem_and_not_cached(
+    project: Project, monkeypatch: Any, tmp_path: Any
+) -> None:
+    import contextlib
+    import time
+
+    import stop_checks
+
+    @contextlib.contextmanager
+    def no_slot(deadline: float) -> Any:
+        yield False
+
+    monkeypatch.setattr(stop_checks._common, "heavy_slot", no_slot)
+    project.set_commands("api", typecheck=STUB, structure="", test="")
+    data = project.principles()
+    problems = stop_checks.command_problems(
+        data["components"][0], data, project.root, time.monotonic() + 100
+    )
+    assert len(problems) == 1
+    assert (
+        f"waited for other agents' checks until alpha's {stop_checks.BUDGET}s "
+        f"budget ran out; run {STUB} by hand"
+    ) in problems[0]
+    assert not (project.root / "api" / "t.marker").exists()
+    cache = project.root / ".claude" / "alpha" / "state" / "stop-cache.json"
+    assert not cache.exists() or "typecheck" not in cache.read_text()
