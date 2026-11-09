@@ -302,9 +302,9 @@ def _seed_problem(project: Path, check: str, fails_with: int) -> str | None:
     after = change(before.decode("utf-8") if before is not None else None)
     if before is not None and after.encode("utf-8") == before:
         return f"{check}: the seed changed nothing in {rel}"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(after, encoding="utf-8")
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(after, encoding="utf-8")
         done = subprocess.run(
             ["mise", "run", f"check:{check}"],
             cwd=project,
@@ -333,6 +333,8 @@ def _seed_problem(project: Path, check: str, fails_with: int) -> str | None:
 
 def check_repo_seeds(project: Path) -> Check:
     """Each repository check fails, readably, on its seeded violation."""
+    if shutil.which("mise") is None:
+        return Check("repo-seeds", "fail", "mise is not installed")
     try:
         registry = load_registry(Source(PLUGIN_ROOT, True, ""))
         codes = {c: registry.tool(t[0]).pin for c, t in REPO_SEEDS.items()}

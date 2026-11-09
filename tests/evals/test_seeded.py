@@ -184,3 +184,33 @@ def test_repo_seeds_leave_the_project_untouched(tmp_path: Path, git_env, stub_to
     check_repo_seeds(project)
     assert snapshot(project) == before
     assert git(project, "status", "--porcelain") == ""
+
+
+def test_repo_seeds_say_when_mise_is_missing(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    project = generated_repo(tmp_path / "p", WEB)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    check = check_repo_seeds(project)
+    assert (check.name, check.status) == ("repo-seeds", "fail")
+    assert check.detail == "mise is not installed"
+
+
+def test_repo_seeds_restore_files_when_a_check_times_out(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    from alpha_evals import seeded
+
+    project = generated_repo(tmp_path / "p", WEB)
+    bin_dir = tmp_path / "slow-bin"
+    bin_dir.mkdir()
+    (bin_dir / "mise").write_text("#!/bin/sh\nsleep 5\n")
+    (bin_dir / "mise").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+    monkeypatch.setattr(seeded, "COMMAND_TIMEOUT", 0.3)
+    before = snapshot(project)
+    check = check_repo_seeds(project)
+    assert check.status == "fail"
+    assert "typos: timed out after 0.3s" in check.detail
+    assert snapshot(project) == before
+    assert git(project, "status", "--porcelain") == ""
