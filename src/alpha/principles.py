@@ -112,6 +112,28 @@ def _diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
     return value
 
 
+# Migration tools whose migrations are SQL files: squawk lints only added
+# `.sql` files, so a tool that writes Python (Alembic, Django) gets no squawk
+# check. A tool counts when its name, lowercased, contains one of these.
+SQL_MIGRATION_TOOLS = (
+    "sql",
+    "flyway",
+    "dbmate",
+    "goose",
+    "golang-migrate",
+    "migrate",
+    "atlas",
+    "prisma",
+    "sqitch",
+)
+
+
+def writes_sql(migration_tool: str) -> bool:
+    """Whether the migration tool's migrations are SQL files squawk can lint."""
+    tool = migration_tool.lower()
+    return any(name in tool for name in SQL_MIGRATION_TOOLS)
+
+
 def build_principles(
     defaults: dict[str, Any],
     a: Answers,
@@ -133,7 +155,7 @@ def build_principles(
         [
             g
             for d in a.data.components
-            if "postgres" in d.storage.lower()
+            if "postgres" in d.storage.lower() and writes_sql(d.migration_tool)
             for g in d.migrations
         ]
     )

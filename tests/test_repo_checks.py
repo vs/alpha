@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from helpers import SCENARIOS
 
 from alpha.answers import Answers, load_answers
@@ -46,17 +47,21 @@ def ids(tmp_path: Path, name: str, mutate: Any = None) -> list[str]:
     return [c.id for c in repo_checks(a, principles, REGISTRY)]
 
 
+def dbmate(data: dict[str, Any]) -> None:
+    data["data"]["components"][0]["migration_tool"] = "dbmate"
+    data["data"]["components"][0]["migrations"] = ["api/db/migrations/**"]
+
+
 def test_catalog_web_api(tmp_path: Path):
     a, data = scenario(tmp_path, "web-ts-plus-python-api")
     principles = build_principles(D, a, "0.1.0", registry=REGISTRY)
     got = [c.id for c in repo_checks(a, principles, REGISTRY)]
-    postgres = any(
-        "postgres" in store["storage"].lower() for store in data["data"]["components"]
-    )
-    assert postgres  # the scenario's store is PostgreSQL
-    expected = [i for i in TABLE if i != "squawk" or postgres]
-    assert got == expected
-    assert principles["data"]["squawk_paths"] == ["api/migrations/versions/**"]
+    store = data["data"]["components"][0]
+    assert "postgres" in store["storage"].lower()
+    # Alembic migrations are Python, and squawk reads only SQL files.
+    assert store["migration_tool"] == "Alembic"
+    assert got == [i for i in TABLE if i != "squawk"]
+    assert principles["data"]["squawk_paths"] == []
     vulns = next(c for c in repo_checks(a, principles, REGISTRY) if c.id == "vulns")
     assert vulns.globs == ("api/uv.lock", "web/pnpm-lock.yaml")
 
@@ -68,8 +73,37 @@ def test_catalog_ml_single(tmp_path: Path):
     assert got == [i for i in TABLE if i not in ("migrations", "squawk")]
 
 
+def test_squawk_for_postgres_with_sql_migrations(tmp_path: Path):
+    a, _ = scenario(tmp_path, "web-ts-plus-python-api", dbmate)
+    principles = build_principles(D, a, "0.1.0", registry=REGISTRY)
+    assert [c.id for c in repo_checks(a, principles, REGISTRY)] == TABLE
+    assert principles["data"]["squawk_paths"] == ["api/db/migrations/**"]
+
+
+@pytest.mark.parametrize(
+    ("tool", "squawk"),
+    [
+        ("Alembic", False),
+        ("Django migrations", False),
+        ("plain SQL files", True),
+        ("Flyway", True),
+        ("goose", True),
+        ("golang-migrate", True),
+        ("Atlas", True),
+        ("Prisma Migrate", True),
+        ("Sqitch", True),
+    ],
+)
+def test_squawk_needs_a_tool_that_writes_sql(tmp_path: Path, tool: str, squawk: bool):
+    def with_tool(data: dict[str, Any]) -> None:
+        data["data"]["components"][0]["migration_tool"] = tool
+
+    assert ("squawk" in ids(tmp_path, "web-ts-plus-python-api", with_tool)) is squawk
+
+
 def test_no_squawk_for_a_store_that_is_not_postgres(tmp_path: Path):
     def sqlite(data: dict[str, Any]) -> None:
+        dbmate(data)
         data["data"]["components"][0]["storage"] = "SQLite"
 
     got = ids(tmp_path, "web-ts-plus-python-api", sqlite)
@@ -105,8 +139,11 @@ def test_checks_use_the_registry_commands(tmp_path: Path):
             assert pin is not None
             assert check.command == pin.command
     assert checks["links-online"].command == "lychee --no-progress ."
-    assert checks["squawk"].tool == "squawk"
     assert checks["migrations"].tool is None
+    a, _ = scenario(tmp_path / "dbmate", "web-ts-plus-python-api", dbmate)
+    principles = build_principles(D, a, "0.1.0", registry=REGISTRY)
+    checks = {c.id: c for c in repo_checks(a, principles, REGISTRY)}
+    assert checks["squawk"].tool == "squawk"
 
 
 def test_principles_carry_stop_checks(tmp_path: Path):
@@ -129,4 +166,4 @@ def test_principles_file_round_trips_repo_checks(tmp_path: Path):
     principles = build_principles(D, a, "0.1.0", registry=REGISTRY)
     read = tomllib.loads(render_principles(principles))
     assert read["repo_checks"] == principles["repo_checks"]
-    assert read["data"]["squawk_paths"] == ["api/migrations/versions/**"]
+    assert read["data"] == principles["data"]
