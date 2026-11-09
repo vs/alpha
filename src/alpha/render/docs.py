@@ -13,7 +13,7 @@ from alpha.registry import Registry, default_registry
 from alpha.render import area_docs
 from alpha.render.ci import WORKFLOW
 from alpha.render.markdown import row
-from alpha.repo_checks import RepoCheck, repo_checks
+from alpha.repo_checks import CI_STEPS, RepoCheck, repo_checks
 
 LICENSES_DIR = Path(__file__).resolve().parents[1] / "licenses"
 _STEPS = ("setup", "test", "lint", "format", "format_check", "typecheck", "structure")
@@ -65,20 +65,6 @@ _CHECK_RULES = (
     "`.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly "
     "above the entry.",
 )
-_CHECK_WHAT = {
-    "actions": "GitHub Actions workflows",
-    "secrets": "Secrets in the repo and its history",
-    "vulns": "Known vulnerabilities in locked dependencies",
-    "typos": "Spelling in code and docs",
-    "markdown": "Markdown style",
-    "links": "Relative links in docs resolve",
-    "links-online": "Links to other sites still work",
-    "agent-config": "CLAUDE.md and .claude/ configuration",
-    "migrations": "Committed migrations are not edited",
-    "squawk": "Unsafe SQL in migrations",
-    "review-dates": "Suppressions past their review date",
-    "toolchain": "Pinned tools that have a newer release",
-}
 _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
     "each leaving the checks green.",
@@ -340,7 +326,7 @@ _WHEN = {"pr": "pull request", "both": "pull request, weekly", "schedule": "week
 
 
 def _check_row(c: RepoCheck) -> str:
-    what = _CHECK_WHAT[c.id] + (f" ({c.tool})" if c.tool else "")
+    what = c.description + (f" ({c.tool})" if c.tool else "")
     runs = _WHEN[c.when] + (", at Stop" if c.stop else "")
     return row(c.id, what, runs)
 
@@ -378,6 +364,11 @@ def _contributing(
         "",
         "`mise install` installs the pinned tools; `mise run check` runs every "
         "component's checks and the repository checks below, the same as CI.",
+        "",
+        "The principles in `docs/principles.toml` name them in `checked_by` as "
+        "`ci:<name>`: a name in the table is that check, and "
+        + "; ".join(f"`ci:{k}` is when {v}" for k, v in CI_STEPS.items())
+        + ".",
         "",
         "| Check | What it checks | Runs |",
         "|---|---|---|",

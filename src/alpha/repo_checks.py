@@ -32,6 +32,14 @@ class RepoCheck:
     globs: tuple[str, ...]  # paths whose change makes the Stop hook run it
     stop: bool
     when: When  # where CI runs it
+    description: str  # what it checks, for CONTRIBUTING.md
+
+
+# CI steps that aren't repository checks, which `checked_by` names as
+# `ci:<step>`. The other `ci:` names are repository check ids.
+CI_STEPS = {
+    "tree": "every CI job ends by checking that the checks left the tree unchanged"
+}
 
 
 def _command(registry: Registry, tool: str) -> str:
@@ -66,17 +74,44 @@ def repo_checks(
                 (".github/**",),
                 True,
                 "pr",
+                "GitHub Actions workflows",
             )
         )
     secrets = _command(registry, "betterleaks")
-    checks.append(RepoCheck("secrets", "betterleaks", secrets, ("**",), False, "pr"))
+    checks.append(
+        RepoCheck(
+            "secrets",
+            "betterleaks",
+            secrets,
+            ("**",),
+            False,
+            "pr",
+            "Secrets in the repo and its history",
+        )
+    )
     if lockfiles:
         vulns = _command(registry, "osv-scanner")
         checks.append(
-            RepoCheck("vulns", "osv-scanner", vulns, lockfiles, False, "both")
+            RepoCheck(
+                "vulns",
+                "osv-scanner",
+                vulns,
+                lockfiles,
+                False,
+                "both",
+                "Known vulnerabilities in locked dependencies",
+            )
         )
     checks += [
-        RepoCheck("typos", "typos", _command(registry, "typos"), ("**",), True, "pr"),
+        RepoCheck(
+            "typos",
+            "typos",
+            _command(registry, "typos"),
+            ("**",),
+            True,
+            "pr",
+            "Spelling in code and docs",
+        ),
         RepoCheck(
             "markdown",
             "rumdl",
@@ -84,10 +119,25 @@ def repo_checks(
             ("**/*.md",),
             True,
             "pr",
+            "Markdown style",
         ),
-        RepoCheck("links", "lychee", lychee, ("**/*.md",), True, "pr"),
         RepoCheck(
-            "links-online", "lychee", _without_offline(lychee), (), False, "schedule"
+            "links",
+            "lychee",
+            lychee,
+            ("**/*.md",),
+            True,
+            "pr",
+            "Relative links in docs resolve",
+        ),
+        RepoCheck(
+            "links-online",
+            "lychee",
+            _without_offline(lychee),
+            (),
+            False,
+            "schedule",
+            "Links to other sites still work",
         ),
         RepoCheck(
             "agent-config",
@@ -96,16 +146,47 @@ def repo_checks(
             ("CLAUDE.md", ".claude/**"),
             True,
             "pr",
+            "CLAUDE.md and .claude/ configuration",
         ),
     ]
     if data["migration_paths"]:
-        checks.append(RepoCheck("migrations", None, _MIGRATIONS, (), False, "pr"))
+        checks.append(
+            RepoCheck(
+                "migrations",
+                None,
+                _MIGRATIONS,
+                (),
+                False,
+                "pr",
+                "Committed migrations are not edited",
+            )
+        )
     if data["squawk_paths"]:
         _command(registry, "squawk")  # mise installs it, so it needs a pin
-        checks.append(RepoCheck("squawk", "squawk", _SQUAWK, (), False, "pr"))
+        checks.append(
+            RepoCheck(
+                "squawk", "squawk", _SQUAWK, (), False, "pr", "Unsafe SQL in migrations"
+            )
+        )
     checks += [
-        RepoCheck("review-dates", None, _REVIEW_DATES, (), False, "both"),
-        RepoCheck("toolchain", None, _TOOLCHAIN, (), False, "schedule"),
+        RepoCheck(
+            "review-dates",
+            None,
+            _REVIEW_DATES,
+            (),
+            False,
+            "both",
+            "Suppressions past their review date",
+        ),
+        RepoCheck(
+            "toolchain",
+            None,
+            _TOOLCHAIN,
+            (),
+            False,
+            "schedule",
+            "Pinned tools that have a newer release",
+        ),
     ]
     return checks
 

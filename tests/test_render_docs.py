@@ -471,7 +471,26 @@ def test_contributing_documents_the_checks(tmp_path: Path):
     assert "mise install" in section
     assert "mise run check" in section
     assert "| Check | What it checks | Runs |" in section
-    assert "| secrets | Secrets in the repo and its history (betterleaks) |" in section
-    assert "| typos |" in section and "pull request, at Stop" in section
-    assert "| toolchain |" in section and "| weekly |" in section
-    assert "| vulns |" in section and "pull request, weekly" in section
+    rows = section.splitlines()
+    assert (
+        "| secrets | Secrets in the repo and its history (betterleaks) | pull request |"
+        in rows
+    )
+    assert (
+        "| typos | Spelling in code and docs (typos) | pull request, at Stop |" in rows
+    )
+    assert (
+        "| links-online | Links to other sites still work (lychee) | weekly |" in rows
+    )
+    assert (
+        "| vulns | Known vulnerabilities in locked dependencies (osv-scanner) "
+        "| pull request, weekly |"
+    ) in rows
+    assert "`ci:tree` is when every CI job ends by checking" in section
+
+
+def test_contributing_lists_no_data_checks_without_data(tmp_path: Path):
+    md = render(load(tmp_path, cli_only))["CONTRIBUTING.md"]
+    section = md[md.index("## Checks") :].split("\n## ")[0]
+    assert "| typos |" in section
+    assert "| migrations |" not in section and "| squawk |" not in section

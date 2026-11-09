@@ -2,6 +2,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import tomllib
 from datetime import date
 from pathlib import Path
@@ -16,6 +17,8 @@ from alpha.defaults import (
     locate_source,
     set_default,
 )
+from alpha.principles import build_principles
+from alpha.repo_checks import CI_STEPS, repo_checks
 
 ROOT = Path(__file__).resolve().parents[1]
 SHIM = ROOT / "bin" / "alpha"
@@ -115,10 +118,22 @@ def test_checked_by_names_the_hooks_that_check_each_principle():
     assert unreviewed == []
 
 
+def catalog_ids() -> set[str]:
+    """Every repository check id, from a project with every conditional on."""
+    from test_repo_checks import REGISTRY, scenario
+
+    with tempfile.TemporaryDirectory() as tmp:
+        a, _ = scenario(Path(tmp), "web-ts-plus-python-api")
+        principles = build_principles(
+            load_defaults(Source(ROOT, True, "")), a, "0.1.0", registry=REGISTRY
+        )
+        return {c.id for c in repo_checks(a, principles, REGISTRY)}
+
+
 def test_checked_by_prefixes_are_known():
     """`reviewer`, `hook:<script>` (checked above) or `ci:<check>`."""
     d = load_defaults(Source(ROOT, True, ""))
-    ci_checks = {"secrets", "tree", "migrations"}
+    ci_checks = catalog_ids() | set(CI_STEPS)
     for p in d["principles"]:
         for who in p["checked_by"]:
             kind, _, name = who.partition(":")
