@@ -123,7 +123,7 @@ All three scenarios went through `bin/alpha` (`answers check`, `generate`, `boot
 
 The three scenarios (`python-ml-single`, `web-ts-plus-python-api`, `rust-cli`) were generated from `evals/scenarios/*.json` with `bin/alpha` (`generate`, `bootstrap`, `commit-skeleton`), not by interviews, in a scratch folder. For Rust, the toolchain's own `bin` was first on PATH.
 
-- Bootstrap ran each component's checks (including `structure`: deptry, and Knip with dependency-cruiser for web), then `mise trust`, `mise install` of the project's pinned tools and `mise run ci`. All passed. The web+API project also pins squawk (it has migrations).
+- Bootstrap ran each component's checks (including `structure`: deptry, and Knip with dependency-cruiser for web), then `mise trust`, `mise install` of the project's pinned tools and `mise run ci`. All passed. The web+API project's `mise.toml` also pins squawk.
 - `bin/alpha-evals check` now has two more checks: `repo-checks` (`mise run ci` exits 0) and `repo-seeds`. The seeds are Task 7's six violations (actions, secrets, typos, markdown, links, agent-config), shared with the slow tests. Each is applied to the project, `mise run check:<id>` must exit with the registry's `fails_with` and name the finding, and the file is restored. All eight checks (answers, files, settings, hooks, commands, repo-checks, repo-seeds, commits) pass on all three scenarios, and the trees stay clean.
 - The first attempt stopped at `commit-skeleton`: the run had no git identity, and alpha refused to commit with a guessed one (as designed). A throwaway git config fixed it.
 - Not yet verified: the workflows on GitHub (repo job, diff-cover on a PR, scheduled run).
