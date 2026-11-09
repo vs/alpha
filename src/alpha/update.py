@@ -7,7 +7,6 @@ user's edits stay and kit changes since generation cancel out.
 """
 
 import difflib
-import hashlib
 import json
 import os
 import subprocess
@@ -27,6 +26,7 @@ from alpha.defaults import Source, load_defaults
 from alpha.generate import (
     GenerateError,
     Rendered,
+    digest,
     file_hashes,
     render_project,
     write_json,
@@ -368,7 +368,7 @@ def apply_update(target: Path, plan: UpdatePlan) -> list[str]:
     manifest["files"] = file_hashes(target, [r for r in rels if (target / r).is_file()])
     write_json(target / PROJECT_JSON, {**plan.answers, "manifest": manifest})
     conflicts = {
-        c.path: hashlib.sha256((target / c.path).read_bytes()).hexdigest()
+        c.path: digest((target / c.path).read_bytes())
         for c in plan.changes
         if c.kind == "conflict"
     }

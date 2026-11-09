@@ -1,6 +1,5 @@
 """Commit a generated skeleton in a few convention-following commits."""
 
-import hashlib
 import json
 import subprocess
 from collections.abc import Mapping
@@ -8,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from alpha.answers import PROJECT_JSON
-from alpha.generate import GenerateError
+from alpha.generate import GenerateError, digest
 from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
 
 HOOKS_PATH = ".claude/alpha/githooks"
@@ -235,7 +234,7 @@ def commit_update(
     for path, recorded in sorted(conflicts.items()):
         file = target / path
         unmerged = (  # a deleted file was resolved by the user
-            file.is_file() and hashlib.sha256(file.read_bytes()).hexdigest() == recorded
+            file.is_file() and digest(file.read_bytes()) == recorded
         )
         if unmerged:  # the baseline moved on: its proposal is the only copy left
             notes.append(

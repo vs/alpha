@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import date
 from pathlib import Path
@@ -605,6 +606,18 @@ def test_commit_update_keeps_proposals_of_unmerged_conflicts(tmp_path: Path, git
     # The baseline moved on, so alpha won't propose the change again.
     assert (target / PROPOSALS / "docs/principles.toml").is_file()
     assert not (target / UPDATE_STATE).exists()
+
+
+def test_update_state_labels_conflict_digests(tmp_path: Path, git_env):
+    # The secrets check scans the state folder too, and reads bare hex next
+    # to a path like "...-api-keys.md" as a leaked key.
+    target = generated_repo(tmp_path, SCENARIO)
+    principles = conflicting_update(target)
+    state = json.loads((target / UPDATE_STATE).read_text())
+    assert state["conflicts"] == {
+        "docs/principles.toml": "sha256:"
+        + hashlib.sha256(principles.read_bytes()).hexdigest()
+    }
 
 
 def test_commit_update_deletes_proposals_of_merged_conflicts(tmp_path: Path, git_env):
