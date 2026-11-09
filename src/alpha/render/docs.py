@@ -239,7 +239,8 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "",
         "## Commits",
         "",
-        "Use the commit skill (`.claude/skills/commit/SKILL.md`). "
+        "Follow the commit skill (`.claude/skills/commit/SKILL.md`, which "
+        "the user runs as /commit). "
         f"Convention: {a.git.convention} commits, "
         f"scopes: {', '.join(a.git.scopes) or 'any'}, "
         "enforced by the commit-msg hook.",

@@ -164,6 +164,7 @@ def test_commit_group_sorts_paths_by_what_made_them():
     component_of = {"api/pyproject.toml": "api"}
     assert commit_group("api/pyproject.toml", component_of) == "build:api"
     assert commit_group(WORKFLOW, component_of) == "ci"
+    assert commit_group(".github/jactionlint.yaml", component_of) == "ci"
     assert commit_group(DEPENDABOT, component_of) == "dependabot"
     assert commit_group("CLAUDE.md", component_of) == "chore"
     assert commit_group(".claude/settings.json", component_of) == "chore"

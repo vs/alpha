@@ -17,7 +17,7 @@ The decision log in `docs/decisions/` is how this project remembers why it is th
 
 Write exactly this shape, with today's date:
 
-```
+```markdown
 # NNNN. <Title>
 
 Date: YYYY-MM-DD
@@ -54,7 +54,7 @@ Never supersede a decision without the user's agreement.
 
 Loosening, dropping or tightening a principle also changes `docs/principles.toml`, the source of truth the hooks read: update the principle's `active`, `components` or `params`, and set its `override_decision` to the new record's path. Editing that file asks the user first; that's intended.
 
-Then bring the principle's line under `## Principles` in CLAUDE.md in step: end it with ` (overridden: see <record path>)`, replacing any earlier one, or remove the line when the principle is now off for the whole project.
+Then bring the principle's line under `## Principles` in CLAUDE.md in step: end it with a space and `(overridden: see <record path>)`, replacing any earlier one, or remove the line when the principle is now off for the whole project.
 
 ## 5. Commit
 

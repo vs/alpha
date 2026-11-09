@@ -9,7 +9,7 @@ from typing import Any
 
 from alpha.answers import PROJECT_JSON
 from alpha.generate import GenerateError
-from alpha.render.ci import DEPENDABOT, SCHEDULED, WORKFLOW
+from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
 
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = [
@@ -33,7 +33,7 @@ def commit_group(path: str, component_of: Mapping[str, str]) -> str:
     """The commit a changed file belongs in, by what made it."""
     if path in component_of:
         return f"build:{component_of[path]}"
-    if path in (WORKFLOW, SCHEDULED):
+    if path in (WORKFLOW, SCHEDULED, JACTIONLINT):
         return "ci"
     if path in _TOOLING:
         return "tooling"
@@ -119,7 +119,9 @@ def commit_skeleton(
         if c["path"] == ".":  # the root takes the rest, except the CI commit's
             paths.append(f":(exclude){_CI}")
         groups.append((_build_subject(c, scopes), paths))
-    groups.append(("ci: Run every component's checks in CI", [WORKFLOW, SCHEDULED]))
+    groups.append(
+        ("ci: Run every component's checks in CI", [WORKFLOW, SCHEDULED, JACTIONLINT])
+    )
     groups.append(("ci: Schedule dependency updates", [DEPENDABOT]))
 
     return _commit_groups(target, groups, trailers, "commit-skeleton")

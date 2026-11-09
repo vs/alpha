@@ -28,6 +28,8 @@ def test_skill_frontmatter():
     end = lines.index("---", 1)
     assert "name: commit" in lines[1:end]
     assert any(line.startswith("description: ") for line in lines[1:end])
+    # It commits, so Claude doesn't start it on its own (agnix --strict).
+    assert "disable-model-invocation: true" in lines[1:end]
 
 
 def test_agent_keeps_frontmatter():

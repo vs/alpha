@@ -1,6 +1,5 @@
 """Deterministic checks of a skeleton the interview generated."""
 
-import hashlib
 import json
 import os
 import re
@@ -13,6 +12,7 @@ from typing import Any, Literal, cast
 
 from alpha.answers import PROJECT_JSON
 from alpha.generate import PRINCIPLES_TOML
+from alpha.generate import digest as generated_digest
 from alpha_evals.scenario import Brief, compare
 
 Status = Literal["pass", "warn", "fail", "skip"]
@@ -121,7 +121,7 @@ def check_files(project: Path) -> Check:
             path = project / rel
             if not path.is_file():
                 problems.append(f"{rel}: missing (generated)")
-            elif hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            elif generated_digest(path.read_bytes()) != digest:
                 problems.append(f"{rel}: changed since generation")
     except _Unreadable as e:
         problems.append(str(e))

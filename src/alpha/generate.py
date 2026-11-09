@@ -276,10 +276,14 @@ def generate(
     return sorted([*generated, PROJECT_JSON])
 
 
+def digest(data: bytes) -> str:
+    """A labelled digest: a bare hex string next to a path like "...-api-keys.md"
+    reads as a leaked key to the project's secrets check."""
+    return f"sha256:{hashlib.sha256(data).hexdigest()}"
+
+
 def file_hashes(target: Path, rels: list[str]) -> dict[str, str]:
-    return {
-        rel: hashlib.sha256((target / rel).read_bytes()).hexdigest() for rel in rels
-    }
+    return {rel: digest((target / rel).read_bytes()) for rel in rels}
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:

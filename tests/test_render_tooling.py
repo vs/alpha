@@ -132,3 +132,11 @@ def test_root_component_excludes_match_any_depth(tmp_path: Path):
     assert ".venv/" in typos
     assert any(re.search(rx, "./sub/.venv/x.md") for rx in lychee)
     assert not any(re.search(rx, "./venv.md") for rx in lychee)
+
+
+def test_rumdl_leaves_paragraph_length_alone(tmp_path: Path):
+    # alpha writes one line per paragraph on purpose; headings and code
+    # blocks keep the 80-column limit.
+    text = texts(tmp_path, "rust-cli")[".rumdl.toml"]
+    assert tomllib.loads(text)["MD013"] == {"paragraphs": False}
+    assert "one line per paragraph" in text

@@ -97,6 +97,9 @@ def test_manifest_records_kit_defaults_and_hashes(
     assert m["defaults"] == {"path": str(ROOT), "live": True, "commit": source_head()}
     assert list(m["files"]) == sorted(m["files"])
     assert set(m["files"]) == set(files) - {PROJECT_JSON}
+    # Labelled digests: a bare hex string next to a path like
+    # "...-api-keys.md" reads as a leaked key to the secrets check.
+    assert all(re.fullmatch(r"sha256:[0-9a-f]{64}", h) for h in m["files"].values())
     assert (tmp_path / PROJECT_JSON).read_text().endswith("}\n")
 
 
@@ -327,7 +330,8 @@ def test_bootstrap_refreshes_the_manifest_hashes(
     files = json.loads((project / PROJECT_JSON).read_text())["manifest"]["files"]
     assert "api/pyproject.toml" in files
     for rel, digest in files.items():
-        assert hashlib.sha256((project / rel).read_bytes()).hexdigest() == digest, rel
+        actual = hashlib.sha256((project / rel).read_bytes()).hexdigest()
+        assert digest == f"sha256:{actual}", rel
 
 
 def test_bootstrap_failure_names_command_output_and_fix(

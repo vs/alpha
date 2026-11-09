@@ -42,7 +42,7 @@ TRAILER = "Co-Authored-By: T <t@t>"
 
 
 def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
 
 
 def hook_commands(settings: dict[str, Any]) -> list[str]:
@@ -159,6 +159,7 @@ def test_commit_skeleton_groups_and_trailers(
     assert all(f.startswith("api/") for f in files_in(api))
     assert all(f.startswith("web/") for f in files_in(web))
     assert files_in(ci) == {
+        ".github/jactionlint.yaml",
         ".github/workflows/ci.yml",
         ".github/workflows/scheduled.yml",
     }
@@ -390,6 +391,7 @@ def test_commit_skeleton_commits_ci_last(tmp_path: Path, generate_scenario, git_
         ".github/dependabot.yml"
     ]
     assert git(tmp_path, "show", "--name-only", "--format=", "HEAD~").split() == [
+        ".github/jactionlint.yaml",
         ".github/workflows/ci.yml",
         ".github/workflows/scheduled.yml",
     ]
