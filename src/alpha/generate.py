@@ -28,7 +28,7 @@ from alpha.registry import Registry, default_registry, load_registry
 from alpha.render.ci import render_ci, render_dependabot
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
-from alpha.render.tooling import render_tooling
+from alpha.render.tooling import MISE, render_tooling
 from alpha.repo_checks import repo_checks
 
 PRINCIPLES_TOML = "docs/principles.toml"
@@ -330,11 +330,65 @@ def project_book(target: Path) -> RecipeBook:
     return RecipeBook(drafted_recipes(raw, generated=True))
 
 
+def _run(label: str, command: str, cwd: Path, fix: str) -> None:
+    """Run one bootstrap step, announced on stderr; raise with its output's tail."""
+    print(f"alpha: {label}: {command}", file=sys.stderr, flush=True)
+    done = subprocess.run(
+        command,
+        shell=True,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    if done.returncode != 0:
+        tail = "\n".join(done.stdout.splitlines()[-_TAIL_LINES:])
+        raise GenerateError(
+            f'"{command}" failed in {cwd} (exit {done.returncode}). '
+            f"Last lines of its output:\n{tail}\n{fix}"
+        )
+
+
+def _repo_checks(target: Path) -> None:
+    """Install the repository checks' tools and run the ones CI runs on a PR."""
+    if shutil.which("mise") is None:
+        raise GenerateError(
+            "mise is not installed. Install it (brew install mise, or "
+            "https://mise.jdx.dev/getting-started.html), then rerun "
+            f'"alpha bootstrap {target}".'
+        )
+    if not (target / ".git").exists():
+        # jactionlint needs a repository; commit-skeleton then keeps this one.
+        try:
+            done = subprocess.run(
+                ["git", "init", "-q", "-b", "main"],
+                cwd=target,
+                capture_output=True,
+                text=True,
+            )
+            problem = done.stderr.strip() if done.returncode else ""
+        except OSError as e:
+            problem = str(e)
+        if problem:
+            raise GenerateError(
+                f"git init failed in {target}: {problem}\nThe repository checks "
+                f'need a git repository. Fix that, then rerun "alpha bootstrap '
+                f'{target}".'
+            )
+    fix = (
+        "Fix what the repository checks report (mise run check:<id> reruns one) "
+        f'and rerun "alpha bootstrap {target}"'
+    )
+    for command in ("mise trust --yes", "mise install", "mise run ci"):
+        _run("repository checks", command, target, fix)
+
+
 def bootstrap(
     target: Path, principles: dict[str, Any], only: Sequence[str] = ()
 ) -> None:
     """Per component (just those in `only`, when given): install the toolchain,
-    then run every check CI runs.
+    then run every check CI runs. Then, when the project pins its repository
+    checks in mise.toml, install them and run the ones CI runs on a PR.
 
     Then rehash the manifest, so it matches the files commit-skeleton commits.
     """
@@ -367,19 +421,7 @@ def bootstrap(
             *(command for _, command in check_commands(c["commands"])),
         ]
         for command in commands:
-            print(f"alpha: {c['name']}: {command}", file=sys.stderr, flush=True)
-            done = subprocess.run(
-                command,
-                shell=True,
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            if done.returncode != 0:
-                tail = "\n".join(done.stdout.splitlines()[-_TAIL_LINES:])
-                raise GenerateError(
-                    f'"{command}" failed in {cwd} (exit {done.returncode}). '
-                    f"Last lines of its output:\n{tail}\n{fix}"
-                )
+            _run(c["name"], command, cwd, fix)
+    if (target / MISE).is_file():
+        _repo_checks(target)
     refresh_manifest(target)

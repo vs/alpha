@@ -232,12 +232,16 @@ def test_decision_records_carry_the_full_date(tmp_path: Path, generate_scenario)
         assert "\nDate: 2026-10-19\n" in record.read_text(), record.name
 
 
-def fake_tools(tmp_path: Path, exit_codes: dict[str, int]) -> Path:
-    """Put logging stand-ins for uv and pnpm first on PATH."""
+def fake_tools(
+    tmp_path: Path,
+    exit_codes: dict[str, int],
+    tools: tuple[str, ...] = ("uv", "pnpm", "mise"),
+) -> Path:
+    """Put logging stand-ins for uv, pnpm and mise first on PATH."""
     bin_dir = tmp_path / "fakebin"
     bin_dir.mkdir()
     log = tmp_path / "tools.log"
-    for tool in ("uv", "pnpm"):
+    for tool in tools:
         script = bin_dir / tool
         script.write_text(
             f'#!/bin/sh\necho "$(basename "$PWD"): {tool} $*" >> "{log}"\n'
@@ -273,16 +277,82 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
         "web: pnpm tsc --noEmit",
         "web: pnpm vitest run",
     ]
+    repo = ["mise trust --yes", "mise install", "mise run ci"]
     ran = [
         *announced[:7],
         "web: pnpm --version",  # the $(...) runs first
         "web: pnpm pkg set packageManager=pnpm@pnpm output",
         *announced[8:],
+        *(f"proj: {command}" for command in repo),
     ]
     assert (tmp_path / "tools.log").read_text().splitlines() == ran
     out = capsys.readouterr()
-    assert out.err.splitlines() == [f"alpha: {line}" for line in announced]
+    assert out.err.splitlines() == [
+        *(f"alpha: {line}" for line in announced),
+        *(f"alpha: repository checks: {command}" for command in repo),
+    ]
     assert out.out == ""
+    # jactionlint needs a repository; commit-skeleton keeps this one.
+    assert git(project, "rev-parse", "--show-toplevel") == str(project.resolve())
+
+
+def test_bootstrap_without_mise_says_how_to_install(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv", "pnpm"))
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/principles.toml").read_text())
+        )
+    assert str(err.value) == (
+        "mise is not installed. Install it (brew install mise, or "
+        "https://mise.jdx.dev/getting-started.html), then rerun "
+        f'"alpha bootstrap {project}".'
+    )
+
+
+def test_bootstrap_repo_check_failure_names_command_and_fix(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
+    mise = bin_dir / "mise"
+    mise.write_text(
+        '#!/bin/sh\n[ "$*" = "run ci" ] || exit 0\n'
+        'echo "README.md:3:1: teh should be the"\nexit 2\n'
+    )
+    mise.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/principles.toml").read_text())
+        )
+    assert str(err.value) == (
+        f'"mise run ci" failed in {project} (exit 2). Last lines of its output:\n'
+        "README.md:3:1: teh should be the\n"
+        "Fix what the repository checks report (mise run check:<id> reruns one) "
+        f'and rerun "alpha bootstrap {project}"'
+    )
+
+
+def test_bootstrap_without_mise_toml_skips_the_repository_checks(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    (project / "mise.toml").unlink()  # a project from before the repository checks
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
+    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    ran = (tmp_path / "tools.log").read_text()
+    assert "mise" not in ran
+    assert not (project / ".git").exists()
 
 
 def test_bootstrap_only_named_components(
@@ -295,7 +365,9 @@ def test_bootstrap_only_named_components(
     principles = tomllib.loads((project / "docs/principles.toml").read_text())
     bootstrap(project, principles, only=["api"])
     ran = (tmp_path / "tools.log").read_text().splitlines()
-    assert ran and all(line.startswith("api: ") for line in ran)
+    components = [line for line in ran if not line.startswith("proj: mise ")]
+    assert components and all(line.startswith("api: ") for line in components)
+    assert ran[-1] == "proj: mise run ci"  # the repository checks still run
 
 
 def test_bootstrap_unknown_component_is_explained(
@@ -322,7 +394,8 @@ def test_bootstrap_refreshes_the_manifest_hashes(
     generate_scenario(project, "web-ts-plus-python-api")
     bin_dir = tmp_path / "fakebin"
     bin_dir.mkdir()
-    for tool, action in (("uv", "echo '# added' >> pyproject.toml"), ("pnpm", ":")):
+    steps = (("uv", "echo '# added' >> pyproject.toml"), ("pnpm", ":"), ("mise", ":"))
+    for tool, action in steps:
         (bin_dir / tool).write_text(f"#!/bin/sh\n{action}\n")
         (bin_dir / tool).chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
@@ -514,10 +587,14 @@ def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
     assert "(less proven: recipe drafted for this project)" in architecture
 
 
-def test_bootstrap_runs_a_drafted_recipe(tmp_path: Path):
-    shell_project(tmp_path)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
-    bootstrap(tmp_path, principles)  # true, then sh tests/setup.sh
+def test_bootstrap_runs_a_drafted_recipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    shell_project(project)
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {}, ('mise',))}:/usr/bin:/bin")
+    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    bootstrap(project, principles)  # true, then sh tests/setup.sh
 
 
 @pytest.mark.parametrize(

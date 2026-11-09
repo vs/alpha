@@ -73,13 +73,16 @@ def build_parser() -> argparse.ArgumentParser:
     regsub.add_parser("stale", help="tools not reviewed in the last 180 days")
     gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
-    boot = sub.add_parser("bootstrap", help="install toolchains and run the tests")
+    boot = sub.add_parser(
+        "bootstrap", help="install toolchains, run the tests and repository checks"
+    )
     boot.add_argument("target", type=Path, help="a generated project")
     boot.add_argument(
         "--component",
         action="append",
         default=[],
-        help="bootstrap only this component (repeatable)",
+        help="bootstrap only this component (repeatable); the repository checks "
+        "still run",
     )
     cs = sub.add_parser("commit-skeleton", help="commit the skeleton in groups")
     cs.add_argument("target", type=Path, help="a generated project")
