@@ -1,7 +1,9 @@
 import copy
 import json
 import re
+import shutil
 import tomllib
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -330,3 +332,17 @@ def test_kit_allow_rules_pass_the_same_check():
 def test_recipe_shape_is_strict(changes: dict[str, Any], where: str):
     with pytest.raises(RecipeError, match=where):
         recipe_from_data("shell", drafted(**changes), "recipes.shell", None)
+
+
+def test_kit_recipe_with_a_tag_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    kit = tmp_path / "recipes"
+    kit.mkdir()
+    shutil.copytree(PLUGIN_ROOT / "recipes" / "python", kit / "python")
+    text = (PLUGIN_ROOT / "recipes" / "python.toml").read_text()
+    text = re.sub(r"setup-uv@[0-9a-f]{40}", "setup-uv@v10", text)
+    (kit / "python.toml").write_text(text)
+    monkeypatch.setattr("alpha.recipes.kit_dirs", lambda: [kit])
+    with pytest.raises(RecipeError, match=r"ci\.steps\[0\].*full commit SHA"):
+        RecipeBook().get("python")

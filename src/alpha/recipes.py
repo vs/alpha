@@ -475,9 +475,7 @@ class RecipeBook:
             if path.is_file():
                 try:
                     data = tomllib.loads(path.read_text())
-                    return recipe_from_data(
-                        stack, data, str(path), folder, generated=True
-                    )
+                    return recipe_from_data(stack, data, str(path), folder)
                 except (tomllib.TOMLDecodeError, OSError) as e:
                     raise RecipeError(
                         f"{path}: can't be read ({e}). Fix it, or remove the "
