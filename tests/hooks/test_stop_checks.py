@@ -1042,3 +1042,59 @@ def test_subagent_stop_runs_repo_check_on_its_files(project: Project) -> None:
         env=env,
     )
     assert "repo check typos failed" in reason(proc)
+
+
+def test_finished_checks_are_cached_when_a_later_one_is_missing(
+    project: Project,
+) -> None:
+    enable_repo_checks(project, "typos", "markdown")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    log = project.root.parent / f"{project.root.name}-calls.log"
+    script = project.write(
+        "fake-bin/mise",
+        f'#!/bin/sh\necho "$@" >> "{log}"\n'
+        '[ "$2" = check:markdown ] && exit 127\nexit 0\n',
+    )
+    script.chmod(0o755)
+    env: dict[str, str | None] = {"PATH": f"{script.parent}:{os.environ['PATH']}"}
+    assert "mise install" in reason(run_with(project, env))
+    assert "mise install" in reason(run_with(project, env))
+    assert calls(project) == [
+        "run check:typos",
+        "run check:markdown",
+        "run check:markdown",
+    ]
+
+
+def test_cached_failed_repo_check_is_reported_without_rerunning(
+    project: Project,
+) -> None:
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    env = fake_mise(project, code=2)
+    first = reason(run_with(project, env))
+    second = reason(run_with(project, env))
+    assert first == second and "repo check typos failed" in first
+    assert len(calls(project)) == 1
+
+
+def test_component_and_repo_check_failures_both_block(project: Project) -> None:
+    project.set_commands("api", test=FAIL)
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    text = reason(run_with(project, fake_mise(project, code=2)))
+    assert "api: test failed" in text
+    assert "repo check typos failed" in text
+
+
+def test_deleted_matched_file_does_not_crash(project: Project) -> None:
+    enable_repo_checks(project, "typos", "markdown")
+    project.write("README.md", "hello\n")
+    commit_all(project)
+    (project.root / "README.md").unlink()
+    proc = run_with(project, fake_mise(project))
+    assert proc.returncode == 0 and proc.stdout == "", proc.stderr

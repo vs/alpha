@@ -374,7 +374,8 @@ def repo_check_problems(
         timeout = min(TIMEOUT, remaining)
         status, output = run_step(command, root, timeout)
         if status == "missing":  # installing the tool doesn't change the files
-            return [*problems, MISSING_MISE]
+            problems.append(MISSING_MISE)
+            break
         if status == "ok":
             found: list[str] = []
         elif status == "timeout":
