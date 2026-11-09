@@ -11,6 +11,9 @@ _GIT_ALLOW = [
     "Bash(git add:*)",
     "Bash(git commit:*)",
 ]
+# Every project pins its repository checks in mise.toml, and CLAUDE.md says to
+# run `mise run check`.
+_MISE_ALLOW = ["Bash(mise run:*)"]
 _DENY = [
     "Bash(git push --force:*)",
     "Bash(git push -f:*)",
@@ -45,7 +48,7 @@ def render_settings(
     principles: dict[str, Any], book: RecipeBook | None = None
 ) -> dict[str, Any]:
     stacks = {c["stack"] for c in principles["components"]}
-    allow = set(_GIT_ALLOW)
+    allow = {*_GIT_ALLOW, *_MISE_ALLOW}
     for stack in stacks:
         allow.update((book or RecipeBook()).get(stack).allow)
     return {
