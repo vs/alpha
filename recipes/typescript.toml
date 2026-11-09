@@ -1,5 +1,5 @@
 stack = "typescript"
-proven = true  # the kit's own, run in real projects
+proven = true
 bootstrap = [
   "pnpm add -D typescript vitest @biomejs/biome @types/node",
   # CI's pnpm/action-setup installs the version recorded here.
@@ -7,12 +7,10 @@ bootstrap = [
 ]
 lockfiles = ["pnpm-lock.yaml"]
 ignores = ["node_modules/", "dist/", "coverage/"]
-dependabot = "npm"  # Dependabot package-ecosystem; covers pnpm
+dependabot = "npm"  # Dependabot's npm ecosystem covers pnpm
 manifests = ["package.json"]
-# Source is every .ts/.tsx file in the component, minus tests and excluded files.
 source_globs = ["**/*.ts", "**/*.tsx"]
 test_globs = ["tests/**/*.ts", "tests/**/*.tsx", "**/*.test.ts", "**/*.test.tsx"]
-# Dot-dirs, generated or vendored code, and tool config files.
 exclude_globs = [
   "**/.*/**",
   "**/node_modules/**",
@@ -47,7 +45,6 @@ lint_file = "pnpm biome lint --error-on-warnings {file}"
 "tests/setup.test.ts" = "setup.test.ts.tmpl"
 ".node-version" = "node-version.tmpl"
 
-# The dev tools bootstrap installs, with the reason the dependency log gives.
 [why]
 typescript = "Type checking and compilation"
 vitest = "Test runner"
@@ -65,8 +62,6 @@ with = { package_json_file = "${dir}package.json" }
 uses = "actions/setup-node@v7"
 with = { node-version-file = "${dir}.node-version", cache = "pnpm", cache-dependency-path = "${dir}pnpm-lock.yaml" }
 
-# Rules for code on this stack that no tool here checks; the Biome and
-# tsconfig settings cover the rest.
 [[rules]]
 id = "top-level-imports"
 rule = "Import at the top of the file only: no `await import()` and no `import(\"pkg\").Type` in types."

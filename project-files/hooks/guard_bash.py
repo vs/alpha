@@ -1,9 +1,3 @@
-"""PreToolUse hook for Bash: blocks --no-verify, hooksPath changes, force-push,
-pushed amends and git clean -x; git commands that stage, stash or discard
-changes nobody named (add -A, commit -a, reset --hard, checkout ., stash);
-shell writes to protected paths; pushes and pull requests with
-unreviewed work; and any change made by the principles-reviewer."""
-
 from __future__ import annotations
 
 import glob as globlib
@@ -38,7 +32,6 @@ HOOKS_CONFIG_MESSAGE = (
 HOOKS_PATH = ".claude/alpha/githooks"
 CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--list", "-l", "get", "list"}
 CONFIG_UNSETS = {"--unset", "--unset-all", "unset"}
-# Commands that run another command, with their options that take a value.
 WRAPPERS: dict[tuple[str, ...], set[str]] = {
     ("uv", "run"): {
         "--with",
@@ -70,7 +63,6 @@ _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
 
 
 def strip_heredocs(command: str) -> str:
-    """Drop heredoc bodies: they are text fed to a command, not commands."""
     out: list[str] = []
     pending: list[tuple[str, bool]] = []
     for line in command.split("\n"):
@@ -85,7 +77,6 @@ def strip_heredocs(command: str) -> str:
 
 
 def _newlines_to_semicolons(command: str) -> str:
-    """Replace newlines outside quotes with `;` so they split segments."""
     out: list[str] = []
     quote = ""
     escaped = False
@@ -106,7 +97,6 @@ def _newlines_to_semicolons(command: str) -> str:
 
 
 def split_segments(command: str) -> list[list[str]] | None:
-    """Token lists per `&&`/`||`/`;`/`|`/newline segment; None if unparseable."""
     command = strip_heredocs(command).replace("\\\n", "")  # line continuations
     lexer = shlex.shlex(
         _newlines_to_semicolons(command), posix=True, punctuation_chars=True
@@ -126,7 +116,6 @@ def split_segments(command: str) -> list[list[str]] | None:
 
 
 def skip_wrapper(segment: list[str], i: int) -> int:
-    """Index of the wrapped command if segment[i:] starts with a wrapper, else i."""
     for words, valued in WRAPPERS.items():
         head = segment[i : i + len(words)]
         if not head or posixpath.basename(head[0]) != words[0]:
@@ -143,7 +132,6 @@ def skip_wrapper(segment: list[str], i: int) -> int:
 
 
 def strip_prefix(segment: list[str]) -> list[str]:
-    """Drop leading keywords, env assignments and wrappers (env, uv run, xargs…)."""
     i = 0
     after_env = False
     while i < len(segment):
@@ -165,7 +153,6 @@ def strip_prefix(segment: list[str]) -> list[str]:
 
 
 def git_invocation(segment: list[str]) -> tuple[str, list[str], bool] | None:
-    """(subcommand, args after it, core.hooksPath overridden) for a git segment."""
     if not segment or posixpath.basename(segment[0]) != "git":
         return None
     hooks_override = False
@@ -187,7 +174,6 @@ def git_invocation(segment: list[str]) -> tuple[str, list[str], bool] | None:
 
 
 def shell_script(segment: list[str]) -> str | None:
-    """The script string of `sh -c "…"` / `eval "…"`, if the segment is one."""
     if not segment:
         return None
     name = posixpath.basename(segment[0])
@@ -202,7 +188,6 @@ def shell_script(segment: list[str]) -> str | None:
 
 
 def option_args(sub: str, args: list[str]) -> list[str]:
-    """Args before `--`, minus the values of commit's value-taking flags."""
     kept: list[str] = []
     skip = False
     for arg in args:
@@ -217,7 +202,6 @@ def option_args(sub: str, args: list[str]) -> list[str]:
 
 
 def short_flags(arg: str, sub: str) -> str:
-    """Letters of a short-flag cluster, up to a flag that takes a value."""
     if not arg.startswith("-") or arg.startswith("--") or len(arg) < 2:
         return ""
     letters = arg[1:]
@@ -265,8 +249,6 @@ GLOB_CHARS = set("*?[")
 
 
 def _redirect(token: str) -> str | None:
-    """The separator glued in front of a redirect token (`;>`, `)>`, `&&>`),
-    "" for a bare one, or None when the token isn't a redirect."""
     for op in REDIRECTS:
         if token.endswith(op) and set(token[: -len(op)]) <= SEPARATOR_CHARS:
             return token[: -len(op)]
@@ -310,7 +292,6 @@ def redirect_segments(command: str) -> list[tuple[list[str], list[str]]]:
 
 
 def command_targets(segment: list[str]) -> list[str]:
-    """Files a command writes through its arguments (tee, cp, rm, sed -i, ...)."""
     if not segment:
         return []
     name = posixpath.basename(segment[0])
@@ -334,8 +315,6 @@ def command_targets(segment: list[str]) -> list[str]:
 
 
 def _cd(here: Path, words: list[str]) -> Path:
-    """Where a `cd` segment leaves the shell (words are already unquoted);
-    `cd -` and anything else unclear stays put."""
     args = words[1:]
     while args and args[0] in ("-P", "-L", "-e", "-@"):
         args = args[1:]
@@ -349,7 +328,6 @@ def _cd(here: Path, words: list[str]) -> Path:
 
 
 def _unquoted(words: list[str]) -> list[str]:
-    """Shell words with their quotes removed; one that can't be stays as is."""
     out: list[str] = []
     for word in words:
         try:
@@ -360,7 +338,6 @@ def _unquoted(words: list[str]) -> list[str]:
 
 
 def _files(here: Path, word: str) -> list[Path]:
-    """The paths a word names: a glob's matches, or the word itself."""
     if GLOB_CHARS & set(word):
         base = Path(word).expanduser()
         pattern = str(base if base.is_absolute() else here / base)
@@ -372,8 +349,6 @@ def _files(here: Path, word: str) -> list[Path]:
 
 
 def write_targets(command: str, cwd: Path, depth: int = 0) -> list[Path]:
-    """Every file a shell command writes or deletes that alpha can see,
-    following cd from one segment to the next."""
     segments = split_segments(command)
     if segments is None:
         return []
@@ -404,7 +379,6 @@ def write_targets(command: str, cwd: Path, depth: int = 0) -> list[Path]:
 def check_writes(
     command: str, root: Path, cwd: Path, principles: dict[str, Any]
 ) -> None:
-    """Block a shell command that writes to a protected path."""
     for target in write_targets(command, cwd):
         rel = _common.rel_to_root(root, str(target))
         if rel is None:
@@ -415,7 +389,6 @@ def check_writes(
 
 
 def changes_hooks_path(args: list[str]) -> bool:
-    """Whether `git config <args>` sets or unsets core.hooksPath elsewhere."""
     keys = [k for k, arg in enumerate(args) if arg.lower() == "core.hookspath"]
     if not keys:
         return False
@@ -430,7 +403,6 @@ def changes_hooks_path(args: list[str]) -> bool:
 
 
 def check_review(root: Path) -> None:
-    """Pushes and pull requests wait for the principles reviewer."""
     principles = _common.load_principles(root)
     if principles is None:
         return
@@ -440,7 +412,6 @@ def check_review(root: Path) -> None:
 
 
 def gh_command(segment: list[str]) -> list[str] | None:
-    """The words after `gh` and its repo option, for a gh segment."""
     if not segment or posixpath.basename(segment[0]) != "gh":
         return None
     words = segment[1:]
@@ -456,15 +427,12 @@ STASH_READS = {"list", "show"}
 
 
 def pathspecs(raw_args: list[str]) -> list[str]:
-    """The non-option words of a git command, and everything after `--`."""
     cut = raw_args.index("--") if "--" in raw_args else len(raw_args)
     words = [a for a in raw_args[:cut] if not a.startswith("-")]
     return words + raw_args[cut + 1 :]
 
 
 def check_shared_work(sub: str, raw_args: list[str], args: list[str]) -> None:
-    """Block git commands that stage, stash or discard changes Claude didn't name:
-    the tree may hold the user's or another session's uncommitted work."""
     whole = next((p for p in pathspecs(raw_args) if p in WHOLE_TREE), None)
     if sub == "add":
         flag = next(
@@ -587,7 +555,6 @@ REVIEWER_MESSAGE = (
 
 
 def check_read_only(command: str, cwd: Path, depth: int = 0) -> None:
-    """Block anything the reviewer runs that writes, deletes or changes git."""
     if write_targets(command, cwd):
         _common.block(REVIEWER_MESSAGE)
     for segment in split_segments(command) or []:
@@ -617,7 +584,6 @@ def main() -> None:
         sys.exit(0)
     cwd_value = inp.get("cwd")
     cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else root
-    # First, so the reviewer hears it only reads rather than another rule.
     if inp.get("agent_type") == REVIEWER:
         check_read_only(command, cwd)
     check_command(command, root)

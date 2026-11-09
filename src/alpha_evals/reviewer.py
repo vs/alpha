@@ -1,5 +1,3 @@
-"""The reviewer probe: a live session seeds a violation on a risk path."""
-
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -58,11 +56,6 @@ def check_reviewer(
     config: Config,
     budget: float | None = None,
 ) -> tuple[Check, Turn]:
-    """Seed the violation, then read what the reviewer recorded.
-
-    The prompt asks to leave findings open: a fixed and re-reviewed tree
-    clears review.json, which would look like no review at all.
-    """
     budget = config.max_usd if budget is None else budget
     if budget <= 0:
         skipped = Turn("", "", 0.0, (), False, "no budget")
@@ -91,7 +84,7 @@ def check_reviewer(
         *_tool_rules(components),
     ]
     turn = run_claude(config.claude, args, probe_prompt(components[0]), project, env)
-    findings = _findings(project)  # read even after a turn cap or budget stop
+    findings = _findings(project)
     if not findings:
         if not turn.ok:
             return Check(

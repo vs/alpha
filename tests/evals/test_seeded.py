@@ -50,7 +50,7 @@ def test_hooks_fail_when_the_bash_guard_is_unwired(tmp_path: Path, git_env, stub
     check = check_hooks(project, tmp_path / "scratch")
     assert check.status == "fail"
     assert check.detail.startswith("1. ")
-    assert check.detail.count("\n") == 0  # only the no-verify seed failed
+    assert check.detail.count("\n") == 0
 
 
 def test_hooks_expect_no_untested_flag_where_tests_first_class_is_dropped(

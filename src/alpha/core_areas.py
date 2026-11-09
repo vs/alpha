@@ -1,5 +1,3 @@
-"""Answers for the areas every project settles, from architecture to observability."""
-
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -139,7 +137,7 @@ class DataStore:
     name: str
     storage: str
     migration_tool: str
-    migrations: tuple[str, ...]  # globs of its migration files
+    migrations: tuple[str, ...]
     reversible: bool
 
 
@@ -178,7 +176,7 @@ class Performance:
 class UiPlan:
     name: str
     library: str
-    tokens: str  # the design tokens file or folder; it may not exist yet
+    tokens: str
     icons: str
     typography: str
     theming: str
@@ -198,7 +196,7 @@ class A11yCheck:
 
 @dataclass(frozen=True)
 class Accessibility:
-    level: str  # "" when no component has a UI
+    level: str
     components: tuple[A11yCheck, ...]
 
 

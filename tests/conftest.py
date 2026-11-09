@@ -13,7 +13,6 @@ GenerateScenario = Callable[[Path, str], list[str]]
 
 @pytest.fixture
 def generate_scenario() -> GenerateScenario:
-    """Copy a scenario's answers into a folder and generate the skeleton there."""
 
     def run(target: Path, scenario: str) -> list[str]:
         place_answers(target, scenario)
@@ -24,7 +23,6 @@ def generate_scenario() -> GenerateScenario:
 
 @pytest.fixture
 def git_env(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
-    """Isolate git from the user's config and give commits a fixed identity."""
     config = tmp_path_factory.mktemp("gitconfig") / "config"
     config.write_text("")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))

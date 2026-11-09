@@ -180,7 +180,7 @@ def test_drafted_recipe_names(tmp_path: Path, name: str, problem: str):
 
 def test_an_unproven_drafted_recipe_says_it_can_be_removed(tmp_path: Path):
     d = valid()
-    d["recipes"] = {"shell": shell_recipe()}  # drafted, never tried, unused
+    d["recipes"] = {"shell": shell_recipe()}
     with pytest.raises(AnswersError, match=r"recipes\.shell: .*or remove it"):
         check(tmp_path, d, require_areas=["components"])
 
@@ -361,7 +361,7 @@ def test_answers_write_replaces_only_the_keys_it_is_given(
     assert saved == {**START, **update}
     assert list(tmp_path.joinpath(".claude/alpha").iterdir()) == [
         tmp_path / ".claude/alpha/project.json"
-    ]  # no temp files left behind
+    ]
 
 
 @pytest.mark.parametrize(

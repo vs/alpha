@@ -1,5 +1,3 @@
-"""Render what the core areas decided: architecture sections, glossary, testing."""
-
 from typing import Any
 
 from alpha.answers import Answers
@@ -22,7 +20,6 @@ def _active(principles: dict[str, Any], principle_id: str) -> bool:
 
 
 def architecture_sections(a: Answers) -> list[str]:
-    """The Responsibilities, Contracts and Errors sections of docs/architecture.md."""
     assert a.architecture is not None and a.errors is not None
     lines = [
         "## Responsibilities",
@@ -62,7 +59,6 @@ def architecture_sections(a: Answers) -> list[str]:
 
 
 def glossary(a: Answers, principles: dict[str, Any]) -> str | None:
-    """docs/glossary.md, when there are terms or one vocabulary is a principle."""
     assert a.architecture is not None
     terms = sorted(a.architecture.glossary, key=lambda t: t.term.casefold())
     if not terms and not _active(principles, "one-vocabulary"):
@@ -82,7 +78,6 @@ def glossary(a: Answers, principles: dict[str, Any]) -> str | None:
 
 
 def testing_section(a: Answers) -> list[str]:
-    """CONTRIBUTING's Testing section, ending with a blank line."""
     assert a.testing is not None
     lines = ["## Testing", "", "| Component | Levels |", "|---|---|"]
     lines += [row(c.name, ", ".join(c.levels)) for c in a.testing.components]
@@ -98,7 +93,6 @@ def testing_section(a: Answers) -> list[str]:
 
 
 def security_doc(a: Answers, principles: dict[str, Any]) -> str:
-    """docs/security.md: where secrets live, auth, and the protected paths."""
     assert a.security is not None
     store = a.security.secret_store
     lines = [
@@ -127,7 +121,6 @@ def security_doc(a: Answers, principles: dict[str, Any]) -> str:
 
 
 def dependency_policy(a: Answers) -> list[str]:
-    """The Policy section of docs/dependencies.md, ending with a blank line."""
     assert a.dependencies is not None
     deps = a.dependencies
     if deps.updates == "dependabot":
@@ -155,7 +148,6 @@ def dependency_policy(a: Answers) -> list[str]:
 
 
 def observability_doc(a: Answers) -> str | None:
-    """docs/observability.md, or None when nothing is deployed."""
     assert a.observability is not None
     if not a.observability.components:
         return None
@@ -178,7 +170,6 @@ def observability_doc(a: Answers) -> str | None:
 
 
 def ui_doc(a: Answers) -> str | None:
-    """docs/ui.md: the visual system and accessibility, or None without a UI."""
     assert a.ui is not None and a.accessibility is not None
     if not a.ui.components:
         return None
@@ -210,8 +201,6 @@ def ui_doc(a: Answers) -> str | None:
 
 
 def data_doc(a: Answers, principles: dict[str, Any]) -> str | None:
-    """docs/data.md: storage and migrations, and ML experiments; None when no
-    component stores data or does ML."""
     assert a.data is not None
     if not a.data.components and a.data.ml is None:
         return None
@@ -266,7 +255,6 @@ _SCHEME_NAMES = {
 
 
 def releases_doc(a: Answers) -> str:
-    """docs/releases.md: the scheme, scope, changelog and process."""
     assert a.releases is not None
     r = a.releases
     scope = (
@@ -303,7 +291,6 @@ def releases_doc(a: Answers) -> str:
 
 
 def changelog(a: Answers) -> str | None:
-    """CHANGELOG.md, when the project keeps one in a file."""
     assert a.releases is not None
     if a.releases.changelog != "file":
         return None
@@ -322,7 +309,6 @@ def changelog(a: Answers) -> str | None:
 
 
 def performance_doc(a: Answers) -> str | None:
-    """docs/performance.md, or None when no component has budgets."""
     assert a.performance is not None
     rows = [
         row(c.name, b.metric, b.limit, b.measured_by)

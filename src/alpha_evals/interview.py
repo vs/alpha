@@ -1,5 +1,3 @@
-"""The interview: alpha's skill as interviewer, a scripted brief as the user."""
-
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path

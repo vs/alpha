@@ -1,5 +1,3 @@
-"""Scenario briefs for the simulated user, and comparison of the answers."""
-
 import json
 import re
 import tomllib
@@ -35,7 +33,6 @@ class Mismatch:
 
 
 def load_brief(name: str, root: Path = PLUGIN_ROOT) -> Brief:
-    """The brief in evals/briefs/<name>.toml, with evals/scenarios/<name>.json."""
     rel = f"evals/briefs/{name}.toml"
     try:
         data = tomllib.loads((root / rel).read_text(encoding="utf-8"))
@@ -84,7 +81,6 @@ def _step(node: Any, segment: str, pointer: str) -> Any:
 
 
 def resolve(data: Any, pointer: str) -> Any:
-    """The value at a pointer like /components[name=api]/stack (~ ignored)."""
     node = data
     for segment in pointer.removeprefix("~").strip("/").split("/"):
         node = _step(node, segment, pointer)
@@ -104,7 +100,6 @@ def compare(
 ) -> list[Mismatch]:
     out: list[Mismatch] = []
     for pointer in pointers:
-        # "~/a/b": free text, so the answer only has to contain the value.
         loose = pointer.startswith("~")
         path = pointer.removeprefix("~")
         want = resolve(expected, path)

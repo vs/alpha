@@ -82,14 +82,14 @@ def source_head() -> str | None:
 def test_manifest_records_kit_defaults_and_hashes(
     tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))  # ROOT is not under it
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     original = json.loads(
         (ROOT / "evals/scenarios/web-ts-plus-python-api.json").read_text()
     )
     files = generate_scenario(tmp_path, "web-ts-plus-python-api")
     data = json.loads((tmp_path / PROJECT_JSON).read_text())
     m = data.pop("manifest")
-    assert data == original  # the interview answers are preserved as they were
+    assert data == original
     assert list(data) == list(original)
     assert m["kit_version"] == VERSION
     assert m["generated_at"] == "2026-10-19"
@@ -229,7 +229,6 @@ def test_decision_records_carry_the_full_date(tmp_path: Path, generate_scenario)
 
 
 def fake_tools(tmp_path: Path, exit_codes: dict[str, int]) -> Path:
-    """Put logging stand-ins for uv and pnpm first on PATH."""
     bin_dir = tmp_path / "fakebin"
     bin_dir.mkdir()
     log = tmp_path / "tools.log"
@@ -271,7 +270,7 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
     ]
     ran = [
         *announced[:7],
-        "web: pnpm --version",  # the $(...) runs first
+        "web: pnpm --version",
         "web: pnpm pkg set packageManager=pnpm@pnpm output",
         *announced[8:],
     ]
@@ -475,7 +474,7 @@ def test_cli_bootstrap_explains_missing_principles_key(
 def test_cli_generate_explains_write_failure(tmp_path: Path):
     project = tmp_path / "proj"
     place_answers(project, "python-ml-single")
-    project.chmod(0o555)  # docs/ cannot be created
+    project.chmod(0o555)
     try:
         out = run_cli("generate", str(project), env={"ALPHA_SOURCE": str(ROOT)})
     finally:
@@ -512,7 +511,7 @@ def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
 def test_bootstrap_runs_a_drafted_recipe(tmp_path: Path):
     shell_project(tmp_path)
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
-    bootstrap(tmp_path, principles)  # true, then sh tests/setup.sh
+    bootstrap(tmp_path, principles)
 
 
 @pytest.mark.parametrize(

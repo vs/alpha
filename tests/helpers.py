@@ -1,5 +1,3 @@
-"""Plain helpers shared by the generator tests (fixtures live in conftest.py)."""
-
 import ast
 import copy
 import os
@@ -43,7 +41,6 @@ def run_cli(*args: str, env: dict[str, str] | None = None):
 
 
 def generated_repo(tmp_path: Path, scenario: str) -> Path:
-    """Generate the scenario in tmp_path and commit it (needs the git_env fixture)."""
     place_answers(tmp_path, scenario)
     generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
     git(tmp_path, "init", "-q", "-b", "main")
@@ -52,7 +49,6 @@ def generated_repo(tmp_path: Path, scenario: str) -> Path:
 
 
 def clone_component(data: dict[str, Any], source: str, name: str, path: str) -> None:
-    """Add a copy of the source component, in every per-component area too."""
     comp = next(c for c in data["components"] if c["name"] == source)
     data["components"].append({**copy.deepcopy(comp), "name": name, "path": path})
     for section in data.values():
@@ -70,7 +66,6 @@ def clone_component(data: dict[str, Any], source: str, name: str, path: str) -> 
 
 
 def old_python() -> str | None:
-    """A python3 older than 3.11 on this machine (e.g. stock macOS), if any."""
     for candidate in ("/usr/bin/python3", "python3.9", "python3.10"):
         exe = shutil.which(candidate)
         if exe is None:
@@ -117,7 +112,6 @@ def union_annotations(tree: ast.Module) -> list[int]:
 def single_component(
     data: dict[str, Any], component: dict[str, Any] | None = None
 ) -> None:
-    """Reduce answers to one component, with every per-component area in step."""
     comp = component or data["components"][0]
     name = comp["name"]
     data["components"] = [comp]
@@ -154,13 +148,11 @@ def single_component(
 
 
 def override_record(data: dict[str, Any], principle: str, index: int = 0) -> str:
-    """The decision record path of the index-th override, numbered after the areas'."""
     number = len(data["decisions"]) + index + 1
     return f"docs/decisions/{number:04d}-override-{principle}.md"
 
 
 def shell_recipe() -> dict[str, Any]:
-    """A drafted recipe for a made-up "shell" stack whose checks run anywhere."""
     return {
         "bootstrap": [],
         "commands": {
@@ -191,7 +183,6 @@ def shell_recipe() -> dict[str, Any]:
 
 
 def proven(recipe: dict[str, Any]) -> dict[str, Any]:
-    """The recipe, marked as proven by "alpha recipe try" in its current form."""
     from alpha.recipes import recipe_hash
 
     return {**recipe, "proven_hash": recipe_hash(recipe)}

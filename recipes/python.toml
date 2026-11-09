@@ -1,14 +1,12 @@
 stack = "python"
-proven = true  # the kit's own, run in real projects
+proven = true
 bootstrap = ["uv add --dev pytest ruff pyright"]
 lockfiles = ["uv.lock"]
 ignores = [".venv/", "__pycache__/", ".pytest_cache/"]
-dependabot = "uv"  # Dependabot package-ecosystem
+dependabot = "uv"
 manifests = ["pyproject.toml"]
-# Source is every .py file in the component, minus tests and excluded files.
 source_globs = ["**/*.py"]
 test_globs = ["tests/**/*.py", "**/test_*.py", "**/*_test.py", "**/conftest.py"]
-# Dot-dirs (.venv, .claude, caches) and generated or vendored code.
 exclude_globs = ["**/.*/**", "**/__pycache__/**", "**/build/**", "**/dist/**"]
 allow = ["Bash(uv run:*)", "Bash(uv sync:*)", "Bash(uv add:*)"]
 
@@ -27,7 +25,6 @@ lint_file = "uv run ruff check {file}"
 "tests/test_setup.py" = "test_setup.py.tmpl"
 ".python-version" = "python-version.tmpl"
 
-# The dev tools bootstrap installs, with the reason the dependency log gives.
 [why]
 pytest = "Test runner"
 ruff = "Linting and formatting"
@@ -41,8 +38,6 @@ env = { UV_LOCKED = "1" }  # uv fails instead of updating a stale uv.lock
 uses = "astral-sh/setup-uv@v10.3.2"
 with = { enable-cache = true, cache-dependency-glob = "${dir}uv.lock" }
 
-# Rules for code on this stack that no tool here checks; the linter settings
-# in pyproject.toml.tmpl cover the rest.
 [[rules]]
 id = "uv-for-dependencies"
 rule = "Add and remove dependencies with `uv add` and `uv remove`, never by editing the dependency lists in `pyproject.toml` or with `pip`."

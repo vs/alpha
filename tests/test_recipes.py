@@ -112,7 +112,6 @@ def test_every_recipe_has_every_check_step_and_pinned_ci_actions(stack: str):
 
 
 def test_recipes_name_no_stack_outside_recipes():
-    # Stack facts live in recipes/, so a new stack needs no code change.
     src = PLUGIN_ROOT / "src" / "alpha"
     found = [
         f"{path.relative_to(src)}:{n}"

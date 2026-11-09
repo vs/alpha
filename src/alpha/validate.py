@@ -1,5 +1,3 @@
-"""Field validators for the interview answers; each failure says how to fix it."""
-
 import fnmatch
 import re
 from collections.abc import Callable, Mapping, Sequence
@@ -23,8 +21,7 @@ _COMPONENTS_FIELDS = ("layout", "components_talk", "components", "recipes")
 
 
 def area_of(where: str) -> str | None:
-    """The interview area a field path belongs to, or None if it has none."""
-    from alpha.answers import AREAS  # answers imports this module
+    from alpha.answers import AREAS
 
     head = re.split(r"[.\[]", where, maxsplit=1)[0]
     if head in AREAS:
@@ -99,9 +96,6 @@ def strings(d: Mapping[str, Any], key: str, where: str) -> tuple[str, ...]:
 
 
 def unmatchable(path: str) -> bool:
-    """A relative path or glob no repository path can match: empty, absolute,
-    with an empty, "." or ".." segment (as in "web/", "./web", "a//b"), or
-    with a line break."""
     return (
         path.startswith("/")
         or "\n" in path
@@ -111,12 +105,10 @@ def unmatchable(path: str) -> bool:
 
 
 def prefixed(path: str, glob: str) -> str:
-    """A component's glob, relative to the project root."""
     return glob if path == "." else (PurePosixPath(path) / glob).as_posix()
 
 
 def match_parts(path: list[str], pat: list[str]) -> bool:
-    """Glob match by path segment, "**" spanning any depth (as the hooks match)."""
     if not pat:
         return not path
     if pat[0] == "**":
@@ -127,8 +119,6 @@ def match_parts(path: list[str], pat: list[str]) -> bool:
 
 
 def sample(glob: str) -> str:
-    """A path the glob matches: "**" spans nothing and wildcards stand for "x",
-    as in "api/tests/**/*.py" -> "api/tests/x.py"."""
     parts = [p for p in glob.split("/") if p != "**"]
     return "/".join(re.sub(r"\*+|\?|\[[^]]*\]", "x", p) for p in parts)
 
@@ -174,12 +164,6 @@ def per_component(
     only: Callable[[C], bool] = lambda _: True,
     reason: str = "",
 ) -> None:
-    """One entry per component that `only` selects, matched by name.
-
-    `fields` names the entry's other fields, for the fix of a missing entry,
-    each as "name" (text) or "name:<example JSON>" (e.g. "levels:[\"unit\"]");
-    `reason` says why a component `only` rejects can't have one.
-    """
     names = [c.name for c in comps]
     selected = [c.name for c in comps if only(c)]
     for i, t in enumerate(targets):

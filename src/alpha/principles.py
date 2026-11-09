@@ -1,5 +1,3 @@
-"""Principles file: merge defaults and interview answers into docs/principles.toml."""
-
 from typing import Any, cast
 
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
@@ -30,8 +28,6 @@ _HEADER = """\
 
 
 def _budgets(a: Answers) -> dict[str, list[str]]:
-    """Each component's budgets, as "<metric>: <limit> (<measured by>)"; the
-    limit is the user's text, so it keeps its own direction (e.g. "at least 90")."""
     plans = a.performance.components if a.performance else ()
     return {
         p.name: [f"{b.metric}: {b.limit} ({b.measured_by})" for b in p.budgets]
@@ -81,7 +77,6 @@ def _applicable(applies: list[str], a: Answers, project: dict[str, bool]) -> lis
 
 
 def _docs_map(documentation: Documentation) -> dict[str, list[str]]:
-    """Each mapped glob to the docs that must change with it."""
     out: dict[str, list[str]] = {}
     for m in documentation.mappings:
         for glob in m.paths:
@@ -160,12 +155,11 @@ def build_principles(
                 "components": names,
                 "override_decision": "",
                 "params": dict(p.get("params", {})),
-                "component_params": {},  # per component, on top of params
+                "component_params": {},
             }
         )
 
     by_id = {p["id"]: p for p in principles}
-    # What the interview set, before overrides change it.
     if a.accessibility.level:
         by_id["accessibility"]["params"]["level"] = a.accessibility.level
     by_id["perf-budgets"]["component_params"].update(
@@ -197,7 +191,7 @@ def build_principles(
             )
         comp = o.scope.removeprefix("component:") if o.scope != "project" else None
         if comp is not None and comp not in present:
-            continue  # its component was removed or renamed: it no longer applies
+            continue
         if o.change in ("tighten", "loosen"):
             if comp is None:
                 cast(dict[str, Any], target["params"]).update(o.params)
@@ -219,7 +213,6 @@ def build_principles(
         "kit_version": kit_version,
         "project": {"name": a.identity.name, "slug": a.identity.slug},
         "review": review,
-        # extra: the project's own additions, as opposed to secrets and lockfiles
         "protected": {
             "paths": _dedupe(protected),
             "extra": list(a.security.extra_protected),

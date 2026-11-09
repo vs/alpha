@@ -1,5 +1,3 @@
-"""Interview answers (.claude/alpha/project.json): model and validation."""
-
 import copy
 import json
 import os
@@ -43,11 +41,11 @@ from alpha.validate import (
     strings,
     unmatchable,
 )
-from alpha.validate import AnswersError as AnswersError  # re-exported for callers
+from alpha.validate import AnswersError as AnswersError
 
 PROJECT_JSON = ".claude/alpha/project.json"
 PRINCIPLES_FILE = "docs/principles.toml"
-DEPENDENCY_LOG = "docs/dependencies.md"  # the Stop hook requires it with new deps
+DEPENDENCY_LOG = "docs/dependencies.md"
 AREAS: tuple[str, ...] = (
     "identity",
     "components",
@@ -87,7 +85,7 @@ _STATUSES = ("done", "in_progress", "pending")
 _LAYOUTS = ("monorepo", "single")
 _CHANGES = ("tighten", "loosen", "drop")
 _REVIEW_MODES = ("batched", "every-task")
-_SCOPE = re.compile(r"[a-z0-9-]+")  # what the commit-msg hook accepts
+_SCOPE = re.compile(r"[a-z0-9-]+")
 _TRAITS = (
     "has_ui",
     "deployed",
@@ -96,7 +94,6 @@ _TRAITS = (
     "ml",
     "nontrivial_logic",
 )
-# "manifest" is written by alpha generate (the file hashes), not by the interview.
 _TOP_KEYS = frozenset(
     {
         "schema",
@@ -168,7 +165,6 @@ class Component:
 
     @property
     def has_ui(self) -> bool:
-        """Frontends and mobile apps always have one, whatever the trait says."""
         return self.kind in _UI_KINDS or self.traits.has_ui
 
 
@@ -258,18 +254,15 @@ class Answers:
     performance: Performance | None
     overrides: tuple[Override, ...]
     decisions: tuple[Decision, ...]
-    recipes: dict[str, Recipe]  # drafted in the interview, for stacks the kit lacks
+    recipes: dict[str, Recipe]
 
     def book(self) -> RecipeBook:
-        """Where this project's stacks get their recipes."""
         return RecipeBook(self.recipes)
 
 
 def drafted_recipes(
     raw: object, require_proven: bool = False, generated: bool = False
 ) -> dict[str, Recipe]:
-    """The interview's drafted recipes. Once the project is generated, one the
-    kit has since gained (saved from this project) is left to the kit's copy."""
     kit = set(RecipeBook().kit_stacks())
     drafted: dict[str, Recipe] = {}
     for stack, data in obj(raw, "recipes").items():
@@ -307,7 +300,6 @@ def drafted_recipes(
 
 
 def _project_root(answers_path: Path) -> Path:
-    """Project root for an answers file at <root>/.claude/alpha/project.json."""
     return answers_path.resolve().parent.parent.parent
 
 
@@ -339,7 +331,7 @@ def _identity(raw: object, base: Path) -> Identity:
         raise fail("identity.license_file", "must be a path or null", "Use a path")
     license_ = string(d, "license", where)
     if license_file is not None:
-        resolved = base / license_file  # an absolute license_file wins
+        resolved = base / license_file
         if not resolved.is_file():
             raise fail(
                 "identity.license_file",
@@ -580,9 +572,6 @@ def _check_protected(
     documentation: Documentation | None,
     book: RecipeBook,
 ) -> None:
-    """Refuse an extra protected glob over a file alpha's checks require
-    changing: the principles, the dependency log, mapped docs, manifests and
-    tests (tests-first-class asks for them with every source change)."""
     needed = [(p, p) for p in (PRINCIPLES_FILE, DEPENDENCY_LOG)]
     if documentation is not None:
         needed += [(d, d) for m in documentation.mappings for d in m.docs]
@@ -658,8 +647,6 @@ def _decision(raw: object, i: int) -> Decision:
 
 
 def generated_components(applied: Mapping[str, Any]) -> set[str]:
-    """The components named in answers alpha generated from: their components,
-    and those their overrides are scoped to (which may be gone by then)."""
 
     def entries(key: str) -> list[Mapping[str, object]]:
         raw: object = applied.get(key)
@@ -685,16 +672,10 @@ def _generated_components(top: Mapping[str, Any]) -> set[str]:
 
 
 def answers_snapshot(top: Mapping[str, Any]) -> dict[str, Any]:
-    """A deep copy of the answers without the manifest."""
     return {k: copy.deepcopy(v) for k, v in top.items() if k != "manifest"}
 
 
 def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
-    """Parse and validate the answers file.
-
-    Sections are validated when their area is required or marked done; other
-    sections may be incomplete and come back empty (None or ()).
-    """
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -726,11 +707,6 @@ def parse_answers(
     generated: bool | None = None,
     former: Collection[str] = (),
 ) -> Answers:
-    """Validate answers already parsed; base is the project root.
-
-    generated=None means the answers carry a manifest. former names components
-    the project had before, besides those its manifest records.
-    """
     for key in top:
         if key not in _TOP_KEYS:
             raise fail(
@@ -747,7 +723,6 @@ def parse_answers(
     if schema != 1:
         raise fail("schema", f"{schema!r} is not supported", "Set schema to 1")
     areas_raw = obj(get(top, "areas", ""), "areas")
-    # An area missing from an older interview hasn't been started yet.
     areas: dict[str, str] = {
         a: choice(areas_raw, a, "areas", _STATUSES) if a in areas_raw else "pending"
         for a in AREAS
@@ -778,8 +753,6 @@ def parse_answers(
     workflow = (
         _workflow(get(top, "agent_workflow", "")) if active("agent_workflow") else None
     )
-    # An override for a component the project was generated with stays valid
-    # after the component goes: it is history, and it no longer applies.
     names = (
         {c.name for c in comps} | set(former) | _generated_components(top)
         if active("components")
@@ -907,12 +880,6 @@ def parse_answers(
 
 
 def write_answers(target: Path, text: str) -> Path:
-    """Merge the top-level keys of a JSON object into the target's answers file.
-
-    Each key given replaces that key in the file; the others stay as they are.
-    The file and its folders are created when missing, and the new file
-    replaces the old one in a single step, so a failed write leaves it intact.
-    """
     try:
         update: object = json.loads(text)
     except json.JSONDecodeError as e:

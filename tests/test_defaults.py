@@ -117,7 +117,6 @@ def test_branching_defaults_to_feature_branches():
 
 
 def hook_checks() -> set[tuple[str, str]]:
-    """(principle id, hook:<script>) for every principle a hook gates on."""
     hooks = ROOT / "project-files" / "hooks"
     sys.path.insert(0, str(hooks))
     import stop_checks
@@ -197,7 +196,6 @@ def test_set_default_merges_with_existing_overrides_and_parses_values(tmp_path: 
 
 
 def reject_commits(repo: Path) -> None:
-    """Make every commit in repo fail through a pre-commit hook."""
     hooks = repo.parent / "hooks"
     hooks.mkdir()
     hook = hooks / "pre-commit"

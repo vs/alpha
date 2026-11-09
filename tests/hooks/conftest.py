@@ -17,12 +17,10 @@ REPO = Path(__file__).resolve().parents[2]
 HOOKS = REPO / "project-files" / "hooks"
 FIXTURE = REPO / "tests" / "fixtures" / "answers_valid.json"
 
-# Hooks import each other as plain modules; tests import them the same way.
 sys.path.insert(0, str(HOOKS))
 
 
 STUB = 'python3 -c "import sys; sys.exit(0)"'
-# Runs a script as if on Python 3.9, for machines without an old interpreter.
 OLD_PYTHON = [
     sys.executable,
     "-c",
@@ -54,7 +52,6 @@ class Project:
         self.write("docs/principles.toml", render_principles(data))
 
     def set_commands(self, component: str, **commands: str) -> None:
-        """Override a component's commands, e.g. test="python3 -c ..."."""
         data = self.principles()
         known = [c["name"] for c in data["components"]]
         if component not in known:
@@ -65,7 +62,6 @@ class Project:
         self.write_principles(data)
 
     def drop_principle(self, principle: str, component: str | None = None) -> None:
-        """Drop a principle project-wide, or for one component only."""
         data = self.principles()
         found = [p for p in data["principles"] if p["id"] == principle]
         if not found:
@@ -85,10 +81,6 @@ class Project:
         env: dict[str, str | None] | None = None,
         python: list[str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        """Run a hook; env values override, and a None value removes the variable.
-
-        `python` replaces the interpreter command, e.g. OLD_PYTHON.
-        """
         full: dict[str, str] = {**os.environ, "CLAUDE_PROJECT_DIR": str(self.root)}
         for key, value in (env or {}).items():
             if value is None:
@@ -113,7 +105,7 @@ def project(tmp_path: Path) -> Project:
     p.git("config", "user.email", "test@example.com")
     defaults = load_defaults(Source(PLUGIN_ROOT, True, ""))
     data = build_principles(defaults, load_answers(FIXTURE), "0.1.0")
-    for comp in data["components"]:  # never let a hook test run real tooling
+    for comp in data["components"]:
         comp["commands"] = dict.fromkeys(comp["commands"], STUB)
     p.write_principles(data)
     return p

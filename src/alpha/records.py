@@ -1,5 +1,3 @@
-"""Decision record paths: stable once assigned, numbered after what's taken."""
-
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -17,8 +15,6 @@ def slug(text: str) -> str:
 
 @dataclass(frozen=True)
 class Records:
-    """One record path per answers.decisions and answers.overrides entry."""
-
     decisions: tuple[str, ...]
     overrides: tuple[str, ...]
 
@@ -44,7 +40,6 @@ class Records:
 
 
 def record_number(path: str) -> int:
-    """The leading digits of the record's file name."""
     return int(re.match(r"\d+", Path(path).name).group())  # type: ignore[union-attr]
 
 
@@ -56,7 +51,6 @@ def taken_numbers(target: Path) -> set[int]:
 def record_paths(
     a: Answers, known: Records | None = None, taken: Iterable[int] = ()
 ) -> Records:
-    """Keep the paths `known` covers; number new entries after the highest taken."""
     kept_d = known.decisions if known else ()
     kept_o = known.overrides if known else ()
     highest = max(

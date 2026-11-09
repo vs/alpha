@@ -1,5 +1,3 @@
-"""SessionStart hook: the decision index, setup warnings, a new Stop baseline."""
-
 from __future__ import annotations
 
 import json
@@ -80,17 +78,13 @@ def main() -> None:
     problem = principles_problem(principles)
     if problem:
         warnings.append(problem)
-    # A new session starts a new baseline. Resume, compact and clear continue
-    # the same work, so commits made earlier in it are still checked at Stop.
     if inp.get("source") == "startup":
-        # Subagents of an earlier session are gone; what they left is stale.
         for stale in (root / _common.STATE_DIR).glob("agent-*"):
             stale.unlink(missing_ok=True)
     if inp.get("source") == "startup" or _common.read_baseline(root) is None:
         head = git_out(root, "rev-parse", "--verify", "-q", "HEAD")
         if head:
             _common.write_baseline(root, head)
-            # Unlike the baseline, this stays put for the whole session.
             _common.state_path(root, "session-start").write_text(head + "\n")
         _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
     parts: list[str] = []
@@ -100,7 +94,7 @@ def main() -> None:
         if notice:
             parts.append(str(notice))
             review.save_state(root, state)
-    if problem is None:  # principles parse, so the index can name overrides
+    if problem is None:
         loaded = _common.load_principles(root)
         if loaded is not None:
             parts.append(_common.context_text(root, loaded))

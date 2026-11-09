@@ -1,5 +1,3 @@
-"""Minimal block-style YAML writer for CI config; strings are always quoted."""
-
 import json
 import re
 from collections.abc import Mapping, Sized
@@ -35,7 +33,6 @@ def _is_block(value: object) -> bool:
 
 
 def _inline(value: object, where: str) -> str:
-    """An empty collection or a scalar, written on its key's line."""
     if isinstance(value, Mapping):
         return "{}"
     if isinstance(value, list):
@@ -73,7 +70,6 @@ def _lines(value: object, indent: int, where: str) -> list[str]:
 
 
 def dumps(data: Mapping[str, object]) -> str:
-    """Serialize ``data`` to block-style YAML, keeping insertion order."""
     if not data:
         return "{}\n"
     return "\n".join(_lines(data, 0, "")) + "\n"

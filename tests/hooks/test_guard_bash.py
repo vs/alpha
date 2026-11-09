@@ -128,7 +128,7 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
     ],
 )
 def test_allowed(project: Project, command: str) -> None:
-    mark_reviewed(project)  # these test git rules, not the review checkpoint
+    mark_reviewed(project)
     result = bash(project, command)
     assert result.returncode == 0, result.stderr
 

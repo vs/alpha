@@ -26,7 +26,7 @@ STANDARD_ROOT = {
     "docs",
     ".claude",
 }
-ROOT_ENTRIES = {  # what each scenario may add at the root: its components
+ROOT_ENTRIES = {
     "python-ml-single": STANDARD_ROOT
     | {"pyproject.toml", "tests", ".python-version", ".github"},
     "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web", ".github", "CHANGELOG.md"},
@@ -80,7 +80,7 @@ def test_scenario_skeleton(tmp_path: Path, scenario: str, generate_scenario):
     assert files == sorted(files)
     assert all((tmp_path / f).is_file() for f in files)
     root_entries = {p.name for p in tmp_path.iterdir()}
-    assert root_entries == ROOT_ENTRIES[scenario]  # nothing kit-specific at the root
+    assert root_entries == ROOT_ENTRIES[scenario]
     assert not any("/src/" in f or f.startswith("src/") for f in files)
     s = json.loads((tmp_path / ".claude/settings.json").read_text())
     for cmd in hook_commands(s):
@@ -178,7 +178,7 @@ def test_commit_skeleton_goes_through_the_real_commit_msg_hook(
 ):
     generate_scenario(tmp_path, "python-ml-single")
     data = principles_of(tmp_path)
-    data["git"]["types"] = ["feat"]  # the hook now rejects "docs: ..."
+    data["git"]["types"] = ["feat"]
     (tmp_path / "docs" / "principles.toml").write_text(render_principles(data))
     with pytest.raises(GenerateError, match=r'unknown type "docs"') as err:
         commit_skeleton(tmp_path, data, [])
@@ -209,7 +209,7 @@ def test_commit_skeleton_rerun_finishes_after_a_partial_failure(
 ):
     generate_scenario(tmp_path, "python-ml-single")
     data = principles_of(tmp_path)
-    data["git"]["types"] = ["docs", "chore"]  # the hook rejects "build: ..."
+    data["git"]["types"] = ["docs", "chore"]
     principles = tmp_path / "docs" / "principles.toml"
     principles.write_text(render_principles(data))
     with pytest.raises(GenerateError, match=r'unknown type "build"'):
@@ -242,7 +242,7 @@ def test_commit_skeleton_refuses_a_guessed_git_identity(
     assert "git config --global user.name" in message
     assert "git config --global user.email" in message
     assert "alpha commit-skeleton" in message
-    assert git(tmp_path, "rev-list", "--all") == ""  # nothing committed
+    assert git(tmp_path, "rev-list", "--all") == ""
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
@@ -268,9 +268,6 @@ def settings_hook(settings: dict[str, Any], event: str, matcher: str | None) -> 
 def test_generated_hooks_enforce_the_generated_principles(
     tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
 ):
-    """Generate a project, then run its own hooks, wired as its settings.json
-    says, against its own docs/principles.toml: a principle dropped for one
-    component is not enforced there, and flat-layout code is checked."""
     target = tmp_path / "proj"
     answers = place_answers(target, "web-ts-plus-python-api")
     data = json.loads(answers.read_text())
@@ -286,7 +283,6 @@ def test_generated_hooks_enforce_the_generated_principles(
     generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
     commit_skeleton(target, principles_of(target), [])
 
-    # Stand-ins for the toolchains log each call; python3 is this interpreter.
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     log = tmp_path / "tools.log"
@@ -314,7 +310,7 @@ def test_generated_hooks_enforce_the_generated_principles(
     told = json.loads(started.stdout)["hookSpecificOutput"]["additionalContext"]
     assert told.startswith("alpha: decisions in effect")
     assert "0001 Product identity [accepted]" in told
-    assert "- tests-first-class: drop, scope component:web (" in told  # the override
+    assert "- tests-first-class: drop, scope component:web (" in told
 
     edit = {"tool_name": "Write", "tool_input": {"file_path": str(target / "x")}}
     for rel in ("api/main.py", "web/app/page.tsx"):
@@ -333,7 +329,7 @@ def test_generated_hooks_enforce_the_generated_principles(
     assert stop.returncode == 0, stop.stderr
     reason = json.loads(stop.stdout)["reason"]
     assert "api: source changed (api/main.py) but no tests changed." in reason
-    assert "web: source changed" not in reason  # dropped for web
+    assert "web: source changed" not in reason
     ran = log.read_text().splitlines()[4:]
     assert ran == [
         "api: uv run pyright",

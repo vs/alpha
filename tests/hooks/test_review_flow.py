@@ -1,5 +1,3 @@
-"""The review cycle in the order it happens: brief, report, accept, record, stop."""
-
 import json
 import subprocess
 
@@ -101,9 +99,9 @@ def prompt(project: Project, text: str = "next task") -> None:
 
 def test_changes_between_turns_are_not_claudes_debt(project: Project) -> None:
     started(project)
-    (project.root / "api/migrations/0001.sql").unlink()  # nothing unreviewed
-    assert stop(project).stdout == ""  # turn ends with everything reviewed
-    project.write("api/migrations/0002.sql", "alter table t add c int;\n")  # the user
+    (project.root / "api/migrations/0001.sql").unlink()
+    assert stop(project).stdout == ""
+    project.write("api/migrations/0002.sql", "alter table t add c int;\n")
     prompt(project)
     debt = review.debt(project.root, project.principles())
     assert debt["files"] == []
@@ -111,10 +109,10 @@ def test_changes_between_turns_are_not_claudes_debt(project: Project) -> None:
 
 
 def test_claudes_unreviewed_work_stays_debt(project: Project) -> None:
-    started(project)  # Claude wrote api/migrations/0001.sql
+    started(project)
     blocked = json.loads(stop(project).stdout)
     assert "principles-reviewer" in blocked["reason"]
-    project.write("web/README.md", "notes\n")  # the user, between turns
+    project.write("web/README.md", "notes\n")
     prompt(project)
     debt = review.debt(project.root, project.principles())
     assert debt["files"] == ["api/migrations/0001.sql"]
@@ -122,8 +120,8 @@ def test_claudes_unreviewed_work_stays_debt(project: Project) -> None:
 
 def test_a_conflicting_outside_change_stays_debt(project: Project) -> None:
     started(project)
-    stop(project)  # Claude left 0001.sql unreviewed
-    project.write("api/migrations/0001.sql", "create table u (id int);\n")  # the user
+    stop(project)
+    project.write("api/migrations/0001.sql", "create table u (id int);\n")
     prompt(project)
     debt = review.debt(project.root, project.principles())
     assert debt["files"] == ["api/migrations/0001.sql"]

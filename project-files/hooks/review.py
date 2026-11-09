@@ -1,9 +1,3 @@
-"""Review debt for the principles reviewer: what changed since the last review.
-
-The last review is a git tree id: a snapshot of the working tree (committed or
-not) that passed review. Debt is the diff from it to a fresh snapshot.
-"""
-
 from __future__ import annotations
 
 import json
@@ -26,7 +20,7 @@ _STALE_LOCK_SECONDS = 120
 
 
 class SnapshotError(Exception):
-    """git couldn't snapshot the working tree; the message says why."""
+    pass
 
 
 def _run(
@@ -61,9 +55,6 @@ def _must(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
 
 
 def snapshot(root: Path) -> str:
-    """The working tree's tree id, through a scratch index in the git directory
-    (the real index is untouched). Ignored files and alpha's state stay out.
-    The scratch index persists, so unchanged files aren't hashed again."""
     git_dir = Path(_must(root, "rev-parse", "--absolute-git-dir").strip())
     index = git_dir / INDEX_FILE
     lock = git_dir / f"{INDEX_FILE}.lock"
@@ -99,8 +90,6 @@ def snapshot(root: Path) -> str:
 
 
 def load_state(root: Path) -> dict[str, Any]:
-    """The saved state; {} when there is none, {"unreadable": True} when the
-    file exists but can't be read."""
     path = _common.state_path(root, STATE)
     if not path.exists():
         return {}
@@ -123,7 +112,6 @@ _FINDING_TEXT = ("id", "principle", "file", "problem", "fix")
 
 
 def _well_formed(finding: object) -> bool:
-    """A finding as review_record.py writes it."""
     if not isinstance(finding, dict):
         return False
     f = cast("dict[str, Any]", finding)
@@ -135,7 +123,6 @@ def _well_formed(finding: object) -> bool:
 
 
 def save_state(root: Path, state: dict[str, Any]) -> None:
-    """Write the state in one step, so a killed hook never leaves half a file."""
     path = _common.state_path(root, STATE)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f"{STATE}.")
     try:
@@ -148,8 +135,6 @@ def save_state(root: Path, state: dict[str, Any]) -> None:
 
 
 def _start_tree(root: Path) -> str:
-    """Where review starts without state: the last pushed commit when there is
-    an upstream (so committed, unpushed work stays unreviewed), else HEAD."""
     upstream = _git(root, "merge-base", "HEAD", "@{upstream}")
     rev = f"{upstream.strip()}^{{tree}}" if upstream else "HEAD^{tree}"
     tree = _git(root, "rev-parse", "--verify", "-q", rev)
@@ -157,7 +142,6 @@ def _start_tree(root: Path) -> str:
 
 
 def ensure_state(root: Path) -> dict[str, Any]:
-    """The review state, created when missing or unreadable."""
     state = load_state(root)
     if not isinstance(state.get("reviewed_tree"), str):
         start = _start_tree(root)
@@ -194,10 +178,9 @@ def _numstat(root: Path, old: str, new: str) -> list[tuple[int, str]]:
 
 
 def debt(root: Path, principles: dict[str, Any]) -> dict[str, Any]:
-    """Changed files since the last review, their size, and the risky ones."""
     state = ensure_state(root)
     reviewed = str(state["reviewed_tree"])
-    current = snapshot(root)  # SnapshotError propagates: callers fail closed
+    current = snapshot(root)
     empty: dict[str, Any] = {
         "files": [],
         "counted_files": 0,
@@ -244,7 +227,6 @@ def debt(root: Path, principles: dict[str, Any]) -> dict[str, Any]:
 
 
 def review_due(principles: dict[str, Any], debt: dict[str, Any]) -> str | None:
-    """Why the reviewer must run now, or None."""
     if not debt["files"]:
         return None
     review: dict[str, Any] = principles.get("review", {})
@@ -274,7 +256,6 @@ USAGE = (
 def _relevant_principles(
     principles: dict[str, Any], files: list[str]
 ) -> list[dict[str, Any]]:
-    """Active principles the reviewer checks that apply to the changed files."""
     touched: set[str] = set()
     outside = False
     for path in files:
@@ -294,8 +275,6 @@ def _relevant_principles(
 
 
 def _touched(principles: dict[str, Any], files: list[str]) -> set[str] | None:
-    """Names of the components the files belong to; None when one is outside
-    every component, so all of them count."""
     touched: set[str] = set()
     for path in files:
         comp = _common.component_for(path, principles)
@@ -327,7 +306,6 @@ def _principle_line(p: dict[str, Any], touched: set[str] | None) -> str:
 
 
 def _stack_rules(principles: dict[str, Any], touched: set[str] | None) -> list[str]:
-    """The stack rules of the changed components, each once with its components."""
     found: dict[str, tuple[str, list[str]]] = {}
     for comp in principles.get("components", []):
         name = str(comp.get("name"))
@@ -343,8 +321,6 @@ def _stack_rules(principles: dict[str, Any], touched: set[str] | None) -> list[s
 
 
 def _diff(root: Path, old: str, new: str, leave_out: list[str]) -> list[str]:
-    """The diff, without the files in leave_out (lockfiles: long, and only
-    the package manager writes them)."""
     excluded = [f":(exclude,literal){path}" for path in leave_out]
     out = _git(root, "diff", "--no-renames", old, new, "--", ".", *excluded) or ""
     lines = out.splitlines()
@@ -359,7 +335,7 @@ def _diff(root: Path, old: str, new: str, leave_out: list[str]) -> list[str]:
             if i >= DIFF_LINES and current not in rest:
                 rest.append(current)
         elif i == DIFF_LINES and current and current not in rest:
-            rest.append(current)  # cut in the middle of this file
+            rest.append(current)
     return [
         *shown,
         f"… diff truncated; read the remaining files directly: {', '.join(rest)}",
@@ -367,13 +343,10 @@ def _diff(root: Path, old: str, new: str, leave_out: list[str]) -> list[str]:
 
 
 def brief(root: Path) -> str:
-    """Everything the reviewer needs: the tree it reviews, the principles and
-    decisions in effect, open findings, and the unreviewed diff."""
     principles = _common.load_principles(root) or {}
     state = ensure_state(root)
     reviewed = str(state["reviewed_tree"])
     current = snapshot(root)
-    # The recorder accepts a report only on a tree a brief handed out.
     state["briefed"] = [*state.get("briefed", []), current][-5:]
     save_state(root, state)
     stats = _numstat(root, reviewed, current)
@@ -461,7 +434,6 @@ _ACCEPTS = re.compile(r"F-[0-9a-f]{6}")
 
 
 def accepted_in_log(root: Path) -> set[str]:
-    """Finding ids that decision records accept on an "Accepts:" header line."""
     ids: set[str] = set()
     for _n, _title, _status, path in _common.decision_index(root)[0]:
         try:
@@ -475,7 +447,6 @@ def accepted_in_log(root: Path) -> set[str]:
 
 
 def gate(root: Path, principles: dict[str, Any]) -> str | None:
-    """Why Claude can't finish yet, review-wise, or None."""
     state = ensure_state(root)
     findings: list[dict[str, Any]] = list(state.get("findings", []))
     still_open = [f for f in findings if not f.get("accepted")]
@@ -501,8 +472,6 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
             f"{lines}."
         )
     if findings:
-        # Every finding is accepted and recorded: the reviewed tree passes.
-        # Later edits, such as the decision record itself, are measured from it.
         state["reviewed_tree"] = state["reviewed_for"]
         state["findings"] = []
         save_state(root, state)
@@ -516,8 +485,6 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
 
 
 def push_blocker(root: Path, principles: dict[str, Any]) -> str | None:
-    """Why a push or pull request must wait for the reviewer, or None.
-    Unlike the Stop gate, any unreviewed change counts, whatever its size."""
     state = ensure_state(root)
     logged = accepted_in_log(root)
     pending = [
@@ -556,7 +523,6 @@ _ALPHA_IDENTITY = {
 
 
 def note_turn_end(root: Path) -> None:
-    """Remember the tree Claude leaves at a Stop; the last Stop of a turn wins."""
     state = ensure_state(root)
     try:
         state["left_tree"] = snapshot(root)
@@ -573,9 +539,6 @@ def _commit(root: Path, tree: str) -> str | None:
 
 
 def _carry(root: Path, state: dict[str, Any], left: str, right: str) -> bool:
-    """Carry the change from tree `left` to tree `right` onto
-    state["reviewed_tree"], with a three-way merge based on `left`. Returns
-    False, carrying nothing, on a conflict or anything git can't do."""
     reviewed = state.get("reviewed_tree")
     if not isinstance(reviewed, str):
         return False
@@ -595,10 +558,6 @@ def _carry(root: Path, state: dict[str, Any], left: str, right: str) -> bool:
 
 
 def absorb_outside_changes(root: Path) -> None:
-    """Changes made between Claude's turns (the user's edits, a pull) aren't
-    Claude's work: carry them onto the reviewed tree with a three-way merge
-    based on the tree Claude left. Claude's own unreviewed edits stay debt; on
-    a conflict, or anything git can't do, nothing is absorbed."""
     state = load_state(root)
     left = state.get("left_tree")
     if not isinstance(left, str) or not isinstance(state.get("reviewed_tree"), str):
@@ -614,7 +573,6 @@ def absorb_outside_changes(root: Path) -> None:
 
 
 def _entries(root: Path, tree: str, paths: list[str]) -> dict[str, tuple[str, str]]:
-    """path -> (mode, blob id) of the files `paths` names in a tree."""
     out = _git(root, "ls-tree", "-z", tree, "--", *paths)
     entries: dict[str, tuple[str, str]] = {}
     for row in (out or "").split("\0"):
@@ -626,8 +584,6 @@ def _entries(root: Path, tree: str, paths: list[str]) -> dict[str, tuple[str, st
 
 
 def _carry_paths(root: Path, state: dict[str, Any], before: str, after: str) -> bool:
-    """Carry each path alpha changed (before to after) that the reviewed tree
-    still has as `before` did; the rest stay debt. True when none was left."""
     reviewed = state.get("reviewed_tree")
     names = _git(root, "diff", "--name-only", "-z", "--no-renames", before, after)
     if not isinstance(reviewed, str) or names is None:
@@ -659,12 +615,9 @@ def _carry_paths(root: Path, state: dict[str, Any], before: str, after: str) -> 
 
 
 def absorb(root: Path, before: str, after: str) -> bool:
-    """Treat alpha's update, the change from tree `before` to tree `after`, as
-    reviewed. On a conflict, carry the paths that don't clash. True when all of
-    it was carried."""
     state = load_state(root)
     if not isinstance(state.get("reviewed_tree"), str):
-        return True  # no state yet, or an unreadable one: ensure_state starts clean
+        return True
     done = _carry(root, state, before, after) or _carry_paths(
         root, state, before, after
     )

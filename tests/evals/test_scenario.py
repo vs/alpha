@@ -17,7 +17,7 @@ def test_every_expected_pointer_resolves_in_the_scenario(name: str):
     brief = load_brief(name)
     assert brief.expect
     for pointer in brief.expect:
-        resolve(brief.answers, pointer)  # raises KeyError if the brief drifted
+        resolve(brief.answers, pointer)
 
 
 @pytest.mark.parametrize("name", SCENARIOS)
@@ -65,4 +65,4 @@ def test_a_tilde_pointer_accepts_text_that_contains_the_value():
     assert compare(expected, other, ["~/data/tracking"]) == [
         Mismatch("~/data/tracking", "MLflow", "Weights & Biases", False)
     ]
-    assert compare(expected, ok, ["/data/tracking"]) != []  # exact without ~
+    assert compare(expected, ok, ["/data/tracking"]) != []

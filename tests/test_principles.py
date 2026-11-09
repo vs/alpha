@@ -310,7 +310,6 @@ def test_protecting_what_checks_must_change_is_refused(
     def mutate(data: dict[str, Any]) -> None:
         data["security"]["extra_protected"] = ["api/keys/**", glob]
 
-    # answers check refuses it, before generate gets that far
     with pytest.raises(
         AnswersError,
         match=rf"security\.extra_protected\[1\]: .*{re.escape(blocked)}",

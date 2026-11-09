@@ -22,7 +22,6 @@ def setup(project: Project) -> str:
     project.git("commit", "-q", "-m", "chore: Base")
     review.ensure_state(project.root)
     project.write("api/src/x.py", "x = 1\n")
-    # The reviewer works from the brief, which hands out the tree to report.
     return review.brief(project.root).splitlines()[0].removeprefix("Tree: ")
 
 
@@ -51,7 +50,7 @@ def finding_id(f: dict[str, Any]) -> str:
 
 def test_clean_report_advances_to_the_reported_tree(project: Project) -> None:
     tree = setup(project)
-    project.write("api/src/y.py", "y = 2\n")  # edited while the review ran
+    project.write("api/src/y.py", "y = 2\n")
     proc = record(project, report(tree, []))
     assert proc.returncode == 0 and proc.stdout == ""
     state = review.load_state(project.root)
@@ -65,7 +64,7 @@ def test_findings_are_recorded_with_stable_ids(project: Project) -> None:
     before = review.load_state(project.root)["reviewed_tree"]
     assert record(project, report(tree, [FINDING])).stdout == ""
     state = review.load_state(project.root)
-    assert state["reviewed_tree"] == before  # not reviewed until it passes
+    assert state["reviewed_tree"] == before
     assert state["reviewed_for"] == tree
     assert state["findings"] == [
         {"id": finding_id(FINDING), **FINDING, "accepted": False}

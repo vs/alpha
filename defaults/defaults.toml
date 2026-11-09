@@ -1,14 +1,14 @@
 schema = 1
 
 [review]
-mode = "batched"          # or "every-task"
+mode = "batched"
 max_lines = 200
 max_files = 5
 exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]
 risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/principles.toml"]
 
 [protected]
-paths = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]   # recipes add their lockfiles
+paths = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]
 
 [git]
 convention = "conventional"
@@ -29,12 +29,11 @@ library = "python"
 worker = "python"
 
 [architecture]
-contract_format = "openapi"   # when components call each other
+contract_format = "openapi"
 
 [errors]
 categories = ["validation", "not-found", "conflict", "unavailable", "internal"]
 
-# How each kind of component reports an error to whoever uses it.
 [errors.formats]
 backend = "problem-json"
 frontend = "user-message"
@@ -44,7 +43,6 @@ library = "exceptions"
 worker = "structured-log"
 ml = "exceptions"
 
-# Test levels per kind; the interview adds contract tests when components talk.
 [testing.levels]
 backend = ["unit", "integration"]
 frontend = ["unit", "end-to-end"]
@@ -55,10 +53,8 @@ worker = ["unit", "integration"]
 ml = ["unit", "integration"]
 
 [documentation]
-external = "readme"   # or "folder" (under docs/), "elsewhere", "none"
+external = "readme"
 
-# Globs inside a component where its public behavior usually lives; the
-# interview maps them to the docs that must change with them.
 [documentation.public_paths]
 backend = ["**/api/**", "**/routes/**", "**/handlers/**"]
 frontend = ["**/pages/**", "**/routes/**"]
@@ -69,7 +65,7 @@ library = ["**/index.*", "**/__init__.py", "**/public/**"]
 worker = ["**/jobs/**", "**/tasks/**"]
 
 [build]
-ci = "github-actions"   # or "none", which loosens build-hosting-upfront
+ci = "github-actions"
 
 [build.artifacts]
 backend = "container"
@@ -82,28 +78,26 @@ worker = "container"
 
 
 [dependencies]
-updates = "dependabot"   # or "manual"
-schedule = "weekly"      # "daily", "weekly" or "monthly"
+updates = "dependabot"
+schedule = "weekly"
 
-# For each deployed component.
 [observability]
-log_format = "json"         # or "logfmt"
-correlation = "traceparent" # W3C trace context; or "request-id"
-telemetry = "none"          # or "opentelemetry"
+log_format = "json"
+correlation = "traceparent"
+telemetry = "none"
 
 [ui]
-theming = "light-dark"      # or "light", "dark", "custom"
+theming = "light-dark"
 visual_regression = "screenshots in the end-to-end tests"
 
 [accessibility]
-level = "WCAG 2.2 AA"       # or "WCAG 2.2 A", "WCAG 2.2 AAA"
+level = "WCAG 2.2 AA"
 
 [releases]
-scheme = "semver"           # or "calver", "none"
-changelog = "file"          # or "github-releases", "none"
-scope = "repo"              # or "component" (more than one component)
+scheme = "semver"
+changelog = "file"
+scope = "repo"
 
-# Starting budgets per kind; the interview adjusts them to the requirements.
 [performance.budgets]
 backend = ["p95 response time < 300 ms"]
 frontend = ["Largest Contentful Paint < 2.5 s", "JavaScript bundle < 200 KB gzipped"]

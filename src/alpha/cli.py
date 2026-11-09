@@ -242,7 +242,7 @@ def _update(target: Path, dry_run: bool) -> None:
         print(plan_diff(plan, target), end="")
         return
     if not plan.changes and not plan.new_components:
-        print(describe(plan, target))  # nothing to change: write nothing
+        print(describe(plan, target))
         return
     notes = apply_update(target, plan)
     print(describe(plan, target))
@@ -271,11 +271,11 @@ def _project(args: argparse.Namespace) -> int:
     except (GenerateError, answers.AnswersError, defaults.DefaultsError) as e:
         print(e, file=sys.stderr)
         return 1
-    except ValueError as e:  # e.g. a stack without a recipe
+    except ValueError as e:
         where = "the interview answers" if generating else PRINCIPLES_TOML
         print(f"{where}: {e}", file=sys.stderr)
         return 1
-    except KeyError as e:  # a hand-edited file lost a required entry
+    except KeyError as e:
         if generating:
             print(
                 f"The kit defaults are missing {e}. Check them with "

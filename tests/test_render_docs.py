@@ -373,7 +373,6 @@ def test_trunk_commits_straight_to_main(tmp_path: Path):
 
 
 def _cells(row: str) -> int:
-    """Columns in a Markdown table row: its pipes, minus escaped ones."""
     return row.replace("\\|", "").count("|") - 1
 
 

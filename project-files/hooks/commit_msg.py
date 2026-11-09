@@ -1,5 +1,3 @@
-"""Git commit-msg hook: enforces conventional commits (not a Claude Code hook)."""
-
 from __future__ import annotations
 
 import re

@@ -1,5 +1,3 @@
-"""Minimal TOML writer: just enough for alpha's own config files."""
-
 import re
 from collections.abc import Mapping, Sequence
 
@@ -93,7 +91,6 @@ def _emit_table(
 
 
 def dumps(data: Mapping[str, object]) -> str:
-    """Serialize ``data`` to TOML, keeping insertion order (scalars before tables)."""
     out: list[str] = []
     _emit_table(data, (), out)
     return "\n".join(out).lstrip("\n") + "\n"

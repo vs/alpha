@@ -1,5 +1,3 @@
-"""The interview skills under skills/: frontmatter, CLI calls, answers fields."""
-
 import argparse
 import re
 import tomllib
@@ -15,7 +13,6 @@ from alpha.recipes import RecipeBook
 
 SKILLS = PLUGIN_ROOT / "skills"
 CLI = '"${CLAUDE_PLUGIN_ROOT}/bin/alpha"'
-# skill folder -> (area key in project.json, root field paths the area settles)
 AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "identity": ("identity", ("identity",)),
     "components": ("components", ("layout", "components_talk", "components[]")),
@@ -36,7 +33,7 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
 ALL_SKILLS = ["grilling", *AREA_SKILLS, "stack-recipe", "new-project", "extend"]
-CLI_SKILLS = ALL_SKILLS  # every skill calls the CLI
+CLI_SKILLS = ALL_SKILLS
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 AREA_SECTIONS = [
     "Before you start",
@@ -84,13 +81,11 @@ def _options(parser: argparse.ArgumentParser) -> set[str]:
 
 
 def _calls(skill: str) -> list[str]:
-    """Every CLI invocation in a skill's body: the text after the binary up to `."""
-    body = _text(skill).split("\n---\n", 1)[1]  # skip allowed-tools
+    body = _text(skill).split("\n---\n", 1)[1]
     return re.findall(rf"{re.escape(CLI)} ([^`\n]*)", body)
 
 
 def _unwrap(hint: object) -> tuple[object, bool]:
-    """(element type, is it a list) for X, X | None and tuple[X, ...]."""
     if isinstance(hint, types.UnionType):
         (hint,) = [a for a in typing.get_args(hint) if a is not type(None)]
     if typing.get_origin(hint) is tuple:
@@ -99,7 +94,6 @@ def _unwrap(hint: object) -> tuple[object, bool]:
 
 
 def _resolve(path: str) -> object:
-    """The type at a project.json path like components[].traits.ml, or fail."""
     hint: object = answers.Answers
     parts = path.split(".")
     for i, part in enumerate(parts):
@@ -121,7 +115,6 @@ def _resolve(path: str) -> object:
 
 
 def _leaves(path: str) -> set[str]:
-    """Every leaf field path under path; lists of objects written as name[]."""
     hint = _resolve(path)
     if not (isinstance(hint, type) and is_dataclass(hint)):
         return {path}
@@ -134,7 +127,6 @@ def _leaves(path: str) -> set[str]:
 
 
 def _settled_paths(skill: str) -> list[str]:
-    """The first `code` span of each bullet in 'Fields this area settles'."""
     section = _section(skill, "Fields this area settles")
     return re.findall(r"^- `([^`]+)`", section, re.M)
 
@@ -286,7 +278,6 @@ def test_new_project_saves_through_the_cli_and_says_what_to_approve():
     assert f"{CLI} answers write <target> --json '" in start
     assert "<<" not in start
     assert "don't ask again" in start
-    # A headless run built each save with a python3 heredoc instead.
     assert (
         "never build it with python3, a heredoc, a script or a temporary file" in start
     )
@@ -333,7 +324,7 @@ def test_new_project_creates_every_area_as_pending():
     start = _section("new-project", "2. Start or resume")
     for area in answers.AREAS:
         assert f'"{area}": "pending"' in start
-    assert "missing from" in start  # an older interview's new areas
+    assert "missing from" in start
 
 
 def test_new_project_reports_ci_and_no_longer_lists_these_areas_as_missing():

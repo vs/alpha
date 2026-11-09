@@ -1,5 +1,3 @@
-"""Seeded violations for the generated hooks, and the components' own checks."""
-
 import fnmatch
 import json
 import os
@@ -14,13 +12,12 @@ from alpha.recipes import check_commands as ci_steps
 from alpha_evals.checks import SETTINGS, Check
 
 EDIT_MATCHER = "Edit|Write|MultiEdit"
-HOOK_TIMEOUT = 1200.0  # the generated settings' longest hook timeout
-COMMAND_TIMEOUT = 900.0  # per CI step
+HOOK_TIMEOUT = 1200.0
+COMMAND_TIMEOUT = 900.0
 _TAIL = 5
 
 
 def _parts_match(path: list[str], pat: list[str]) -> bool:
-    # The hooks' own glob semantics (_common.matches): ** spans folders.
     if not pat:
         return not path
     if pat[0] == "**":
@@ -35,7 +32,6 @@ def _matches(rel: str, globs: list[str]) -> bool:
 
 
 def seed_source_path(component: Mapping[str, Any]) -> str:
-    """A source file of the component that no test glob matches."""
     sources = [str(g) for g in component.get("source_globs", [])]
     tests = [str(g) for g in component.get("test_globs", [])]
     for glob in sources:
@@ -66,7 +62,6 @@ class _Hooks:
     def run(
         self, event: str, matcher: str | None, payload: dict[str, Any]
     ) -> list[subprocess.CompletedProcess[str]]:
-        """Run every hook wired to the event and matcher; [] if none is."""
         done: list[subprocess.CompletedProcess[str]] = []
         for entry in self.hooks.get(event, []):
             if entry.get("matcher") != matcher:
@@ -101,7 +96,7 @@ def _got(runs: list[subprocess.CompletedProcess[str]]) -> str:
     last = runs[-1]
     lines = (last.stderr or last.stdout).strip().splitlines()
     if last.returncode == -1:
-        return lines[0]  # timed out
+        return lines[0]
     return f"exit {last.returncode}: {lines[0] if lines else '(no output)'}"
 
 
@@ -134,7 +129,6 @@ def _stop_reason(runs: list[subprocess.CompletedProcess[str]]) -> str | None:
 
 
 def check_hooks(project: Path, scratch: Path) -> Check:
-    """Feed the project's hooks seeded violations, in a copy of the project."""
     copy = scratch / "hooks-copy"
     if copy.exists():
         shutil.rmtree(copy)
@@ -202,7 +196,6 @@ def check_hooks(project: Path, scratch: Path) -> Check:
 
 
 def check_commands(project: Path) -> Check:
-    """Every component's CI checks, in CI order, in the project itself."""
     try:
         principles = load_project_principles(project)
     except GenerateError as e:

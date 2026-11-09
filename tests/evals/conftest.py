@@ -10,7 +10,6 @@ import pytest
 def stub_tools(
     tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ):
-    """Stand-in uv and pnpm that log each call and succeed; python3 is this one."""
     bin_dir = tmp_path_factory.mktemp("bin")
     log = bin_dir / "tools.log"
     for tool in ("uv", "pnpm"):

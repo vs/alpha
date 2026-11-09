@@ -1,5 +1,3 @@
-"""SubagentStart hook: tell each subagent which decisions are in effect."""
-
 from __future__ import annotations
 
 import json
@@ -12,7 +10,7 @@ import _common  # noqa: E402
 
 def main() -> None:
     if _common.python_problem():
-        sys.exit(0)  # the session start already warned that the hooks are off
+        sys.exit(0)
     root = _common.project_root(_common.read_input())
     principles = _common.load_principles(root)
     if principles is None:

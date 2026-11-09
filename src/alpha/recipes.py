@@ -1,5 +1,3 @@
-"""Stack recipes: commands, globs and skeleton templates per stack."""
-
 from __future__ import annotations
 
 import fnmatch
@@ -20,26 +18,17 @@ if TYPE_CHECKING:
     from alpha.answers import Component
 
 RECIPES_DIR = Path(__file__).resolve().parents[2] / "recipes"
-# What CI runs per component, in order; bootstrap runs the same commands.
 CHECK_STEPS = ("setup", "format_check", "lint", "typecheck", "test")
 
 
 @dataclass(frozen=True)
 class CiSetup:
-    """GitHub Actions steps that install the stack's toolchain, and job env.
-
-    Strings in steps may hold ${dir}: the component folder plus "/", or
-    nothing for a component at the project root.
-    """
-
     steps: list[dict[str, Any]]
     env: dict[str, str]
 
 
 @dataclass(frozen=True)
 class StackRule:
-    """A rule for code on the stack that no tool in the recipe can check."""
-
     id: str
     rule: str
 
@@ -55,17 +44,17 @@ class Recipe:
     test_globs: list[str]
     exclude_globs: list[str]
     allow: list[str]
-    templates: dict[str, str]  # output relpath -> template text
-    ignores: list[str]  # .gitignore entries, relative to the component
-    dependabot: str  # Dependabot package-ecosystem; "" for none
-    why: dict[str, str]  # bootstrap tool -> reason, for the dependency log
+    templates: dict[str, str]
+    ignores: list[str]
+    dependabot: str
+    why: dict[str, str]
     ci: CiSetup
-    proven: bool  # False for a recipe drafted in a project interview
+    proven: bool
     rules: list[StackRule]
 
 
 class RecipeError(AnswersError):
-    """A recipe that can't be used; the message names the field and the fix."""
+    pass
 
 
 COMMAND_KEYS = (*CHECK_STEPS, "format", "format_file", "lint_file")
@@ -130,7 +119,6 @@ DEPENDABOT_ECOSYSTEMS = frozenset(
         "vcpkg",
     }
 )
-# Template paths a recipe may not write: git's and alpha's own folders.
 _RESERVED = (".git", ".claude", ".github")
 _ALLOW = re.compile(r"Bash\(([A-Za-z0-9_.-]+)((?: [A-Za-z0-9_.=/-]+)*):\*\)")
 _ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@(v\d+(\.\d+){0,2}|[0-9a-f]{40})")
@@ -139,7 +127,6 @@ _TEMPLATE_VALUE = re.compile(r"(?<!\$)\$(?:\{(name|slug)\}|(name|slug)\b)")
 
 
 def matches(path: str, globs: list[str]) -> bool:
-    """Whether path matches any glob, "**" spanning any depth."""
 
     def parts(p: list[str], g: list[str]) -> bool:
         if not g:
@@ -185,7 +172,6 @@ def _one_line(text: str, where: str) -> None:
 
 
 def _plain(value: object) -> bool:
-    """Text, whole numbers, true/false, and lists or objects of them."""
     if isinstance(value, bool | int | str):
         return not isinstance(value, float)
     if isinstance(value, list):
@@ -211,7 +197,7 @@ def _unknown(
 
 
 def _first_word(command: str) -> str:
-    words = [w for w in command.split() if "=" not in w]  # skip VAR=value
+    words = [w for w in command.split() if "=" not in w]
     return words[0] if words else ""
 
 
@@ -255,11 +241,6 @@ def _rules(value: object, where: str) -> list[StackRule]:
 def recipe_from_data(
     stack: str, data: Mapping[str, Any], where: str, template_dir: Path | None
 ) -> Recipe:
-    """Validate a recipe from a kit TOML file or a drafted JSON object.
-
-    Kit recipes name template files in `files` (read from template_dir/stack);
-    drafted recipes give `templates` inline.
-    """
 
     _unknown(data, _RECIPE_KEYS, where)
 
@@ -324,7 +305,6 @@ def recipe_from_data(
         if not isinstance(step, dict):
             raise _fail(here, "must be an object", 'Write {"uses": "owner/repo@v1"}')
         step_data = cast("dict[str, Any]", step)
-        # Setup steps install a toolchain; the checks come from the commands.
         _unknown(step_data, _STEP_KEYS, here)
         if not _plain(step_data):
             raise _fail(
@@ -419,10 +399,6 @@ def recipe_from_data(
 
 
 def kit_dirs() -> list[Path]:
-    """Where kit recipes live: the live source's recipes/ (with recipes saved
-    from earlier projects) first, then the ones bundled with the plugin. The
-    first folder with a stack wins, so a live checkout's python and typescript
-    recipes replace the bundled ones too, even when that checkout is older."""
     dirs: list[Path] = []
     try:
         source = locate_source(RECIPES_DIR.parent, os.environ, Path.home())
@@ -437,8 +413,6 @@ def kit_dirs() -> list[Path]:
 
 
 class RecipeBook:
-    """Resolves a stack to its recipe: the kit's first, then a drafted one."""
-
     def __init__(self, drafted: Mapping[str, Recipe] | None = None) -> None:
         self.drafted: dict[str, Recipe] = dict(drafted or {})
 
@@ -467,25 +441,21 @@ class RecipeBook:
 
 
 def load_recipe(stack: str) -> Recipe:
-    """A kit recipe (bundled or saved to the live source)."""
     return RecipeBook().get(stack)
 
 
 def render_template(text: str, name: str, slug: str) -> str:
-    """Fill in $name and $slug (or ${name}, ${slug}); every other $ stays."""
     values = {"name": name, "slug": slug}
     return _TEMPLATE_VALUE.sub(lambda m: values[m.group(1) or m.group(2)], text)
 
 
 def check_commands(commands: Mapping[str, str]) -> list[tuple[str, str]]:
-    """(step, command) for each check step the component has, in CI order."""
     return [(step, commands[step]) for step in CHECK_STEPS if commands.get(step)]
 
 
 def render_component(
     component: Component, project_slug: str, recipe: Recipe | None = None
 ) -> dict[str, str]:
-    """Render a component's skeleton files, keyed by path from the project root."""
     recipe = recipe or load_recipe(component.stack)
     base = Path(component.path)
     return {
@@ -495,6 +465,5 @@ def render_component(
 
 
 def recipe_hash(data: Mapping[str, Any]) -> str:
-    """A fingerprint of a drafted recipe, so a proof covers exactly this form."""
     content = {k: v for k, v in data.items() if k != "proven_hash"}
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()

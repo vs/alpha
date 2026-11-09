@@ -1,9 +1,3 @@
-"""A stand-in for `claude -p`: logs each call and replays scripted replies.
-
-$FAKE_CLAUDE_DIR/replies.jsonl holds one reply per line, consumed in order:
-{"stdout": <object or string>, "exit": 0, "stderr": "", "run": <shell or null>}.
-"""
-
 import json
 import os
 import subprocess

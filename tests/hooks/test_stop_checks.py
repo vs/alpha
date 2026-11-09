@@ -20,8 +20,6 @@ def commit_all(project: Project) -> None:
 
 
 def run(project: Project, reviewed: bool = True) -> subprocess.CompletedProcess[str]:
-    """Run the Stop hook. Unless a test is about the review gate, the current
-    tree counts as reviewed, so only the mechanical checks speak."""
     if reviewed:
         import review
 
@@ -133,12 +131,12 @@ def test_give_up_still_requires_the_review(project: Project) -> None:
     commit_all(project)
     review.ensure_state(project.root)
     project.write("api/migrations/0001.sql", "create table t (id int);\n")
-    project.write("api/src/app.py", "x = 1\n")  # untested: a mechanical problem
+    project.write("api/src/app.py", "x = 1\n")
     for _ in range(3):
         assert "tests-first-class" in reason(run(project, reviewed=False))
     text = reason(run(project, reviewed=False))
     assert text.startswith("alpha review: run the principles-reviewer agent")
-    assert "tests-first-class" in text  # the open checks are still named
+    assert "tests-first-class" in text
 
 
 def guide_mapped(project: Project) -> None:
@@ -224,7 +222,7 @@ def test_typecheck_runs_before_test_and_failure_blocks(project: Project) -> None
     project.write("api/tests/test_a.py", "x\n")
     text = reason(run(project))
     assert "api: typecheck failed" in text
-    assert (project.root / "api" / "t.marker").exists()  # test still runs
+    assert (project.root / "api" / "t.marker").exists()
 
 
 def test_missing_tool_gives_setup_hint(project: Project) -> None:
@@ -482,7 +480,7 @@ def test_given_up_findings_block_again_with_a_secret(project: Project) -> None:
     for _ in range(4):
         assert "notes.txt:1" in reason(run(project))
     (project.root / "notes.txt").unlink()
-    out = json.loads(run(project).stdout)  # the user already knows about these
+    out = json.loads(run(project).stdout)
     assert out["systemMessage"].startswith("alpha: still open")
 
 
@@ -493,11 +491,10 @@ def test_fixed_findings_clear_the_accepted_set(project: Project) -> None:
     project.write("api/tests/test_app.py", "x = 1\n")
     assert run(project).stdout == ""
     (project.root / "api/tests/test_app.py").unlink()
-    reason(run(project))  # the same finding as before blocks again
+    reason(run(project))
 
 
 def test_unchanged_tree_reuses_command_results(project: Project) -> None:
-    # Markers go outside the component: files it creates would change its tree.
     fail_and_mark = (
         "python3 -c \"open('../t.marker', 'a').write('x'); raise SystemExit(1)\""
     )
@@ -563,14 +560,14 @@ def edited_by(project: Project, agent: str, *rels: str) -> None:
 
 def test_subagent_without_edits_stops_freely(project: Project) -> None:
     commit_all(project)
-    project.write("api/src/app.py", "x = 1\n")  # the main agent's untested work
+    project.write("api/src/app.py", "x = 1\n")
     proc = subagent_stop(project, "r1")
     assert proc.returncode == 0 and proc.stdout == ""
 
 
 def test_subagent_is_blocked_on_its_own_untested_source(project: Project) -> None:
     commit_all(project)
-    project.write("api/src/app.py", "x = 1\n")  # main agent's
+    project.write("api/src/app.py", "x = 1\n")
     project.write("api/src/x.py", "y = 2\n")
     edited_by(project, "a1", "api/src/x.py")
     text = reason(subagent_stop(project, "a1"))
@@ -610,7 +607,7 @@ def test_subagent_blocks_count_separately_from_the_main_session(
     assert counter(project) == 0
     proc = subagent_stop(project, "a1")
     out = json.loads(proc.stdout)
-    assert "decision" not in out  # gave up after three
+    assert "decision" not in out
     assert "main session can decide" not in out["systemMessage"]
     assert "the main session's Stop still checks them" in out["systemMessage"]
 
@@ -619,7 +616,7 @@ def test_subagent_implementing_tests_the_session_wrote_is_not_blocked(
     project: Project,
 ) -> None:
     commit_all(project)
-    project.write("api/tests/test_x.py", "def test_x() -> None: ...\n")  # main's
+    project.write("api/tests/test_x.py", "def test_x() -> None: ...\n")
     project.write("api/src/x.py", "y = 2\n")
     edited_by(project, "a1", "api/src/x.py")
     proc = subagent_stop(project, "a1")
@@ -736,7 +733,6 @@ def test_review_blocks_never_give_up(project: Project) -> None:
 
 
 def run_active(project: Project) -> subprocess.CompletedProcess[str]:
-    """A Stop that follows a block in the same turn (stop_hook_active)."""
     return project.run_hook(
         "stop_checks.py", {"hook_event_name": "Stop", "stop_hook_active": True}
     )
@@ -746,14 +742,14 @@ def test_a_repeated_review_block_ends_the_turn_with_a_message(project: Project) 
     commit_all(project)
     open_finding(project)
     assert "alpha review: open findings:" in reason(run(project))
-    proc = run_active(project)  # same findings, Claude already tried
+    proc = run_active(project)
     out = json.loads(proc.stdout)
     assert "decision" not in out
     assert out["systemMessage"].startswith("alpha review: open findings:")
     assert "applies again at the next stop" in out["systemMessage"]
     assert "came up twice in this turn" in out["systemMessage"]
     assert "needs you" not in out["systemMessage"]
-    assert "alpha review: open findings:" in reason(run(project))  # next turn
+    assert "alpha review: open findings:" in reason(run(project))
 
 
 def test_a_changed_review_block_blocks_again_in_the_same_turn(
@@ -786,9 +782,8 @@ def test_a_failed_snapshot_warns_at_stop(project: Project) -> None:
 def test_the_repeat_marker_does_not_carry_into_the_next_turn(project: Project) -> None:
     commit_all(project)
     open_finding(project)
-    reason(run(project))  # turn N: block on the findings
-    run_active(project)  # turn N: same block again, the turn ends
-    # Turn N+1: first a mechanical block, then the review block again.
+    reason(run(project))
+    run_active(project)
     project.write("api/src/app.py", "x = 1\n")
     assert "tests-first-class" in reason(run(project))
     project.write("api/tests/test_app.py", "x = 1\n")
@@ -799,7 +794,6 @@ MIGRATION = "api/migrations/versions/0001_init.sql"
 
 
 def committed_migration(project: Project) -> str:
-    """Commit a migration and make that commit the session's base."""
     project.write(MIGRATION, "create table t (id int);\n")
     commit_all(project)
     base = project.git("rev-parse", "HEAD").stdout.strip()
@@ -917,7 +911,6 @@ def test_a_migration_committed_in_an_earlier_turn_can_still_be_edited(
     project.write(".claude/alpha/state/session-start", start)
     project.write("api/migrations/versions/0002_more.sql", "alter table t add c int;\n")
     commit_all(project)
-    # A clean Stop at the end of that turn moved the baseline to the new commit.
     head = project.git("rev-parse", "HEAD").stdout.strip()
     project.write(".claude/alpha/state/session-base", head)
     project.write("api/migrations/versions/0002_more.sql", "alter table t add d int;\n")

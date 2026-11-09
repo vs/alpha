@@ -32,7 +32,7 @@ def test_bootstrap_runs_green(
 ):
     generate_scenario(tmp_path, scenario)
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
-    bootstrap(tmp_path, principles)  # raises unless bootstrap, setup and test exit 0
+    bootstrap(tmp_path, principles)
     for c in principles["components"]:
         for lockfile in project_book(tmp_path).get(c["stack"]).lockfiles:
             assert (tmp_path / c["path"] / lockfile).is_file()
@@ -47,7 +47,6 @@ def test_bootstrap_runs_green(
     junk = (".venv/", "__pycache__/", ".pytest_cache/", "node_modules/", "target/")
     assert not [f for f in tracked if any(j in f"/{f}" for j in junk)]
 
-    # The fresh skeleton passes its own checks, and formatting changes nothing.
     for c in principles["components"]:
         for name in ("lint", "typecheck", "format"):
             command = c["commands"][name]
@@ -94,15 +93,13 @@ def test_format_check_fails_on_an_unformatted_file(
 
 @pytest.mark.slow
 def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env):
-    # A root component's checks see everything at the root: .claude/, docs/
-    # and the CI workflow must all pass its formatter and linter.
     answers = place_answers(tmp_path, "python-ml-single")
     data = json.loads(answers.read_text())
     data["components"][0].update(stack="typescript", kind="cli")
     answers.write_text(json.dumps(data))
     generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
-    bootstrap(tmp_path, principles)  # runs format_check, lint, typecheck and test
+    bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
 

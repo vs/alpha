@@ -1,5 +1,3 @@
-"""Kit defaults: catalog, override layering, live source, change recording."""
-
 import subprocess
 import tomllib
 from collections.abc import Mapping
@@ -37,7 +35,7 @@ class DefaultsError(Exception):
 
 
 class SourceNotLive(DefaultsError):
-    """Only the bundled defaults are available, so nothing can be saved."""
+    pass
 
 
 @dataclass(frozen=True)
@@ -125,7 +123,6 @@ def _is_table_array(value: object) -> bool:
 
 
 def _settings(data: Mapping[str, Any], prefix: str = "") -> list[str]:
-    """Dotted keys of the single settings `defaults set` may change."""
     keys: list[str] = []
     for name, value in data.items():
         key = f"{prefix}{name}"
@@ -161,7 +158,6 @@ def _same_kind(current: object, new: object) -> bool:
 
 
 def _check_setting(merged: dict[str, Any], key: str, value: object) -> None:
-    """Refuse keys that aren't single kit settings, and values of another type."""
     settable = f"Settings you can set: {', '.join(_settings(merged))}."
     unknown = DefaultsError(f'"{key}" is not a kit default. {settable}')
     *parents, leaf = key.split(".")
@@ -246,7 +242,6 @@ def set_default(
 
 
 def _restore(repo: Path, before: dict[Path, str | None]) -> None:
-    """Put the defaults files back as they were and unstage them (best effort)."""
     for path, text in before.items():
         if text is None:
             path.unlink(missing_ok=True)

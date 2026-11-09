@@ -1,22 +1,22 @@
-"""Three-way merge of a generated file with the user's edits to it."""
-
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from alpha.generate import GenerateError
+
+ChangeKind = Literal["new", "change", "merge", "conflict", "stale", "skipped"]
 
 
 @dataclass(frozen=True)
 class Change:
     path: str
-    kind: str  # "new" | "change" | "merge" | "conflict" | "stale" | "skipped"
+    kind: ChangeKind
     text: str | None
 
 
 def merge3(base: str, ours: str, theirs: str) -> tuple[str, bool]:
-    """Merge with git; return the text and whether it holds conflict markers."""
     with tempfile.TemporaryDirectory() as tmp:
         paths: dict[str, Path] = {}
         for name, text in (("ours", ours), ("base", base), ("theirs", theirs)):
@@ -49,7 +49,6 @@ def _git_error(detail: str) -> GenerateError:
 def classify(
     path: str, before: str | None, after: str | None, disk: str | None
 ) -> Change | None:
-    """Decide what an update does to one file; None means leave it alone."""
     if after is None:
         return (
             Change(path, "stale", None)

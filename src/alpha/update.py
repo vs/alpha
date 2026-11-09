@@ -1,11 +1,3 @@
-"""Merge a change in the answers into a project alpha generated (spec §5a).
-
-The project is rendered twice with this kit: from the answers it was
-generated from ("before") and from the current answers ("after"). Only the
-difference between the two lands, merged into the files on disk, so the
-user's edits stay and kit changes since generation cancel out.
-"""
-
 import difflib
 import hashlib
 import json
@@ -36,7 +28,7 @@ from alpha.merge import Change, classify
 from alpha.records import Records, record_paths, taken_numbers
 from alpha.validate import AnswersError, area_of
 
-_WRITES = ("new", "change", "merge", "conflict")  # what the count and git cover
+_WRITES = ("new", "change", "merge", "conflict")
 _ORDER = ("new", "change", "merge", "conflict", "stale", "skipped")
 REVIEW = ".claude/alpha/hooks/review.py"
 REVIEW_NOTE = "The reviewer will look at alpha's changes at the next Stop."
@@ -50,15 +42,14 @@ _NOTES = {
 
 @dataclass(frozen=True)
 class UpdatePlan:
-    changes: tuple[Change, ...]  # sorted by path
+    changes: tuple[Change, ...]
     new_components: tuple[str, ...]
-    groups: dict[str, str]  # changed path -> its commit group
-    manifest: dict[str, Any]  # the manifest to write
-    answers: dict[str, Any]  # the full current file
+    groups: dict[str, str]
+    manifest: dict[str, Any]
+    answers: dict[str, Any]
 
 
 def _read(path: Path) -> str | None:
-    """The file's text exactly as stored, or None when there is no file."""
     if not path.is_file():
         return None
     return path.read_bytes().decode("utf-8")
@@ -76,7 +67,6 @@ def _not_kept(target: Path) -> GenerateError:
 
 
 def _not_loaded(target: Path, manifest: dict[str, Any], problem: Exception) -> str:
-    """The baseline doesn't load: name the alpha and kit defaults it came from."""
     raw: object = manifest.get("defaults")
     defaults = cast(dict[str, object], raw) if isinstance(raw, dict) else {}
     path, version = defaults.get("path"), manifest.get("kit_version")
@@ -96,7 +86,6 @@ def _not_loaded(target: Path, manifest: dict[str, Any], problem: Exception) -> s
 def _baseline(
     target: Path, manifest: dict[str, Any]
 ) -> tuple[Records, dict[str, date], int]:
-    """The records, component dates and generation year the manifest keeps."""
     records = Records.from_json(manifest.get("records"))
     raw: object = manifest.get("added")
     if records is None or not isinstance(raw, dict):
@@ -113,7 +102,6 @@ def _baseline(
 
 
 def _load(target: Path) -> tuple[dict[str, Any], dict[str, Any]]:
-    """The answers file and its manifest (steps 1-3)."""
     path = target / PROJECT_JSON
     if not path.is_file():
         raise GenerateError(
@@ -158,9 +146,6 @@ def _check_history(applied: dict[str, Any], current: dict[str, Any]) -> None:
 def _moves(
     target: Path, before: Answers, after: Answers, rendered: tuple[Rendered, Rendered]
 ) -> dict[str, tuple[str, str]]:
-    """Components whose folder changed, by name: (old path, new path). Refuses
-    until the user has moved the files: each template the component had is in
-    the new folder (or, with no templates, the new folder exists)."""
     was, now = rendered
     old = {c.name: c.path for c in before.components}
     moves: dict[str, tuple[str, str]] = {}
@@ -189,14 +174,12 @@ def _moves(
 
 
 def _moved_from(path: str, old: str, new: str) -> str:
-    """Where a path in a moved component's new folder was in its old one."""
     return (PurePosixPath(old) / PurePosixPath(path).relative_to(new)).as_posix()
 
 
 def _before_text(
     path: str, before: Rendered, after: Rendered, moves: dict[str, tuple[str, str]]
 ) -> str | None:
-    """What "before" had for an "after" path: a moved template is under its old path."""
     name = after.component_of.get(path)
     if name in moves:
         return before.texts.get(_moved_from(path, *moves[name]))
@@ -204,7 +187,6 @@ def _before_text(
 
 
 def _dirty(target: Path, paths: list[str]) -> list[str]:
-    """The paths git sees changes to; refuses a folder that isn't a repository."""
     try:
         done = subprocess.run(
             ["git", "status", "--porcelain", "-z", "-uall", "--", *paths],
@@ -237,7 +219,6 @@ def _dirty(target: Path, paths: list[str]) -> list[str]:
 
 
 def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
-    """Work out what the change in the answers does to each file; write nothing."""
     top, manifest = _load(target)
     records, added, year = _baseline(target, manifest)
     if (target / UPDATE_STATE).exists():
@@ -273,7 +254,6 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
         change = classify(
             path, _before_text(path, before, after, moves), after.texts.get(path), disk
         )
-        # A merge equal to the disk: the user already made alpha's change.
         if change is not None and (change.text is None or change.text != disk):
             changes.append(change)
     touched = [c.path for c in changes if c.kind in _WRITES]
@@ -287,8 +267,6 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     for c in now.components:
         if c.name in old_names or c.path == ".":
             continue
-        # Its folder is committed in alpha's build commit: the user's files
-        # there would go in with it.
         theirs = _dirty(target, [c.path])
         if theirs:
             raise GenerateError(
@@ -311,7 +289,6 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
 
 
 def _review_hook(target: Path, *args: str) -> str | None:
-    """Run the project's review hook on target; its output, or None if it failed."""
     script = target / REVIEW
     if not script.is_file():
         return None
@@ -331,7 +308,6 @@ def _review_hook(target: Path, *args: str) -> str | None:
 
 
 def _review_snapshot(target: Path) -> str | None:
-    """The review hook's tree id of the working tree, or None without one."""
     return (_review_hook(target, "snapshot") or "").strip() or None
 
 
@@ -341,11 +317,6 @@ def _write(path: Path, text: str) -> None:
 
 
 def apply_update(target: Path, plan: UpdatePlan) -> list[str]:
-    """Write alpha's side of each change; overlapping ones go to proposals.
-    Returns notes for the user.
-
-    Only this run's proposals are written: one kept from an earlier update is
-    still the only copy of a change the user hasn't merged."""
     before_tree = _review_snapshot(target)
     for c in plan.changes:
         if c.text is None:
@@ -365,9 +336,7 @@ def apply_update(target: Path, plan: UpdatePlan) -> list[str]:
         for c in plan.changes
         if c.kind == "conflict"
     }
-    after_tree = _review_snapshot(target)  # every write is in, project.json too
-    # alpha's writes aren't Claude's: tell the review hook now, since a Stop can
-    # come before commit-update.
+    after_tree = _review_snapshot(target)
     carried = (
         before_tree is not None
         and after_tree is not None
@@ -389,7 +358,6 @@ def apply_update(target: Path, plan: UpdatePlan) -> list[str]:
 
 
 def describe(plan: UpdatePlan, target: Path) -> str:
-    """One line per change, then how to bootstrap any new component."""
     count = sum(c.kind in _WRITES for c in plan.changes)
     if not plan.changes and not plan.new_components:
         return "alpha update: nothing to change"
@@ -406,7 +374,6 @@ def describe(plan: UpdatePlan, target: Path) -> str:
 
 
 def plan_diff(plan: UpdatePlan, target: Path) -> str:
-    """A unified diff, disk to new text, of each file the update writes."""
     out: list[str] = []
     for c in plan.changes:
         if c.kind not in ("new", "change", "merge") or c.text is None:

@@ -1,5 +1,3 @@
-"""Render the project's prose files: README, LICENSE, CONTRIBUTING, CLAUDE.md, docs."""
-
 from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
@@ -102,7 +100,6 @@ def _external(docs: Documentation) -> str:
 
 
 def _docs_section(docs: Documentation) -> list[str]:
-    """CONTRIBUTING's Documentation section, ending with a blank line."""
     lines = [
         "## Documentation",
         "",
@@ -187,7 +184,6 @@ def _command_table(c: Component, comp: dict[str, Any]) -> list[str]:
 
 
 def _stack_rules(principles: dict[str, Any]) -> list[str]:
-    """Each stack's rules once, under the components that use the stack."""
     by_stack: dict[str, list[dict[str, Any]]] = {}
     for comp in principles["components"]:
         by_stack.setdefault(comp["stack"], []).append(comp)

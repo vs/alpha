@@ -1,5 +1,3 @@
-"""Commit a generated skeleton in a few convention-following commits."""
-
 import hashlib
 import json
 import subprocess
@@ -21,14 +19,13 @@ _DOCS = [
     ".gitignore",
 ]
 _CLAUDE = ["CLAUDE.md", ".claude"]
-UPDATE_STATE = ".claude/alpha/state/update.json"  # written by alpha update
-PROPOSALS = ".claude/alpha/state/update"  # its proposals for conflicting files
+UPDATE_STATE = ".claude/alpha/state/update.json"
+PROPOSALS = ".claude/alpha/state/update"
 _CI = ".github"
-_MAX_DESCRIPTION = 50  # the commit-msg hook's limit
+_MAX_DESCRIPTION = 50
 
 
 def commit_group(path: str, component_of: Mapping[str, str]) -> str:
-    """The commit a changed file belongs in, by what made it."""
     if path in component_of:
         return f"build:{component_of[path]}"
     if path == WORKFLOW:
@@ -65,7 +62,6 @@ def _check(target: Path, *args: str, command: str = "commit-skeleton") -> str:
 
 
 def _check_identity(target: Path, command: str = "commit-skeleton") -> None:
-    """Fail before committing when git would have to guess the author."""
     for role in ("AUTHOR", "COMMITTER"):
         done = _git(
             target,
@@ -86,7 +82,6 @@ def _check_identity(target: Path, command: str = "commit-skeleton") -> None:
 
 
 def _build_subject(component: dict[str, Any], scopes: list[str]) -> str:
-    """The component's build commit; scoped only when the hook accepts the scope."""
     name, stack = component["name"], component["stack"]
     if not scopes or name in scopes:
         return f"build({name}): Set up {stack} toolchain and tests"
@@ -99,7 +94,6 @@ def _build_subject(component: dict[str, Any], scopes: list[str]) -> str:
 def commit_skeleton(
     target: Path, principles: dict[str, Any], trailers: list[str]
 ) -> list[str]:
-    """Commit docs, Claude settings, each component, then CI; return the hashes."""
     if not (target / ".git").exists():
         _check(target, "init", "-q", "-b", "main")
     _check(target, "config", "core.hooksPath", HOOKS_PATH)
@@ -111,7 +105,7 @@ def commit_skeleton(
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
     for c in principles["components"]:
         paths = [c["path"]]
-        if c["path"] == ".":  # the root takes the rest, except the CI commit's
+        if c["path"] == ".":
             paths.append(f":(exclude){_CI}")
         groups.append((_build_subject(c, scopes), paths))
     groups.append(("ci: Run every component's checks in CI", [WORKFLOW]))
@@ -126,23 +120,21 @@ def _commit_groups(
     trailers: list[str],
     command: str,
 ) -> list[str]:
-    """One commit per group that has changes in its paths; return the hashes."""
     hashes: list[str] = []
     for subject, paths in groups:
         present = [p for p in paths if p.startswith(":(") or (target / p).exists()]
         if all(p.startswith(":(") for p in present):
-            continue  # none of the group's own paths exist
+            continue
         _check(target, "add", "-A", "--", *present, command=command)
-        # Only this group's paths: a failed earlier run may have left others staged.
         staged = _git(
             target, "diff", "--cached", "--quiet", "--", *present, command=command
         )
         if staged.returncode == 0:
-            continue  # nothing staged for this group
+            continue
         if staged.returncode != 1:
             _check(
                 target, "diff", "--cached", "--quiet", "--", *present, command=command
-            )  # the error
+            )
         message = subject + ("\n\n" + "\n".join(trailers) if trailers else "")
         _check(target, "commit", "-q", "-m", message, "--", *present, command=command)
         hashes.append(_check(target, "rev-parse", "HEAD", command=command))
@@ -150,7 +142,6 @@ def _commit_groups(
 
 
 def _update_subject(name: str, scopes: list[str]) -> str:
-    """An existing component's update commit; scoped only when the hook accepts it."""
     if not scopes or name in scopes:
         return f"build({name}): Update toolchain settings"
     description = f"Update {name} toolchain settings"
@@ -160,7 +151,6 @@ def _update_subject(name: str, scopes: list[str]) -> str:
 
 
 def _remove_proposal(target: Path, path: str) -> None:
-    """Delete a merged conflict's proposal and the folders it leaves empty."""
     folder = target / PROPOSALS
     proposal = folder / path
     proposal.unlink(missing_ok=True)
@@ -173,7 +163,6 @@ def _remove_proposal(target: Path, path: str) -> None:
 def commit_update(
     target: Path, principles: dict[str, Any], trailers: list[str]
 ) -> tuple[list[str], list[str]]:
-    """Commit the files alpha update wrote, in groups; return (hashes, notes)."""
     state_file = target / UPDATE_STATE
     if not state_file.is_file():
         raise GenerateError(f"Nothing to commit: run alpha update {target} first.")
@@ -197,13 +186,12 @@ def commit_update(
         ("docs: Update docs and decision records", paths_of("docs")),
         (
             "chore: Update Claude Code rules and settings",
-            [*paths_of("chore"), PROJECT_JSON],  # the moved baseline always changes
+            [*paths_of("chore"), PROJECT_JSON],
         ),
     ]
     notes: list[str] = []
     for c in principles["components"]:
         if c["name"] in new_components and c["path"] == ".":
-            # The root holds the user's own files too: commit only alpha's.
             groups.append((_build_subject(c, scopes), paths_of(f"build:{c['name']}")))
             notes.append(
                 f"{c['name']} is at the project root, so only alpha's files were "
@@ -226,10 +214,10 @@ def commit_update(
 
     for path, recorded in sorted(conflicts.items()):
         file = target / path
-        unmerged = (  # a deleted file was resolved by the user
+        unmerged = (
             file.is_file() and hashlib.sha256(file.read_bytes()).hexdigest() == recorded
         )
-        if unmerged:  # the baseline moved on: its proposal is the only copy left
+        if unmerged:
             notes.append(
                 f"{path}: alpha's change wasn't merged in (proposal: "
                 f"{PROPOSALS}/{path})."

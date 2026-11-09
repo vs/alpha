@@ -17,7 +17,6 @@ def commit_all(project: Project, message: str = "chore: Base") -> None:
 
 
 def base(project: Project) -> dict[str, Any]:
-    """Components exist and are committed, as in a generated project."""
     project.write("api/pyproject.toml", "[project]\nname = 'x'\n")
     project.write("web/package.json", "{}\n")
     commit_all(project)
@@ -69,7 +68,7 @@ def test_debt_counts_untracked_and_modified(project: Project) -> None:
     project.write("web/package.json", '{"a": 1}\n')
     debt = review.debt(project.root, project.principles())
     assert sorted(debt["files"]) == ["api/src/new.py", "web/package.json"]
-    assert debt["counted_lines"] == 3 + 2  # one line removed, one added
+    assert debt["counted_lines"] == 3 + 2
     assert debt["counted_files"] == 2
 
 
@@ -123,7 +122,7 @@ def test_risky_paths_trigger_regardless_of_size(project: Project) -> None:
 
 def test_manifest_and_new_component_folder_are_risky(project: Project) -> None:
     project.write("api/pyproject.toml", "[project]\n")
-    commit_all(project)  # web/ doesn't exist yet
+    commit_all(project)
     review.ensure_state(project.root)
     project.write("api/pyproject.toml", "[project]\nname = 'y'\n")
     project.write("web/src/app.ts", "export {}\n")
@@ -198,8 +197,8 @@ def test_brief_lists_tree_principles_decisions_and_diff(project: Project) -> Non
 
 def test_brief_omits_principles_of_untouched_components(project: Project) -> None:
     principles = briefed(project).split("## Principles\n")[1].split("\n## ")[0]
-    assert "visual-system" not in principles  # web only, and only api changed
-    assert "- contracts " in principles  # applies to api too
+    assert "visual-system" not in principles
+    assert "- contracts " in principles
 
 
 def test_brief_lists_the_stack_rules_of_touched_components(project: Project) -> None:
@@ -211,7 +210,7 @@ def test_brief_lists_the_stack_rules_of_touched_components(project: Project) -> 
         "- python:typed-boundaries: Parse external input (JSON, files, "
         "environment, requests) into dataclasses or typed models at the "
         "boundary; don't pass `dict[str, Any]` inward. [components: api]",
-    ]  # only api changed, so no typescript rules
+    ]
 
 
 def test_brief_lists_every_stacks_rules_for_a_change_outside_components(
@@ -313,13 +312,13 @@ def test_malformed_findings_restart_the_review(
     state["findings"] = [finding]
     path.write_text(json.dumps(state))
     assert review.load_state(project.root) == {"unreadable": True}
-    review.gate(project.root, project.principles())  # no KeyError
+    review.gate(project.root, project.principles())
     assert review.ensure_state(project.root)["findings"] == []
 
 
 def test_brief_cli_outside_an_alpha_project(project: Project) -> None:
     (project.root / "docs/principles.toml").unlink()
-    proc = project.run_hook("review.py", {})  # no "brief" argument either
+    proc = project.run_hook("review.py", {})
     assert proc.returncode == 1
     assert "python3 .claude/alpha/hooks/review.py brief" in proc.stderr
 
@@ -359,7 +358,7 @@ def test_absorb_stops_at_the_after_tree(project: Project) -> None:
 
 def test_absorb_carries_per_path_on_a_conflict(project: Project) -> None:
     project.write("api/src/clash.py", "a = 1\nb = 2\nc = 3\n")
-    base(project)  # reviewed at HEAD, where b = 2
+    base(project)
     project.write("api/src/clash.py", "a = 1\nb = 'mine'\nc = 3\n")
     before = review.snapshot(project.root)
     project.write("api/src/clash.py", "a = 1\nb = 'alpha'\nc = 3\n")
@@ -392,7 +391,6 @@ def test_snapshot_subcommand_prints_the_tree(project: Project) -> None:
 
 
 def test_snapshot_works_when_the_state_folder_is_gitignored(project: Project) -> None:
-    # Generated projects ignore .claude/alpha/state/, as their .gitignore says.
     project.write(".gitignore", ".claude/alpha/state/\n")
     base(project)
     project.write("api/src/new.py", "x = 1\n")
@@ -498,7 +496,7 @@ def test_brief_shows_the_touched_components_params(project: Project) -> None:
         "[api: budgets=['p95 response time: 300 ms (k6 in CI against staging)']]"
         in (line)
     )
-    assert "web:" not in line  # web wasn't touched
+    assert "web:" not in line
 
 
 def test_brief_shows_the_tokens_of_a_touched_ui(project: Project) -> None:

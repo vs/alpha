@@ -1,5 +1,3 @@
-"""Render the project's .claude/settings.json: permissions and hook wiring."""
-
 from typing import Any
 
 from alpha.recipes import RecipeBook

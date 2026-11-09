@@ -1,9 +1,3 @@
-"""SubagentStop hook for the principles-reviewer: record its findings.
-
-The reviewer ends its reply with a JSON block; recording it here, rather than
-trusting the main session to report it, keeps the review honest.
-"""
-
 from __future__ import annotations
 
 import hashlib

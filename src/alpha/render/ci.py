@@ -1,5 +1,3 @@
-"""Render the project's CI workflow: each component's checks, as CLAUDE.md lists."""
-
 import re
 from typing import Any, cast
 
@@ -14,9 +12,8 @@ _DIR = re.compile(r"\$\{dir\}")
 
 
 def _expand(value: object, folder: str) -> object:
-    """Recipe step values with ${dir} replaced by the component folder."""
     if isinstance(value, str):
-        return _DIR.sub(lambda _: folder, value)  # every other $ stays
+        return _DIR.sub(lambda _: folder, value)
     if isinstance(value, dict):
         items = cast("dict[str, object]", value).items()
         return {k: _expand(v, folder) for k, v in items}
@@ -49,7 +46,6 @@ def _job(component: dict[str, Any], book: RecipeBook) -> dict[str, object]:
 def render_ci(
     principles: dict[str, Any], ci: str, book: RecipeBook | None = None
 ) -> dict[str, str]:
-    """The workflow file for the chosen CI provider; nothing for "none"."""
     if ci == "none":
         return {}
     recipes = book or RecipeBook()
@@ -69,7 +65,6 @@ def render_dependabot(
     ci: str,
     book: RecipeBook | None = None,
 ) -> dict[str, str]:
-    """Dependabot updates per component, and for the CI actions; nothing if manual."""
     if updates != "dependabot":
         return {}
     interval = {"interval": schedule}
@@ -81,7 +76,7 @@ def render_dependabot(
             "schedule": interval,
         }
         for c in principles["components"]
-        if (ecosystem := book.get(c["stack"]).dependabot)  # "": no updates
+        if (ecosystem := book.get(c["stack"]).dependabot)
     ]
     if ci == "github-actions":
         entries.append(

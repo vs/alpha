@@ -60,7 +60,7 @@ def test_glossary_written_when_terms_exist(tmp_path: Path):
     out = render(load(tmp_path))
     glossary = out["docs/glossary.md"]
     assert glossary.startswith("# Glossary\n")
-    assert glossary.index("| Intact |") < glossary.index("| Payload |")  # sorted
+    assert glossary.index("| Intact |") < glossary.index("| Payload |")
     assert "- [Glossary](docs/glossary.md)" in out["CLAUDE.md"]
 
 

@@ -1,5 +1,3 @@
-"""One eval run: a kit clone, each scenario's interview, checks and reports."""
-
 import json
 import os
 import subprocess
@@ -44,20 +42,17 @@ def _git(cwd: Path, *args: str) -> str:
 
 
 def prepare_kit(repo: Path, dest: Path) -> tuple[str, bool]:
-    """Clone the kit's HEAD; return its sha and whether the checkout was dirty."""
     subprocess.run(
         ["git", "clone", "-q", "--no-hardlinks", str(repo), str(dest)],
         check=True,
         capture_output=True,
     )
-    # No way back to the real checkout: an eval session must not push to it.
     _git(dest, "remote", "remove", "origin")
     dirty = bool(_git(repo, "status", "--porcelain"))
     return _git(dest, "rev-parse", "HEAD"), dirty
 
 
 def eval_env(run_dir: Path, kit: Path) -> dict[str, str]:
-    """The environment every eval session gets: the clone as defaults, own git."""
     config = run_dir / "gitconfig"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(_GITCONFIG, encoding="utf-8")
@@ -72,12 +67,11 @@ def eval_env(run_dir: Path, kit: Path) -> dict[str, str]:
 def _safe(name: str, check: Callable[[], Check]) -> Check:
     try:
         return check()
-    except Exception as e:  # a broken check must not lose the report
+    except Exception as e:
         return Check(name, "fail", f"crashed: {type(e).__name__}: {e}")
 
 
 def project_checks(project: Path, brief: Brief, scratch: Path) -> list[Check]:
-    """The deterministic checks, answers through commits."""
     return [
         _safe("answers", lambda: check_answers(project, brief)),
         _safe("files", lambda: check_files(project)),
@@ -143,7 +137,7 @@ def run_scenario(
         try:
             found, turn = check_reviewer(project, env, config, config.max_usd - cost)
             cost += turn.cost_usd
-        except Exception as e:  # a broken check must not lose the report
+        except Exception as e:
             found = Check("reviewer", "fail", f"crashed: {type(e).__name__}: {e}")
         checks.append(found)
     report: dict[str, Any] = {
@@ -159,7 +153,6 @@ def run_scenario(
 
 
 def crashed_report(name: str, error: Exception) -> dict[str, Any]:
-    """The report of a scenario whose run raised before it wrote one."""
     detail = f"crashed: {type(error).__name__}: {error}"
     checks = [Check("interview", "fail", detail)] + [
         Check(n, "skip", "interview did not finish") for n in CHECKS[1:]

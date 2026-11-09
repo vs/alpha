@@ -104,7 +104,7 @@ def test_try_finds_the_missing_tool_after_cd(
 def test_try_stops_a_command_that_hangs(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr("alpha.recipe_cli._TIMEOUT", 0.5)
+    monkeypatch.setattr("alpha.recipe_cli._TIMEOUT_SECONDS", 0.5)
     recipe = shell_recipe()
     recipe["commands"]["setup"] = "sh -c 'sleep 5'"
     target = project(tmp_path, recipe)
@@ -134,7 +134,7 @@ def test_an_unproven_recipe_is_refused(tmp_path: Path):
 def test_a_recipe_edited_after_try_is_refused(tmp_path: Path):
     recipe = shell_recipe()
     recipe["proven_hash"] = recipe_hash(recipe)
-    recipe["commands"]["lint"] = "true"  # changed after it was proven
+    recipe["commands"]["lint"] = "true"
     scenario_with_shell(tmp_path, recipe)
     with pytest.raises(AnswersError, match=r"not proven since it last changed"):
         generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
@@ -250,7 +250,7 @@ def broken_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     folder.mkdir()
     (folder / "bad.toml").write_text("x = [\n")
     gone = {k: v for k, v in shell_recipe().items() if k != "templates"}
-    gone["files"] = {"tests/setup.sh": "setup.sh.tmpl"}  # no such file
+    gone["files"] = {"tests/setup.sh": "setup.sh.tmpl"}
     (folder / "gone.toml").write_text(toml_write.dumps(gone))
     monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
     return folder

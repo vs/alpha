@@ -6,7 +6,6 @@ MIN_PYTHON = (3, 11)
 
 
 def check_python(version: tuple[int, int]) -> str | None:
-    """Return a fix-it message if the interpreter is too old, else None."""
     if version >= MIN_PYTHON:
         return None
     return (

@@ -1,5 +1,3 @@
-"""PreToolUse hook for Edit|Write|MultiEdit: protects paths, asks on weakened checks."""
-
 from __future__ import annotations
 
 import json
@@ -13,7 +11,6 @@ import _common  # noqa: E402
 
 TOOLS = {"Edit", "Write", "MultiEdit"}
 PRINCIPLES = "docs/principles.toml"
-# (label shown to the user, regex counting its occurrences)
 WEAKENING: list[tuple[str, re.Pattern[str]]] = (
     [
         (label, re.compile(re.escape(label)))
@@ -34,7 +31,6 @@ WEAKENING: list[tuple[str, re.Pattern[str]]] = (
         )
     ]
     + [
-        # JS/TS runner calls must be standalone identifiers (not sys.exit(, wait.skip()
         (label, re.compile(r"(?<![\w.$])" + re.escape(label)))
         for label in ("it.skip(", "test.skip(", "describe.skip(", "xit(")
     ]
@@ -46,7 +42,6 @@ WEAKENING: list[tuple[str, re.Pattern[str]]] = (
 
 
 def texts(tool: str, tool_input: dict[str, Any], current: Path) -> tuple[str, str]:
-    """(old text, new text) for the edit."""
     if tool == "Write":
         try:
             old = current.read_text(errors="replace") if current.is_file() else ""
@@ -78,7 +73,6 @@ def weakened(old: str, new: str) -> list[str]:
 
 
 def ask(reason: str) -> NoReturn:
-    """Let the user decide on this edit, telling them why."""
     print(
         json.dumps(
             {

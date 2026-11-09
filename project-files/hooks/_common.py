@@ -27,7 +27,6 @@ class TimedOut(Exception):
 
 
 def python_problem() -> str | None:
-    """The guard message when this python3 is too old for the hooks, else None."""
     if sys.version_info >= (3, 11):  # noqa: UP036 (hooks run on whatever python3 exists)
         return None
     found = "{}.{}".format(*sys.version_info[:2])
@@ -76,10 +75,6 @@ def project_root(inp: dict[str, Any]) -> Path:
 
 
 def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:
-    """The parsed principles file, or None when there is none.
-
-    A malformed file exits with `fail_code`, as in check_python().
-    """
     path = root / "docs" / "principles.toml"
     if not path.is_file():
         return None
@@ -101,12 +96,6 @@ def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:
 def principle_applies(
     principles: dict[str, Any], principle_id: str, component: str | None = None
 ) -> bool:
-    """Whether a principle's checks run for a component, or project-wide (None).
-
-    Follows the principle's `active` flag and its `components` list, so dropping
-    or scoping a principle in docs/principles.toml switches its checks off. An id
-    the file doesn't list applies, so newer hooks keep checking older projects.
-    """
     for entry in principles.get("principles", []):
         if not isinstance(entry, dict):
             continue
@@ -139,7 +128,6 @@ def component_for(rel_path: str, principles: dict[str, Any]) -> dict[str, Any] |
 
 
 def changed_files(root: Path) -> list[str]:
-    """Tracked changes vs HEAD plus untracked files, minus alpha's own state dir."""
     fix = "Make sure this is a git repository (git init) and git is installed."
     try:
         proc = subprocess.run(
@@ -195,14 +183,12 @@ def _globs(comp: dict[str, Any], key: str) -> list[str]:
 
 
 def is_test(rel_path: str, comp: dict[str, Any]) -> bool:
-    """A test file of the component (per its test_globs, minus exclude_globs)."""
     return matches(rel_path, _globs(comp, "test_globs")) and not matches(
         rel_path, _globs(comp, "exclude_globs")
     )
 
 
 def is_source(rel_path: str, comp: dict[str, Any]) -> bool:
-    """A code file of the component: matches source_globs, not a test, not excluded."""
     return (
         matches(rel_path, _globs(comp, "source_globs"))
         and not matches(rel_path, _globs(comp, "test_globs"))
@@ -211,7 +197,6 @@ def is_source(rel_path: str, comp: dict[str, Any]) -> bool:
 
 
 def rel_to_root(root: Path, path: str) -> str | None:
-    """POSIX path of `path` (absolute, or relative to root) under root, else None."""
     base = root.resolve()
     p = Path(path)
     try:
@@ -234,7 +219,6 @@ def state_path(root: Path, name: str) -> Path:
 
 
 def run_command(command: str, cwd: Path, timeout: float) -> tuple[int, str]:
-    """(exit code, combined output). Raises TimedOut after `timeout` seconds."""
     try:
         proc = subprocess.Popen(
             command,
@@ -272,7 +256,6 @@ def first_word(command: str) -> str:
 
 
 def read_baseline(root: Path) -> str | None:
-    """Commit SHA recorded as the session baseline, if any."""
     try:
         text = state_path(root, "session-base").read_text().strip()
     except OSError:
@@ -290,8 +273,6 @@ _HEADING = re.compile(r"# (\d{4})\. (.+)")
 
 
 def decision_index(root: Path) -> tuple[list[tuple[int, str, str, str]], list[str]]:
-    """Decision records as (number, title, status, path), and warnings for
-    files in docs/decisions/ that aren't records alpha can read."""
     records: list[tuple[int, str, str, str]] = []
     warnings: list[str] = []
     folder = root / DECISIONS_DIR
@@ -335,8 +316,6 @@ def decision_index(root: Path) -> tuple[list[tuple[int, str, str, str]], list[st
 
 
 def _record_change(root: Path, record: str, principle: str) -> str | None:
-    """What a record's "Principle: <id> (change, scope ...)" header line says
-    about this principle; a record may change several."""
     try:
         lines = (root / record).read_text(encoding="utf-8-sig").splitlines()[:12]
     except (OSError, UnicodeDecodeError):
@@ -351,7 +330,6 @@ def _record_change(root: Path, record: str, principle: str) -> str | None:
 def overrides_in_effect(
     principles: dict[str, Any], root: Path | None = None
 ) -> list[str]:
-    """One line per principle the project overrode: what changed, and the record."""
     lines: list[str] = []
     for p in principles.get("principles", []):
         record = p.get("override_decision")
@@ -359,7 +337,7 @@ def overrides_in_effect(
             continue
         pid = str(p.get("id"))
         change = _record_change(root, str(record), pid) if root is not None else None
-        if change is None:  # no readable record: say what the principles file says
+        if change is None:
             parts: list[str] = []
             if "active" in p:
                 parts.append("active" if p["active"] else "inactive")
@@ -372,7 +350,6 @@ def overrides_in_effect(
 
 
 def context_text(root: Path, principles: dict[str, Any]) -> str:
-    """What every session and subagent is told about the decisions in effect."""
     records, warnings = decision_index(root)
     if records:
         lines = [
@@ -400,7 +377,6 @@ def context_text(root: Path, principles: dict[str, Any]) -> str:
 
 
 def agent_files_path(root: Path, agent_id: str) -> Path:
-    """Where the files a subagent edited are listed (state/agent-<id>.json)."""
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", agent_id)
     return state_path(root, f"agent-{safe}.json")
 
@@ -427,9 +403,6 @@ STATE_GLOB = f"{STATE_DIR}/**"
 
 
 def protected_glob(rel: str, principles: dict[str, Any]) -> str | None:
-    """The first protected-path glob that rel matches, if any. alpha's own
-    state (and any folder holding it) is always protected: the review state
-    must come from the hooks alone."""
     rel = rel.rstrip("/")
     if (
         rel == STATE_DIR
@@ -444,7 +417,6 @@ def protected_glob(rel: str, principles: dict[str, Any]) -> str | None:
 
 
 def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
-    """Why a path is protected (it matched glob), and what to do instead."""
     if glob == STATE_GLOB:
         return (
             f"{rel} is protected: alpha's hooks keep their state there "

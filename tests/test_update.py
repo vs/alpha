@@ -46,7 +46,6 @@ def answers(target: Path) -> dict[str, Any]:
 
 
 def save(target: Path, data: dict[str, Any]) -> None:
-    """Write every key but the manifest back, as the interview's skills do."""
     write_answers(target, json.dumps(answers_snapshot(data)))
 
 
@@ -75,7 +74,6 @@ def smaller_reviews(data: dict[str, Any]) -> None:
 
 
 def move_component(data: dict[str, Any], name: str, new: str) -> None:
-    """Give a component a new folder in every area (decisions stay history)."""
     old = next(c["path"] for c in data["components"] if c["name"] == name)
 
     def moved(value: Any) -> Any:
@@ -96,7 +94,6 @@ def move_component(data: dict[str, Any], name: str, new: str) -> None:
 
 
 def remove_component(data: dict[str, Any], name: str) -> None:
-    """Drop a component from every area (decisions and overrides stay history)."""
     data["components"] = [c for c in data["components"] if c["name"] != name]
     for key, section in data.items():
         if key in ("decisions", "overrides", "manifest") or not isinstance(
@@ -146,7 +143,7 @@ def test_baseline_that_no_longer_loads_names_the_alpha_to_use(
 ):
     generate_scenario(tmp_path, SCENARIO)
     data = answers(tmp_path)
-    data["manifest"]["applied"]["schema"] = 2  # as a later alpha might write
+    data["manifest"]["applied"]["schema"] = 2
     (tmp_path / PROJECT_JSON).write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(GenerateError) as err:
         plan(tmp_path)
@@ -207,7 +204,7 @@ def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env):
     commit(target, "docs: Add a team rule")
     data = answers(target)
     smaller_reviews(data)
-    data["git"]["scopes"].append("deps")  # CLAUDE.md lists the scopes
+    data["git"]["scopes"].append("deps")
     save(target, data)
     p = plan(target)
     assert kinds(p)["docs/principles.toml"] == "change"
@@ -348,12 +345,11 @@ def test_removing_a_component_with_a_scoped_override_plans_cleanly(
     data["decisions"].append({**DECISION, "area": "components", "title": "Drop api"})
     save(target, data)
     p = plan(target)
-    assert OVERRIDE_RECORD not in kinds(p)  # its record stays, at the same number
+    assert OVERRIDE_RECORD not in kinds(p)
     principles = text_of(p, "docs/principles.toml")
-    assert OVERRIDE_RECORD not in principles  # inert: it changes no principle
+    assert OVERRIDE_RECORD not in principles
     apply_update(target, p)
     commit_the_update(target)
-    # The new baseline has no api either; the override still loads.
     data = answers(target)
     smaller_reviews(data)
     save(target, data)
@@ -417,7 +413,7 @@ def test_moved_component_merges_against_its_old_files(tmp_path: Path, git_env):
     p = plan(target)
     assert [c.path for c in p.changes if c.kind == "conflict"] == []
     assert kinds(p).get("backend/pyproject.toml") not in ("new", "conflict")
-    assert p.changes  # the docs and CI follow the new folder
+    assert p.changes
 
 
 def test_applied_update_becomes_the_new_baseline(tmp_path: Path, git_env):
@@ -432,7 +428,7 @@ def test_applied_update_becomes_the_new_baseline(tmp_path: Path, git_env):
     state = json.loads((target / UPDATE_STATE).read_text())
     assert "before_tree" in state
     assert state["groups"]["docs/principles.toml"] == "docs"
-    (target / UPDATE_STATE).unlink()  # as commit-update does when it's done
+    (target / UPDATE_STATE).unlink()
     assert describe(plan(target), target) == "alpha update: nothing to change"
 
 
@@ -546,7 +542,7 @@ def test_commit_update_with_only_the_manifest_commits_it_and_clears_state(
     (target / PROJECT_JSON).write_text(
         (target / PROJECT_JSON).read_text().replace("\n}\n", ',\n  "note": 1\n}\n')
     )
-    apply_update(target, p)  # no changes: only the manifest moves
+    apply_update(target, p)
     assert (target / UPDATE_STATE).is_file()
     hashes, notes = commit_the_update(target)
     subjects = git(target, "log", "--format=%s", f"{base}..HEAD")
@@ -582,7 +578,6 @@ def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env):
 
 
 def conflicting_update(target: Path) -> Path:
-    """Edit max_lines by hand, then change it in the answers: a conflict."""
     principles = target / "docs/principles.toml"
     principles.write_text(
         principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
@@ -600,7 +595,6 @@ def test_commit_update_keeps_proposals_of_unmerged_conflicts(tmp_path: Path, git
     target = generated_repo(tmp_path, SCENARIO)
     conflicting_update(target)
     commit_the_update(target)
-    # The baseline moved on, so alpha won't propose the change again.
     assert (target / PROPOSALS / "docs/principles.toml").is_file()
     assert not (target / UPDATE_STATE).exists()
 
@@ -633,12 +627,11 @@ def test_apply_update_absorbs_alphas_changes_into_review(
     import review
 
     target = generated_repo(tmp_path, SCENARIO)
-    review.ensure_state(target)  # reviewed at HEAD, before the answers change
+    review.ensure_state(target)
     add_worker(target)
-    # A Stop can come before commit-update (the skill asks about stale files).
     assert apply_update(target, plan(target)) == []
     debt = review.debt(target, load_project_principles(target))
-    assert debt["files"] == [PROJECT_JSON]  # the answers edit is the user's debt
+    assert debt["files"] == [PROJECT_JSON]
     _, notes = commit_the_update(target)
     assert notes == []
 
@@ -673,11 +666,11 @@ def test_review_hook_acts_on_the_target_not_the_sessions_project(
     review.ensure_state(session)
     review.ensure_state(target)
     session_state = review.load_state(session)
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(session))  # the hook's root
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(session))
     add_worker(target)
     assert apply_update(target, plan(target)) == []
     state = json.loads((target / UPDATE_STATE).read_text())
-    assert state["before_tree"] != state["after_tree"]  # target's trees, not session's
+    assert state["before_tree"] != state["after_tree"]
     monkeypatch.delenv("CLAUDE_PROJECT_DIR")
     debt = review.debt(target, load_project_principles(target))
     assert debt["files"] == [PROJECT_JSON]
@@ -706,7 +699,7 @@ def test_cli_update_says_the_reviewer_will_look_when_absorb_fails(
     out = run_cli("update", str(target), env={"ALPHA_SOURCE": str(PLUGIN_ROOT)})
     assert out.returncode == 0, out.stderr
     state = json.loads((target / UPDATE_STATE).read_text())
-    assert state["before_tree"] and state["after_tree"]  # snapshots still ran
+    assert state["before_tree"] and state["after_tree"]
     assert out.stdout.splitlines()[-1] == (
         "The reviewer will look at alpha's changes at the next Stop."
     )
@@ -720,7 +713,7 @@ def test_commit_update_errors_name_commit_update(
     smaller_reviews(data)
     save(target, data)
     apply_update(target, plan(target))
-    for role in ("AUTHOR", "COMMITTER"):  # no identity left anywhere
+    for role in ("AUTHOR", "COMMITTER"):
         monkeypatch.delenv(f"GIT_{role}_NAME")
         monkeypatch.delenv(f"GIT_{role}_EMAIL")
     with pytest.raises(GenerateError) as e:
@@ -732,8 +725,6 @@ def test_commit_update_errors_name_commit_update(
 def test_commit_update_new_root_component_commits_only_alphas_files(
     tmp_path: Path, git_env
 ):
-    # A root component can't be added next to others (folders may not nest), so
-    # the state is written as alpha update would leave it for a lone root one.
     target = generated_repo(tmp_path, "python-ml-single")
     principles = load_project_principles(target)
     name = principles["components"][0]["name"]
@@ -771,7 +762,7 @@ def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env):
     save(target, data)
     apply_update(target, plan(target))
     loaded = load_project_principles(target)
-    principles.unlink()  # the user resolved the conflict by deleting the file
+    principles.unlink()
     _, notes = commit_update(target, loaded, [])
-    assert not [n for n in notes if "wasn't merged" in n]  # nothing to hash
+    assert not [n for n in notes if "wasn't merged" in n]
     assert not (target / UPDATE_STATE).exists()

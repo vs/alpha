@@ -1,5 +1,3 @@
-"""Deterministic checks of a skeleton the interview generated."""
-
 import hashlib
 import json
 import os
@@ -72,7 +70,6 @@ def _git(project: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def check_answers(project: Path, brief: Brief) -> Check:
-    """Every area done, and the answers the brief states came back."""
     try:
         actual = _json(project, PROJECT_JSON)
     except _Unreadable as e:
@@ -92,7 +89,6 @@ def check_answers(project: Path, brief: Brief) -> Check:
 
 
 def hook_scripts(settings: dict[str, Any]) -> list[str]:
-    """Each script a hook command in settings.json runs, relative to the project."""
     found: list[str] = []
     hooks: object = settings.get("hooks", {})
     if not isinstance(hooks, dict):
@@ -159,7 +155,6 @@ def check_settings(project: Path) -> Check:
 
 
 def _rejection(project: Path, message: str) -> str | None:
-    """The commit-msg hook's complaint about a message, or None if it passes."""
     with tempfile.NamedTemporaryFile("w", suffix=".msg", delete=False) as f:
         f.write(message)
     try:

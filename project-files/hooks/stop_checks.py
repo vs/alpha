@@ -1,5 +1,3 @@
-"""Stop hook: blocks stopping on secrets, missing tests or docs, failing checks."""
-
 from __future__ import annotations
 
 import hashlib
@@ -74,7 +72,6 @@ def is_state(rel: str) -> bool:
 
 
 def session_base(root: Path) -> str | None:
-    """The recorded baseline, if it is still an ancestor of HEAD."""
     base = _common.read_baseline(root)
     if base is None:
         return None
@@ -104,7 +101,6 @@ def changed_since(root: Path, base: str | None) -> list[str]:
 
 
 def parse_added(diff: list[str]) -> list[tuple[str, int, str]]:
-    """Added lines of a -U0 diff; hunks are consumed by their header counts."""
     found: list[tuple[str, int, str]] = []
     current: str | None = None
     old_left = new_left = number = 0
@@ -141,7 +137,6 @@ def parse_added(diff: list[str]) -> list[tuple[str, int, str]]:
 def added_lines(
     root: Path, changed: list[str], base: str | None
 ) -> list[tuple[str, int, str]]:
-    """(file, line number in the new file, text) for every line added since base."""
     if head_sha(root) is None:
         found: list[tuple[str, int, str]] = []
         for rel in changed:
@@ -181,7 +176,6 @@ def secret_problems(
 
 
 def run_step(command: str, cwd: Path, timeout: float | None = None) -> tuple[str, str]:
-    """(status, output); status is ok, failed, missing or timeout."""
     try:
         code, output = _common.run_command(command, cwd, timeout or TIMEOUT)
     except _common.TimedOut:
@@ -191,12 +185,10 @@ def run_step(command: str, cwd: Path, timeout: float | None = None) -> tuple[str
     return ("ok" if code == 0 else "failed"), output
 
 
-# The principle each command run at Stop checks.
 COMMAND_PRINCIPLES = {"typecheck": "strict-types", "test": "definition-of-done"}
 
 
 def tree_hash(root: Path, comp: dict[str, Any]) -> str | None:
-    """Hash of the component's files (tracked and untracked, not ignored)."""
     base = str(comp.get("path", ".")).strip("/")
     args = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
     if base not in ("", "."):
@@ -221,7 +213,7 @@ def tree_hash(root: Path, comp: dict[str, Any]) -> str | None:
             else:
                 digest.update(f"{info.st_size}:{info.st_mtime_ns}".encode())
         except OSError:
-            digest.update(b"-")  # deleted from the working tree
+            digest.update(b"-")
     return digest.hexdigest()
 
 
@@ -236,8 +228,6 @@ def read_json(path: Path) -> dict[str, Any]:
 def command_problems(
     comp: dict[str, Any], principles: dict[str, Any], root: Path, deadline: float
 ) -> list[str]:
-    """Typecheck and test results, reused while the component's files and
-    commands are unchanged since the last run."""
     commands: dict[str, Any] = comp.get("commands", {})
     name = str(comp.get("name", comp.get("path", ".")))
     steps = {
@@ -268,7 +258,6 @@ def command_problems(
 def run_steps(
     comp: dict[str, Any], steps: dict[str, str], root: Path, deadline: float
 ) -> tuple[list[str], bool]:
-    """(problems, whether every step ran to completion)."""
     commands: dict[str, Any] = comp.get("commands", {})
     base = str(comp.get("path", ".")).strip("/")
     cwd = root if base in ("", ".") else root / base
@@ -295,7 +284,7 @@ def run_steps(
                 "by hand to see why, or tell the user."
             )
         elif status == "missing":
-            complete = False  # installing the tool doesn't change the files
+            complete = False
             setup = commands.get("setup") or "the component's setup step"
             problems.append(
                 f"{_common.first_word(command)} is not installed for component "
@@ -325,9 +314,6 @@ def existed_at(root: Path, ref: str, rel: str) -> bool:
 
 
 def session_start(root: Path, base: str | None) -> str | None:
-    """The commit this session started from: recorded at SessionStart and kept
-    for the whole session, unlike the baseline each clean Stop moves. Falls
-    back to the baseline, then HEAD."""
     try:
         start = _common.state_path(root, "session-start").read_text().strip()
     except OSError:
@@ -343,7 +329,6 @@ def session_start(root: Path, base: str | None) -> str | None:
 def migration_problems(
     root: Path, principles: dict[str, Any], base: str | None
 ) -> list[str]:
-    """Changes to migrations that existed when the session started."""
     data = principles.get("data")
     raw = (
         cast("dict[str, Any]", data).get("migration_paths")
@@ -373,8 +358,6 @@ def migration_problems(
 
 
 def is_behavior(rel: str, principles: dict[str, Any], docs: list[str]) -> bool:
-    """Whether a changed file can change public behavior: not a doc, not a test
-    and not a file its component excludes from checks."""
     if _common.matches(rel, docs):
         return False
     comp = _common.component_for(rel, principles)
@@ -468,7 +451,6 @@ def find_problems(
 
 
 def flag(text: str) -> NoReturn:
-    """Let Claude stop, showing the problems to the user instead of blocking."""
     print(json.dumps({"systemMessage": text}))
     print(text, file=sys.stderr)
     sys.exit(0)
@@ -487,13 +469,6 @@ def block(listing: str) -> NoReturn:
 
 
 def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoReturn:
-    """Block a subagent only on problems with the files it edited.
-
-    The rules run over the whole session's changes (tests or docs another
-    agent wrote count), then only problems naming this subagent's files stay.
-    Type checks and tests cover whole components, where other agents may be
-    mid-change, so they're left to the main session's Stop.
-    """
     files = _common.agent_files(root, agent)
     base = session_base(root)
     changed = changed_since(root, base)
@@ -528,8 +503,6 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
 
 
 def safe_gate(root: Path, principles: dict[str, Any]) -> str | None:
-    """The review gate's verdict. When git can't snapshot the tree the gate
-    can't judge: tell the user rather than block every stop on it."""
     try:
         return review.gate(root, principles)
     except review.SnapshotError as e:
@@ -540,9 +513,6 @@ def safe_gate(root: Path, principles: dict[str, Any]) -> str | None:
 
 
 def review_block(root: Path, inp: dict[str, Any], reason: str) -> NoReturn:
-    """Block on the review. The same block again within one turn means Claude
-    already tried and needs the user: end the turn with a message instead of
-    looping. The gate applies again at the next stop."""
     marker = _common.state_path(root, "review-blocked")
     digest = hashlib.sha256(reason.encode()).hexdigest()
     try:
@@ -564,8 +534,6 @@ def review_block(root: Path, inp: dict[str, Any], reason: str) -> NoReturn:
 def review_or_flag(
     root: Path, principles: dict[str, Any], inp: dict[str, Any], listing: str
 ) -> None:
-    """Giving up on the mechanical checks never skips the review: block on it
-    if it's due, naming the checks still open too. Returns when it isn't."""
     verdict = safe_gate(root, principles)
     if verdict:
         review_block(
@@ -586,9 +554,8 @@ def main() -> None:
             sys.exit(0)
         subagent_stop(root, principles, agent)
     if not inp.get("stop_hook_active"):
-        # A new turn: an earlier turn's review block doesn't count as repeated.
         _common.state_path(root, "review-blocked").unlink(missing_ok=True)
-    review.note_turn_end(root)  # what Claude leaves, if this Stop ends the turn
+    review.note_turn_end(root)
     base = session_base(root)
     changed = changed_since(root, base)
     counter = _common.state_path(root, "stop-blocks")
@@ -603,15 +570,13 @@ def main() -> None:
         head = head_sha(root)
         if head is not None:
             _common.write_baseline(root, head)
-        # Review only work that passes the mechanical checks. Findings block
-        # until fixed or accepted by the user, so this never gives up.
         verdict = safe_gate(root, principles)
         if verdict:
             review_block(root, inp, verdict)
         _common.state_path(root, "review-blocked").unlink(missing_ok=True)
         sys.exit(0)
     listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
-    if secrets:  # never given up on, unlike the other checks
+    if secrets:
         block(listing)
     fingerprint = hashlib.sha256(listing.encode()).hexdigest()
     try:

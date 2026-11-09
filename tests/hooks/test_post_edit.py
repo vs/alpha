@@ -12,7 +12,7 @@ def run(
 ) -> subprocess.CompletedProcess[str]:
     target = project.root / rel
     if project.root in target.resolve().parents:
-        target.parent.mkdir(parents=True, exist_ok=True)  # the edit created it
+        target.parent.mkdir(parents=True, exist_ok=True)
     tool_input: dict[str, Any] = {"file_path": str(target)}
     return project.run_hook(
         "post_edit.py",
@@ -21,7 +21,6 @@ def run(
 
 
 def marker_cmd(name: str) -> str:
-    # Records its {file} argument (already shell-quoted by the hook) in a marker.
     return f"python3 -c \"import sys; open('{name}', 'a').write(sys.argv[1] + '|')\""
 
 

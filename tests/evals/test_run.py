@@ -25,7 +25,6 @@ ORDER = [
 
 
 def fake_interview(fake, scenario: str) -> None:
-    """The interviewer's one reply writes the answers, generates and commits."""
     answers = shlex.quote(str(SCENARIOS / f"{scenario}.json"))
     fake.reply(
         "Generated and committed.",
@@ -238,7 +237,7 @@ def test_a_crashing_scenario_does_not_stop_the_run(
         return real(name, *args, **kwargs)
 
     monkeypatch.setattr(cli, "run_scenario", flaky)
-    fake.fail(exit=1, stderr="x")  # python-ml-single's interview fails fast
+    fake.fail(exit=1, stderr="x")
     out = tmp_path / "out"
     assert main(run_args(fake, out, "rust-cli", "python-ml-single")) == 1
     text = (out / "summary.md").read_text()

@@ -1,13 +1,3 @@
-"""UserPromptSubmit hook: changes made between turns, and the user accepting
-a review finding.
-
-Only a prompt that is exactly "accept F-xxxxxx" (several ids allowed, any case)
-counts. Claude Code also runs this hook for subagent reports and messages from
-other sessions, and gives no field to tell them apart, so anything more than the
-bare command accepts nothing. A short prompt that starts like the command but
-isn't quite it gets a note saying how to send it.
-"""
-
 from __future__ import annotations
 
 import json
@@ -21,7 +11,7 @@ import review  # noqa: E402
 
 _COMMAND = re.compile(r"accept\s+(F-[0-9a-f]{6}(?:[\s,]+F-[0-9a-f]{6})*)", re.I)
 _ID = re.compile(r"F-[0-9a-f]{6}", re.I)
-_NEAR_MISS = 80  # longer prompts that start with "accept" are something else
+_NEAR_MISS = 80
 
 
 def say(text: str) -> None:
@@ -47,6 +37,8 @@ def main() -> None:
     review.absorb_outside_changes(root)
     text = inp.get("prompt")
     text = text.strip() if isinstance(text, str) else ""
+    # Claude Code also runs this hook for subagent reports and messages from
+    # other sessions, with no field that tells them apart from the user.
     command = _COMMAND.fullmatch(text)
     if command is None:
         near = _ID.findall(text)

@@ -1,5 +1,3 @@
-"""bin/alpha-evals run [scenario ...] | check <project> <scenario>."""
-
 import argparse
 import shlex
 import sys
@@ -23,7 +21,9 @@ from alpha_evals.scenario import SCENARIOS, ScenarioError, load_brief
 
 
 def _parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="alpha_evals", description=__doc__)
+    p = argparse.ArgumentParser(
+        prog="alpha_evals", description="Headless evals of the alpha interview."
+    )
     sub = p.add_subparsers(dest="command", required=True)
     r = sub.add_parser("run", help="run the interview evals headlessly")
     r.add_argument(
@@ -85,7 +85,7 @@ def _run(args: argparse.Namespace) -> int:
             report = run_scenario(
                 name, run_dir, kit, env, config, not args.no_reviewer, commit, dirty
             )
-        except Exception as e:  # one broken scenario must not lose the others
+        except Exception as e:
             report = crashed_report(name, e)
         cells = " ".join(f"{c['name']}={c['status']}" for c in report["checks"])
         print(f"{name}: {cells} (${report['cost_usd']:.2f})", flush=True)

@@ -1,5 +1,3 @@
-"""`alpha recipe`: list kit recipes, and check, try and save a drafted one."""
-
 import json
 import os
 import re
@@ -25,8 +23,8 @@ from alpha.recipes import (
 
 _TAIL_LINES = 40
 _NOT_FOUND = 127
-_TIMEOUT = 600.0  # seconds per command: a toolchain download can be slow
-_SUBJECT = 50  # the commit convention's limit on the description
+_TIMEOUT_SECONDS = 600.0
+_MAX_SUBJECT = 50
 # How sh, bash and zsh name a command they can't find.
 _MISSING = re.compile(
     r"(?:^|: )([^\s:]+): (?:command )?not found$|command not found: (\S+)$", re.M
@@ -34,7 +32,6 @@ _MISSING = re.compile(
 
 
 def list_recipes() -> list[str]:
-    """The kit's stacks; a broken recipe is listed with its problem."""
     book = RecipeBook()
     lines: list[str] = []
     for stack in book.kit_stacks():
@@ -63,7 +60,6 @@ def _drafted(target: Path) -> dict[str, Any]:
 
 
 def check(target: Path, stack: str) -> dict[str, Any]:
-    """The drafted recipe's data, validated; AnswersError when it isn't usable."""
     drafted = _drafted(target)
     if stack not in drafted:
         raise AnswersError(
@@ -75,8 +71,6 @@ def check(target: Path, stack: str) -> dict[str, Any]:
 
 
 def _run(command: str, cwd: Path) -> tuple[int, str] | None:
-    """(exit code, output), or None when it ran past the timeout. Nothing
-    can answer a prompt, so stdin is empty."""
     print(f"alpha: try: {command}", file=sys.stderr, flush=True)
     proc = subprocess.Popen(
         command,
@@ -89,7 +83,7 @@ def _run(command: str, cwd: Path) -> tuple[int, str] | None:
         start_new_session=True,  # so a timeout stops what it started, too
     )
     try:
-        output, _ = proc.communicate(timeout=_TIMEOUT)
+        output, _ = proc.communicate(timeout=_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.communicate()
@@ -98,8 +92,6 @@ def _run(command: str, cwd: Path) -> tuple[int, str] | None:
 
 
 def _missing_tool(command: str, output: str) -> str:
-    """The tool the shell couldn't find: named in its output, else the first
-    word that isn't an assignment."""
     found = _MISSING.search(output)
     if found:
         return found.group(1) or found.group(2)
@@ -108,7 +100,6 @@ def _missing_tool(command: str, output: str) -> str:
 
 
 def _created_sources(root: Path, recipe: Recipe) -> list[str]:
-    """Code files in the scratch folder that no template wrote."""
     found: list[str] = []
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root).as_posix()
@@ -124,9 +115,6 @@ def _created_sources(root: Path, recipe: Recipe) -> list[str]:
 
 
 def try_recipe(target: Path, stack: str) -> str | None:
-    """Prove the drafted recipe in a scratch folder: write its templates, then
-    run its bootstrap and every check step. None on success (the proof is
-    recorded), else what failed and how to fix it."""
     data = check(target, stack)
     recipe = drafted_recipes({stack: data})[stack]
     with tempfile.TemporaryDirectory(prefix="alpha-try-") as scratch:
@@ -141,10 +129,10 @@ def try_recipe(target: Path, stack: str) -> str | None:
             ran = _run(command, root)
             if ran is None:
                 return (
-                    f'"{command}" took longer than {_TIMEOUT:g}s, so alpha stopped '
-                    f"it. If it waits for input, make the recipe's {step} command "
-                    "run without asking; otherwise find out why it's slow, fix it, "
-                    f'and run "alpha recipe try {target} {stack}" again.'
+                    f'"{command}" took longer than {_TIMEOUT_SECONDS:g}s, so alpha '
+                    f"stopped it. If it waits for input, make the recipe's {step} "
+                    "command run without asking; otherwise find out why it's slow, "
+                    f'fix it, and run "alpha recipe try {target} {stack}" again.'
                 )
             code, output = ran
             if code == 0:
@@ -178,8 +166,6 @@ def try_recipe(target: Path, stack: str) -> str | None:
 
 
 def _template_name(rel: str) -> str:
-    """Where a template is kept in recipes/<stack>/: its own path, so two
-    templates never share a file."""
     return rel + ".tmpl"
 
 
@@ -196,8 +182,6 @@ def _git(repo: Path, *args: str) -> str:
 
 
 def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -> str:
-    """Copy a proven drafted recipe into the kit source as recipes/<stack>.toml
-    plus its templates, and commit them. Returns the short commit hash."""
     if not source.live:
         raise SourceNotLive(
             "Cannot save a recipe to the kit: no alpha source checkout is "
@@ -232,7 +216,7 @@ def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -
             f"recipes/{stack}/ already exists in the kit source ({folder}). Move it "
             "away or remove it, then retry."
         )
-    try:  # render before writing anything, so a failure leaves no files
+    try:
         text = (
             "# Drafted in a project interview and proven there; less proven than "
             "the kit's own.\n" + toml_write.dumps(toml)
@@ -253,14 +237,14 @@ def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -
         (folder / f"{stack}.toml").write_text(text)
         _git(source.path, "add", "--", *paths)
         subject = f"Add {stack} recipe from {slug}"
-        if len(subject) > _SUBJECT:
+        if len(subject) > _MAX_SUBJECT:
             subject = f"Add {stack} recipe"
         message = f"feat(recipes): {subject}"
         if trailers:
             message += "\n\n" + "\n".join(trailers)
         _git(source.path, "commit", "-q", "-m", message, "--", *paths)
     except Exception:
-        subprocess.run(  # unstage only what this save staged
+        subprocess.run(
             ["git", "-C", str(source.path), "reset", "-q", "--", *paths],
             capture_output=True,
         )

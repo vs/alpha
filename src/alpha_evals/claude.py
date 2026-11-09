@@ -1,5 +1,3 @@
-"""One headless `claude -p` call, parsed from its JSON result."""
-
 import json
 import subprocess
 from collections.abc import Mapping, Sequence

@@ -1,5 +1,3 @@
-"""Skills and agents copied into generated projects."""
-
 import re
 from datetime import date
 

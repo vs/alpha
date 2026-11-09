@@ -1,5 +1,3 @@
-"""Markdown helpers shared by the generated docs."""
-
 import re
 
 _BREAK = re.compile(r"\s*[\r\n]+\s*")

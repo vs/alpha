@@ -1,5 +1,3 @@
-"""Generate a project skeleton from the interview answers, then bootstrap it."""
-
 import hashlib
 import json
 import shutil
@@ -39,7 +37,6 @@ class GenerateError(Exception):
 
 
 def _unexpected(target: Path) -> list[str]:
-    """Entries that make the target non-empty, relative to it."""
     found: list[str] = []
 
     def walk(folder: Path) -> None:
@@ -63,7 +60,6 @@ def _gitignore(principles: dict[str, Any], book: RecipeBook) -> str:
         ".claude/settings.local.json",
         ".DS_Store",
         ".claude/alpha/hooks/__pycache__/",
-        # Secrets live in .env files at any depth; the example documents them.
         ".env",
         ".env.*",
         "**/.env",
@@ -94,7 +90,6 @@ def _copies(plugin_root: Path) -> dict[str, Path]:
 
 
 def _display_path(path: Path) -> str:
-    """The path with the home directory shown as ~, so no username is committed."""
     try:
         return f"~/{path.relative_to(Path.home()).as_posix()}"
     except ValueError:
@@ -118,8 +113,8 @@ def _source_commit(source: Source) -> str | None:
 @dataclass(frozen=True)
 class Rendered:
     principles: dict[str, Any]
-    texts: dict[str, str]  # every rendered file, templates included; no copies
-    component_of: dict[str, str]  # template path -> its component
+    texts: dict[str, str]
+    component_of: dict[str, str]
 
 
 def _collision(a: Answers, name: str, rel: str) -> GenerateError:
@@ -140,7 +135,6 @@ def render_project(
     records: Records | None = None,
     added: Mapping[str, date] | None = None,
 ) -> Rendered:
-    """Every file the answers make, keyed by path; nothing is written."""
     records = records or record_paths(a)
     principles = build_principles(defaults, a, VERSION, records)
     book = a.book()
@@ -150,7 +144,7 @@ def render_project(
             a, principles, year, today, root=target, records=records, added=added
         )
     )
-    component_files: dict[str, tuple[str, str]] = {}  # path -> (text, name)
+    component_files: dict[str, tuple[str, str]] = {}
     for c in a.components:
         files = render_component(c, principles["project"]["slug"], book.get(c.stack))
         component_files.update({rel: (text, c.name) for rel, text in files.items()})
@@ -158,7 +152,7 @@ def render_project(
         json.dumps(render_settings(principles, book), indent=2) + "\n"
     )
     texts[".gitignore"] = _gitignore(principles, book)
-    assert a.build is not None  # build_principles refuses answers without it
+    assert a.build is not None
     texts.update(render_ci(principles, a.build.ci, book))
     assert a.dependencies is not None
     texts.update(
@@ -186,7 +180,6 @@ def generate(
     year: int,
     today: date | None = None,
 ) -> list[str]:
-    """Write the skeleton into an empty target; return the sorted relpaths."""
     if not target.is_dir():
         raise GenerateError(
             f"{target} is not a folder. Create it and run the alpha interview "
@@ -203,7 +196,6 @@ def generate(
     a = load_answers(answers_path)
     records = record_paths(a)
     today = today or date.today()
-    # Render everything before writing anything, so a failure leaves no debris.
     rendered = render_project(target, a, load_defaults(source), year, today, records)
     texts = rendered.texts
     copies = _copies(plugin_root)
@@ -250,13 +242,12 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
 
 
 def refresh_manifest(target: Path) -> None:
-    """Rehash the generated files, which bootstrap's package managers change."""
     path = target / PROJECT_JSON
     try:
         data = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
         files = cast(dict[str, str], data["manifest"]["files"])
     except (OSError, ValueError, KeyError, TypeError):
-        return  # no manifest to keep in step (e.g. a hand-made project)
+        return
     present = [rel for rel in files if (target / rel).is_file()]
     data["manifest"]["files"] = file_hashes(target, present)
     write_json(path, data)
@@ -278,7 +269,6 @@ def load_project_principles(target: Path) -> dict[str, Any]:
 
 
 def project_book(target: Path) -> RecipeBook:
-    """The kit's recipes plus any the project's interview drafted."""
     try:
         data = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -292,11 +282,6 @@ def project_book(target: Path) -> RecipeBook:
 def bootstrap(
     target: Path, principles: dict[str, Any], only: Sequence[str] = ()
 ) -> None:
-    """Per component (just those in `only`, when given): install the toolchain,
-    then run every check CI runs.
-
-    Then rehash the manifest, so it matches the files commit-skeleton commits.
-    """
     fix = (
         "Fix the failing step (is the component's toolchain installed?) and rerun "
         f'"alpha bootstrap {target}"'
@@ -320,7 +305,7 @@ def bootstrap(
             )
         missing = [s for s in ("setup", "test") if s not in c["commands"]]
         if missing:
-            raise KeyError(missing[0])  # explained as a damaged principles file
+            raise KeyError(missing[0])
         commands = [
             *book.get(c["stack"]).bootstrap,
             *(command for _, command in check_commands(c["commands"])),
