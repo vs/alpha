@@ -57,12 +57,15 @@ vitest = "Test runner"
 [ci]
 env = {}
 
+# Pinned to commit SHAs, as registry/actions.toml has them; `version` is the tag.
 [[ci.steps]]
-uses = "pnpm/action-setup@v6"
+uses = "pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115"
+version = "v6.1.1"
 with = { package_json_file = "${dir}package.json" }
 
 [[ci.steps]]
-uses = "actions/setup-node@v7"
+uses = "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1"
+version = "v7.1.0"
 with = { node-version-file = "${dir}.node-version", cache = "pnpm", cache-dependency-path = "${dir}pnpm-lock.yaml" }
 
 # Rules for code on this stack that no tool here checks; the Biome and

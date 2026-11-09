@@ -91,7 +91,7 @@ _RECIPE_KEYS = frozenset(
         "rules",
     }
 )
-_STEP_KEYS = frozenset({"uses", "with", "name", "id", "env"})
+_STEP_KEYS = frozenset({"uses", "version", "with", "name", "id", "env"})
 # Dependabot's package-ecosystem values (its config schema, 2026-10).
 DEPENDABOT_ECOSYSTEMS = frozenset(
     {
@@ -134,6 +134,7 @@ DEPENDABOT_ECOSYSTEMS = frozenset(
 _RESERVED = (".git", ".claude", ".github")
 _ALLOW = re.compile(r"Bash\(([A-Za-z0-9_.-]+)((?: [A-Za-z0-9_.=/-]+)*):\*\)")
 _ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@(v\d+(\.\d+){0,2}|[0-9a-f]{40})")
+_SHA_ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40}")
 _RULE_ID = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 _TEMPLATE_VALUE = re.compile(r"(?<!\$)\$(?:\{(name|slug)\}|(name|slug)\b)")
 
@@ -253,12 +254,18 @@ def _rules(value: object, where: str) -> list[StackRule]:
 
 
 def recipe_from_data(
-    stack: str, data: Mapping[str, Any], where: str, template_dir: Path | None
+    stack: str,
+    data: Mapping[str, Any],
+    where: str,
+    template_dir: Path | None,
+    *,
+    generated: bool = False,
 ) -> Recipe:
     """Validate a recipe from a kit TOML file or a drafted JSON object.
 
     Kit recipes name template files in `files` (read from template_dir/stack);
-    drafted recipes give `templates` inline.
+    drafted recipes give `templates` inline. CI actions must be pinned to a full
+    commit SHA, unless `generated`: a project generated earlier may name a tag.
     """
 
     _unknown(data, _RECIPE_KEYS, where)
@@ -333,13 +340,30 @@ def recipe_from_data(
                 "Write every value as text (quote numbers like versions)",
             )
         uses = step_data.get("uses")
-        if not isinstance(uses, str) or not _ACTION.fullmatch(uses):
+        if generated:
+            pinned = isinstance(uses, str) and _ACTION.fullmatch(uses)
+        else:
+            pinned = isinstance(uses, str) and _SHA_ACTION.fullmatch(uses)
+        if not pinned:
             raise _fail(
                 here,
-                f"uses {uses!r} isn't a pinned action",
-                "Pin it to a release tag (owner/repo@v4 or @v4.2.1) or a full "
-                "commit SHA",
+                f"uses {uses!r}, which isn't pinned to a full commit SHA",
+                "Pin it to the commit SHA of the latest release tag "
+                "(`git ls-remote https://github.com/<owner>/<repo> "
+                "refs/tags/<tag>`, the peeled `^{}` line for an annotated tag) "
+                "as owner/repo@<40 hex digits>, and put the tag in `version`",
             )
+        version = step_data.get("version")
+        if version is None and not generated:
+            raise _fail(
+                here,
+                "has no `version`",
+                'Add the release tag the SHA belongs to, e.g. "version": "v4.2.1"',
+            )
+        if version is not None:
+            if not isinstance(version, str):
+                raise _fail(here, "`version` must be text", "Write the release tag")
+            _one_line(version, f"{here}.version")
         steps.append(step_data)
     env = _mapping(ci_data.get("env", {}), f"{where}.ci.env")
     dependabot = get("dependabot")
@@ -451,7 +475,9 @@ class RecipeBook:
             if path.is_file():
                 try:
                     data = tomllib.loads(path.read_text())
-                    return recipe_from_data(stack, data, str(path), folder)
+                    return recipe_from_data(
+                        stack, data, str(path), folder, generated=True
+                    )
                 except (tomllib.TOMLDecodeError, OSError) as e:
                     raise RecipeError(
                         f"{path}: can't be read ({e}). Fix it, or remove the "

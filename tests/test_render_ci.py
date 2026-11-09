@@ -1,4 +1,5 @@
 import copy
+import re
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,14 @@ def values(node: object) -> list[str]:
     return [node] if isinstance(node, str) else []
 
 
+def test_workflow_actions_pinned():
+    text = render_ci(PRINCIPLES, "github-actions")[WORKFLOW]
+    lines = [ln for ln in text.splitlines() if "uses:" in ln]
+    assert len(lines) >= 3
+    for line in lines:
+        assert re.search(r'@[0-9a-f]{40}" # v', line), line
+
+
 def test_one_job_per_component_running_its_checks():
     jobs = workflow(PRINCIPLES)["jobs"]
     assert list(jobs) == ["api", "web"]
@@ -36,7 +45,7 @@ def test_one_job_per_component_running_its_checks():
     assert api["runs-on"] == "ubuntu-latest"
     assert api["defaults"] == {"run": {"working-directory": "api"}}
     assert api["env"] == {"UV_LOCKED": "1"}
-    assert api["steps"][0]["uses"].startswith("actions/checkout@v")
+    assert api["steps"][0]["uses"].startswith("actions/checkout@")
     runs = [s for s in api["steps"] if "run" in s]
     commands = PRINCIPLES["components"][0]["commands"]
     assert [(s["name"], s["run"]) for s in runs] == check_commands(commands)

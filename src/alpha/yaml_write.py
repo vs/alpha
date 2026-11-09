@@ -3,6 +3,7 @@
 import json
 import re
 from collections.abc import Mapping, Sized
+from dataclasses import dataclass
 from typing import cast
 
 # Starting with a letter keeps numbers (1, 0x1f) and list dashes out.
@@ -15,6 +16,14 @@ _NOT_STRINGS = frozenset({"on", "off", "yes", "no", "true", "false", "y", "n", "
 _UNPRINTABLE = re.compile(
     "[^\t\n\r\x20-\x7e\xa0-\u2027\u202a-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]"
 )
+
+
+@dataclass(frozen=True)
+class Commented:
+    """A string written as `"<value>" # <comment>`."""
+
+    value: str
+    comment: str
 
 
 def _quoted(text: str) -> str:
@@ -46,6 +55,10 @@ def _inline(value: object, where: str) -> str:
         return str(value)
     if isinstance(value, str):
         return _quoted(value)
+    if isinstance(value, Commented):
+        if "\n" in value.comment or "\r" in value.comment:
+            raise ValueError(f"comment at {where} must be one line")
+        return f"{_quoted(value.value)} # {value.comment}"
     raise TypeError(f"cannot write {type(value)!r} at {where}")
 
 

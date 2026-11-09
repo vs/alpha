@@ -9,8 +9,10 @@ from helpers import shell_recipe
 
 from alpha.answers import AnswersError, Component, Traits, drafted_recipes
 from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
 from alpha.recipes import (
     CHECK_STEPS,
+    RecipeBook,
     RecipeError,
     check_commands,
     load_recipe,
@@ -18,6 +20,7 @@ from alpha.recipes import (
     render_component,
     render_template,
 )
+from alpha.registry import BUNDLED, load_registry
 
 
 def _component(stack: str, kind: str, name: str, path: str) -> Component:
@@ -106,7 +109,7 @@ def test_every_recipe_has_every_check_step_and_pinned_ci_actions(stack: str):
     assert [step for step, _ in check_commands(recipe.commands)] == list(CHECK_STEPS)
     assert recipe.ci.steps, f"{stack}: CI needs a step that installs its toolchain"
     for step in recipe.ci.steps:
-        assert re.fullmatch(r"[\w.-]+/[\w.-]+@v\d+(\.\d+\.\d+)?", step["uses"])
+        assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", step["uses"])
     assert recipe.ignores
     assert all(isinstance(v, str) for v in recipe.ci.env.values())
 
@@ -233,16 +236,46 @@ def test_recipe_text_fields_are_one_line(changes: dict[str, Any], where: str):
 @pytest.mark.parametrize(
     "uses",
     [
-        "actions/checkout@v7",
-        "astral-sh/setup-uv@v10.3.2",
+        "actions/checkout@" + "b" * 40,
         "dtolnay/rust-toolchain@" + "a" * 40,
     ],
 )
 def test_pinned_ci_actions_are_accepted(uses: str):
-    data = drafted(ci__steps=[{"uses": uses}])
-    assert recipe_from_data("shell", data, "recipes.shell", None).ci.steps == [
-        {"uses": uses}
+    step = {"uses": uses, "version": "v1.2.3"}
+    data = drafted(ci__steps=[step])
+    assert recipe_from_data("shell", data, "recipes.shell", None).ci.steps == [step]
+
+
+def test_kit_recipes_pin_shas():
+    book = RecipeBook()
+    registry = load_registry(Source(BUNDLED, False, ""))
+    for stack in book.kit_stacks():
+        for step in book.get(stack).ci.steps:
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", step["uses"])
+            assert step.get("version"), f"{stack}: {step['uses']} has no version"
+            repo, sha = step["uses"].split("@")
+            action = registry.action(repo)
+            assert (sha, step["version"]) == (action.sha, action.version)
+
+
+def test_drafted_recipe_tag_refused():
+    data = drafted(ci__steps=[{"uses": "x/y@v4"}])
+    with pytest.raises(RecipeError, match="full commit SHA") as e:
+        recipe_from_data("shell", data, "recipes.shell", None)
+    assert "git ls-remote" in str(e.value)
+    raw = {"shell": data}
+    with pytest.raises(AnswersError, match="full commit SHA"):
+        drafted_recipes(raw)
+    # a project generated earlier keeps working
+    assert drafted_recipes(raw, generated=True)["shell"].ci.steps == [
+        {"uses": "x/y@v4"}
     ]
+
+
+def test_drafted_recipe_sha_needs_a_version():
+    data = drafted(ci__steps=[{"uses": "x/y@" + "c" * 40}])
+    with pytest.raises(RecipeError, match="version"):
+        recipe_from_data("shell", data, "recipes.shell", None)
 
 
 def test_render_template_substitutes_only_name_and_slug():
