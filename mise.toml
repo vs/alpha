@@ -1,5 +1,8 @@
 # The kit's own checks: the same docs and agent-config gates it generates.
 # `mise install` fetches the tools, `mise run check` runs everything.
+[settings.task]
+run_auto_install = false  # don't install missing tools of the global config
+
 [tools]
 typos = "1.52.0"
 rumdl = "0.3.2"

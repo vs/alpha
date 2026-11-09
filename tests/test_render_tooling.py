@@ -64,6 +64,13 @@ def test_mise_pins_registry_versions(tmp_path: Path):
     assert "check:typos" in data["tasks"]["ci"]["depends"]
 
 
+def test_mise_tasks_install_no_global_tools(tmp_path: Path):
+    # Otherwise `mise run` installs every missing tool of the user's global
+    # config at each Stop and `mise run ci`.
+    data = mise(tmp_path, "rust-cli")
+    assert data["settings"] == {"task": {"run_auto_install": False}}
+
+
 def test_mise_tasks_follow_the_catalog(tmp_path: Path):
     a = answers(tmp_path, "web-ts-plus-python-api")
     rendered = render_project(tmp_path, a, D, 2026, TODAY, registry=REGISTRY)
