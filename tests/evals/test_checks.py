@@ -1,12 +1,15 @@
 import json
+import os
 from pathlib import Path
 
+import pytest
 from helpers import generated_repo, git
 
 from alpha_evals.checks import (
     check_answers,
     check_commits,
     check_files,
+    check_repo_checks,
     check_settings,
 )
 from alpha_evals.scenario import load_brief
@@ -144,3 +147,40 @@ def test_check_to_json():
         "status": "pass",
         "detail": "",
     }
+
+
+def fake_mise(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> None:
+    bin_dir = tmp_path / "fake-bin"
+    bin_dir.mkdir()
+    script = bin_dir / "mise"
+    script.write_text(f"#!/bin/sh\n{body}\n")
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+
+
+def test_repo_checks_check_passes_when_mise_run_ci_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    fake_mise(tmp_path, monkeypatch, 'test "$*" = "run ci"')
+    check = check_repo_checks(tmp_path)
+    assert (check.name, check.status, check.detail) == ("repo-checks", "pass", "")
+
+
+def test_repo_checks_check_reports_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    fake_mise(tmp_path, monkeypatch, "echo 'typos: teh in README.md'; exit 1")
+    check = check_repo_checks(tmp_path)
+    assert check.name == "repo-checks"
+    assert check.status == "fail"
+    assert "mise run ci failed (exit 1)" in check.detail
+    assert "typos: teh in README.md" in check.detail
+
+
+def test_repo_checks_check_says_when_mise_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("PATH", str(tmp_path))
+    check = check_repo_checks(tmp_path)
+    assert check.status == "fail"
+    assert "mise is not installed" in check.detail

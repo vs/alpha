@@ -3,14 +3,19 @@
 import fnmatch
 import json
 import os
+import re
+import secrets
 import shutil
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, cast
 
+from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
 from alpha.generate import PRINCIPLES_TOML, GenerateError, load_project_principles
 from alpha.recipes import check_commands as ci_steps
+from alpha.registry import RegistryError, load_registry
 from alpha_evals.checks import SETTINGS, Check
 
 EDIT_MATCHER = "Edit|Write|MultiEdit"
@@ -240,4 +245,109 @@ def check_commands(project: Path) -> Check:
         Check("commands", "fail", "\n".join(problems))
         if problems
         else Check("commands", "pass")
+    )
+
+
+def _aws_key_pair(_: str | None) -> str:
+    # Random, so the scanner can't skip it as a well-known example key.
+    key_id = "AKIA" + "".join(
+        secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567") for _ in range(16)
+    )
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/+"
+    secret = "".join(secrets.choice(alphabet) for _ in range(40))
+    return f"# Deploy\n\nAWS_ACCESS_KEY_ID={key_id}\nAWS_SECRET_ACCESS_KEY={secret}\n"
+
+
+def _append(extra: str) -> Callable[[str | None], str]:
+    return lambda text: (text or "") + extra
+
+
+# check id -> (registry tool, the file it changes, how it changes it, what the
+# failing output says: proof that the tool found the seed rather than crashed)
+REPO_SEEDS: dict[str, tuple[str, str, Callable[[str | None], str], str]] = {
+    "actions": (
+        "jactionlint",
+        ".github/workflows/ci.yml",
+        lambda text: re.sub(r"@[0-9a-f]{40}", "@v7", text or "", count=1),
+        'action "actions/checkout@v7" must be pinned',
+    ),
+    # betterleaks names no file without --verbose, only the count.
+    "secrets": ("betterleaks", "docs/x.md", _aws_key_pair, "leaks found: 1"),
+    "typos": ("typos", "README.md", _append("\nteh\n"), "`teh` should be `the`"),
+    "markdown": (
+        "rumdl",
+        "docs/x.md",
+        lambda _: "# Notes\n\n### Skips a level\n\nText.\n",
+        "docs/x.md:3:1: [MD001]",
+    ),
+    "links": (
+        "lychee",
+        "README.md",
+        _append("\nSee [notes](docs/missing.md).\n"),
+        "docs/missing.md (at ",
+    ),
+    "agent-config": (
+        "agnix",
+        ".claude/agents/committer.md",
+        lambda text: (text or "").replace("model: inherit\n", "model: [inherit\n", 1),
+        "committer.md:5:8 error: Failed to parse agent frontmatter",
+    ),
+}
+
+
+def _seed_problem(project: Path, check: str, fails_with: int) -> str | None:
+    _, rel, change, says = REPO_SEEDS[check]
+    path = project / rel
+    before = path.read_bytes() if path.exists() else None
+    after = change(before.decode("utf-8") if before is not None else None)
+    if before is not None and after.encode("utf-8") == before:
+        return f"{check}: the seed changed nothing in {rel}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(after, encoding="utf-8")
+    try:
+        done = subprocess.run(
+            ["mise", "run", f"check:{check}"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+            timeout=COMMAND_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return f"{check}: timed out after {COMMAND_TIMEOUT:g}s"
+    finally:
+        if before is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_bytes(before)
+    output = done.stdout + done.stderr
+    if done.returncode != fails_with:
+        tail = " | ".join(output.strip().splitlines()[-_TAIL:])
+        return (
+            f"{check}: expected exit {fails_with} on the seed, "
+            f"got {done.returncode}: {tail}"
+        )
+    if says not in output:
+        return f"{check}: exit {fails_with}, but the output doesn't say {says!r}"
+    return None
+
+
+def check_repo_seeds(project: Path) -> Check:
+    """Each repository check fails, readably, on its seeded violation."""
+    try:
+        registry = load_registry(Source(PLUGIN_ROOT, True, ""))
+        codes = {c: registry.tool(t[0]).pin for c, t in REPO_SEEDS.items()}
+    except RegistryError as e:
+        return Check("repo-seeds", "fail", str(e))
+    problems: list[str] = []
+    for check, pin in codes.items():
+        if pin is None:
+            problems.append(f"{check}: its registry tool has no pin")
+            continue
+        found = _seed_problem(project, check, pin.fails_with)
+        if found:
+            problems.append(found)
+    return (
+        Check("repo-seeds", "fail", "\n".join(problems))
+        if problems
+        else Check("repo-seeds", "pass")
     )

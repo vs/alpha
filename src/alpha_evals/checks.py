@@ -204,3 +204,32 @@ def check_commits(project: Path) -> Check:
     if hooks_path != HOOKS_PATH:
         problems.append(f"core.hooksPath is {hooks_path or 'unset'}, not {HOOKS_PATH}")
     return _verdict("commits", problems)
+
+
+REPO_TIMEOUT = 1800.0
+_TAIL = 8
+
+
+def check_repo_checks(project: Path) -> Check:
+    """`mise run ci`, the repository checks CI runs, exits 0 in the project."""
+    try:
+        done = subprocess.run(
+            ["mise", "run", "ci"],
+            cwd=project,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=REPO_TIMEOUT,
+        )
+    except FileNotFoundError:
+        return Check("repo-checks", "fail", "mise is not installed")
+    except subprocess.TimeoutExpired:
+        return Check(
+            "repo-checks", "fail", f"mise run ci timed out after {REPO_TIMEOUT:g}s"
+        )
+    if done.returncode == 0:
+        return Check("repo-checks", "pass")
+    tail = "\n".join(done.stdout.strip().splitlines()[-_TAIL:])
+    return Check(
+        "repo-checks", "fail", f"mise run ci failed (exit {done.returncode}):\n{tail}"
+    )

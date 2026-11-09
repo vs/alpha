@@ -1,11 +1,9 @@
 import json
 import os
-import re
-import secrets
 import shutil
 import subprocess
 import tomllib
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -18,6 +16,7 @@ from alpha.defaults import Source
 from alpha.generate import bootstrap, generate, project_book
 from alpha.gitops import commit_skeleton
 from alpha.registry import load_registry
+from alpha_evals.seeded import REPO_SEEDS as SEEDS
 
 NEEDS_CARGO = pytest.mark.skipif(
     shutil.which("cargo") is None, reason="needs the Rust toolchain (cargo)"
@@ -154,53 +153,6 @@ def test_scenarios_pass_repo_checks(
     done = mise_run(tmp_path, "ci")
     assert done.returncode == 0, done.stdout + done.stderr
     assert git(tmp_path, "status", "--porcelain") == ""
-
-
-def _aws_key_pair(_: str | None) -> str:
-    # Random, so the scanner can't skip it as a well-known example key.
-    key_id = "AKIA" + "".join(
-        secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567") for _ in range(16)
-    )
-    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/+"
-    secret = "".join(secrets.choice(alphabet) for _ in range(40))
-    return f"# Deploy\n\nAWS_ACCESS_KEY_ID={key_id}\nAWS_SECRET_ACCESS_KEY={secret}\n"
-
-
-def _append(extra: str) -> Callable[[str | None], str]:
-    return lambda text: (text or "") + extra
-
-
-# check id -> (registry tool, the file it changes, how it changes it, what the
-# failing output says: proof that the tool found the seed rather than crashed)
-SEEDS: dict[str, tuple[str, str, Callable[[str | None], str], str]] = {
-    "actions": (
-        "jactionlint",
-        ".github/workflows/ci.yml",
-        lambda text: re.sub(r"@[0-9a-f]{40}", "@v7", text or "", count=1),
-        'action "actions/checkout@v7" must be pinned',
-    ),
-    # betterleaks names no file without --verbose, only the count.
-    "secrets": ("betterleaks", "docs/x.md", _aws_key_pair, "leaks found: 1"),
-    "typos": ("typos", "README.md", _append("\nteh\n"), "`teh` should be `the`"),
-    "markdown": (
-        "rumdl",
-        "docs/x.md",
-        lambda _: "# Notes\n\n### Skips a level\n\nText.\n",
-        "docs/x.md:3:1: [MD001]",
-    ),
-    "links": (
-        "lychee",
-        "README.md",
-        _append("\nSee [notes](docs/missing.md).\n"),
-        "docs/missing.md (at ",
-    ),
-    "agent-config": (
-        "agnix",
-        ".claude/agents/committer.md",
-        lambda text: (text or "").replace("model: inherit\n", "model: [inherit\n", 1),
-        "committer.md:5:8 error: Failed to parse agent frontmatter",
-    ),
-}
 
 
 @pytest.fixture(scope="module")

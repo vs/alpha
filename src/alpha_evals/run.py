@@ -14,12 +14,13 @@ from alpha_evals.checks import (
     check_answers,
     check_commits,
     check_files,
+    check_repo_checks,
     check_settings,
 )
 from alpha_evals.interview import Config, interview
 from alpha_evals.reviewer import check_reviewer
 from alpha_evals.scenario import Brief, load_brief
-from alpha_evals.seeded import check_commands, check_hooks
+from alpha_evals.seeded import check_commands, check_hooks, check_repo_seeds
 
 __all__ = ["PLUGIN_ROOT", "eval_env", "prepare_kit", "run_scenario", "summary"]
 
@@ -30,6 +31,8 @@ CHECKS = (
     "settings",
     "hooks",
     "commands",
+    "repo-checks",
+    "repo-seeds",
     "commits",
     "prompts",
     "reviewer",
@@ -84,6 +87,8 @@ def project_checks(project: Path, brief: Brief, scratch: Path) -> list[Check]:
         _safe("settings", lambda: check_settings(project)),
         _safe("hooks", lambda: check_hooks(project, scratch)),
         _safe("commands", lambda: check_commands(project)),
+        _safe("repo-checks", lambda: check_repo_checks(project)),
+        _safe("repo-seeds", lambda: check_repo_seeds(project)),
         _safe("commits", lambda: check_commits(project)),
     ]
 
@@ -131,9 +136,9 @@ def run_scenario(
         checks += project_checks(project, brief, folder)
     elif t.outcome.status == "pass":
         checks.append(Check("answers", "fail", f"{PROJECT_JSON} has no manifest"))
-        checks += [Check(n, "skip", "interview did not finish") for n in CHECKS[2:7]]
+        checks += [Check(n, "skip", "interview did not finish") for n in CHECKS[2:9]]
     else:
-        checks += [Check(n, "skip", "interview did not finish") for n in CHECKS[1:7]]
+        checks += [Check(n, "skip", "interview did not finish") for n in CHECKS[1:9]]
     checks.append(_prompts(t.denials))
     if not reviewer:
         checks.append(Check("reviewer", "skip", "--no-reviewer"))
