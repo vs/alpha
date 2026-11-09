@@ -330,11 +330,17 @@ def test_diff_cover_catches_untested_line(tmp_path: Path, generate_scenario, git
     (api / "app/x.py").write_text(
         "def double(n: int) -> int:\n    total = n * 2\n    return total\n"
     )
-    git(tmp_path, "add", "api/app/x.py")
+    (api / "tests").mkdir(exist_ok=True)
+    (api / "tests/helper_unimported.py").write_text("VALUE = 1\n")
+    git(tmp_path, "add", "api/app/x.py", "api/tests/helper_unimported.py")
     git(tmp_path, "commit", "-m", "feat(api): Add double", "--no-verify")
 
     done = _sh(coverage, api)
     assert done.returncode == 0, done.stdout + done.stderr
+    report = (api / "coverage.xml").read_text()
+    assert 'filename="app/x.py"' in report  # unimported source counts
+    assert "helper_unimported" not in report  # tests and helpers don't
+    assert "test_setup.py" not in report
     done = _sh(diff, api, diff_env)
     output = done.stdout + done.stderr
     assert done.returncode != 0, output
@@ -385,11 +391,16 @@ def test_diff_cover_catches_untested_typescript_line(
         "  return total;\n"
         "}\n"
     )
-    git(tmp_path, "add", "web/src/x.ts")
+    (web / "other.config.ts").write_text("export default { name: 'x' };\n")
+    git(tmp_path, "add", "web/src/x.ts", "web/other.config.ts")
     git(tmp_path, "commit", "-m", "feat(web): Add double", "--no-verify")
 
     done = _sh(coverage, web)
     assert done.returncode == 0, done.stdout + done.stderr
+    report = (web / "coverage/cobertura-coverage.xml").read_text()
+    assert "src/x.ts" in report  # unimported source counts
+    assert "other.config" not in report  # config files don't
+    assert "setup.test.ts" not in report  # tests don't
     done = _sh(diff, web, diff_env)
     output = done.stdout + done.stderr
     assert done.returncode != 0, output

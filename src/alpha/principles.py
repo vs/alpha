@@ -96,13 +96,20 @@ def _diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
     if a.testing is not None and a.testing.diff_coverage is not None:
         return a.testing.diff_coverage
     try:
-        return int(defaults["testing"]["diff_coverage"])
+        value = defaults["testing"]["diff_coverage"]
     except KeyError:
         raise AnswersError(
             "defaults: [testing] diff_coverage is missing (the defaults checkout "
             "is older than this kit). Add 'diff_coverage = 80' under [testing] in "
             "defaults/defaults.toml, or update the checkout."
         ) from None
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 100:
+        raise AnswersError(
+            f"defaults: [testing] diff_coverage is {value!r}, not a whole "
+            "percentage from 0 to 100. Fix it in defaults/defaults.toml, e.g. "
+            "'diff_coverage = 80'."
+        )
+    return value
 
 
 def build_principles(

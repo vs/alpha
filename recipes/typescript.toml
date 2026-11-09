@@ -9,8 +9,10 @@ lockfiles = ["pnpm-lock.yaml"]
 ignores = ["node_modules/", "dist/", "coverage/"]
 # Pull requests run this instead of `test`, and diff-cover reads the report.
 # --coverage.include lists the files no test imports too (vitest reports only
-# imported files otherwise), so an untested new file counts as uncovered.
-coverage = "pnpm vitest run --coverage --coverage.reporter=cobertura --coverage.include='**/*.{ts,tsx}'"
+# imported files otherwise), so an untested new file counts as uncovered. The
+# excludes mirror exclude_globs and test_globs: vitest's defaults don't cover
+# config files, and a given exclude may replace them.
+coverage = "pnpm vitest run --coverage --coverage.reporter=cobertura --coverage.include='**/*.{ts,tsx}' --coverage.exclude='**/*.config.{ts,mts}' --coverage.exclude='**/*.test.{ts,tsx}' --coverage.exclude='tests/**'"
 coverage_report = "coverage/cobertura-coverage.xml"
 dependabot = "npm"  # Dependabot package-ecosystem; covers pnpm
 manifests = ["package.json"]

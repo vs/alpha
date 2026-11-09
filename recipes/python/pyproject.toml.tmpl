@@ -17,7 +17,8 @@ testpaths = ["tests"]
 # Measure every file here, so a file no test imports counts as uncovered and
 # diff-cover can see it. Dot-dirs (.venv, .claude) aren't this project's code.
 source = ["."]
-omit = [".*/*"]
+# Tests and their helpers (the recipe's test_globs) aren't code to cover.
+omit = [".*/*", "tests/*", "**/test_*.py", "**/*_test.py", "**/conftest.py"]
 
 [tool.coverage.report]
 include_namespace_packages = true  # files in folders without __init__.py too
