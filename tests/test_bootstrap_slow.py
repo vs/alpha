@@ -267,3 +267,29 @@ def test_structure_fails_on_unused_dependency(
         assert done.returncode != 0, f"{c['name']}: {done.stdout}{done.stderr}"
         for f, data in saved.items():  # revert, so the tree is as it was
             f.write_bytes(data)
+
+
+@pytest.mark.slow
+def test_depcruise_reports_a_cycle(tmp_path: Path, generate_scenario, git_env):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    web = tmp_path / "web"
+    command = "pnpm depcruise --config .dependency-cruiser.cjs ."
+    assert _sh(command, web).returncode == 0
+    seeds = {
+        web / "src/a.ts": 'import "./b.js";\nexport const a = 1;\n',
+        web / "src/b.ts": 'import "./a.js";\nexport const b = 1;\n',
+    }
+    try:
+        (web / "src").mkdir()
+        for path, text in seeds.items():
+            path.write_text(text)
+        done = _sh(command, web)
+        output = done.stdout + done.stderr
+        assert done.returncode != 0, output
+        assert "no-circular" in output, output
+    finally:
+        for path in seeds:
+            path.unlink(missing_ok=True)
+        (web / "src").rmdir()

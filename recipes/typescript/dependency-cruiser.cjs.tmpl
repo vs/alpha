@@ -34,6 +34,8 @@ module.exports = {
     },
     // dependency-cruiser reads TypeScript through the typescript package only
     // up to 6.x; swc reads every version, so no import goes unseen.
+    // The "missing-tsc-transpiler" warning is expected: it only says the
+    // typescript package is newer than dependency-cruiser supports.
     parser: "swc",
     tsPreCompilationDeps: true,
     tsConfig: { fileName: "tsconfig.json" },

@@ -50,7 +50,7 @@ lint_file = "pnpm biome lint --error-on-warnings {file}"
 "tests/setup.test.ts" = "setup.test.ts.tmpl"
 ".node-version" = "node-version.tmpl"
 "pnpm-workspace.yaml" = "pnpm-workspace.yaml.tmpl"
-"knip.jsonc" = "knip.json.tmpl"
+"knip.jsonc" = "knip.jsonc.tmpl"
 ".dependency-cruiser.cjs" = "dependency-cruiser.cjs.tmpl"
 
 # The dev tools bootstrap installs, with the reason the dependency log gives.
