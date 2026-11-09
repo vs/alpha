@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import secrets
 import shutil
@@ -8,6 +9,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
+import yaml
 from helpers import TODAY, git, place_answers
 
 from alpha import cli
@@ -241,8 +243,12 @@ def test_repo_checks_can_fail(seeded: Path, request: pytest.FixtureRequest):
     assert SEEDS[check][3] in output, output
 
 
-def _sh(command: str, cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
+def _sh(
+    command: str, cwd: Path, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command, shell=True, cwd=cwd, capture_output=True, text=True, env=env
+    )
 
 
 @pytest.mark.slow
@@ -293,3 +299,58 @@ def test_depcruise_reports_a_cycle(tmp_path: Path, generate_scenario, git_env):
         for path in seeds:
             path.unlink(missing_ok=True)
         (web / "src").rmdir()
+
+
+@pytest.mark.slow
+def test_diff_cover_catches_untested_line(tmp_path: Path, generate_scenario, git_env):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    commit_skeleton(tmp_path, principles, [])
+    git(tmp_path, "branch", "-M", "main")  # CI compares against origin/<base>
+    git(tmp_path, "switch", "-c", "feature")
+
+    workflow = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
+    steps = {s.get("name"): s for s in workflow["jobs"]["api"]["steps"]}
+    coverage = steps["test with coverage"]["run"]
+    # The same command CI runs; the registry pin comes through `uvx` here, since
+    # pipx may not be installed, and the base is the local branch.
+    diff = (
+        steps["diff coverage"]["run"]
+        .replace("pipx run", "uvx")
+        .replace("origin/${BASE_REF}", "${BASE_REF}")  # no remote here
+    )
+    diff_env = {**os.environ, "BASE_REF": "main"}  # CI's base_ref; local branch
+    pin = load_registry(Source(PLUGIN_ROOT, True, "")).tool("diff-cover").pin
+    assert pin is not None
+    assert f"diff-cover=={pin.version}" in diff
+
+    api = tmp_path / "api"
+    (api / "app").mkdir(exist_ok=True)
+    (api / "app/x.py").write_text(
+        "def double(n: int) -> int:\n    total = n * 2\n    return total\n"
+    )
+    git(tmp_path, "add", "api/app/x.py")
+    git(tmp_path, "commit", "-m", "feat(api): Add double", "--no-verify")
+
+    done = _sh(coverage, api)
+    assert done.returncode == 0, done.stdout + done.stderr
+    done = _sh(diff, api, diff_env)
+    output = done.stdout + done.stderr
+    assert done.returncode != 0, output
+    assert "x.py" in output, output
+
+    (api / "tests").mkdir(exist_ok=True)
+    (api / "tests/test_x.py").write_text(
+        "import sys\nfrom pathlib import Path\n\n"
+        "sys.path.insert(0, str(Path(__file__).parents[1]))\n"
+        "from app.x import double  # noqa: E402\n\n\n"
+        "def test_double() -> None:\n    assert double(2) == 4\n"
+    )
+    git(tmp_path, "add", "api/tests/test_x.py")
+    git(tmp_path, "commit", "-m", "test(api): Cover double", "--no-verify")
+    assert _sh(coverage, api).returncode == 0
+    done = _sh(diff, api, diff_env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    # The report files are ignored, so CI's tree check still passes.
+    assert git(tmp_path, "status", "--porcelain") == ""

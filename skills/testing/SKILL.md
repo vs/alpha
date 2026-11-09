@@ -23,6 +23,7 @@ Tests get the same care as the code they test ("Tests are as important as the co
 
 - `testing.components[].name` - one entry per component, by name.
 - `testing.components[].levels` - from `unit`, `integration`, `end-to-end`, `contract`; always includes `unit`, each level once.
+- `testing.diff_coverage` - optional whole percentage, 0 to 100: the share of the lines a pull request changes that its tests must cover (0 turns the check off). Leave it out to take `defaults.testing.diff_coverage`. Only components whose recipe has a `coverage` command are checked.
 - `areas.testing` - `"in_progress"` while you work, `"done"` at the end.
 - `decisions[]` - one entry with `"area": "testing"`.
 
@@ -35,9 +36,11 @@ Run this with the `alpha:grilling` skill (invoke it with the Skill tool and foll
   - add `contract` for each component on either side of a call in `architecture.components[].calls` (only possible when components talk);
   - keep `end-to-end` for the component users drive (UI, CLI), testing whole flows from the acceptance checks.
 
+  Say in one line that pull requests must cover at least `diff_coverage`% of the lines they change (0 turns this off), and recommend `defaults.testing.diff_coverage`.
+
   Explain each level in a few words: `unit` (one piece, no I/O), `integration` (with its real database, files or services), `end-to-end` (a whole user flow), `contract` (both sides keep to the contract file). Restate the acceptance convention in one line.
 
-When a kind's levels differ from the default (not just this project's additions above), follow the grilling skill's override protocol (key `testing.levels.<kind>`, e.g. `testing.levels.backend`).
+When a kind's levels differ from the default (not just this project's additions above), follow the grilling skill's override protocol (key `testing.levels.<kind>`, e.g. `testing.levels.backend`). An answer for `diff_coverage` that differs from the default goes through it too, with key `testing.diff_coverage`.
 
 ## Writing the answers
 
@@ -49,7 +52,7 @@ Each top-level key you send replaces that key in project.json; the others stay a
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `testing` set to `"in_progress"`.
-3. When the user confirms the area, save the `testing` object `{"components": [{"name", "levels"}]}`, with one entry per component. Keep the exact field names.
+3. When the user confirms the area, save the `testing` object `{"components": [{"name", "levels"}]}`, with one entry per component, plus `"diff_coverage": <0-100>` only when the user chose a value other than the default. Keep the exact field names.
 4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "testing"`:
    `{"area": "testing", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the levels (e.g. "Unit, integration and end-to-end tests"); `context` is where the risk is; `decision` gives each component's levels; `consequences` says how tests trace to requirements, plus any defaults wish from the override protocol.
 5. In the same call, save `areas` with `testing` set to `"done"`.

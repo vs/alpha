@@ -1,12 +1,15 @@
 stack = "typescript"
 proven = true  # the kit's own, run in real projects
 bootstrap = [
-  "pnpm add -D typescript vitest @biomejs/biome @types/node knip dependency-cruiser @swc/core",
+  "pnpm add -D typescript vitest @biomejs/biome @types/node knip dependency-cruiser @swc/core @vitest/coverage-v8",
   # CI's pnpm/action-setup installs the version recorded here.
   "pnpm pkg set packageManager=pnpm@$(pnpm --version)",
 ]
 lockfiles = ["pnpm-lock.yaml"]
 ignores = ["node_modules/", "dist/", "coverage/"]
+# Pull requests run this instead of `test`, and diff-cover reads the report.
+coverage = "pnpm vitest run --coverage --coverage.reporter=cobertura"
+coverage_report = "coverage/cobertura-coverage.xml"
 dependabot = "npm"  # Dependabot package-ecosystem; covers pnpm
 manifests = ["package.json"]
 # Source is every .ts/.tsx file in the component, minus tests and excluded files.
@@ -57,6 +60,7 @@ lint_file = "pnpm biome lint --error-on-warnings {file}"
 [why]
 typescript = "Type checking and compilation"
 vitest = "Test runner"
+"@vitest/coverage-v8" = "Coverage of the lines a pull request changes"
 "@biomejs/biome" = "Linting and formatting"
 "@types/node" = "Node.js type definitions"
 knip = "Unused files, exports and dependencies"

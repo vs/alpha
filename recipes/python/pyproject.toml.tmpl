@@ -13,6 +13,15 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.coverage.run]
+# Measure every file here, so a file no test imports counts as uncovered and
+# diff-cover can see it. Dot-dirs (.venv, .claude) aren't this project's code.
+source = ["."]
+omit = [".*/*"]
+
+[tool.coverage.report]
+include_namespace_packages = true  # files in folders without __init__.py too
+
 [tool.pyright]
 typeCheckingMode = "strict"
 reportUnnecessaryTypeIgnoreComment = "error"

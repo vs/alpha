@@ -64,6 +64,10 @@ class Recipe:
     ci: CiSetup
     proven: bool  # False for a recipe drafted in a project interview
     rules: list[StackRule]
+    # Optional: the command that writes a coverage report, and the report path
+    # (relative to the component). A stack with both gets a diff coverage check.
+    coverage: str = ""
+    coverage_report: str = ""
 
 
 class RecipeError(AnswersError):
@@ -91,6 +95,8 @@ _RECIPE_KEYS = frozenset(
         "templates",
         "files",
         "rules",
+        "coverage",
+        "coverage_report",
     }
 )
 _STEP_KEYS = frozenset({"uses", "version", "with", "name", "id", "env"})
@@ -380,6 +386,25 @@ def recipe_from_data(
             f"{dependabot!r} isn't a Dependabot ecosystem",
             f'Use one of: {", ".join(sorted(DEPENDABOT_ECOSYSTEMS))}, or ""',
         )
+    coverage = data.get("coverage", "")
+    coverage_report = data.get("coverage_report", "")
+    for key, value in (("coverage", coverage), ("coverage_report", coverage_report)):
+        if not isinstance(value, str):
+            raise _fail(f"{where}.{key}", "must be text", 'Write it, or "" for none')
+        _one_line(value, f"{where}.{key}")
+    if bool(coverage) != bool(coverage_report):
+        missing = "coverage_report" if coverage else "coverage"
+        raise _fail(
+            f"{where}.{missing}",
+            "is empty but its pair is set",
+            "Give both the coverage command and the report path it writes, or neither",
+        )
+    if coverage_report and unmatchable(coverage_report):
+        raise _fail(
+            f"{where}.coverage_report",
+            f"{coverage_report!r} must be relative to the component folder",
+            'Write e.g. "coverage.xml"',
+        )
     proven = data.get("proven", False)
     if not isinstance(proven, bool):
         raise _fail(f"{where}.proven", "must be true or false", "Use true or false")
@@ -444,6 +469,8 @@ def recipe_from_data(
         ci=CiSetup(steps=steps, env=env),
         proven=proven,
         rules=_rules(data.get("rules", []), f"{where}.rules"),
+        coverage=coverage,
+        coverage_report=coverage_report,
     )
 
 

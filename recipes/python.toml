@@ -1,8 +1,11 @@
 stack = "python"
 proven = true  # the kit's own, run in real projects
-bootstrap = ["uv add --dev pytest ruff pyright deptry"]
+bootstrap = ["uv add --dev pytest pytest-cov ruff pyright deptry"]
 lockfiles = ["uv.lock"]
-ignores = [".venv/", "__pycache__/", ".pytest_cache/"]
+ignores = [".venv/", "__pycache__/", ".pytest_cache/", "coverage.xml", ".coverage"]
+# Pull requests run this instead of `test`, and diff-cover reads the report.
+coverage = "uv run pytest --cov --cov-report=xml:coverage.xml"
+coverage_report = "coverage.xml"
 dependabot = "uv"  # Dependabot package-ecosystem
 manifests = ["pyproject.toml"]
 # Source is every .py file in the component, minus tests and excluded files.
@@ -31,6 +34,7 @@ lint_file = "uv run ruff check {file}"
 # The dev tools bootstrap installs, with the reason the dependency log gives.
 [why]
 pytest = "Test runner"
+pytest-cov = "Coverage of the lines a pull request changes"
 ruff = "Linting and formatting"
 pyright = "Strict type checking"
 deptry = "Unused, missing and transitive dependencies"

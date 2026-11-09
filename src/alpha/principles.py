@@ -91,6 +91,20 @@ def _docs_map(documentation: Documentation) -> dict[str, list[str]]:
     return out
 
 
+def _diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
+    """The answer when the interview set one, else the kit's default."""
+    if a.testing is not None and a.testing.diff_coverage is not None:
+        return a.testing.diff_coverage
+    try:
+        return int(defaults["testing"]["diff_coverage"])
+    except KeyError:
+        raise AnswersError(
+            "defaults: [testing] diff_coverage is missing (the defaults checkout "
+            "is older than this kit). Add 'diff_coverage = 80' under [testing] in "
+            "defaults/defaults.toml, or update the checkout."
+        ) from None
+
+
 def build_principles(
     defaults: dict[str, Any],
     a: Answers,
@@ -244,6 +258,7 @@ def build_principles(
         },
         "docs_map": docs_map,
         "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
+        "testing": {"diff_coverage": _diff_coverage(a, defaults)},
         "components": components,
         "principles": principles,
     }

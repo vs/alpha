@@ -137,6 +137,8 @@ def test_gitignore_prefixes_component_paths(tmp_path: Path, generate_scenario):
         "api/**/.venv/\n"
         "api/**/__pycache__/\n"
         "api/**/.pytest_cache/\n"
+        "api/**/coverage.xml\n"
+        "api/**/.coverage\n"
         "web/**/node_modules/\n"
         "web/**/dist/\n"
         "web/**/coverage/\n"
@@ -158,6 +160,8 @@ def test_gitignore_for_root_component(tmp_path: Path, generate_scenario):
         ".venv/\n"
         "__pycache__/\n"
         ".pytest_cache/\n"
+        "coverage.xml\n"
+        ".coverage\n"
     )
 
 
@@ -263,7 +267,7 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
     bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
     announced = [
-        "api: uv add --dev pytest ruff pyright deptry",
+        "api: uv add --dev pytest pytest-cov ruff pyright deptry",
         "api: uv sync",
         "api: uv run ruff format --check",
         "api: uv run ruff check",
@@ -271,7 +275,7 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
         "api: uv run deptry .",
         "api: uv run pytest",
         "web: pnpm add -D typescript vitest @biomejs/biome @types/node "
-        "knip dependency-cruiser @swc/core",
+        "knip dependency-cruiser @swc/core @vitest/coverage-v8",
         "web: pnpm pkg set packageManager=pnpm@$(pnpm --version)",
         "web: pnpm install",
         "web: pnpm biome format .",
@@ -487,7 +491,7 @@ def test_bootstrap_failure_names_command_output_and_fix(
     message = str(err.value)
     assert (
         '"pnpm add -D typescript vitest @biomejs/biome @types/node '
-        'knip dependency-cruiser @swc/core"'
+        'knip dependency-cruiser @swc/core @vitest/coverage-v8"'
     ) in message
     assert "exit 3" in message
     assert "pnpm output" in message

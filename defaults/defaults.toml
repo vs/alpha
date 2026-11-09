@@ -54,6 +54,10 @@ library = ["unit"]
 worker = ["unit", "integration"]
 ml = ["unit", "integration"]
 
+# Share of the lines a pull request changes that its tests must cover; 0 is off.
+[testing]
+diff_coverage = 80
+
 [documentation]
 external = "readme"   # or "folder" (under docs/), "elsewhere", "none"
 

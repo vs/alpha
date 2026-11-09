@@ -542,3 +542,20 @@ def test_cooldown_answer_is_optional(tmp_path: Path):
     assert check(tmp_path, d).dependencies.cooldown_days is None  # type: ignore[union-attr]
     d["dependencies"]["cooldown_days"] = 0
     assert check(tmp_path, d).dependencies.cooldown_days == 0  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize("value", [101, -1, "80", True, 80.5])
+def test_diff_coverage_answer_validated(tmp_path: Path, value: object):
+    d = valid()
+    d["testing"]["diff_coverage"] = value
+    with pytest.raises(AnswersError, match=r"testing\.diff_coverage: "):
+        check(tmp_path, d)
+
+
+def test_diff_coverage_answer_is_optional(tmp_path: Path):
+    d = valid()
+    d["testing"].pop("diff_coverage", None)
+    assert check(tmp_path, d).testing.diff_coverage is None  # type: ignore[union-attr]
+    for value in (0, 100):
+        d["testing"]["diff_coverage"] = value
+        assert check(tmp_path, d).testing.diff_coverage == value  # type: ignore[union-attr]

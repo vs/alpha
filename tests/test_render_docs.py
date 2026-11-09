@@ -164,7 +164,7 @@ def test_dependencies_md_seeded_per_component(tmp_path: Path):
     md = render(load(tmp_path))["docs/dependencies.md"]
     assert "| Dependency | Component | Why | Added |" in md
     rows = [ln for ln in md.splitlines() if ln.startswith("| ") and "2026" in ln]
-    assert len(rows) == 11
+    assert len(rows) == 13
     assert any(r.startswith("| pytest | api |") for r in rows)
     assert any(r.startswith("| @biomejs/biome | web |") for r in rows)
 

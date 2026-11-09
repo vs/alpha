@@ -10,6 +10,7 @@ from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles
 from alpha.recipes import check_commands
+from alpha.registry import default_registry
 from alpha.render.ci import (
     DEPENDABOT,
     JACTIONLINT,
@@ -54,7 +55,8 @@ def test_one_job_per_component_running_its_checks():
     assert api["defaults"] == {"run": {"working-directory": "api"}}
     assert api["env"] == {"UV_LOCKED": "1"}
     assert api["steps"][0]["uses"].startswith("actions/checkout@")
-    runs = [s for s in api["steps"][:-1] if "run" in s]
+    extra = {"test with coverage", "diff coverage"}  # pull requests only
+    runs = [s for s in api["steps"][:-1] if "run" in s and s["name"] not in extra]
     commands = PRINCIPLES["components"][0]["commands"]
     assert [(s["name"], s["run"]) for s in runs] == check_commands(commands)
     assert "env" not in jobs["web"]
@@ -225,3 +227,68 @@ def test_workflows_meet_actionlint_profile():
             checkouts = [s for s in job["steps"] if "checkout" in s.get("uses", "")]
             assert len(checkouts) == 1
             assert checkouts[0]["with"]["persist-credentials"] is False
+
+
+def _pr_principles(diff_coverage: int = 80) -> dict[str, Any]:
+    principles = copy.deepcopy(PRINCIPLES)
+    principles["testing"] = {"diff_coverage": diff_coverage}
+    return principles
+
+
+def _step_names(job: dict[str, Any]) -> list[str]:
+    return [s.get("name", "") for s in job["steps"]]
+
+
+def test_pr_only_coverage_steps():
+    principles = _pr_principles(75)
+    jobs = workflow(principles)["jobs"]
+    pin = default_registry().tool("diff-cover").pin
+    assert pin is not None
+    for name, report in (("api", "coverage.xml"), ("web", "coverage/cobertura")):
+        job = jobs[name]
+        steps = {s.get("name"): s for s in job["steps"]}
+        assert steps["test"]["if"] == "github.event_name != 'pull_request'"
+        with_cov = steps["test with coverage"]
+        assert with_cov["if"] == "github.event_name == 'pull_request'"
+        assert "--cov" in with_cov["run"] or "--coverage" in with_cov["run"]
+        diff = steps["diff coverage"]
+        assert diff["if"] == "github.event_name == 'pull_request'"
+        assert diff["run"].startswith(f"pipx run diff-cover=={pin.version} ")
+        assert report in diff["run"]
+        assert '--compare-branch="origin/${BASE_REF}"' in diff["run"]
+        assert diff["env"] == {"BASE_REF": "${{ github.base_ref }}"}
+        assert "github." not in diff["run"]  # no template injection
+        assert "--fail-under=75" in diff["run"]
+        assert job["steps"][0]["with"]["fetch-depth"] == 0
+        assert job["steps"][0]["with"]["persist-credentials"] is False
+    names = _step_names(jobs["api"])
+    assert names.index("test") < names.index("test with coverage")
+    assert names.index("diff coverage") < names.index("Checks left the tree unchanged")
+
+
+def test_no_coverage_steps_when_zero():
+    jobs = workflow(_pr_principles(0))["jobs"]
+    for name in ("api", "web"):
+        steps = jobs[name]["steps"]
+        assert "diff coverage" not in _step_names(jobs[name])
+        assert "test with coverage" not in _step_names(jobs[name])
+        test = next(s for s in steps if s.get("name") == "test")
+        assert "if" not in test
+        assert "fetch-depth" not in steps[0]["with"]
+
+
+def test_drafted_recipe_without_coverage():
+    scenario = Path(__file__).parents[1] / "evals" / "scenarios" / "rust-cli.json"
+    answers = load_answers(scenario)
+    principles = build_principles(
+        load_defaults(Source(PLUGIN_ROOT, True, "")), answers, "0.1.0"
+    )
+    assert principles["testing"]["diff_coverage"] > 0
+    book = answers.book()
+    assert book.get(principles["components"][0]["stack"]).coverage == ""
+    text = render_ci(principles, "github-actions", book)[WORKFLOW]
+    job = yaml.safe_load(text)["jobs"][principles["components"][0]["name"]]
+    assert "diff coverage" not in _step_names(job)
+    assert "fetch-depth" not in job["steps"][0]["with"]
+    test = next(s for s in job["steps"] if s.get("name") == "test")
+    assert "if" not in test

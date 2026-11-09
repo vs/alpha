@@ -98,6 +98,7 @@ class TestPlan:
 @dataclass(frozen=True)
 class Testing:
     components: tuple[TestPlan, ...]
+    diff_coverage: int | None = None
 
 
 @dataclass(frozen=True)
@@ -345,7 +346,20 @@ def testing(raw: object, comps: "Sequence[Component] | None", talk: bool) -> Tes
         entries.append(TestPlan(string(eo, "name", ew), levels))
     if comps is not None:
         per_component(entries, comps, f"{w}.components", ('levels:["unit"]',))
-    return Testing(tuple(entries))
+    diff_coverage: int | None = None
+    if "diff_coverage" in d:
+        diff_coverage = d["diff_coverage"]
+        if (
+            not isinstance(diff_coverage, int)
+            or isinstance(diff_coverage, bool)
+            or not 0 <= diff_coverage <= 100
+        ):
+            raise fail(
+                f"{w}.diff_coverage",
+                f"is {diff_coverage!r}, not a whole percentage from 0 to 100",
+                "Use e.g. 80, or 0 for no check; leave the field out for the default",
+            )
+    return Testing(tuple(entries), diff_coverage)
 
 
 def security(raw: object, comps: "Sequence[Component] | None") -> Security:
