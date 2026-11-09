@@ -24,9 +24,12 @@ from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
 from alpha.recipes import RecipeBook, check_commands, render_component
 from alpha.records import Records, record_paths
+from alpha.registry import Registry, default_registry, load_registry
 from alpha.render.ci import render_ci, render_dependabot
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
+from alpha.render.tooling import render_tooling
+from alpha.repo_checks import repo_checks
 
 PRINCIPLES_TOML = "docs/principles.toml"
 _ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
@@ -56,7 +59,8 @@ def _unexpected(target: Path) -> list[str]:
     return sorted(found)
 
 
-def _gitignore(principles: dict[str, Any], book: RecipeBook) -> str:
+def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
+    """The .gitignore entries."""
     # Hooks run with python3, which leaves bytecode next to them.
     lines = [
         ".claude/alpha/state/",
@@ -74,7 +78,13 @@ def _gitignore(principles: dict[str, Any], book: RecipeBook) -> str:
         for entry in book.get(c["stack"]).ignores:
             # "**/" keeps the any-depth match the unprefixed pattern has.
             lines.append(entry if c["path"] == "." else f"{c['path']}/**/{entry}")
-    return "\n".join(lines) + "\n"
+    return lines
+
+
+def _tooling_excludes(principles: dict[str, Any], book: RecipeBook) -> list[str]:
+    """What the repository checks skip: what git ignores, plus the lockfiles."""
+    locks = [lock for c in principles["components"] for lock in c["lockfiles"]]
+    return [*_ignored(principles, book), *locks]
 
 
 def _copies(plugin_root: Path) -> dict[str, Path]:
@@ -139,10 +149,15 @@ def render_project(
     today: date,
     records: Records | None = None,
     added: Mapping[str, date] | None = None,
+    *,
+    registry: Registry | None = None,
 ) -> Rendered:
-    """Every file the answers make, keyed by path; nothing is written."""
+    """Every file the answers make, keyed by path; nothing is written.
+
+    Pass the registry of the Source the defaults came from."""
     records = records or record_paths(a)
-    principles = build_principles(defaults, a, VERSION, records)
+    registry = registry or default_registry()
+    principles = build_principles(defaults, a, VERSION, records, registry=registry)
     book = a.book()
     texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
     texts.update(
@@ -157,9 +172,17 @@ def render_project(
     texts[".claude/settings.json"] = (
         json.dumps(render_settings(principles, book), indent=2) + "\n"
     )
-    texts[".gitignore"] = _gitignore(principles, book)
+    texts[".gitignore"] = "\n".join(_ignored(principles, book)) + "\n"
+    texts.update(
+        render_tooling(
+            repo_checks(a, principles, registry),
+            registry,
+            _tooling_excludes(principles, book),
+            components=principles["components"],
+        )
+    )
     assert a.build is not None  # build_principles refuses answers without it
-    texts.update(render_ci(principles, a.build.ci, book))
+    texts.update(render_ci(principles, a.build.ci, book, registry))
     assert a.dependencies is not None
     cooldown = a.dependencies.cooldown_days
     if cooldown is None:
@@ -208,7 +231,15 @@ def generate(
     records = record_paths(a)
     today = today or date.today()
     # Render everything before writing anything, so a failure leaves no debris.
-    rendered = render_project(target, a, load_defaults(source), year, today, records)
+    rendered = render_project(
+        target,
+        a,
+        load_defaults(source),
+        year,
+        today,
+        records,
+        registry=load_registry(source),
+    )
     texts = rendered.texts
     copies = _copies(plugin_root)
     for rel, name in rendered.component_of.items():

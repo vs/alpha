@@ -377,7 +377,10 @@ def test_no_ui_sets_no_accessibility_level(tmp_path: Path):
 
 def test_migrations_and_tokens_are_risk_paths(tmp_path: Path):
     out = build_principles(D, A, "0.1.0")
-    assert out["data"] == {"migration_paths": ["api/migrations/versions/**"]}
+    assert out["data"] == {
+        "migration_paths": ["api/migrations/versions/**"],
+        "squawk_paths": ["api/migrations/versions/**"],  # the store is PostgreSQL
+    }
     risk = out["review"]["risk_paths"]
     assert "api/migrations/versions/**" in risk
     assert "web/src/styles/tokens.css" in risk
@@ -387,7 +390,7 @@ def test_migrations_and_tokens_are_risk_paths(tmp_path: Path):
 
 def test_no_stored_data_means_no_migration_paths(tmp_path: Path):
     out = build_principles(D, scenario_answers(tmp_path, "rust-cli"), "0.1.0")
-    assert out["data"] == {"migration_paths": []}
+    assert out["data"] == {"migration_paths": [], "squawk_paths": []}
 
 
 def test_project_override_of_level_wins(tmp_path: Path):

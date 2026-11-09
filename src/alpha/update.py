@@ -34,6 +34,7 @@ from alpha.generate import (
 from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group
 from alpha.merge import Change, classify
 from alpha.records import Records, record_paths, taken_numbers
+from alpha.registry import load_registry
 from alpha.validate import AnswersError, area_of
 
 _WRITES = ("new", "change", "merge", "conflict")  # what the count and git cover
@@ -248,11 +249,15 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
         )
     applied = cast(dict[str, Any], manifest["applied"])
     defaults = load_defaults(source)
+    # One registry for both renders, so kit changes cancel out.
+    registry = load_registry(source)
     try:
         was = parse_answers(
             applied, target, generated=True, former=generated_components(applied)
         )
-        before = render_project(target, was, defaults, year, today, records, added)
+        before = render_project(
+            target, was, defaults, year, today, records, added, registry=registry
+        )
     except (AnswersError, GenerateError, ValueError, KeyError) as e:
         raise GenerateError(_not_loaded(target, manifest, e)) from None
     try:
@@ -265,7 +270,9 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     _check_history(applied, top)
     new_records = record_paths(now, known=records, taken=taken_numbers(target))
     dates = {c.name: added.get(c.name, today) for c in now.components}
-    after = render_project(target, now, defaults, year, today, new_records, dates)
+    after = render_project(
+        target, now, defaults, year, today, new_records, dates, registry=registry
+    )
     moves = _moves(target, was, now, (before, after))
     changes: list[Change] = []
     for path in sorted({*before.texts, *after.texts}):

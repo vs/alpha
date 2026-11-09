@@ -1,13 +1,10 @@
 """Render the project's CI workflow: each component's checks, as CLAUDE.md lists."""
 
-import os
 import re
-from pathlib import Path
 from typing import Any, cast
 
-from alpha.defaults import locate_source
 from alpha.recipes import RecipeBook, check_commands
-from alpha.registry import BUNDLED, Registry, load_registry
+from alpha.registry import Registry, default_registry
 from alpha.yaml_write import Commented, dumps
 
 WORKFLOW = ".github/workflows/ci.yml"
@@ -81,7 +78,7 @@ def render_ci(
     if ci == "none":
         return {}
     recipes = book or RecipeBook()
-    pins = registry or load_registry(locate_source(BUNDLED, os.environ, Path.home()))
+    pins = registry or default_registry()
     workflow = {
         "name": "CI",
         "on": {"push": {"branches": ["main"]}, "pull_request": {}},

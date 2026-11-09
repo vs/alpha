@@ -19,6 +19,10 @@ _DOCS = [
     "CHANGELOG.md",
     "docs",
     ".gitignore",
+    "mise.toml",
+    "_typos.toml",
+    ".rumdl.toml",
+    "lychee.toml",
 ]
 _CLAUDE = ["CLAUDE.md", ".claude"]
 UPDATE_STATE = ".claude/alpha/state/update.json"  # written by alpha update

@@ -4,6 +4,8 @@ from typing import Any, cast
 
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
 from alpha.records import Records, record_paths
+from alpha.registry import Registry, default_registry
+from alpha.repo_checks import principles_entries, repo_checks
 from alpha.toml_write import dumps
 from alpha.validate import prefixed
 
@@ -94,6 +96,8 @@ def build_principles(
     a: Answers,
     kit_version: str,
     records: Records | None = None,
+    *,
+    registry: Registry | None = None,
 ) -> dict[str, Any]:
     missing = [area for area in AREAS if area != "components" and not getattr(a, area)]
     if missing:
@@ -104,6 +108,14 @@ def build_principles(
     assert a.git and a.agent_workflow and a.documentation and a.identity
     assert a.security and a.architecture and a.ui and a.data and a.accessibility
     migration_paths = _dedupe([g for d in a.data.components for g in d.migrations])
+    squawk_paths = _dedupe(
+        [
+            g
+            for d in a.data.components
+            if "postgres" in d.storage.lower()
+            for g in d.migrations
+        ]
+    )
     tokens = {u.name: u.tokens for u in a.ui.components}
     review = dict(defaults["review"])
     review["mode"] = a.agent_workflow.review_mode
@@ -214,7 +226,7 @@ def build_principles(
 
     docs_map = _docs_map(a.documentation)
     protected += a.security.extra_protected
-    return {
+    out: dict[str, Any] = {
         "schema": 1,
         "kit_version": kit_version,
         "project": {"name": a.identity.name, "slug": a.identity.slug},
@@ -231,10 +243,13 @@ def build_principles(
             "branching": a.git.branching,
         },
         "docs_map": docs_map,
-        "data": {"migration_paths": migration_paths},
+        "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
         "components": components,
         "principles": principles,
     }
+    pins = registry or default_registry()
+    out["repo_checks"] = principles_entries(repo_checks(a, out, pins))
+    return out
 
 
 def render_principles(data: dict[str, Any]) -> str:

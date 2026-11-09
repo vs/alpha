@@ -25,6 +25,11 @@ STANDARD_ROOT = {
     ".gitignore",
     "docs",
     ".claude",
+    # the repository checks' toolchain and the configs of the tools it pins
+    "mise.toml",
+    "_typos.toml",
+    ".rumdl.toml",
+    "lychee.toml",
 }
 ROOT_ENTRIES = {  # what each scenario may add at the root: its components
     "python-ml-single": STANDARD_ROOT
@@ -142,6 +147,10 @@ def test_commit_skeleton_groups_and_trailers(
         "CHANGELOG.md",
         "docs",
         ".gitignore",
+        "mise.toml",
+        "_typos.toml",
+        ".rumdl.toml",
+        "lychee.toml",
     }
     assert {f.split("/")[0] for f in files_in(claude)} == {"CLAUDE.md", ".claude"}
     assert all(f.startswith("api/") for f in files_in(api))

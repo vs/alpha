@@ -1,5 +1,6 @@
 """Tool registry: reviewed quality tools with verified pins, and pinned actions."""
 
+import os
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -7,7 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
 
-from alpha.defaults import Source
+from alpha.defaults import Source, locate_source
 from alpha.validate import AnswersError, fail, get, join, obj, pos_int, string, strings
 
 BUNDLED = Path(__file__).resolve().parents[2]
@@ -178,3 +179,9 @@ def load_registry(source: Source) -> Registry:
         for repo, v in actions_table.items()
     }
     return Registry(tools, actions)
+
+
+def default_registry() -> Registry:
+    """The registry of the alpha checkout the defaults come from, for callers
+    that weren't handed one."""
+    return load_registry(locate_source(BUNDLED, os.environ, Path.home()))
