@@ -220,8 +220,11 @@ both), and any parameters.
 - **Logic in the middle, side effects at the edges.** *When: the component has
   non-trivial business logic.*
 - ★ **No dead code.** No commented-out code, no speculative options.
-- ★ **Comments say why.** A comment explains a non-obvious why (a cost, a
-  race, a decided rule), never what the next line does.
+- ★ **Code over comments.** A comment stays only for what the code can't
+  say: a license header, a rule set by a dependency, platform or protocol we
+  can't change, a public API's contract, or an issue link for a constraint.
+  Anything surprising in our own code is fixed by renaming, extracting or
+  retyping it until it reads plainly, not explained in prose.
 - ★ **Generated files come from their source.** A generated file changes only
   by changing its source and regenerating it, never by hand.
 

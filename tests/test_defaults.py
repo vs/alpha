@@ -5,6 +5,7 @@ import sys
 import tomllib
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -87,6 +88,19 @@ def test_catalog_has_all_core_principles():
         "**/openapi*.yml",
         "**/openapi*.json",
     ]
+
+
+def principle(d: dict[str, Any], pid: str) -> dict[str, Any]:
+    return next(p for p in d["principles"] if p["id"] == pid)
+
+
+def test_comments_keep_only_what_the_code_cannot_say():
+    d = load_defaults(Source(ROOT, True, ""))
+    statement = principle(d, "code-over-comments")["statement"]
+    for kept in ("license", "dependency", "public API", "issue"):
+        assert kept in statement
+    assert "renaming" in statement
+    assert "comments-say-why" not in {p["id"] for p in d["principles"]}
 
 
 def hook_checks() -> set[tuple[str, str]]:
