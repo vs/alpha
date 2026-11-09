@@ -268,7 +268,11 @@ both), and any parameters.
   catch-all exception handlers, and no mocking the thing under test. A type
   error from an outdated dependency is fixed by upgrading it, not by removing
   or downgrading code. If a check is wrong, raise it with the user.
-- ★ **Stay in scope.** No drive-by refactors inside a task.
+- ★ **Stay in scope.** No drive-by refactors of code the task doesn't touch.
+- ★ **Subtract before you add.** In the code a task touches, first remove
+  what's dead there: unused code, redundant checks, stubs. A new internal API
+  replaces the old one in the same change: every caller migrated, the old one
+  deleted, no compatibility layer.
 - ★ **Ask when ambiguous**, and record the answer in the decision log.
 - ★ **Definition of done:** tests written and passing, types and lint clean,
   docs updated, committed per the history principle, reviewer passed (§9).

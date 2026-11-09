@@ -35,7 +35,8 @@ _WORKING_RULES = (
     "touches; search snippets aren't enough.",
     "- Look up a dependency's API in its installed source or types instead of "
     "guessing it.",
-    "- Ask before removing code or behavior that looks intentional.",
+    "- Remove dead code and replaced internal APIs without asking, but ask "
+    "before removing code or behavior that looks intentional.",
     "- Commit only the files you changed for the work, staged by path. Other "
     "changes in the tree may be the user's or another session's, so don't stage, "
     "stash or reset them; the hooks block the commands that would.",

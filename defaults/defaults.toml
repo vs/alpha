@@ -359,8 +359,17 @@ core = true
 [[principles]]
 id = "stay-in-scope"
 title = "Stay in scope"
-statement = "No drive-by refactors inside a task."
+statement = "No drive-by refactors of code the task doesn't touch."
 rationale = "Unrelated changes bloat review and hide the real change in the diff."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "subtract-first"
+title = "Subtract before you add"
+statement = "In the code a task touches, first remove what's dead there: unused code, redundant checks, stubs. A new internal API replaces the old one in the same change: every caller migrated, the old one deleted, no compatibility layer."
+rationale = "Building on a simpler base keeps the change small, and a compatibility layer kept for now becomes a second API to maintain."
 applies = ["always"]
 checked_by = ["reviewer"]
 core = true

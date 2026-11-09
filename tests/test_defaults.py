@@ -80,7 +80,7 @@ def test_catalog_has_all_core_principles():
         "clean-history",
         "definition-of-done",
     } <= ids
-    assert len(ids) == 30
+    assert len(ids) == 31
     assert d["review"]["risk_paths"][:5] == [
         "**/migrations/**",
         "**/*.proto",
@@ -101,6 +101,14 @@ def test_comments_keep_only_what_the_code_cannot_say():
         assert kept in statement
     assert "renaming" in statement
     assert "comments-say-why" not in {p["id"] for p in d["principles"]}
+
+
+def test_subtract_first_replaces_internal_apis_in_one_change():
+    d = load_defaults(Source(ROOT, True, ""))
+    statement = principle(d, "subtract-first")["statement"]
+    assert "dead" in statement
+    assert "compatibility layer" in statement
+    assert principle(d, "subtract-first")["applies"] == ["always"]
 
 
 def hook_checks() -> set[tuple[str, str]]:
