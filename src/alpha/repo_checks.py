@@ -5,10 +5,12 @@ ones) and pinned in the project's root mise.toml.
 """
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from alpha.answers import Answers
 from alpha.registry import Registry, RegistryError
+
+if TYPE_CHECKING:  # answers imports the CI renderer, which imports this module
+    from alpha.answers import Answers
 
 When = Literal["pr", "schedule", "both"]
 
@@ -18,9 +20,15 @@ _SQUAWK = "python3 .claude/alpha/checks/diff_checks.py squawk"
 _REVIEW_DATES = "python3 .claude/alpha/checks/review_dates.py"
 # Exact pins never fall behind their own request, so compare against the
 # newest release (--bump), and only for the project's tools (--no-global).
+TOOLCHAIN = "toolchain"  # CI runs it as its own step, after the weekly scans
+TOOLCHAIN_FIX = (
+    "Pinned tools have newer releases: run mise upgrade --bump --no-global "
+    "and commit mise.toml (then rerun the checks)"
+)
 _TOOLCHAIN = (
     "mise outdated --no-global --bump --json | python3 -c "
     '"import json,sys; d=json.load(sys.stdin); print(json.dumps(d, indent=2)); '
+    f"d and print('{TOOLCHAIN_FIX}'); "
     'sys.exit(1 if d else 0)"'
 )
 
@@ -59,7 +67,7 @@ def _without_offline(command: str) -> str:
 
 
 def repo_checks(
-    a: Answers, principles: dict[str, Any], registry: Registry
+    a: "Answers", principles: dict[str, Any], registry: Registry
 ) -> list[RepoCheck]:
     """The project's repository checks, in the catalog's order."""
     lockfiles = tuple(lock for c in principles["components"] for lock in c["lockfiles"])
@@ -181,7 +189,7 @@ def repo_checks(
             "Suppressions past their review date",
         ),
         RepoCheck(
-            "toolchain",
+            TOOLCHAIN,
             None,
             _TOOLCHAIN,
             (),

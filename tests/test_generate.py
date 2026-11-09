@@ -285,7 +285,11 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
         "web: pnpm vitest run",
     ]
     tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
-    repo = ["mise trust --yes", f"mise install {' '.join(tools)}", "mise run ci"]
+    repo = [
+        "mise trust --yes",
+        f"mise install {' '.join(tools)}",
+        "mise run --continue-on-error ci",  # every failing check, not the first
+    ]
     ran = [
         *announced[:8],
         "web: pnpm --version",  # the $(...) runs first
@@ -357,7 +361,11 @@ def test_bootstrap_installs_only_the_project_s_check_tools(
     tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
     assert "github:betterleaks/betterleaks" in tools
     calls = [json.loads(line) for line in log.read_text().splitlines()]
-    assert calls == [["trust", "--yes"], ["install", *tools], ["run", "ci"]]
+    assert calls == [
+        ["trust", "--yes"],
+        ["install", *tools],
+        ["run", "--continue-on-error", "ci"],
+    ]
 
 
 def test_bootstrap_install_failure_points_at_the_install(
@@ -394,7 +402,7 @@ def test_bootstrap_repo_check_failure_names_command_and_fix(
     bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
     mise = bin_dir / "mise"
     mise.write_text(
-        '#!/bin/sh\n[ "$*" = "run ci" ] || exit 0\n'
+        '#!/bin/sh\n[ "$*" = "run --continue-on-error ci" ] || exit 0\n'
         'echo "README.md:3:1: teh should be the"\nexit 2\n'
     )
     mise.chmod(0o755)
@@ -404,7 +412,8 @@ def test_bootstrap_repo_check_failure_names_command_and_fix(
             project, tomllib.loads((project / "docs/principles.toml").read_text())
         )
     assert str(err.value) == (
-        f'"mise run ci" failed in {project} (exit 2). Last lines of its output:\n'
+        f'"mise run --continue-on-error ci" failed in {project} (exit 2). Last '
+        "lines of its output:\n"
         "README.md:3:1: teh should be the\n"
         "Fix what the repository checks report (mise run check:<id> reruns one) "
         f'and rerun "alpha bootstrap {project}"'
@@ -437,7 +446,7 @@ def test_bootstrap_only_named_components(
     ran = (tmp_path / "tools.log").read_text().splitlines()
     components = [line for line in ran if not line.startswith("proj: mise ")]
     assert components and all(line.startswith("api: ") for line in components)
-    assert ran[-1] == "proj: mise run ci"  # the repository checks still run
+    assert ran[-1] == "proj: mise run --continue-on-error ci"  # still run
 
 
 def test_bootstrap_unknown_component_is_explained(

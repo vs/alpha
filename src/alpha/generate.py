@@ -422,7 +422,7 @@ def _repo_checks(target: Path) -> None:
         )
     _run(
         label,
-        "mise run ci",
+        "mise run --continue-on-error ci",  # report every failing check
         target,
         "Fix what the repository checks report (mise run check:<id> reruns one) "
         f"and {rerun}",

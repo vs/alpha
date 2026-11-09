@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import secrets
 import shutil
@@ -92,9 +93,13 @@ def test_mise_tasks_follow_the_catalog(tmp_path: Path):
     assert tasks["ci"]["depends"] == [
         f"check:{c.id}" for c in checks if c.when in ("pr", "both")
     ]
+    # The workflow runs the toolchain check as its own step, after the scans.
     assert tasks["scheduled"]["depends"] == [
-        f"check:{c.id}" for c in checks if c.when in ("schedule", "both")
+        f"check:{c.id}"
+        for c in checks
+        if c.when in ("schedule", "both") and c.id != "toolchain"
     ]
+    assert "check:toolchain" in tasks
     assert "check:links-online" not in tasks["ci"]["depends"]
     assert "check:vulns" in tasks["scheduled"]["depends"]
     assert tasks["check"]["depends"] == [
@@ -106,6 +111,38 @@ def test_mise_tasks_follow_the_catalog(tmp_path: Path):
         task = tasks[f"check:component:{c['name']}"]
         assert task["dir"] == c["path"]
         assert task["run"] == [cmd for _, cmd in check_commands(c["commands"])]
+
+
+def run_toolchain(tmp_path: Path, outdated: str) -> subprocess.CompletedProcess[str]:
+    """The toolchain task's command, with a stand-in mise printing `outdated`."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "mise").write_text(f"#!/bin/sh\ncat <<'EOF'\n{outdated}\nEOF\n")
+    (bin_dir / "mise").chmod(0o755)
+    command = mise(tmp_path, "rust-cli")["tasks"]["check:toolchain"]["run"]
+    return subprocess.run(
+        ["sh", "-c", command],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"},
+    )
+
+
+def test_toolchain_check_says_how_to_bump_the_pins(tmp_path: Path):
+    outdated = '{"typos": {"current": "1.52.0", "latest": "1.53.0"}}'
+    done = run_toolchain(tmp_path, outdated)
+    assert done.returncode == 1
+    assert '"latest": "1.53.0"' in done.stdout
+    assert (
+        "Pinned tools have newer releases: run mise upgrade --bump --no-global "
+        "and commit mise.toml (then rerun the checks)"
+    ) in done.stdout
+
+
+def test_toolchain_check_passes_when_current(tmp_path: Path):
+    done = run_toolchain(tmp_path, "{}")
+    assert done.returncode == 0
+    assert "newer releases" not in done.stdout
 
 
 def test_root_component_task_runs_at_the_root(tmp_path: Path):

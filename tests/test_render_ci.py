@@ -173,7 +173,8 @@ def test_repo_job():
     assert steps[1]["uses"].startswith("jdx/mise-action@")
     assert re.fullmatch(r"jdx/mise-action@[0-9a-f]{40}", steps[1]["uses"])
     assert steps[1]["with"] == {"install": True, "cache": True}
-    assert steps[2]["run"] == "mise run ci"
+    # Every failing check, not only the first: mise cancels the rest otherwise.
+    assert steps[2]["run"] == "mise run --continue-on-error ci"
     assert steps[2]["env"] == {
         "ALPHA_BASE": (
             "${{ github.event_name == 'pull_request' && "
@@ -208,8 +209,16 @@ def test_scheduled_workflow():
     job = data["jobs"]["scheduled"]
     assert job["steps"][1]["uses"].startswith("jdx/mise-action@")
     assert job["steps"][1]["with"]["install"] is True  # runs mise install
-    assert job["steps"][2]["run"] == "mise run scheduled"
+    assert job["steps"][2]["run"] == "mise run --continue-on-error scheduled"
+    # Pinned tools fall behind almost weekly: that check runs after the scans,
+    # whatever they found, so it never stops them.
+    assert job["steps"][3] == {
+        "name": "mise run check:toolchain",
+        "if": "${{ !cancelled() }}",
+        "run": "mise run check:toolchain",
+    }
     assert job["steps"][-1]["name"] == "Checks left the tree unchanged"
+    assert len(job["steps"]) == 5
     assert SCHEDULED not in render_ci(PRINCIPLES, "none")
 
 

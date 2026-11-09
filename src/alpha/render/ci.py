@@ -5,6 +5,7 @@ from typing import Any, cast
 
 from alpha.recipes import RecipeBook, check_commands
 from alpha.registry import Registry, default_registry
+from alpha.repo_checks import TOOLCHAIN
 from alpha.yaml_write import Commented, dumps
 
 WORKFLOW = ".github/workflows/ci.yml"
@@ -126,8 +127,10 @@ def _checkout(registry: Registry, *, full_history: bool) -> dict[str, object]:
 def _mise_steps(
     registry: Registry, task: str, env: dict[str, str] | None = None
 ) -> list[object]:
-    """mise with the pinned tools installed, then the task."""
-    run: dict[str, object] = {"name": f"mise run {task}", "run": f"mise run {task}"}
+    """mise with the pinned tools installed, then the task. It runs every check
+    even when one fails, so the log shows them all."""
+    command = f"mise run --continue-on-error {task}"
+    run: dict[str, object] = {"name": f"mise run {task}", "run": command}
     if env:
         run["env"] = env
     return [
@@ -160,6 +163,10 @@ def _repo_job(registry: Registry) -> dict[str, object]:
 def _scheduled_job(registry: Registry) -> dict[str, object]:
     steps: list[object] = [_checkout(registry, full_history=False)]
     steps += _mise_steps(registry, "scheduled")
+    # Pinned tools fall behind almost weekly: after the scans, whatever they
+    # found, so it never stops them.
+    toolchain = f"mise run check:{TOOLCHAIN}"
+    steps.append({"name": toolchain, "if": "${{ !cancelled() }}", "run": toolchain})
     steps.append(dict(_TREE_STEP))
     return {
         "runs-on": "ubuntu-latest",
