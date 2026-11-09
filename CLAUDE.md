@@ -4,6 +4,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 
 ## Dev commands
 
+- `mise install`, then `mise run check`: every check the kit runs on itself (typos, rumdl and agnix on the docs and skills, then pytest, ruff and pyright).
 - `uv run pytest`
 - `uv run ruff check` and `uv run ruff format`
 - `uv run pyright`
@@ -12,22 +13,22 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 ## Rules
 
 - The kit follows its own principles (spec §12).
-- Commits use conventional commits with scopes = component names. The description after `type(scope): ` is at most 50 chars, imperative, capitalized, no trailing period. Body lines wrap at 72.
+- Commits use conventional commits with scopes = component names. The description after the `type(scope):` prefix is at most 50 chars, imperative, capitalized, no trailing period. Body lines wrap at 72.
 
 ## Install and verify
 
 Try alpha without installing it: start Claude Code with the plugin loaded for that session only, then run the interview on a new folder.
 
 ```sh
-claude --plugin-dir /Users/vs/workspace/alpha
+claude --plugin-dir ~/workspace/alpha
 /alpha:new-project ~/code/my-new-project
 ```
 
 To change a project alpha generated (add a component, revisit an area's decisions), run `/alpha:extend <what to change>` from inside it. It re-asks only what the change affects, merges alpha's files without overwriting your edits, and commits.
 
-Optional: to stop Claude Code asking before each alpha CLI call during the interview, add `"Bash(/Users/vs/workspace/alpha/bin/alpha *)"` to `permissions.allow` in `~/.claude/settings.json` (for an installed plugin, use the `bin/alpha` path the prompt shows).
+Optional: to stop Claude Code asking before each alpha CLI call during the interview, add `"Bash(<alpha checkout>/bin/alpha *)"` with the absolute path of this checkout to `permissions.allow` in `~/.claude/settings.json` (for an installed plugin, use the `bin/alpha` path the prompt shows).
 
-Install it for every session later with `claude plugin marketplace add /Users/vs/workspace/alpha`, then `claude plugin install alpha@alpha-local`. `claude plugin validate .claude-plugin/marketplace.json` checks the manifests.
+Install it for every session later with `claude plugin marketplace add ~/workspace/alpha`, then `claude plugin install alpha@alpha-local`. `claude plugin validate .claude-plugin/marketplace.json` checks the manifests.
 
 Recipes and defaults come from the live alpha checkout when one is found (`ALPHA_SOURCE`, then `source` in `~/.config/alpha/config.toml`, then `~/workspace/alpha`), before the copies bundled with the plugin. For a stack both have, the checkout's recipe wins, even if that checkout is older than the installed plugin.
 
@@ -100,7 +101,7 @@ All three scenarios went through `bin/alpha` (`answers check`, `generate`, `boot
 - Fixed in the extend skill (Task 6's review): decisions and overrides are sent whole; a repeated "Revisit" message goes to the user; nothing generated is written before the user confirms; an unapplied or uncommitted update resumes at the right step; area skills don't point back to `/alpha:new-project`. Only the whole-array send ran live (and the hand-off back to step 3); no "Revisit" message came up, and the §1 resume branches and the §4 wording were not exercised.
 - Fixed: commit-update commits only alpha's writes, so the deleted CHANGELOG.md stayed staged and Claude improvised its commit (rejected once for the 72-char wrap). The skill now says to commit the deletion after commit-update, with a conventional message and step 7's attribution lines as trailers. The next run did it in one try, and its commit carried the same Co-Authored-By trailer as commit-update's (in `-p` there is no session line).
 - In the first run, the prompt said "yes to every confirmation", so grilling's defaults question ran `alpha defaults set`, which committed to the alpha checkout's current branch (here a feature branch; reverted). Run live checks with `ALPHA_SOURCE` pointing at a throwaway copy of the checkout, and answer no to making anything a default.
-- Open: dry-run diffs of long files (docs/principles.toml) show some unchanged lines as removed and re-added, because difflib's autojunk heuristic treats lines that repeat often as junk. The diff still applies correctly; it is only noisy.
+- Open: dry-run diffs of long files (docs/principles.toml) show some unchanged lines as removed and re-added, because difflib's autojunk heuristic treats lines that repeat many times as junk. The diff still applies correctly; it is only noisy.
 - Not verified: interactive prompts. Claude read project.json with `python3 -c` and wrote a scratch file to `/tmp`; interactively, each such Bash call would ask, unlike the Read tool.
 - Found by the final branch review and fixed after this live check, with tests but not exercised live: commit-update keeps the proposals of conflicts that weren't merged (alpha update no longer clears earlier ones); alpha update refuses a new component's folder that holds uncommitted files; alpha update absorbs its own writes into the review state, so a Stop before commit-update doesn't review them, and runs the review hook with `CLAUDE_PROJECT_DIR` set to the target; an override scoped to a removed or renamed component stays valid and stops applying; the two refusals without a next step now give one; a moved component is checked by its templates, not its manifests; and the extend skill's quoted output, `<target>` and bootstrap step were corrected.
 

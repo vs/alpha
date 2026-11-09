@@ -1,0 +1,22 @@
+# typos settings. For a word the kit spells that way on purpose, add it under
+# [default.extend-words], e.g. `ser = "ser"`.
+[files]
+extend-exclude = [
+  ".superpowers/",      # git-ignored session scratch
+  ".claude/worktrees/", # other sessions' checkouts
+  ".venv/",
+]
+
+[default.extend-words]
+# Deliberate misspellings and fragments in test data and generated text: the
+# tests seed them to prove typos (or the recipe checks) catch them.
+teh = "teh"
+comands = "comands"
+# `ser` is the example word in the generated _typos.toml header.
+ser = "ser"
+# A prefix, so a check matches deprecate, deprecated and deprecation.
+deprecat = "deprecat"
+# The start of b"caf\xe9", an invalid-UTF-8 fixture.
+caf = "caf"
+# The tool's own name (a monorepo dependency checker).
+sherif = "sherif"
