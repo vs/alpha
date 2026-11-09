@@ -19,6 +19,7 @@ BETTERLEAKS = ".betterleaksignore"
 # reason and date go on the line above it.
 BL_FORM = "# <reason, 2+ words> (review YYYY-MM-DD)"
 REVIEW = re.compile(r"^#\s*(?P<reason>.*?)\s*\(review (?P<date>[^)]*)\)\s*$")
+HEADER = re.compile(r"^\s*\[\[\s*(\"IgnoredVulns\"|IgnoredVulns)\s*\]\]\s*(#.*)?$")
 ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
@@ -41,6 +42,15 @@ def date_problem(text: str, today: date) -> str | None:
     return None
 
 
+def read_utf8(path: Path) -> str | None:
+    """File text, or None after printing a not-UTF-8 problem."""
+    try:
+        return path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        print(f"{path}: not valid UTF-8. Fix: save it as UTF-8")
+        return None
+
+
 def words(reason: str) -> int:
     return len(reason.split())
 
@@ -49,35 +59,49 @@ def check_osv(today: date) -> list[str]:
     path = Path(OSV)
     if not path.is_file():
         return []
-    text = path.read_text()
+    text = read_utf8(path)
+    if text is None:
+        return [f"{OSV}: unreadable"]
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
         found: list[str] = []
         for n, line in enumerate(text.splitlines(), 1):
-            m = re.match(r"\s*ignoreUntil\s*=\s*(\d{4}-\d{2}-\d{2})", line)
+            m = re.match(r"\s*ignoreUntil\s*=\s*(\d{4}-\d+-\d+)", line)
             if m and parse_date(m.group(1)) is None:
                 found.append(
-                    f"{OSV}:{n}: ignoreUntil {m.group(1)} is not a real date. "
-                    "Fix: set a real date, for example ignoreUntil = 2026-12-31, "
-                    "or remove the [[IgnoredVulns]] entry"
+                    f"{OSV}:{n}: ignoreUntil is not a real date; write "
+                    "YYYY-MM-DD. Fix: set a real date, for example "
+                    "ignoreUntil = 2026-12-31, or remove the [[IgnoredVulns]] "
+                    "entry"
                 )
-        return found or [
-            f"{OSV}: not valid TOML ({e}). Fix: correct the syntax, or remove "
+        if found:
+            return found
+        at = re.search(r"line (\d+)", str(e))
+        if at:
+            loc = f"{OSV}:{at.group(1)}"
+        elif "end of document" in str(e):
+            loc = f"{OSV}:{max(len(text.splitlines()), 1)}"
+        else:
+            loc = OSV
+        return [
+            f"{loc}: not valid TOML ({e}). Fix: correct the syntax, or remove "
             "the suppression"
         ]
-    # Locate each entry's header line for messages.
-    headers = [
-        n
-        for n, line in enumerate(text.splitlines(), 1)
-        if line.strip() == "[[IgnoredVulns]]"
-    ]
-    entries = cast(list[Any], data.get("IgnoredVulns", []))
+    headers = [n for n, line in enumerate(text.splitlines(), 1) if HEADER.match(line)]
+    raw_entries: Any = data.get("IgnoredVulns", [])
+    if not isinstance(raw_entries, list):
+        return [
+            f"{OSV}: IgnoredVulns must be an array of tables. Fix: write each "
+            "suppression as [[IgnoredVulns]], or remove it"
+        ]
+    entries = cast(list[Any], raw_entries)
+    aligned = len(headers) == len(entries)
     problems: list[str] = []
     for i, raw in enumerate(entries):
         entry = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
-        where = f"{OSV}:{headers[i] if i < len(headers) else 1}"
         vid = entry.get("id", "?")
+        where = f"{OSV}:{headers[i]}" if aligned else f"{OSV}: entry {i + 1}"
         fix = (
             "Fix: set ignoreUntil to a new real date and a reason of at least "
             "two words, or remove the suppression"
@@ -107,7 +131,10 @@ def check_betterleaks(today: date) -> list[str]:
     path = Path(BETTERLEAKS)
     if not path.is_file():
         return []
-    lines = path.read_text().splitlines()
+    text = read_utf8(path)
+    if text is None:
+        return [f"{BETTERLEAKS}: unreadable"]
+    lines = text.splitlines()
     problems: list[str] = []
     for n, line in enumerate(lines, 1):
         entry = line.strip()
@@ -118,7 +145,7 @@ def check_betterleaks(today: date) -> list[str]:
             f"Fix: put `{BL_FORM}` on the line above the entry, or remove "
             "the suppression"
         )
-        if " #" in entry:
+        if re.search(r"[ \t]#", entry):
             problems.append(
                 f"{where}: a trailing comment stops betterleaks honoring "
                 f"the entry. Move the reason and date to the line above. {fix}"
@@ -147,7 +174,10 @@ def main() -> int:
     if args.today:
         parsed = parse_date(args.today)
         if parsed is None:
-            print(f"--today {args.today!r} is not a real date (write YYYY-MM-DD)")
+            print(
+                f"--today {args.today!r} is not a real date (write YYYY-MM-DD)",
+                file=sys.stderr,
+            )
             return 1
         today = parsed
     problems = check_osv(today) + check_betterleaks(today)

@@ -40,7 +40,7 @@ def test_impossible_date_fails(tmp_path: Path) -> None:
     r = osv(tmp_path, OSV_GOOD.replace("2026-12-31", "2026-02-31"))
     assert r.returncode == 1
     assert "not a real date" in r.stdout
-    assert "osv-scanner.toml" in r.stdout
+    assert "osv-scanner.toml:3" in r.stdout
 
 
 def test_impossible_string_date_fails(tmp_path: Path) -> None:
@@ -119,3 +119,91 @@ def test_invalid_toml_reports_file(tmp_path: Path) -> None:
     r = osv(tmp_path, "[[IgnoredVulns\n")
     assert r.returncode == 1
     assert "osv-scanner.toml" in r.stdout
+
+
+def test_latin1_files_fail_cleanly(tmp_path: Path) -> None:
+    (tmp_path / ".betterleaksignore").write_bytes(
+        b"# caf\xe9 fixture (review 2026-12-31)\n"
+    )
+    (tmp_path / "osv-scanner.toml").write_bytes(b'reason = "caf\xe9"\n')
+    r = run(tmp_path)
+    assert r.returncode == 1
+    assert ".betterleaksignore: not valid UTF-8. Fix: save it as UTF-8" in r.stdout
+    assert "osv-scanner.toml: not valid UTF-8. Fix: save it as UTF-8" in r.stdout
+    assert "Traceback" not in r.stderr
+
+
+def test_osv_bom_is_accepted(tmp_path: Path) -> None:
+    (tmp_path / "osv-scanner.toml").write_bytes(b"\xef\xbb\xbf" + OSV_GOOD.encode())
+    assert run(tmp_path).returncode == 0
+
+
+def test_osv_header_variants_keep_line_numbers(tmp_path: Path) -> None:
+    good = OSV_GOOD.replace("[[IgnoredVulns]]", "[[IgnoredVulns]] # note")
+    body = (
+        good
+        + "\n[Other]\nx = 1\n\n"
+        + OSV_GOOD.replace("[[IgnoredVulns]]", '[[ "IgnoredVulns" ]]')
+        + "\n"
+        + OSV_GOOD.replace("2026-12-31", "2026-11-01")
+    )
+    r = osv(tmp_path, body)
+    assert r.returncode == 1
+    bad_line = body.splitlines().index("[[IgnoredVulns]]") + 1
+    assert f"osv-scanner.toml:{bad_line}:" in r.stdout
+    assert r.stdout.count("\n") == 1
+
+
+def test_osv_unmatched_headers_omit_line(tmp_path: Path) -> None:
+    r = osv(
+        tmp_path,
+        'IgnoredVulns = [{id = "X-1", ignoreUntil = 2026-12-31}]\n',
+    )
+    assert r.returncode == 1
+    assert "osv-scanner.toml: entry 1" in r.stdout
+
+
+def test_osv_wrong_format_date_hint(tmp_path: Path) -> None:
+    r = osv(tmp_path, OSV_GOOD.replace("2026-12-31", "2026-6-1"))
+    assert r.returncode == 1
+    assert (
+        "osv-scanner.toml:3: ignoreUntil is not a real date; write YYYY-MM-DD"
+        in r.stdout
+    )
+
+
+def test_osv_future_datetime_passes(tmp_path: Path) -> None:
+    r = osv(tmp_path, OSV_GOOD.replace("2026-12-31", "2026-12-31T10:00:00Z"))
+    assert r.returncode == 0, r.stdout
+
+
+def test_osv_invalid_toml_has_line(tmp_path: Path) -> None:
+    r = osv(tmp_path, "a = 1\nb = [\n")
+    assert r.returncode == 1
+    assert "osv-scanner.toml:" in r.stdout
+    assert any(ch.isdigit() for ch in r.stdout.split(":")[1])
+
+
+def test_osv_ignored_vulns_not_a_list(tmp_path: Path) -> None:
+    r = osv(tmp_path, "IgnoredVulns = 5\n")
+    assert r.returncode == 1
+    assert "array of tables" in r.stdout
+    assert "Traceback" not in r.stderr
+
+
+def test_betterleaks_tab_comment_is_trailing(tmp_path: Path) -> None:
+    (tmp_path / ".betterleaksignore").write_text(
+        "a.py:github-pat:3\t# x y (review 2026-12-31)\n"
+    )
+    r = run(tmp_path)
+    assert r.returncode == 1 and "line above" in r.stdout
+
+
+def test_bad_today_goes_to_stderr(tmp_path: Path) -> None:
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--today", "nope"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 1 and "not a real date" in r.stderr and not r.stdout
