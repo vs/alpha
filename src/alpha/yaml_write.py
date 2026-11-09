@@ -17,6 +17,9 @@ _UNPRINTABLE = re.compile(
     "[^\t\n\r\x20-\x7e\xa0-\u2027\u202a-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]"
 )
 
+# Escaped in a double-quoted string, so Biome keeps those double-quoted.
+_NEEDS_ESCAPE = re.compile(f"[\\\\\t\n\r]|{_UNPRINTABLE.pattern}")
+
 
 @dataclass(frozen=True)
 class Commented:
@@ -27,8 +30,15 @@ class Commented:
 
 
 def _quoted(text: str) -> str:
-    """A double-quoted YAML string; a JSON string is one, once characters
-    outside the BMP are written as themselves instead of surrogate pairs."""
+    """A quoted YAML string, in the quotes Biome's formatter picks: single when
+    the text holds a double quote and no backslash or character a
+    single-quoted string can't hold, else double.
+
+    A JSON string is a double-quoted YAML string, once characters outside the
+    BMP are written as themselves instead of surrogate pairs."""
+    single = '"' in text and not _NEEDS_ESCAPE.search(text)
+    if single:
+        return "'" + text.replace("'", "''") + "'"
     body = json.dumps(text, ensure_ascii=False)
     return _UNPRINTABLE.sub(lambda m: f"\\u{ord(m.group()):04x}", body)
 
