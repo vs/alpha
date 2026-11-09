@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 from typing import Any
 
@@ -941,3 +942,103 @@ def test_a_new_session_records_where_it_started(project: Project) -> None:
         "session_start.py", {"hook_event_name": "SessionStart", "source": "resume"}
     )
     assert start.read_text().strip() == head
+
+
+def enable_repo_checks(project: Project, *ids: str) -> None:
+    data = project.principles()
+    for check in data["repo_checks"]:
+        check["stop"] = check["id"] in ids
+    project.write_principles(data)
+
+
+def fake_mise(project: Project, code: int = 0) -> dict[str, str | None]:
+    """A `mise` on PATH that logs each task it is asked to run to calls.log."""
+    log = project.root.parent / f"{project.root.name}-calls.log"
+    script = project.write(
+        "fake-bin/mise", f'#!/bin/sh\necho "$@" >> "{log}"\nexit {code}\n'
+    )
+    script.chmod(0o755)
+    return {"PATH": f"{script.parent}:{os.environ['PATH']}"}
+
+
+def calls(project: Project) -> list[str]:
+    log = project.root.parent / f"{project.root.name}-calls.log"
+    return log.read_text().splitlines() if log.exists() else []
+
+
+def run_with(project: Project, env: dict[str, str | None]) -> Any:
+    import review
+
+    state = review.ensure_state(project.root)
+    state["reviewed_tree"] = review.snapshot(project.root)
+    review.save_state(project.root, state)
+    return project.run_hook("stop_checks.py", PAYLOAD, env=env)
+
+
+def test_stop_runs_matching_repo_check(project: Project) -> None:
+    enable_repo_checks(project, "typos", "actions")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    proc = run_with(project, fake_mise(project))
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    assert calls(project) == ["run check:typos"]
+
+
+def test_stop_repo_check_failure_blocks(project: Project) -> None:
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    proc = run_with(project, fake_mise(project, code=2))
+    assert "repo check typos failed (mise run check:typos)" in reason(proc)
+
+
+def test_stop_repo_check_missing_mise(project: Project) -> None:
+    enable_repo_checks(project, "typos", "markdown")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    empty = project.root.parent / "empty-bin"
+    empty.mkdir()
+    git = shutil.which("git")
+    assert git is not None
+    (empty / "git").symlink_to(git)  # git stays; mise doesn't
+    env: dict[str, str | None] = {"PATH": str(empty)}
+    for _ in range(3):
+        proc = project.run_hook("stop_checks.py", PAYLOAD, env=env)
+        text = reason(proc)
+        assert text.count("mise install") == 1
+        assert text.count("\n") == 1  # header plus exactly one problem
+    final = project.run_hook("stop_checks.py", PAYLOAD, env=env)
+    assert final.returncode == 0
+    assert final.stderr.startswith("alpha: checks still failing after 3 attempts")
+
+
+def test_stop_repo_check_cached(project: Project) -> None:
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    env = fake_mise(project)
+    assert run_with(project, env).stdout == ""
+    assert run_with(project, env).stdout == ""
+    assert calls(project) == ["run check:typos"]
+    project.write("README.md", "changed\n")
+    assert run_with(project, env).stdout == ""
+    assert len(calls(project)) == 2
+
+
+def test_subagent_stop_runs_repo_check_on_its_files(project: Project) -> None:
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    edited_by(project, "ag1", "README.md")
+    env = fake_mise(project, code=2)
+    proc = project.run_hook(
+        "stop_checks.py",
+        {
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": False,
+            "agent_id": "ag1",
+            "agent_type": "general-purpose",
+        },
+        env=env,
+    )
+    assert "repo check typos failed" in reason(proc)

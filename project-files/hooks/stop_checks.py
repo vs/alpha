@@ -308,6 +308,93 @@ def run_steps(
     return problems, complete
 
 
+MISSING_MISE = (
+    "mise is not installed or the tool is missing. Run: mise install "
+    "(install mise from https://mise.jdx.dev)"
+)
+
+
+def files_hash(root: Path, files: list[str]) -> str:
+    """Hash of the given files' paths and contents."""
+    digest = hashlib.sha256()
+    for rel in sorted(files):
+        digest.update(rel.encode() + b"\0")
+        path = root / rel
+        try:
+            info = path.stat()
+            if info.st_size <= HASH_CONTENT_BYTES:
+                digest.update(hashlib.sha256(path.read_bytes()).digest())
+            else:
+                digest.update(f"{info.st_size}:{info.st_mtime_ns}".encode())
+        except OSError:
+            digest.update(b"-")  # deleted from the working tree
+    return digest.hexdigest()
+
+
+def repo_check_problems(
+    root: Path, principles: dict[str, Any], changed: list[str], deadline: float
+) -> list[str]:
+    """Run the `stop = true` repository checks whose globs match a changed
+    file, in catalog order. Results are reused while the matched files and the
+    command are unchanged."""
+    entries = principles.get("repo_checks")
+    if not isinstance(entries, list):
+        return []
+    cache_path = _common.state_path(root, "stop-cache.json")
+    cache = read_json(cache_path)
+    dirty = False
+    problems: list[str] = []
+    for raw in cast("list[Any]", entries):
+        if not isinstance(raw, dict):
+            continue
+        check = cast("dict[str, Any]", raw)
+        command = check.get("command")
+        if check.get("stop") is not True or not isinstance(command, str):
+            continue
+        check_id = str(check.get("id", command))
+        globs = [str(g) for g in check.get("globs", [])]
+        hit = [f for f in changed if _common.matches(f, globs)]
+        if not hit:
+            continue
+        key = json.dumps([files_hash(root, hit), command])
+        name = f"repo:{check_id}"
+        cached: object = cache.get(name)
+        if isinstance(cached, dict):
+            entry = cast("dict[str, Any]", cached)
+            if entry.get("key") == key and isinstance(entry.get("problems"), list):
+                problems += [str(p) for p in cast("list[Any]", entry["problems"])]
+                continue
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            problems.append(
+                f"repo check {check_id} skipped \u2014 alpha's {BUDGET}s check "
+                f"budget ran out. Run it by hand: {command}"
+            )
+            continue
+        timeout = min(TIMEOUT, remaining)
+        status, output = run_step(command, root, timeout)
+        if status == "missing":  # installing the tool doesn't change the files
+            return [*problems, MISSING_MISE]
+        if status == "ok":
+            found: list[str] = []
+        elif status == "timeout":
+            found = [
+                f"repo check {check_id} took longer than {int(timeout)}s "
+                f"({command}). Run it by hand to see why, or tell the user."
+            ]
+        else:
+            found = [
+                f"repo check {check_id} failed ({command}):\n{_common.tail(output)}"
+            ]
+        problems += found
+        if status in ("ok", "failed"):
+            cache[name] = {"key": key, "problems": found}
+            dirty = True
+    if dirty:
+        cache_path.write_text(json.dumps(cache))
+    return problems
+
+
 def read_count(path: Path) -> int:
     try:
         count = json.loads(path.read_text())["count"]
@@ -464,6 +551,7 @@ def find_problems(
             for f in by_comp[str(comp.get("name"))]
         ):
             problems.extend(command_problems(comp, principles, root, deadline))
+    problems += repo_check_problems(root, principles, changed, deadline)
     return problems
 
 
@@ -491,8 +579,9 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
 
     The rules run over the whole session's changes (tests or docs another
     agent wrote count), then only problems naming this subagent's files stay.
-    Type checks and tests cover whole components, where other agents may be
-    mid-change, so they're left to the main session's Stop.
+    Repository checks run on the files it edited. Type checks and tests cover
+    whole components, where other agents may be mid-change, so they're left to
+    the main session's Stop.
     """
     files = _common.agent_files(root, agent)
     base = session_base(root)
@@ -505,6 +594,9 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
     if mine:
         found = find_problems(root, principles, changed, base, run_commands=False)
         problems = secrets + [p for p in found if any(f in p for f in mine)]
+        problems += repo_check_problems(
+            root, principles, mine, time.monotonic() + BUDGET
+        )
     if not problems:
         record.unlink(missing_ok=True)
         counter.unlink(missing_ok=True)

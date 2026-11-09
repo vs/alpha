@@ -115,5 +115,7 @@ def project(tmp_path: Path) -> Project:
     data = build_principles(defaults, load_answers(FIXTURE), "0.1.0")
     for comp in data["components"]:  # never let a hook test run real tooling
         comp["commands"] = dict.fromkeys(comp["commands"], STUB)
+    for check in data.get("repo_checks", []):  # nor the real repository checks
+        check["stop"] = False
     p.write_principles(data)
     return p
