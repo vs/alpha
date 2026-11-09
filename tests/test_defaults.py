@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -185,6 +186,35 @@ def test_set_default_writes_logs_and_commits(tmp_path: Path):
     assert git(src.path, "log", "-1", "--format=%s") == "chore(defaults): Set max_lines"
     assert "Co-Authored-By: X <x@y>" in git(src.path, "log", "-1", "--format=%B")
     assert git(src.path, "rev-parse", "HEAD").startswith(h) and len(h) >= 7
+
+
+def test_set_default_keeps_the_changelog_a_valid_list(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    log = src.path / "defaults/CHANGELOG.md"
+    seed = log.read_text()
+    day = date(2026, 10, 19)
+    set_default(src, "review.max_lines", "400", "demo", "r1", [], day)
+    set_default(src, "review.mode", "every-task", "demo", "r2", [], day)
+    assert log.read_text() == (
+        seed
+        + "\n- 2026-10-19 · review.max_lines = 400 · from demo · r1\n"
+        + "- 2026-10-19 · review.mode = every-task · from demo · r2\n"
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(shutil.which("rumdl") is None, reason="rumdl is not installed")
+def test_changelog_with_entries_passes_rumdl(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    day = date(2026, 10, 19)
+    set_default(src, "review.max_lines", "400", "demo", "r1", [], day)
+    set_default(src, "review.mode", "every-task", "demo", "r2", [], day)
+    run = subprocess.run(
+        ["rumdl", "check", "--no-config", str(src.path / "defaults/CHANGELOG.md")],
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
 
 
 def test_set_default_merges_with_existing_overrides_and_parses_values(tmp_path: Path):
