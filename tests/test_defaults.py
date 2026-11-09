@@ -14,6 +14,7 @@ from alpha.defaults import (
     CONDITIONS,
     DefaultsError,
     Source,
+    _list_gap,
     load_defaults,
     locate_source,
     set_default,
@@ -200,6 +201,24 @@ def test_set_default_keeps_the_changelog_a_valid_list(tmp_path: Path):
         + "\n- 2026-10-19 · review.max_lines = 400 · from demo · r1\n"
         + "- 2026-10-19 · review.mode = every-task · from demo · r2\n"
     )
+
+
+def test_set_default_on_a_whitespace_only_changelog(tmp_path: Path):
+    src = make_source(tmp_path / "src", repo=True)
+    log = src.path / "defaults/CHANGELOG.md"
+    log.write_text("  \n\n")
+    git(src.path, "commit", "-q", "-am", "blank changelog")
+    set_default(src, "review.max_lines", "400", "demo", "r1", [], date(2026, 10, 19))
+    assert log.read_text().endswith(
+        "\n- 2026-10-19 · review.max_lines = 400 · from demo · r1\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("existing", "gap"), [("", ""), ("\n\n", ""), ("  ", "\n"), (" \n\t\n", "")]
+)
+def test_list_gap_without_text_adds_no_blank_line(existing: str, gap: str):
+    assert _list_gap(existing) == gap
 
 
 @pytest.mark.slow

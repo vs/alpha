@@ -253,8 +253,10 @@ def _list_gap(existing: str) -> str:
     if not existing:
         return ""
     end = "" if existing.endswith("\n") else "\n"
-    last = [line for line in existing.splitlines() if line.strip()][-1]
-    return end if last.startswith("- ") else end + "\n"
+    text = [line for line in existing.splitlines() if line.strip()]
+    if not text:  # only whitespace: no paragraph to set the list apart from
+        return end
+    return end if text[-1].startswith("- ") else end + "\n"
 
 
 def _restore(repo: Path, before: dict[Path, str | None]) -> None:
