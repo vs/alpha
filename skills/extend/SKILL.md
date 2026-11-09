@@ -35,7 +35,7 @@ Take the request from `$ARGUMENTS`, or ask. Pick the area: `components` to add, 
 
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` and read the first line it prints.
 
-- "Revisit the <area> area: …": invoke that area's skill for this change, then rerun. If the same message comes back twice, show it to the user and ask what to change instead of invoking the area again.
+- "Revisit the `<area>` area: …": invoke that area's skill for this change, then rerun. If the same message comes back twice, show it to the user and ask what to change instead of invoking the area again.
 - "Fix .claude/alpha/project.json: …": fix it with one one-line `answers write` call, never a heredoc or python3 script (ask the user when the fix needs a decision), then rerun.
 - Any other refusal (such as files to commit first): show it to the user and do what it says, then rerun.
 - After a component change, also offer the git area, so the commit scopes cover the component.

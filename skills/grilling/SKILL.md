@@ -30,6 +30,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 -->
 
+# Grilling
+
 Interview the user until you reach a shared understanding. Map the decisions as a **design tree**: every decision branches into the decisions that hang off it.
 
 ## Rounds
@@ -38,7 +40,7 @@ Work the tree in **rounds**. The **frontier** is every decision whose prerequisi
 
 Format a round like so:
 
-```
+```text
 ❓ **Q1** - **<question title>**: <question body, might be multiple paragraphs, including multiple choices>
 
 ➡️ <your recommended answer>

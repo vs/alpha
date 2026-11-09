@@ -16,7 +16,7 @@ git clone https://github.com/vs/alpha ~/workspace/alpha
 claude --plugin-dir ~/workspace/alpha
 ```
 
-```
+```text
 /alpha:new-project ~/code/my-app
 ```
 
@@ -40,7 +40,7 @@ installed too.
 
 ## Change it later
 
-```
+```text
 /alpha:extend add a worker component
 ```
 

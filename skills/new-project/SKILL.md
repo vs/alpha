@@ -29,6 +29,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 ## 3. Load the kit defaults
 
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show --json` and keep the result: every recommendation in the interview comes from its `defaults`. Tell the user where they come from, using `source`:
+
 - `live` is true: "Using your kit defaults from <path>. If you override a default during the interview, I'll ask whether to make it your new default; it's saved there only after you say yes."
 - `live` is false: "Using the defaults bundled with the installed kit (<reason>). New defaults can't be saved on this machine; any you ask for are noted in this project's decision log instead."
 

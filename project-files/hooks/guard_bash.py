@@ -106,7 +106,7 @@ def _newlines_to_semicolons(command: str) -> str:
 
 
 def split_segments(command: str) -> list[list[str]] | None:
-    """Token lists per `&&`/`||`/`;`/`|`/newline segment; None if unparseable."""
+    """Token lists per `&&`/`||`/`;`/`|`/newline segment; None if unparsable."""
     command = strip_heredocs(command).replace("\\\n", "")  # line continuations
     lexer = shlex.shlex(
         _newlines_to_semicolons(command), posix=True, punctuation_chars=True

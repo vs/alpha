@@ -36,10 +36,12 @@ Keep the design as simple as the problem allows ("Simplest sufficient architectu
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds. Base recommendations on the identity answers (value proposition, requirements) and the components.
 
 Round 1:
+
 - **Responsibility per component** - draft one sentence each from the requirements, and ask for all of them in one question. Push back on overlap: two components owning the same thing is a sign one is unneeded.
 - **Calls** - ask only when `components_talk` is true. Recommend from the kinds (a `frontend` calls the `backend`; a `worker` is called by the `backend` through a queue). With `components_talk` false, save `calls: []` for every component without asking.
 
 Round 2 (needs the calls):
+
 - **Contract** - ask only when components talk. Recommend `defaults.architecture.contract_format`, with the file in the called component's folder (e.g. `api/openapi.yaml`). Explain in one line: the interface is written down once, and changes to it are reviewed as risky. When components don't talk, save `{"format": "none", "paths": []}` without asking. If the user now says no component calls another, `components_talk` was wrong: save `components_talk` as `false` (this is the components area's field), save `calls: []` for every component and the `none` contract, and tell the user in one line.
 - **Glossary** - ask when there is more than one component or `identity.domain_jargon` is true. Propose 3 to 8 terms drawn from the requirements, each with a one-sentence meaning. With jargon, at least one term is required. Otherwise save `[]` without asking.
 

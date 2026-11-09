@@ -41,9 +41,11 @@ Run these with the `alpha:grilling` skill (invoke it with the Skill tool and fol
 Look up first (facts, never ask): the target folder's name, and `git config user.name`.
 
 Round 1:
+
 - **Value proposition** - what does the project do, and why does that matter? Draft one from what the user has said; if they've said nothing, ask openly.
 
 Round 2 (needs the value proposition):
+
 - **Name** - recommend a name that fits the value proposition, or the folder's name if it already reads as one.
 - **Target users** - draft from the value proposition and what the user said.
 - **Domain jargon** - "Does this domain have its own vocabulary that newcomers would trip over?" Explain: yes turns on the "One vocabulary" principle, which keeps a glossary and the same names across code, docs and UI. Recommend no unless the value proposition uses specialist terms.
@@ -51,10 +53,12 @@ Round 2 (needs the value proposition):
 - **Copyright holder** - recommend the `git config user.name` value.
 
 Round 3 (needs the name, value proposition and users):
+
 - **Slug** - recommend the name in lowercase with hyphens.
 - **Requirements** - ask for the technical requirements: what must the product do for its users? Recommend a short list (3 to 7) drafted from the value proposition and target users.
 
 Round 4 (needs the requirements):
+
 - **Acceptance checks** - turn each requirement into one Given/When/Then check, and propose all of them in one question. Explain: tests will later trace back to these checks, so each must describe something observable that a test can verify. Rework any the user rejects until they agree.
 
 When the license differs from `defaults.identity.license`, follow the grilling skill's override protocol (key `identity.license`).

@@ -35,10 +35,12 @@ The project gets a principles-reviewer agent that reads these settings from the 
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds.
 
 Round 1:
+
 - **Review mode** - recommend `defaults.review.mode`. Explain each in one line: `batched` reviews once the pending changes cross a threshold or touch a risky path; `every-task` reviews after every finished task (slower, but nothing slips through).
 - **Extra risk paths** - show the kit's risk paths from `defaults.review.risk_paths` (changes there always trigger a review) and recommend adding none. Explain in one line: add globs for files where a mistake is costly, e.g. `api/billing/**`. Use `**` for any depth; write each alternative as its own glob, no `{a,b}` braces.
 
 Round 2 (only when the mode is `batched`):
+
 - **Max lines** - recommend `defaults.review.max_lines`. Explain in one line: a review starts once this many lines have changed since the last one (tests and docs, `defaults.review.exclude`, don't count).
 - **Max files** - recommend `defaults.review.max_files`. Explain in one line: a review starts once this many files have changed, even when each change is small.
 
