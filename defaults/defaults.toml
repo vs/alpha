@@ -13,7 +13,7 @@ paths = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]   # recipes add their l
 [git]
 convention = "conventional"
 types = ["feat", "fix", "docs", "style", "refactor", "test", "build", "chore", "perf", "ci", "revert"]
-branching = "trunk"
+branching = "feature-branches"
 
 [identity]
 license = "MIT"

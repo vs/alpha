@@ -57,6 +57,9 @@ _COMMUNICATION = (
 _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
     "each leaving the checks green.",
+    "feature-branches": "Feature branches: short-lived branches merged into main "
+    "through pull requests, each leaving the checks green. To update a pushed "
+    "branch, merge main into it; the hooks stop Claude from force-pushing.",
 }
 
 
@@ -243,7 +246,13 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "Use the commit skill (`.claude/skills/commit/SKILL.md`). "
         f"Convention: {a.git.convention} commits, "
         f"scopes: {', '.join(a.git.scopes) or 'any'}, "
-        "enforced by the commit-msg hook.",
+        "enforced by the commit-msg hook."
+        + (
+            " Work on a short-lived branch and open a pull request into main; "
+            "don't commit to main directly."
+            if a.git.branching == "feature-branches"
+            else ""
+        ),
         "",
         "## Docs",
         "",

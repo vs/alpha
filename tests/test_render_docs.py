@@ -350,6 +350,28 @@ def test_contributing_names_the_review_checkpoint(tmp_path: Path):
     )
 
 
+def feature_branches(data: dict[str, Any]) -> None:
+    data["git"]["branching"] = "feature-branches"
+
+
+def test_feature_branches_merge_through_pull_requests(tmp_path: Path):
+    out = render(load(tmp_path, feature_branches))
+    branching = out["CONTRIBUTING.md"].split("## Branching\n")[1]
+    assert "Feature branches: short-lived branches merged into main through " in (
+        branching
+    )
+    assert "merge main into it" in branching
+    commits = out["CLAUDE.md"].split("## Commits\n")[1].split("\n## ")[0]
+    assert "open a pull request into main" in commits
+
+
+def test_trunk_commits_straight_to_main(tmp_path: Path):
+    out = render(load(tmp_path))
+    assert "Trunk-based" in out["CONTRIBUTING.md"]
+    commits = out["CLAUDE.md"].split("## Commits\n")[1].split("\n## ")[0]
+    assert "pull request" not in commits
+
+
 def _cells(row: str) -> int:
     """Columns in a Markdown table row: its pipes, minus escaped ones."""
     return row.replace("\\|", "").count("|") - 1

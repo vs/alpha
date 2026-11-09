@@ -111,6 +111,11 @@ def test_subtract_first_replaces_internal_apis_in_one_change():
     assert principle(d, "subtract-first")["applies"] == ["always"]
 
 
+def test_branching_defaults_to_feature_branches():
+    d = load_defaults(Source(ROOT, True, ""))
+    assert d["git"]["branching"] == "feature-branches"
+
+
 def hook_checks() -> set[tuple[str, str]]:
     """(principle id, hook:<script>) for every principle a hook gates on."""
     hooks = ROOT / "project-files" / "hooks"
