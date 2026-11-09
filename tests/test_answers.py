@@ -108,6 +108,17 @@ def test_bad_component_name_and_duplicates(tmp_path: Path):
         check(tmp_path, d)
 
 
+def test_component_name_repo_is_reserved(tmp_path: Path):
+    d = valid()
+    d["components"][1]["name"] = "repo"
+    with pytest.raises(AnswersError) as e:
+        check(tmp_path, d)
+    message = str(e.value)
+    assert "components[1].name" in message
+    assert "reserved" in message and "repository checks" in message
+    assert "another name" in message
+
+
 @pytest.mark.parametrize(
     "path", ["/abs", "../up", "a/../b", "web/", "./web", "a//b", "a/./b"]
 )

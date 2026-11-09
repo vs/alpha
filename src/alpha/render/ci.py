@@ -11,6 +11,7 @@ WORKFLOW = ".github/workflows/ci.yml"
 SCHEDULED = ".github/workflows/scheduled.yml"
 DEPENDABOT = ".github/dependabot.yml"
 JACTIONLINT = ".github/jactionlint.yaml"
+REPO_JOB = "repo"  # the CI job of the repository checks, next to the components'
 _CHECKOUT = "actions/checkout"
 _MISE = "jdx/mise-action"
 _TIMEOUT_MINUTES = 30
@@ -195,7 +196,7 @@ def render_ci(
                 c["name"]: _job(c, principles, recipes, pins)
                 for c in principles["components"]
             },
-            "repo": _repo_job(pins),
+            REPO_JOB: _repo_job(pins),
         },
     }
     scheduled: dict[str, object] = {
