@@ -168,25 +168,35 @@ def _append(extra: str) -> Callable[[str | None], str]:
     return lambda text: (text or "") + extra
 
 
-# check id -> (registry tool, the file it changes, how it changes it)
-SEEDS: dict[str, tuple[str, str, Callable[[str | None], str]]] = {
+# check id -> (registry tool, the file it changes, how it changes it, what the
+# failing output says: proof that the tool found the seed rather than crashed)
+SEEDS: dict[str, tuple[str, str, Callable[[str | None], str], str]] = {
     "actions": (
         "jactionlint",
         ".github/workflows/ci.yml",
         lambda text: re.sub(r"@[0-9a-f]{40}", "@v7", text or "", count=1),
+        'action "actions/checkout@v7" must be pinned',
     ),
-    "secrets": ("betterleaks", "docs/x.md", _aws_key_pair),
-    "typos": ("typos", "README.md", _append("\nteh\n")),
+    # betterleaks names no file without --verbose, only the count.
+    "secrets": ("betterleaks", "docs/x.md", _aws_key_pair, "leaks found: 1"),
+    "typos": ("typos", "README.md", _append("\nteh\n"), "`teh` should be `the`"),
     "markdown": (
         "rumdl",
         "docs/x.md",
         lambda _: "# Notes\n\n### Skips a level\n\nText.\n",
+        "docs/x.md:3:1: [MD001]",
     ),
-    "links": ("lychee", "README.md", _append("\nSee [notes](docs/missing.md).\n")),
+    "links": (
+        "lychee",
+        "README.md",
+        _append("\nSee [notes](docs/missing.md).\n"),
+        "docs/missing.md (at ",
+    ),
     "agent-config": (
         "agnix",
         ".claude/agents/committer.md",
         lambda text: (text or "").replace("model: inherit\n", "model: [inherit\n", 1),
+        "committer.md:5:8 error: Failed to parse agent frontmatter",
     ),
 }
 
@@ -203,7 +213,7 @@ def bootstrapped_web(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture
 def seeded(bootstrapped_web: Path, request: pytest.FixtureRequest) -> Iterator[Path]:
     """The bootstrapped project with one seed applied, reverted afterwards."""
-    _, rel, change = SEEDS[request.param]
+    _, rel, change, _ = SEEDS[request.param]
     path = bootstrapped_web / rel
     before = path.read_text() if path.exists() else None
     after = change(before)
@@ -225,5 +235,7 @@ def test_repo_checks_can_fail(seeded: Path, request: pytest.FixtureRequest):
     pin = load_registry(Source(PLUGIN_ROOT, True, "")).tool(SEEDS[check][0]).pin
     assert pin is not None
     done = mise_run(seeded, f"check:{check}")
+    output = done.stdout + done.stderr
     # mise run passes the task's exit code through unchanged.
-    assert done.returncode == pin.fails_with, done.stdout + done.stderr
+    assert done.returncode == pin.fails_with, output
+    assert SEEDS[check][3] in output, output
