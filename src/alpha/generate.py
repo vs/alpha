@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -349,14 +350,31 @@ def _run(label: str, command: str, cwd: Path, fix: str) -> None:
         )
 
 
-def _repo_checks(target: Path) -> None:
-    """Install the repository checks' tools and run the ones CI runs on a PR."""
+def _require_mise(target: Path) -> None:
     if shutil.which("mise") is None:
         raise GenerateError(
             "mise is not installed. Install it (brew install mise, or "
             "https://mise.jdx.dev/getting-started.html), then rerun "
             f'"alpha bootstrap {target}".'
         )
+
+
+def _mise_tools(target: Path) -> list[str]:
+    """The tools the project's mise.toml pins, as `mise install` names them."""
+    path = target / MISE
+    try:
+        tools: object = tomllib.loads(path.read_text(encoding="utf-8")).get("tools")
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        raise GenerateError(
+            f"{path} can't be read ({e}). Fix it, or restore alpha's version with "
+            f'"git checkout {MISE}", then rerun "alpha bootstrap {target}".'
+        ) from None
+    return list(cast(dict[str, object], tools)) if isinstance(tools, dict) else []
+
+
+def _repo_checks(target: Path) -> None:
+    """Install the repository checks' tools and run the ones CI runs on a PR."""
+    _require_mise(target)
     if not (target / ".git").exists():
         # jactionlint needs a repository; commit-skeleton then keeps this one.
         try:
@@ -375,12 +393,33 @@ def _repo_checks(target: Path) -> None:
                 f'need a git repository. Fix that, then rerun "alpha bootstrap '
                 f'{target}".'
             )
-    fix = (
-        "Fix what the repository checks report (mise run check:<id> reruns one) "
-        f'and rerun "alpha bootstrap {target}"'
+    rerun = f'rerun "alpha bootstrap {target}"'
+    label = "repository checks"
+    _run(
+        label,
+        "mise trust --yes",
+        target,
+        f"Fix what mise reports about {target / MISE}, then {rerun}",
     )
-    for command in ("mise trust --yes", "mise install", "mise run ci"):
-        _run("repository checks", command, target, fix)
+    # Only the project's tools: a bare `mise install` also installs everything
+    # in the user's global config, and would blame its failures on the checks.
+    tools = _mise_tools(target)
+    if tools:
+        install = shlex.join(["mise", "install", *tools])
+        _run(
+            label,
+            install,
+            target,
+            f'Check your network, or run "{install}" in {target} to see which '
+            f"tool failed, then {rerun}",
+        )
+    _run(
+        label,
+        "mise run ci",
+        target,
+        "Fix what the repository checks report (mise run check:<id> reruns one) "
+        f"and {rerun}",
+    )
 
 
 def bootstrap(
@@ -403,6 +442,9 @@ def bootstrap(
                 f"No component named {name} in {PRINCIPLES_TOML} "
                 f"(components: {', '.join(known)})."
             )
+    repo_checks = (target / MISE).is_file()
+    if repo_checks:
+        _require_mise(target)  # before the components' slow steps
     book = project_book(target)
     for c in principles["components"]:
         if only and c["name"] not in only:
@@ -422,6 +464,6 @@ def bootstrap(
         ]
         for command in commands:
             _run(c["name"], command, cwd, fix)
-    if (target / MISE).is_file():
+    if repo_checks:
         _repo_checks(target)
     refresh_manifest(target)

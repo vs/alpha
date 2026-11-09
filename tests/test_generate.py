@@ -277,7 +277,8 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
         "web: pnpm tsc --noEmit",
         "web: pnpm vitest run",
     ]
-    repo = ["mise trust --yes", "mise install", "mise run ci"]
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    repo = ["mise trust --yes", f"mise install {' '.join(tools)}", "mise run ci"]
     ran = [
         *announced[:7],
         "web: pnpm --version",  # the $(...) runs first
@@ -313,6 +314,65 @@ def test_bootstrap_without_mise_says_how_to_install(
         "https://mise.jdx.dev/getting-started.html), then rerun "
         f'"alpha bootstrap {project}".'
     )
+    assert not (tmp_path / "tools.log").exists()  # before the slow steps
+
+
+def mise_recording_argv(bin_dir: Path, fail_on: str = "") -> Path:
+    """A stand-in mise that writes each call's argv as a JSON line; it exits 1
+    with a message when its first argument is `fail_on`."""
+    log = bin_dir / "mise.argv"
+    mise = bin_dir / "mise"
+    mise.write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        f"open({str(log)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        f"if sys.argv[1:2] == [{fail_on!r}]:\n"
+        "    print('mise ERROR failed to install jactionlint'); sys.exit(1)\n"
+    )
+    mise.chmod(0o755)
+    return log
+
+
+def test_bootstrap_installs_only_the_project_s_check_tools(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    # A bare `mise install` would also install the user's global tools.
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv", "pnpm"))
+    log = mise_recording_argv(bin_dir)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    assert "github:betterleaks/betterleaks" in tools
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    assert calls == [["trust", "--yes"], ["install", *tools], ["run", "ci"]]
+
+
+def test_bootstrap_install_failure_points_at_the_install(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
+    mise_recording_argv(bin_dir, fail_on="install")
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/principles.toml").read_text())
+        )
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    install = f"mise install {' '.join(tools)}"
+    message = str(err.value)
+    assert message.startswith(f'"{install}" failed in {project} (exit 1).')
+    assert "mise ERROR failed to install jactionlint" in message
+    assert message.endswith(
+        f'Check your network, or run "{install}" in {project} to see which tool '
+        f'failed, then rerun "alpha bootstrap {project}"'
+    )
+    assert "mise run check" not in message
 
 
 def test_bootstrap_repo_check_failure_names_command_and_fix(
@@ -439,6 +499,8 @@ def test_bootstrap_keeps_only_the_last_40_lines(
     uv = bin_dir / "uv"
     uv.write_text('#!/bin/sh\nfor i in $(seq 1 100); do echo "line $i"; done\nexit 1\n')
     uv.chmod(0o755)
+    (bin_dir / "mise").write_text("#!/bin/sh\n")
+    (bin_dir / "mise").chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     with pytest.raises(GenerateError) as err:
         bootstrap(
