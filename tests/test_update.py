@@ -502,6 +502,7 @@ def test_commit_update_commits_only_alphas_files_in_groups(tmp_path: Path, git_e
     expected = [
         "docs: Update docs and decision records",
         "chore: Update Claude Code rules and settings",
+        "build: Pin the repository's check tools",
         "build(worker): Set up python toolchain and tests",
         "ci: Update the CI checks",
     ]

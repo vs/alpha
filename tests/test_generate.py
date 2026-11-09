@@ -13,6 +13,7 @@ from helpers import (
     SCENARIOS,
     SHIM,
     TODAY,
+    generated_repo,
     git,
     override_record,
     place_answers,
@@ -499,7 +500,7 @@ def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
     assert (tmp_path / "tool.cfg").read_text() == "name = leaf-lens-ml\n"
     ci = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
     runs = [s.get("run") for s in ci["jobs"]["ml"]["steps"] if "run" in s]
-    assert runs == ["true", "sh tests/setup.sh"]
+    assert runs[:2] == ["true", "sh tests/setup.sh"]
     deps = yaml.safe_load((tmp_path / ".github/dependabot.yml").read_text())
     assert [u["package-ecosystem"] for u in deps["updates"]] == ["github-actions"]
     settings = json.loads((tmp_path / ".claude/settings.json").read_text())
@@ -530,3 +531,22 @@ def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: 
     with pytest.raises(GenerateError, match=rf"{re.escape(path)}.*alpha generates"):
         generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
     assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_tooling_commit(tmp_path: Path, git_env):
+    repo = generated_repo(tmp_path, "web-ts-plus-python-api")
+    subjects = git(repo, "log", "--format=%s").splitlines()
+    subject = "build: Pin the repository's check tools"
+    assert subject in subjects
+    tooling = git(repo, "log", "--grep", subject, "--format=%H").splitlines()
+    assert len(tooling) == 1
+    files = git(repo, "show", "--name-only", "--format=", tooling[0]).splitlines()
+    assert sorted(files) == [
+        ".rumdl.toml",
+        "_typos.toml",
+        "lychee.toml",
+        "mise.toml",
+    ]
+    ci = git(repo, "log", "--grep", "^ci: Run every", "--format=%H").splitlines()
+    ci_files = git(repo, "show", "--name-only", "--format=", ci[0]).splitlines()
+    assert ".github/workflows/scheduled.yml" in ci_files

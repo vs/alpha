@@ -10,7 +10,14 @@ from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles
 from alpha.recipes import check_commands
-from alpha.render.ci import DEPENDABOT, WORKFLOW, _expand, render_ci, render_dependabot
+from alpha.render.ci import (
+    DEPENDABOT,
+    SCHEDULED,
+    WORKFLOW,
+    _expand,
+    render_ci,
+    render_dependabot,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 PRINCIPLES = build_principles(
@@ -40,13 +47,13 @@ def test_workflow_actions_pinned():
 
 def test_one_job_per_component_running_its_checks():
     jobs = workflow(PRINCIPLES)["jobs"]
-    assert list(jobs) == ["api", "web"]
+    assert list(jobs) == ["api", "web", "repo"]
     api = jobs["api"]
     assert api["runs-on"] == "ubuntu-latest"
     assert api["defaults"] == {"run": {"working-directory": "api"}}
     assert api["env"] == {"UV_LOCKED": "1"}
     assert api["steps"][0]["uses"].startswith("actions/checkout@")
-    runs = [s for s in api["steps"] if "run" in s]
+    runs = [s for s in api["steps"][:-1] if "run" in s]
     commands = PRINCIPLES["components"][0]["commands"]
     assert [(s["name"], s["run"]) for s in runs] == check_commands(commands)
     assert "env" not in jobs["web"]
@@ -67,7 +74,7 @@ def test_root_component_paths_have_no_prefix():
 
 def test_checkout_keeps_no_credentials():
     for job in workflow(PRINCIPLES)["jobs"].values():
-        assert job["steps"][0]["with"] == {"persist-credentials": False}
+        assert job["steps"][0]["with"]["persist-credentials"] is False
 
 
 def test_dir_expansion_leaves_other_dollars_alone():
@@ -141,3 +148,70 @@ def test_cooldown_on_every_entry():
 def test_cooldown_zero_omits():
     data = dependabot(PRINCIPLES)
     assert all("cooldown" not in u for u in data["updates"])
+
+
+def repo_job() -> dict[str, Any]:
+    return workflow(PRINCIPLES)["jobs"]["repo"]
+
+
+def test_repo_job():
+    steps = repo_job()["steps"]
+    assert steps[0]["uses"].startswith("actions/checkout@")
+    assert steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    assert steps[1]["uses"].startswith("jdx/mise-action@")
+    assert re.fullmatch(r"jdx/mise-action@[0-9a-f]{40}", steps[1]["uses"])
+    assert steps[1]["with"] == {"install": True, "cache": True}
+    assert steps[2]["run"] == "mise run ci"
+    assert steps[2]["env"] == {
+        "ALPHA_BASE": (
+            "${{ github.event_name == 'pull_request' && "
+            "format('origin/{0}', github.base_ref) || '' }}"
+        ),
+        "PR_BODY": "${{ github.event.pull_request.body }}",
+    }
+    assert steps[3]["name"] == "Checks left the tree unchanged"
+    assert len(steps) == 4
+
+
+def test_every_job_ends_with_tree_check():
+    for job in workflow(PRINCIPLES)["jobs"].values():
+        last = job["steps"][-1]
+        assert last["name"] == "Checks left the tree unchanged"
+        assert (
+            last["run"] == 'git diff --exit-code && test -z "$(git status --porcelain)"'
+        )
+
+
+def scheduled() -> dict[Any, Any]:
+    return yaml.safe_load(render_ci(PRINCIPLES, "github-actions")[SCHEDULED])
+
+
+def test_scheduled_workflow():
+    data = scheduled()
+    assert data["on"] == {
+        "schedule": [{"cron": "17 6 * * 1"}],
+        "workflow_dispatch": {},
+    }
+    assert data["permissions"] == {"contents": "read"}
+    job = data["jobs"]["scheduled"]
+    assert job["steps"][1]["uses"].startswith("jdx/mise-action@")
+    assert job["steps"][1]["with"]["install"] is True  # runs mise install
+    assert job["steps"][2]["run"] == "mise run scheduled"
+    assert job["steps"][-1]["name"] == "Checks left the tree unchanged"
+    assert SCHEDULED not in render_ci(PRINCIPLES, "none")
+
+
+def test_workflows_meet_actionlint_profile():
+    files = render_ci(PRINCIPLES, "github-actions")
+    for path, cancel in ((WORKFLOW, True), (SCHEDULED, False)):
+        data = yaml.safe_load(files[path])
+        assert data["concurrency"] == {
+            "group": "${{ github.workflow }}-${{ github.ref }}",
+            "cancel-in-progress": cancel,
+        }
+        assert data["permissions"] == {"contents": "read"}
+        for job in data["jobs"].values():
+            assert job["timeout-minutes"] == 30
+            checkouts = [s for s in job["steps"] if "checkout" in s.get("uses", "")]
+            assert len(checkouts) == 1
+            assert checkouts[0]["with"]["persist-credentials"] is False

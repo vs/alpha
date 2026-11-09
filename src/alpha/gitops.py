@@ -9,7 +9,7 @@ from typing import Any
 
 from alpha.answers import PROJECT_JSON
 from alpha.generate import GenerateError
-from alpha.render.ci import DEPENDABOT, WORKFLOW
+from alpha.render.ci import DEPENDABOT, SCHEDULED, WORKFLOW
 
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = [
@@ -19,11 +19,9 @@ _DOCS = [
     "CHANGELOG.md",
     "docs",
     ".gitignore",
-    "mise.toml",
-    "_typos.toml",
-    ".rumdl.toml",
-    "lychee.toml",
 ]
+_TOOLING = ["mise.toml", "_typos.toml", ".rumdl.toml", "lychee.toml"]
+_TOOLING_SUBJECT = "build: Pin the repository's check tools"
 _CLAUDE = ["CLAUDE.md", ".claude"]
 UPDATE_STATE = ".claude/alpha/state/update.json"  # written by alpha update
 PROPOSALS = ".claude/alpha/state/update"  # its proposals for conflicting files
@@ -35,8 +33,10 @@ def commit_group(path: str, component_of: Mapping[str, str]) -> str:
     """The commit a changed file belongs in, by what made it."""
     if path in component_of:
         return f"build:{component_of[path]}"
-    if path == WORKFLOW:
+    if path in (WORKFLOW, SCHEDULED):
         return "ci"
+    if path in _TOOLING:
+        return "tooling"
     if path == DEPENDABOT:
         return "dependabot"
     if path == "CLAUDE.md" or path.startswith(".claude/"):
@@ -111,6 +111,7 @@ def commit_skeleton(
     groups = [
         ("docs: Add product brief, principles and decisions", _DOCS),
         ("chore: Add Claude Code settings and guardrails", _CLAUDE),
+        (_TOOLING_SUBJECT, _TOOLING),
     ]
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
     for c in principles["components"]:
@@ -118,7 +119,7 @@ def commit_skeleton(
         if c["path"] == ".":  # the root takes the rest, except the CI commit's
             paths.append(f":(exclude){_CI}")
         groups.append((_build_subject(c, scopes), paths))
-    groups.append(("ci: Run every component's checks in CI", [WORKFLOW]))
+    groups.append(("ci: Run every component's checks in CI", [WORKFLOW, SCHEDULED]))
     groups.append(("ci: Schedule dependency updates", [DEPENDABOT]))
 
     return _commit_groups(target, groups, trailers, "commit-skeleton")
@@ -203,6 +204,7 @@ def commit_update(
             "chore: Update Claude Code rules and settings",
             [*paths_of("chore"), PROJECT_JSON],  # the moved baseline always changes
         ),
+        (_TOOLING_SUBJECT, paths_of("tooling")),
     ]
     notes: list[str] = []
     for c in principles["components"]:

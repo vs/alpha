@@ -121,6 +121,7 @@ def test_commit_skeleton_groups_and_trailers(
         "ci: Run every component's checks in CI",
         "build(web): Set up typescript toolchain and tests",
         "build(api): Set up python toolchain and tests",
+        "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
         "docs: Add product brief, principles and decisions",
     ]
@@ -139,7 +140,7 @@ def test_commit_skeleton_groups_and_trailers(
         out = git(tmp_path, "show", "--name-only", "--format=", commit)
         return set(out.splitlines())
 
-    docs, claude, api, web, ci, deps = hashes
+    docs, claude, tooling, api, web, ci, deps = hashes
     assert {f.split("/")[0] for f in files_in(docs)} == {
         "README.md",
         "LICENSE",
@@ -147,6 +148,8 @@ def test_commit_skeleton_groups_and_trailers(
         "CHANGELOG.md",
         "docs",
         ".gitignore",
+    }
+    assert files_in(tooling) == {
         "mise.toml",
         "_typos.toml",
         ".rumdl.toml",
@@ -155,7 +158,10 @@ def test_commit_skeleton_groups_and_trailers(
     assert {f.split("/")[0] for f in files_in(claude)} == {"CLAUDE.md", ".claude"}
     assert all(f.startswith("api/") for f in files_in(api))
     assert all(f.startswith("web/") for f in files_in(web))
-    assert files_in(ci) == {".github/workflows/ci.yml"}
+    assert files_in(ci) == {
+        ".github/workflows/ci.yml",
+        ".github/workflows/scheduled.yml",
+    }
     assert files_in(deps) == {".github/dependabot.yml"}
 
 
@@ -168,6 +174,7 @@ def test_commit_skeleton_component_at_root_takes_the_rest(
         "ci: Schedule dependency updates",
         "ci: Run every component's checks in CI",
         "build(ml): Set up python toolchain and tests",
+        "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
         "docs: Add product brief, principles and decisions",
     ]
@@ -207,6 +214,7 @@ def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
         "ci: Run every component's checks in CI",
         "build(web): Set up typescript toolchain and tests",
         "build: Set up api toolchain and tests",
+        "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
         "docs: Add product brief, principles and decisions",
     ]
@@ -382,6 +390,7 @@ def test_commit_skeleton_commits_ci_last(tmp_path: Path, generate_scenario, git_
         ".github/dependabot.yml"
     ]
     assert git(tmp_path, "show", "--name-only", "--format=", "HEAD~").split() == [
-        ".github/workflows/ci.yml"
+        ".github/workflows/ci.yml",
+        ".github/workflows/scheduled.yml",
     ]
     assert git(tmp_path, "status", "--porcelain") == ""

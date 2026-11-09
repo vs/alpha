@@ -99,6 +99,8 @@ def _copies(plugin_root: Path) -> dict[str, Path]:
     out[".claude/agents/principles-reviewer.md"] = (
         files / "agents/principles-reviewer.md"
     )
+    for script in sorted((files / "checks").glob("*.py")):
+        out[f".claude/alpha/checks/{script.name}"] = script
     out[".claude/alpha/githooks/commit-msg"] = files / "githooks/commit-msg"
     return out
 
