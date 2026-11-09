@@ -161,6 +161,9 @@ def render_project(
     assert a.build is not None  # build_principles refuses answers without it
     texts.update(render_ci(principles, a.build.ci, book))
     assert a.dependencies is not None
+    cooldown = a.dependencies.cooldown_days
+    if cooldown is None:
+        cooldown = defaults["dependencies"]["cooldown_days"]
     texts.update(
         render_dependabot(
             principles,
@@ -168,6 +171,7 @@ def render_project(
             a.dependencies.schedule,
             a.build.ci,
             book,
+            cooldown,
         )
     )
     component_of: dict[str, str] = {}

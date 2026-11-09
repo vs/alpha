@@ -126,3 +126,18 @@ def test_dependabot_root_component_directory_is_slash():
 
 def test_manual_updates_write_nothing():
     assert render_dependabot(PRINCIPLES, "manual", "weekly", "github-actions") == {}
+
+
+def test_cooldown_on_every_entry():
+    data = yaml.safe_load(
+        render_dependabot(
+            PRINCIPLES, "dependabot", "weekly", "github-actions", cooldown_days=7
+        )[DEPENDABOT]
+    )
+    assert len(data["updates"]) == 3
+    assert all(u["cooldown"] == {"default-days": 7} for u in data["updates"])
+
+
+def test_cooldown_zero_omits():
+    data = dependabot(PRINCIPLES)
+    assert all("cooldown" not in u for u in data["updates"])

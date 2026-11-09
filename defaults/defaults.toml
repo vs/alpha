@@ -84,6 +84,7 @@ worker = "container"
 [dependencies]
 updates = "dependabot"   # or "manual"
 schedule = "weekly"      # "daily", "weekly" or "monthly"
+cooldown_days = 7        # Dependabot waits this many days after a release; 0 turns it off
 
 # For each deployed component.
 [observability]

@@ -111,6 +111,7 @@ class Security:
 class Dependencies:
     updates: str
     schedule: str
+    cooldown_days: int | None = None
 
 
 @dataclass(frozen=True)
@@ -370,8 +371,19 @@ def security(raw: object, comps: "Sequence[Component] | None") -> Security:
 def dependencies(raw: object) -> Dependencies:
     w = "dependencies"
     d = obj(raw, w)
+    cooldown: int | None = None
+    if "cooldown_days" in d:
+        cooldown = d["cooldown_days"]
+        if not isinstance(cooldown, int) or isinstance(cooldown, bool) or cooldown < 0:
+            raise fail(
+                f"{w}.cooldown_days",
+                f"is {cooldown!r}, not a whole number of days, 0 or more",
+                "Use e.g. 7, or 0 for no delay; leave the field out for the default",
+            )
     return Dependencies(
-        choice(d, "updates", w, UPDATE_TOOLS), choice(d, "schedule", w, SCHEDULES)
+        choice(d, "updates", w, UPDATE_TOOLS),
+        choice(d, "schedule", w, SCHEDULES),
+        cooldown,
     )
 
 

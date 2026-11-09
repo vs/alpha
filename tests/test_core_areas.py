@@ -526,3 +526,19 @@ def test_missing_entry_hint_shows_each_field_as_its_type(
         check(tmp_path, d)
     assert "no entry for component 'api'" in str(e.value)
     assert hint in str(e.value)
+
+
+@pytest.mark.parametrize("value", [-1, "7", True, 1.5])
+def test_cooldown_answer_validated(tmp_path: Path, value: object):
+    d = valid()
+    d["dependencies"]["cooldown_days"] = value
+    with pytest.raises(AnswersError, match=r"dependencies\.cooldown_days: "):
+        check(tmp_path, d)
+
+
+def test_cooldown_answer_is_optional(tmp_path: Path):
+    d = valid()
+    d["dependencies"].pop("cooldown_days", None)
+    assert check(tmp_path, d).dependencies.cooldown_days is None  # type: ignore[union-attr]
+    d["dependencies"]["cooldown_days"] = 0
+    assert check(tmp_path, d).dependencies.cooldown_days == 0  # type: ignore[union-attr]
