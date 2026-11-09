@@ -7,11 +7,13 @@ PR_BODY the pull request description.
 
 import fnmatch
 import os
+import shlex
 import shutil
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
+from typing import Any, cast
 
 APPROVAL = "alpha: migration edit approved"
 
@@ -38,7 +40,9 @@ def data_globs(key: str) -> list[str]:
     except (OSError, tomllib.TOMLDecodeError):
         return []
     value = data.get(key, [])
-    return [str(g) for g in value] if isinstance(value, list) else []  # type: ignore[reportUnknownVariableType]
+    if not isinstance(value, list):
+        return []
+    return [str(g) for g in cast(list[Any], value)]
 
 
 def git(*args: str) -> subprocess.CompletedProcess[str]:
@@ -57,14 +61,20 @@ def resolve_base(check: str) -> str | None:
     return None
 
 
+class GitError(Exception):
+    pass
+
+
 def changes(base: str) -> list[tuple[str, str]]:
-    out = git("diff", "--name-status", "--no-renames", f"{base}...HEAD").stdout
-    rows: list[tuple[str, str]] = []
-    for line in out.splitlines():
-        status, _, path = line.partition("\t")
-        if path:
-            rows.append((status[:1], path))
-    return rows
+    result = git("diff", "--name-status", "--no-renames", "-z", f"{base}...HEAD")
+    if result.returncode != 0:
+        raise GitError(
+            f"alpha: git diff {base}...HEAD failed:\n{result.stderr.strip()}\n"
+            "  Fetch the full history: actions/checkout with fetch-depth: 0, "
+            f"and make sure {base} shares history with this branch."
+        )
+    fields = result.stdout.split("\0")
+    return [(fields[i][:1], fields[i + 1]) for i in range(0, len(fields) - 1, 2)]
 
 
 def immutable_migrations() -> int:
@@ -83,7 +93,7 @@ def immutable_migrations() -> int:
         return 0
     for path in edited:
         print(f"alpha: {path} is an applied migration, changed or deleted vs {base}.")
-        print(f"  Restore it: git checkout {base} -- {path}")
+        print(f"  Restore it: git checkout {base} -- {shlex.quote(path)}")
         print("  Then put the change in a new migration instead.")
     print(f"  If the edit is intended, add a line `{APPROVAL}` to the PR description.")
     return 1
@@ -112,7 +122,11 @@ def main(argv: list[str]) -> int:
     if len(argv) != 2 or argv[1] not in checks:
         print(f"usage: {Path(argv[0]).name} immutable-migrations|squawk")
         return 2
-    return checks[argv[1]]()
+    try:
+        return checks[argv[1]]()
+    except GitError as err:
+        print(err)
+        return 1
 
 
 if __name__ == "__main__":

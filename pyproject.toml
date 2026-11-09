@@ -12,9 +12,9 @@ markers = ["slow: needs network and stack tools"]
 addopts = "-m 'not slow'"
 
 [tool.pyright]
-include = ["src", "project-files/hooks", "tests"]
+include = ["src", "project-files/hooks", "project-files/checks", "tests"]
 typeCheckingMode = "standard"
-strict = ["src", "project-files/hooks"]
+strict = ["src", "project-files/hooks", "project-files/checks"]
 extraPaths = ["src", "project-files/hooks"]
 
 [tool.ruff.lint]
