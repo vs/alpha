@@ -8,7 +8,9 @@ bootstrap = [
 lockfiles = ["pnpm-lock.yaml"]
 ignores = ["node_modules/", "dist/", "coverage/"]
 # Pull requests run this instead of `test`, and diff-cover reads the report.
-coverage = "pnpm vitest run --coverage --coverage.reporter=cobertura"
+# --coverage.include lists the files no test imports too (vitest reports only
+# imported files otherwise), so an untested new file counts as uncovered.
+coverage = "pnpm vitest run --coverage --coverage.reporter=cobertura --coverage.include='**/*.{ts,tsx}'"
 coverage_report = "coverage/cobertura-coverage.xml"
 dependabot = "npm"  # Dependabot package-ecosystem; covers pnpm
 manifests = ["package.json"]

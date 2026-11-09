@@ -354,3 +354,55 @@ def test_diff_cover_catches_untested_line(tmp_path: Path, generate_scenario, git
     assert done.returncode == 0, done.stdout + done.stderr
     # The report files are ignored, so CI's tree check still passes.
     assert git(tmp_path, "status", "--porcelain") == ""
+
+
+@pytest.mark.slow
+def test_diff_cover_catches_untested_typescript_line(
+    tmp_path: Path, generate_scenario, git_env
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    commit_skeleton(tmp_path, principles, [])
+    git(tmp_path, "branch", "-M", "main")
+    git(tmp_path, "switch", "-c", "feature")
+
+    workflow = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
+    steps = {s.get("name"): s for s in workflow["jobs"]["web"]["steps"]}
+    coverage = steps["test with coverage"]["run"]
+    diff = (
+        steps["diff coverage"]["run"]
+        .replace("pipx run", "uvx")
+        .replace("origin/${BASE_REF}", "${BASE_REF}")
+    )
+    diff_env = {**os.environ, "BASE_REF": "main"}
+
+    web = tmp_path / "web"
+    (web / "src").mkdir(exist_ok=True)
+    (web / "src/x.ts").write_text(
+        "export function double(n: number): number {\n"
+        "  const total = n * 2;\n"
+        "  return total;\n"
+        "}\n"
+    )
+    git(tmp_path, "add", "web/src/x.ts")
+    git(tmp_path, "commit", "-m", "feat(web): Add double", "--no-verify")
+
+    done = _sh(coverage, web)
+    assert done.returncode == 0, done.stdout + done.stderr
+    done = _sh(diff, web, diff_env)
+    output = done.stdout + done.stderr
+    assert done.returncode != 0, output
+    assert "x.ts" in output, output
+
+    (web / "tests/x.test.ts").write_text(
+        'import { expect, test } from "vitest";\n'
+        'import { double } from "../src/x.js";\n\n'
+        'test("double", () => {\n  expect(double(2)).toBe(4);\n});\n'
+    )
+    git(tmp_path, "add", "web/tests/x.test.ts")
+    git(tmp_path, "commit", "-m", "test(web): Cover double", "--no-verify")
+    assert _sh(coverage, web).returncode == 0
+    done = _sh(diff, web, diff_env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert git(tmp_path, "status", "--porcelain") == ""
