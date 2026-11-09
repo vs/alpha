@@ -1,0 +1,715 @@
+# Source: dev-quality-gates 829848c (CC0)
+# Tools alpha can recommend or generate. `pin` is set where alpha writes the tool into a
+# project's mise.toml: verified by installing `mise` spec@version and running `command`
+# in a scratch folder, once on clean input (exit 0) and once on a violation (`fails_with`).
+
+[tools.jactionlint]
+name = "jactionlint"
+repo = "jdx/jactionlint"
+category = "GitHub Actions"
+stacks = []
+rationale = "lints GitHub Actions workflows, composite actions and `dependabot.yml` for correctness, security and policy in one binary. `--fix` repairs what has a mechanical fix; with `--online` it also pins tags to commit SHAs."
+limitations = "created in October 2026 and run by one maintainer; parity with zizmor is self-reported. If you need an established second implementation, offline archived-action detection, pre-commit config audits or an LSP, add [zizmor](https://github.com/zizmorcore/zizmor). Verified in alpha: alpha runs it from the project root with no arguments: it needs a git repository and exits 3 without one, 1 on findings. Its default profile is strict: every workflow needs top-level `concurrency:` and `permissions:`, `timeout-minutes` on each job, `persist-credentials: false` on checkout and every `uses` pinned to a full SHA. It prints a note and skips shell checks when shellcheck isn't installed."
+last_reviewed = 2026-11-09
+[tools.jactionlint.pin]
+mise = "jactionlint"
+version = "2.5.0"
+command = "jactionlint"
+fails_with = 1
+
+[tools.plumber]
+name = "Plumber"
+repo = "getplumber/plumber"
+category = "GitLab CI"
+stacks = []
+rationale = "security scanner for GitLab CI pipelines: checks `.gitlab-ci.yml`, resolved includes and project settings such as branch protection, and reports to the terminal, JSON, SARIF and GitLab SAST."
+limitations = "Created 2026-01-19 and pre-1.0. A security and compliance scanner, not a syntax checker: use GitLab's own CI Lint (also `glab ci lint`) for syntax. Its exit codes were not checked here. For GitHub Actions we recommend jactionlint instead."
+last_reviewed = 2026-10-23
+
+[tools.ruff]
+name = "Ruff"
+repo = "astral-sh/ruff"
+category = "Python"
+stacks = ["python"]
+rationale = "linter and formatter that replaces Flake8, isort, pyupgrade and Black."
+limitations = "no type checking, no custom-rule plugins. The `S` rules replace Bandit, `D` replaces pydocstyle (archived) and `C901` replaces xenon and radon; pair with vulture for dead code across modules."
+last_reviewed = 2026-10-23
+
+[tools.ty]
+name = "ty"
+repo = "astral-sh/ty"
+category = "Python"
+stacks = ["python"]
+rationale = "fast Python type checker and language server from the authors of Ruff and uv."
+limitations = "Beta: 0.0.x, so new releases can add type errors; pin the version. mypy (160 million downloads) and pyright are the stable, battle-tested choices, and Pyrefly (Meta, stable 1.4, 7.1k stars) is the other Rust option. Does not load mypy plugins. Ran 2026-11-01 on ty 0.0.95 (released 2026-10-29): pydantic.mypy rejects an unannotated BaseModel field and ty does not; a frozen model is an error for ty without that plugin. mypy-protobuf message stubs were accepted and rejected the same way by both. `ty check --help` has no plugin flag."
+last_reviewed = 2026-11-01
+
+[tools.golangci-lint]
+name = "golangci-lint"
+repo = "golangci/golangci-lint"
+category = "Go"
+stacks = ["go"]
+rationale = "one runner for the Go linters and the formatter, with `golangci-lint custom` for your own analyzers."
+limitations = "choose linters deliberately; GPL-3.0."
+last_reviewed = 2026-10-23
+
+[tools.clippy]
+name = "Clippy"
+repo = "rust-lang/rust-clippy"
+category = "Rust"
+stacks = ["rust"]
+rationale = "the official linter; run `cargo clippy -- -D warnings`."
+limitations = "tied to the toolchain version."
+last_reviewed = 2026-10-23
+
+[tools.rubocop]
+name = "RuboCop"
+repo = "rubocop/rubocop"
+category = "Ruby"
+stacks = ["ruby"]
+rationale = "linter and formatter with autocorrect and custom cops."
+limitations = "slower than native-code linters. Add the `rubocop-rails`, `rubocop-rspec` (or `rubocop-minitest`) and `rubocop-performance` plugins as needed; Standard is a wrapper and not needed."
+last_reviewed = 2026-10-23
+
+[tools.shellcheck]
+name = "ShellCheck"
+repo = "koalaman/shellcheck"
+category = "Shell"
+stacks = ["shell"]
+rationale = "bugs and portability problems in `sh`, `bash`, `dash` and `ksh`."
+limitations = "a stable-tool exception, last release in August 2025 with ongoing commits; no zsh. jactionlint already runs it on workflow `run:` steps."
+last_reviewed = 2026-10-23
+
+[tools.commitlint]
+name = "commitlint"
+repo = "conventional-changelog/commitlint"
+category = "Git conventions"
+stacks = []
+rationale = "checks that commit messages follow Conventional Commits, in a hook or over a CI range, with shareable configs."
+limitations = "Requires Node. Checks format only, not whether the message is accurate. Compared on 2026-10-23 with the Rust options cocogitto (1.2k stars, last push 2026-04), convco (329 stars) and committed (185 stars, last release 2026-02): none has the adoption or the release pace, so Node remains the main cost. Python projects without Node can use commitizen."
+last_reviewed = 2026-10-23
+
+[tools.lychee]
+name = "lychee"
+repo = "lycheeverse/lychee"
+category = "Documentation"
+stacks = []
+rationale = "broken links."
+limitations = "network flakiness; give it a GitHub token and a cache. Verified in alpha: The offline form checks only local file links and fragments, so it needs no network and no GITHUB_TOKEN; drop `--offline` to check URLs. Config file `lychee.toml`. Exit 2 on a broken link."
+last_reviewed = 2026-11-09
+[tools.lychee.pin]
+mise = "lychee"
+version = "0.24.2"
+command = "lychee --offline --no-progress ."
+fails_with = 2
+
+[tools.typos]
+name = "typos"
+repo = "crate-ci/typos"
+category = "Documentation"
+stacks = []
+rationale = "low-noise spell checking of source code and docs."
+limitations = "finds only known misspellings. Verified in alpha: Config file `_typos.toml` (also `typos.toml` or `.typos.toml`), with `[default.extend-words]` for accepted words. Exit 2 on a misspelling."
+last_reviewed = 2026-11-09
+[tools.typos.pin]
+mise = "typos"
+version = "1.52.0"
+command = "typos"
+fails_with = 2
+
+[tools.mise]
+name = "mise"
+repo = "jdx/mise"
+category = "Toolchain"
+stacks = []
+rationale = "one tool for the whole project toolchain, configured in `mise.toml`: installs and pins tool versions, switches them per directory, sets environment variables and runs tasks. CI uses the same versions as developers."
+limitations = "It is an installer and task runner, not a checker, so it enforces nothing by itself. Tools installed from GitHub releases or language registries still need version pinning and review like any dependency."
+last_reviewed = 2026-10-25
+
+[tools.hk]
+name = "hk"
+repo = "jdx/hk"
+category = "Git hooks"
+stacks = []
+rationale = "runs linters and formatters as Git hooks and CI checks from one `hk.pkl` file, in parallel. Ships about 170 ready-made steps (Ruff, Oxlint, rustfmt, golangci-lint, RuboCop, shellcheck, hadolint and more) plus file hygiene checks."
+limitations = "Builtins only run a tool, they do not install it: pin the linters in `mise.toml`. Config is Pkl, so the pre-commit hook catalogue is not reused; prek and Lefthook are far more widely used. Hooks can be bypassed with `--no-verify`, so run `hk check --all` in CI."
+last_reviewed = 2026-10-25
+
+[tools.knip]
+name = "Knip"
+repo = "webpro-nl/knip"
+category = "JavaScript and TypeScript"
+stacks = ["typescript"]
+rationale = "unused files, exports and dependencies."
+limitations = "monorepos need configuration; never run `--fix` unattended."
+last_reviewed = 2026-10-23
+
+[tools.deptry]
+name = "deptry"
+repo = "osprey-oss/deptry"
+category = "Python"
+stacks = ["python"]
+rationale = "unused, missing and transitive dependencies."
+limitations = "static analysis misses dynamic imports."
+last_reviewed = 2026-10-23
+
+[tools.ast-grep]
+name = "ast-grep"
+repo = "ast-grep/ast-grep"
+category = "Custom rules"
+stacks = []
+rationale = "project-specific syntax rules written as YAML patterns, with tests for the rules themselves and SARIF output. Good for import-boundary and banned-call rules."
+limitations = "one file at a time: no cross-file resolution, types or data flow. Use a dependency or architecture tool for import graphs."
+last_reviewed = 2026-10-25
+
+[tools.easement]
+name = "easement"
+repo = "mokevnin/easement"
+category = "Custom rules"
+stacks = []
+rationale = "one architecture config (`easement.yml`) for Go, TypeScript/JavaScript, Python and Java: components by path, allowed dependencies, public APIs and cycles, with a message shown for each violation. Supports a baseline and checking only what a pull request adds."
+limitations = "**maintained by the owner of this repository**; v0.1.0 released 2026-10-25, one maintainer, no outside users yet. No SARIF (run: `--format sarif` exits 2). Imports only, so a call-shape rule needs ast-grep; external packages are not checked. Compared with dependency-cruiser, import-linter, ArchUnit and go-arch-lint, each of which is deeper in its own language; its advantage is one model and one baseline across several. Use those instead if the project is one language."
+last_reviewed = 2026-10-25
+
+[tools.database-consistency]
+name = "database_consistency"
+repo = "djezzzl/database_consistency"
+category = "Databases"
+stacks = []
+rationale = "compares ActiveRecord models with the database schema and reports missing null constraints, foreign keys and unique indexes, redundant indexes, mismatched enums and key types, and broken associations."
+limitations = "ActiveRecord only. Its exit code and machine-readable output were not checked. Go projects can use schemalens, which is modelled on it."
+last_reviewed = 2026-10-23
+
+[tools.schemalens]
+name = "schemalens"
+repo = "mokevnin/schemalens"
+category = "Databases"
+stacks = []
+rationale = "compares a Go model (ent, gorm, bun) with the live PostgreSQL, MySQL or SQLite schema and reports every disagreement, such as missing foreign-key indexes, unenforced constraints and nullable columns for required fields. JSON and SARIF output, baseline."
+limitations = "**maintained by the owner of this repository**; created 2026-10-20, v0.1.x, one maintainer, no outside users yet. Go models only. Compared with database_consistency (the Ruby original, listed above) and Atlas (structural diff and drift, a different job); no Go equivalent was found."
+last_reviewed = 2026-10-23
+
+[tools.oxlint]
+name = "Oxlint and oxfmt"
+repo = "oxc-project/oxc"
+category = "JavaScript and TypeScript"
+stacks = ["typescript"]
+rationale = "Rust-native linter (ESLint-compatible rules) and formatter (Prettier-compatible) from the Oxc toolchain. One fast toolchain instead of ESLint plus Prettier."
+limitations = "oxfmt is pre-1.0. Oxlint exits 0 on warnings, so pass `--deny-warnings` in CI (tested). Per its docs, Vue, Svelte and Angular template files are not linted and the plugin ecosystem is smaller than ESLint's: keep ESLint only where you depend on those."
+last_reviewed = 2026-10-23
+
+[tools.typescript]
+name = "TypeScript"
+repo = "microsoft/TypeScript"
+category = "JavaScript and TypeScript"
+stacks = ["typescript"]
+rationale = "type checking with `tsc --noEmit` and `strict`."
+limitations = "the TypeScript 7 compiler API is not ready, so tools that import `typescript` may need TypeScript 6 beside it. `microsoft/typescript-go` is archived because it was merged, not abandoned."
+last_reviewed = 2026-10-23
+
+[tools.dependency-cruiser]
+name = "dependency-cruiser"
+repo = "sverweij/dependency-cruiser"
+category = "JavaScript and TypeScript"
+stacks = ["typescript"]
+rationale = "import-graph rules (forbidden paths, cycles, orphans, dev dependencies in production code) with non-zero exit and JSON output; `--ignore-known` baselines legacy violations."
+limitations = "static analysis misses dynamic imports; no autofix."
+last_reviewed = 2026-10-23
+
+[tools.betterleaks]
+name = "Betterleaks"
+repo = "betterleaks/betterleaks"
+category = "Secrets"
+stacks = []
+rationale = "finds committed secrets in files, git history and pull requests, with optional live validation of credentials. Reads Gitleaks-style TOML rules."
+limitations = "created February 2026; the stable line is v1.9.0 while v2 is in release-candidate, so pin the version; recall claims are the project's own; TruffleHog (AGPL-3.0) and Kingfisher (Apache-2.0) are the alternatives. Verified in alpha: `dir` scans the working tree, not git history, so it works before the first commit. Exit 1 on leaks (`--exit-code` changes it). Ignore file: `.betterleaksignore` in the scan root, one fingerprint per line in the form `path:rule-id:line` (for example `a.py:github-pat:3`); `--verbose --legacy-print` shows each finding's fingerprint. Config: `.betterleaks.toml`, loaded only with `--unsafe-auto-load-config` or `--config`. Detection skips well-known example keys such as AKIAIOSFODNN7EXAMPLE."
+last_reviewed = 2026-11-09
+[tools.betterleaks.pin]
+mise = "github:betterleaks/betterleaks"
+version = "1.10.0"
+command = "betterleaks dir . --no-banner --no-color"
+fails_with = 1
+
+[tools.osv-scanner]
+name = "OSV-Scanner"
+repo = "google/osv-scanner"
+category = "Vulnerabilities"
+stacks = []
+rationale = "known vulnerabilities in lockfiles and SBOMs across many ecosystems, with call analysis to reduce noise."
+limitations = "not an image scanner; if you scan container images use Trivy (never `trivy-action` by tag, pin to a version or digest after the March 2026 compromise) or Grype. Verified in alpha: `scan source -r .` walks the folder recursively and reads lockfiles and manifests such as requirements.txt, uv.lock and pnpm-lock.yaml. Exit 1 on known vulnerabilities, 128 when it finds no package sources at all (so a project without a lockfile fails; skip it until one exists). Needs network access to osv.dev. Config: `osv-scanner.toml`."
+last_reviewed = 2026-11-09
+[tools.osv-scanner.pin]
+mise = "osv-scanner"
+version = "2.7.0"
+command = "osv-scanner scan source -r ."
+fails_with = 1
+
+[tools.renovate]
+name = "Renovate"
+repo = "renovatebot/renovate"
+category = "Dependency updates"
+stacks = []
+rationale = "dependency update bot for GitHub, GitLab, Bitbucket, Azure DevOps, Gitea and Forgejo. Pinning, grouping and a minimum release age live in one config, which `renovate-config-validator` checks in CI."
+limitations = "An update bot, not a gate: it opens pull requests and fails nothing by itself, so pair it with CI checks. AGPL-3.0 (using it, hosted or self-hosted, is fine; modifying and offering it as a service is not). Configuration is large; start from a shared preset. Dependabot is enough for a GitHub-only repository."
+last_reviewed = 2026-10-23
+
+[tools.hadolint]
+name = "Hadolint"
+repo = "hadolint/hadolint"
+category = "Docker, Terraform and Kubernetes"
+stacks = []
+rationale = "Dockerfile best practices."
+limitations = "GPL-3.0; security-focused IaC checks belong to Trivy or Checkov."
+last_reviewed = 2026-10-23
+
+[tools.tflint]
+name = "TFLint"
+repo = "terraform-linters/tflint"
+category = "Docker, Terraform and Kubernetes"
+stacks = []
+rationale = "Terraform correctness and provider-specific rules through plugins."
+limitations = "`tflint --init` downloads plugins, so pin them; for IaC security add Trivy `config` (if you already run Trivy) or Checkov (no clear winner)."
+last_reviewed = 2026-10-23
+
+[tools.kubeconform]
+name = "Kubeconform"
+repo = "yannh/kubeconform"
+category = "Docker, Terraform and Kubernetes"
+stacks = []
+rationale = "validates Kubernetes manifests against API and CRD schemas."
+limitations = "validity only. One maintainer and about one release a year (0.7.0 in 2025-05, 0.8.0 in 2026-06), with 30 pull requests open on 2026-10-26: quiet for months between bursts, so the push-age and release-age flags are muted; the review date still flags it every 180 days. No live replacement: kubectl-validate (SIG-CLI, uses the apiserver's validation code) is pre-1.0 with its last release in 2024-05, kubeval's last release is from 2021, datree is archived, and kube-linter and kube-score check policy, not schemas."
+last_reviewed = 2026-10-26
+
+[tools.ansible-lint]
+name = "ansible-lint"
+repo = "ansible/ansible-lint"
+category = "Ansible"
+stacks = []
+rationale = "checks Ansible playbooks, roles and collections for practices that cause bugs or block upgrades. A violation exits 2."
+limitations = "GPL-3.0, and a Python package that installs ansible-core, not a native binary. The gate is a run without `--fix` and without `--profile min`: `--fix` rewrites files and exits 8, and `--profile min` exited 0 on a playbook the default run rejects. With no paths it also applies bundled yamllint to other YAML in the tree. `--offline` skips collection installs and schema refresh. Ran 26.10.1 on 2026-11-01; the fixture covers playbooks, not a role or a collection."
+last_reviewed = 2026-11-01
+
+[tools.check-jsonschema]
+name = "check-jsonschema"
+repo = "python-jsonschema/check-jsonschema"
+category = "Config files"
+stacks = []
+rationale = "validates YAML, JSON and TOML against JSON Schema, with ready hooks for common formats."
+limitations = "mostly a one-maintainer project; remote schemas need network or vendoring; style rules need yamllint."
+last_reviewed = 2026-10-23
+
+[tools.squawk]
+name = "squawk"
+repo = "sbdchd/squawk"
+category = "Databases"
+stacks = []
+rationale = "finds PostgreSQL migrations that lock tables or cause downtime, with JSON output and no database needed."
+limitations = "PostgreSQL only, no autofix; SQLFluff covers style. Atlas lint is not adopted: its stronger checks need Atlas Pro and a login. Verified in alpha: The base command: pass migration files as arguments (`squawk migrations/0002.sql`). Exit 1 on any finding (the default rules include `prefer-robust-stmts`, so `CREATE TABLE` needs `IF NOT EXISTS`) and 1 when a path matches no file. Not in the mise registry, so the spec is the `github:` backend. Config file `.squawk.toml`; `--pg-version` sets the target PostgreSQL."
+last_reviewed = 2026-11-09
+[tools.squawk.pin]
+mise = "github:sbdchd/squawk"
+version = "2.72.0"
+command = "squawk"
+fails_with = 1
+
+[tools.conftest]
+name = "Conftest"
+repo = "open-policy-agent/conftest"
+category = "Policy"
+stacks = []
+rationale = "your own rules in Rego over YAML, JSON, HCL, Dockerfile, CODEOWNERS and 15 more formats."
+limitations = "Rego is harder to write than YAML rules; exit code and SARIF output were not verified. Kyverno is for Kubernetes admission only."
+last_reviewed = 2026-10-23
+
+[tools.agnix]
+name = "agnix"
+repo = "agent-sh/agnix"
+category = "Agent configuration"
+stacks = []
+rationale = "lints CLAUDE.md, AGENTS.md, SKILL.md, hooks and MCP configs for Claude Code, Codex, Cursor, Copilot, OpenCode and Kiro, with `--fix`. Tested: errors exit 1; warnings exit 0 unless `--strict` is passed."
+limitations = "created January 2026, one main maintainer; rules track fast-changing vendor formats. Verified in alpha: `--strict` makes warnings fail (exit 1); without it warnings exit 0 and only errors fail. The tool is not in the mise registry, so the spec is the `github:` backend. Config file `.agnix.toml`. Info messages (such as unpinned tool versions) never fail, even under `--strict`."
+last_reviewed = 2026-11-09
+[tools.agnix.pin]
+mise = "github:agent-sh/agnix"
+version = "0.61.0"
+command = "agnix --strict"
+fails_with = 1
+
+[tools.govulncheck]
+name = "govulncheck"
+repo = "golang/vuln"
+category = "Go"
+stacks = ["go"]
+rationale = "reports known vulnerabilities in the Go modules and standard library you actually call, with call stacks, from the official Go vulnerability database."
+limitations = "with `-json` and `-format sarif` it exits 0 whatever it finds, so gate on the text output; blind to calls through `reflect`; the GitHub repo is a mirror of `golang.org/x/vuln` whose releases are Go module tags (v1.9.0), not GitHub releases (the latest one there is from 2025-01), so the release-age and push-age flags are muted; commits continued on 2026-10-11. For repos in several languages see the open Vulnerabilities decision."
+last_reviewed = 2026-10-26
+
+[tools.go-arch-lint]
+name = "go-arch-lint"
+repo = "fe3dback/go-arch-lint"
+category = "Go"
+stacks = ["go"]
+rationale = "architecture rules for Go in one `.go-arch-lint.yml`: components by path and the components and vendor packages each may import. Exits 1 on a violation, JSON output."
+limitations = "616 stars, one main maintainer; no SARIF found. Import-level rules only, so a call-shape rule needs ast-grep. A component with no allowed imports still needs `mayDependOn` or a flag, so a leaf is declared with `anyVendorDeps` (run)."
+last_reviewed = 2026-10-25
+
+[tools.rustfmt]
+name = "rustfmt"
+repo = "rust-lang/rustfmt"
+category = "Rust"
+stacks = ["rust"]
+rationale = "the official formatter; run `cargo fmt --check` in CI."
+limitations = "versioned with the Rust toolchain, not through GitHub releases (the latest one there is from 2023), so the release-age and push-age flags are muted; style options are few by design."
+last_reviewed = 2026-10-26
+
+[tools.cargo-machete]
+name = "cargo-machete"
+repo = "bnjbvr/cargo-machete"
+category = "Rust"
+stacks = ["rust"]
+rationale = "finds unused dependencies in Cargo.toml quickly and without compiling, so it runs on stable Rust in CI."
+limitations = "Text-based search, so it can report false positives and misses macro-generated uses; ignore them in Cargo.toml metadata. Not a replacement for cargo-deny, which covers advisories and licences."
+last_reviewed = 2026-10-23
+
+[tools.cargo-deny]
+name = "cargo-deny"
+repo = "EmbarkStudios/cargo-deny"
+category = "Rust"
+stacks = ["rust"]
+rationale = "one policy file for RustSec advisories, licences, banned or duplicate crates and allowed registries; non-zero exit on violation."
+limitations = "checks metadata only, not dependency source; needs a maintained `deny.toml`."
+last_reviewed = 2026-10-23
+
+[tools.error-prone]
+name = "Error Prone"
+repo = "google/error-prone"
+category = "Java"
+stacks = ["java"]
+rationale = "bug patterns checked by the Java compiler on every build; raise a check to `ERROR` to fail the build. With NullAway as a plugin it also enforces null safety from `@Nullable` annotations."
+limitations = "Java only; must run on JDK 21 or newer (it can still target older releases); NullAway needs annotations."
+last_reviewed = 2026-10-23
+
+[tools.spotless]
+name = "Spotless"
+repo = "diffplug/spotless"
+category = "Java"
+stacks = ["java"]
+rationale = "`spotlessCheck` fails on unformatted code and `spotlessApply` fixes it; wraps google-java-format, ktlint, ktfmt and others behind one Gradle or Maven task."
+limitations = "a build-tool plugin, not a standalone binary."
+last_reviewed = 2026-10-23
+
+[tools.archunit]
+name = "ArchUnit"
+repo = "TNG/ArchUnit"
+category = "Java"
+stacks = ["java"]
+rationale = "layers, cycles and naming rules written as JUnit tests; a violated rule fails the test run."
+limitations = "a library inside your test suite; works on bytecode, so it has no source-level rules."
+last_reviewed = 2026-10-23
+
+[tools.dotnet-sdk-analyzers]
+name = ".NET SDK analyzers"
+repo = "dotnet/sdk"
+category = ".NET"
+stacks = ["dotnet"]
+rationale = "the analyzers built into the .NET SDK: code style enforced in the build, warnings as errors, `dotnet format --verify-no-changes`, and NuGet Audit warnings for vulnerable packages as errors."
+limitations = "rule sets change with SDK versions, so pin `AnalysisLevel`; audit data comes from the GitHub Advisory Database."
+last_reviewed = 2026-10-23
+
+[tools.swiftlint]
+name = "SwiftLint"
+repo = "realm/SwiftLint"
+category = "Swift"
+stacks = ["swift"]
+rationale = "style and convention rules built on SwiftSyntax; `--strict` fails on warnings, `--fix` corrects, SARIF/JSON reporters, custom rules in config."
+limitations = "it is a linter, not a formatter; pair with `swift-format` or SwiftFormat if you want enforced layout."
+last_reviewed = 2026-10-23
+
+[tools.import-linter]
+name = "import-linter"
+repo = "seddonym/import-linter"
+category = "Python"
+stacks = ["python"]
+rationale = "import contracts (layers, forbidden, independence, protected) that fail CI."
+limitations = "checks imports only; [tach](https://github.com/tach-org/tach) is the alternative for public-interface rules."
+last_reviewed = 2026-10-23
+
+[tools.mago]
+name = "Mago"
+repo = "carthage-software/mago"
+category = "PHP"
+stacks = ["php"]
+rationale = "PHP toolchain in one binary: linter, formatter, static analyzer and architectural `guard` rules, with auto-fixes and a baseline."
+limitations = "Created in October 2024, so younger than PHPStan; its framework-specific extensions (Laravel, Symfony) were not compared rule by rule. Check your framework's coverage before dropping PHPStan."
+last_reviewed = 2026-10-23
+
+[tools.rumdl]
+name = "rumdl"
+repo = "rvben/rumdl"
+category = "Documentation"
+stacks = []
+rationale = "Markdown linter and formatter that reads markdownlint configuration. `rumdl check` exits 1 on violations, `rumdl fmt` fixes."
+limitations = "Pre-1.0 (v0.3.0). Compatibility with markdownlint is the project's own claim; custom JavaScript rules written for markdownlint are not expected to carry over. Verified in alpha: Config file `.rumdl.toml`. Exit 1 on findings; `rumdl fmt` applies the fixes."
+last_reviewed = 2026-11-09
+[tools.rumdl.pin]
+mise = "rumdl"
+version = "0.3.2"
+command = "rumdl check ."
+fails_with = 1
+
+[tools.oasdiff]
+name = "oasdiff"
+repo = "oasdiff/oasdiff"
+category = "API contracts"
+stacks = []
+rationale = "compares two OpenAPI specs and reports the changes that break existing API clients (`breaking`) or all consumer-visible changes (`changelog`), with a GitHub Action and a pre-commit hook."
+limitations = "OpenAPI only (use Buf for protobuf). The exact option that makes CI fail on breaking changes was not checked here; read its docs. pb33f's openapi-changes is the smaller alternative."
+last_reviewed = 2026-10-23
+
+[tools.vacuum]
+name = "vacuum"
+repo = "daveshanley/vacuum"
+category = "API contracts"
+stacks = []
+rationale = "single-binary linter for OpenAPI, AsyncAPI, Arazzo and JSON Schema that reads Spectral-style rulesets."
+limitations = "Smaller community than Spectral (1.1k against 3.2k stars; Spectral and Redocly CLI each have 7 to 10 million npm downloads a month). Spectral compatibility has documented limits (see its README). Exits 2 when a rule times out, so incomplete runs are visible."
+last_reviewed = 2026-10-23
+
+[tools.buf]
+name = "Buf"
+repo = "bufbuild/buf"
+category = "API contracts"
+stacks = []
+rationale = "Protobuf lint, format and breaking-change detection against a previous version or git ref, in one CLI."
+limitations = "Protobuf only. The Buf Schema Registry is an optional hosted service; lint and breaking-change checks run locally against a git ref."
+last_reviewed = 2026-10-23
+
+[tools.sqruff]
+name = "sqruff"
+repo = "quarylabs/sqruff"
+category = "Databases"
+stacks = []
+rationale = "SQL linter and formatter with SQLFluff-style rules, a `--dialect` per project and autofix."
+limitations = "Pre-1.0 and far smaller than SQLFluff (1.4k against 10k stars, 9 million PyPI downloads a month). Check your dialect before switching, and keep SQLFluff if you need its dbt and Jinja templating. Style only: use squawk for migration safety."
+last_reviewed = 2026-10-23
+
+[tools.strong-migrations]
+name = "strong_migrations"
+repo = "ankane/strong_migrations"
+category = "Ruby"
+stacks = ["ruby"]
+rationale = "stops unsafe Rails migrations (locking indexes, column drops, type changes) while they run and names the safe alternative."
+limitations = "PostgreSQL, MySQL and MariaDB only; runs only when migrations run, so CI must run them."
+last_reviewed = 2026-10-23
+
+[tools.bullet]
+name = "Bullet"
+repo = "flyerhzm/bullet"
+category = "Ruby"
+stacks = ["ruby"]
+rationale = "detects N+1 queries and unused eager loading in Rails; with `Bullet.raise = true` in test the specs fail."
+limitations = "finds only what tests exercise."
+last_reviewed = 2026-10-23
+
+[tools.i18n-tasks]
+name = "i18n-tasks"
+repo = "glebm/i18n-tasks"
+category = "Ruby"
+stacks = ["ruby"]
+rationale = "`i18n-tasks health` fails on missing, unused and inconsistent translation keys and normalises locale files."
+limitations = "Ruby and Rails; last release 2025-11."
+last_reviewed = 2026-10-23
+
+[tools.herb]
+name = "Herb"
+repo = "marcoroth/herb"
+category = "Ruby"
+stacks = ["ruby"]
+rationale = "HTML-aware ERB parser with linter and formatter; replaces erb_lint."
+limitations = "pre-1.0; formatter is experimental; the linter runs through npm."
+last_reviewed = 2026-10-23
+
+[tools.sorbet]
+name = "Sorbet"
+repo = "sorbet/sorbet"
+category = "Ruby"
+stacks = ["ruby"]
+rationale = "static type checker for Ruby; with tapioca it types gems and Rails."
+limitations = "needs `sig` annotations and gradual strictness levels; Steep with RBS is the other direction."
+last_reviewed = 2026-10-23
+
+[tools.packwerk]
+name = "Packwerk"
+repo = "Shopify/packwerk"
+category = "Ruby"
+stacks = ["ruby"]
+rationale = "enforces package dependency and privacy rules in a Rails monolith."
+limitations = "needs modularisation work; [pks](https://github.com/rubyatscale/pks) is a Rust drop-in claiming 10-20x speed but is very small (10 stars, unverified)."
+last_reviewed = 2026-10-23
+
+[tools.archspec]
+name = "ArchSpec"
+repo = "crmne/archspec"
+category = "Ruby"
+stacks = ["ruby"]
+rationale = "architecture rules for Ruby in one `Archspec.rb`: components by glob, layers, `cannot_use`, `cannot_call`, naming, cycles and Rails presets. Exits 1 on a violation, JSON output, a todo file for existing apps."
+limitations = "created June 2026, one maintainer, 262 stars; no SARIF found. Static analysis only (Ruby 3.2+, Rubydex). Overlaps Packwerk for package boundaries: use one of them."
+last_reviewed = 2026-10-25
+
+[tools.django-upgrade]
+name = "django-upgrade"
+repo = "adamchainz/django-upgrade"
+category = "Python"
+stacks = ["python"]
+rationale = "rewrites code to the idioms of your target Django version, and fails CI when files would change."
+limitations = "Django only; narrow by design."
+last_reviewed = 2026-10-23
+
+[tools.django-migration-linter]
+name = "django-migration-linter"
+repo = "David-Wobrock/django-migration-linter"
+category = "Python"
+stacks = ["python"]
+rationale = "flags Django migrations that are not backward compatible with the running code (`lintmigrations`)."
+limitations = "Django only; not verified by running; does not replace squawk for lock analysis on SQL."
+last_reviewed = 2026-10-26
+
+[tools.syncpack]
+name = "syncpack"
+repo = "JamieMason/syncpack"
+category = "JavaScript and TypeScript"
+stacks = ["typescript"]
+rationale = "enforces one version of each dependency and consistent ranges across a monorepo."
+limitations = "monorepos only; package-manager catalogs reduce the need; sherif is the narrower alternative."
+last_reviewed = 2026-10-23
+
+[tools.stylelint]
+name = "Stylelint"
+repo = "stylelint/stylelint"
+category = "Web quality"
+stacks = ["typescript"]
+rationale = "CSS, SCSS and CSS-in-JS linter with autofix and custom rules."
+limitations = "CSS only."
+last_reviewed = 2026-10-23
+
+[tools.axe-core]
+name = "axe-core"
+repo = "dequelabs/axe-core"
+category = "Web quality"
+stacks = ["typescript"]
+rationale = "accessibility rules that fail tests when run through `@axe-core/playwright`."
+limitations = "finds only the automatable part of WCAG; needs a browser test suite; MPL-2.0."
+last_reviewed = 2026-10-23
+
+[tools.size-limit]
+name = "size-limit"
+repo = "ai/size-limit"
+category = "Web quality"
+stacks = ["typescript"]
+rationale = "fails the build when a bundle is over its size or load-time budget."
+limitations = "needs a build step and budgets chosen by you."
+last_reviewed = 2026-10-23
+
+[tools.rector]
+name = "Rector"
+repo = "rectorphp/rector"
+category = "PHP"
+stacks = ["php"]
+rationale = "automated upgrades and refactoring sets for PHP; `--dry-run` in CI shows pending changes."
+limitations = "depends on the rule sets you choose; fail-on-diff behaviour read from the docs only."
+last_reviewed = 2026-10-23
+
+[tools.detekt]
+name = "detekt"
+repo = "detekt/detekt"
+category = "Kotlin"
+stacks = ["kotlin"]
+rationale = "Kotlin static analysis for complexity, smells and bugs, with baselines and SARIF."
+limitations = "stable release 1.23.8 is from 2025-02 (Gradle 6.8.3 or newer); 2.0 is alpha only (2.0.0-alpha.6, 2026-08-04, Gradle 8.14.3 or newer) and its README recommends it over 1.x, with daily commits. 1.23.8 was built against Kotlin 2.0.21 (support for newer Kotlin not checked) and crashed on JDK 25 (issues #9771 and #9772, closed; no 1.x release since), so on a recent JDK plan for 2.0. ktlint formatting comes through spotless."
+last_reviewed = 2026-10-26
+
+[tools.credo]
+name = "Credo"
+repo = "rrrene/credo"
+category = "Elixir"
+stacks = ["elixir"]
+rationale = "the Elixir linter (consistency, readability, refactoring opportunities, custom checks). With the ExSlop plugin it also flags what code generators over-produce, such as blanket `rescue` and narrator comments."
+limitations = "style and smell rules, not type checking. ExSlop is young (created 2026-03, v0.4.x, one organisation); its `plugins:` line enables nothing when `.credo.exs` has an explicit `checks.enabled` list, so append `ExSlop.recommended_checks()` there instead."
+last_reviewed = 2026-10-24
+
+[tools.sobelow]
+name = "Sobelow"
+repo = "sobelow/sobelow"
+category = "Elixir"
+stacks = ["elixir"]
+rationale = "security scanner for Phoenix; `--exit` fails the build at a confidence level, SARIF output."
+limitations = "Phoenix and Plug only; heuristic findings need a `.sobelow-skips` file."
+last_reviewed = 2026-10-23
+
+[tools.dialyxir]
+name = "Dialyxir"
+repo = "jeremyjh/dialyxir"
+category = "Elixir"
+stacks = ["elixir"]
+rationale = "runs Dialyzer from Mix: success-typing analysis, including the check that each `@spec` matches its code. `--format github` annotates pull requests and an ignore file baselines old warnings."
+limitations = "most useful where the project writes `@spec`; Dialyzer also works without specs, which the test did not cover. The first run builds the PLT (about 2.5 minutes for a toy project in the test), later runs take seconds, so cache the PLT in CI. No JSON or SARIF output; Assay offers both and incremental runs, but we did not run it and it is far smaller. What only Dialyzer catches shrinks as the compiler's type system grows."
+last_reviewed = 2026-10-24
+
+[tools.diff-cover]
+name = "diff-cover"
+repo = "Bachmann1234/diff_cover"
+category = "Tests and coverage"
+stacks = []
+rationale = "coverage gate for any stack: reads Cobertura, Clover, JaCoCo and lcov reports and fails when the lines changed in a pull request are covered below a threshold."
+limitations = "Needs a coverage report from your test runner (coverage.py, vitest/c8, JaCoCo, llvm-cov, go-cover, and so on). Not a replacement for each ecosystem's own total threshold; set both. The exact flag and exit code were not checked here. Smaller community (849 stars) than the coverage tools it reads. Verified in alpha: Reads a Cobertura XML report (`coverage xml`, or `--cov-report=xml` in pytest-cov) and checks only the lines changed against `--compare-branch` (default origin/main). Exit 1 below `--fail-under`. A Python tool: CI runs it with `pipx run diff-cover==11.0.1`."
+last_reviewed = 2026-11-09
+[tools.diff-cover.pin]
+mise = "pipx:diff-cover"
+version = "11.0.1"
+command = "diff-cover coverage.xml --fail-under=100"
+fails_with = 1
+
+[tools.pyright]
+name = "Pyright"
+repo = "microsoft/pyright"
+category = "Python"
+stacks = ["python"]
+rationale = "fast, strict Python type checker; alpha's recipe runs it in strict mode over the source folders."
+limitations = "alpha's pick that DQG doesn't list: DQG recommends ty, which is beta (0.0.x) and doesn't load mypy plugins. Pyright is stable, and alpha prefers that for a check that gates every commit."
+last_reviewed = 2026-11-09
+
+[tools.biome]
+name = "Biome"
+repo = "biomejs/biome"
+category = "JavaScript and TypeScript"
+stacks = ["typescript"]
+rationale = "one formatter and linter for JavaScript, TypeScript, JSON and CSS."
+limitations = "alpha's pick that DQG doesn't list: DQG recommends oxlint for linting. Biome also formats, so alpha's TypeScript recipe needs one tool where oxlint would need a formatter beside it. Fewer rules than ESLint with plugins."
+last_reviewed = 2026-11-09
+
+[tools.pytest]
+name = "pytest"
+repo = "pytest-dev/pytest"
+category = "Python"
+stacks = ["python"]
+rationale = "the Python test runner, with fixtures and parametrized tests."
+limitations = "alpha's pick that DQG doesn't list (DQG covers tests only through diff-cover). Runs tests; it doesn't measure coverage without pytest-cov."
+last_reviewed = 2026-11-09
+
+[tools.vitest]
+name = "Vitest"
+repo = "vitest-dev/vitest"
+category = "JavaScript and TypeScript"
+stacks = ["typescript"]
+rationale = "Vite-native test runner for TypeScript projects, with a Jest-compatible API."
+limitations = "alpha's pick that DQG doesn't list (DQG covers tests only through diff-cover). Needs a TypeScript bundler-style setup; component tests in a browser need extra packages."
+last_reviewed = 2026-11-09
+
+[tools.dependabot]
+name = "Dependabot"
+repo = "dependabot/dependabot-core"
+category = "Dependency updates"
+stacks = []
+rationale = "GitHub's built-in dependency update pull requests, configured in `.github/dependabot.yml`."
+limitations = "alpha's pick where DQG recommends Renovate: Dependabot needs no extra app or token on GitHub, but has fewer grouping and scheduling options and no support for mise.toml pins."
+last_reviewed = 2026-11-09

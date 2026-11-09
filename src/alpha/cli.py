@@ -6,7 +6,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from alpha import VERSION, answers, defaults, recipe_cli, toml_write
+from alpha import VERSION, answers, defaults, recipe_cli, registry, toml_write
 from alpha.generate import (
     PRINCIPLES_TOML,
     PROJECT_JSON,
@@ -64,6 +64,13 @@ def build_parser() -> argparse.ArgumentParser:
     rsave.add_argument("target", type=Path, help="the generated project")
     rsave.add_argument("stack", help="the drafted recipe's stack, e.g. rust")
     rsave.add_argument("--trailer", action="append", default=[], help="commit trailer")
+    reg = sub.add_parser("registry", help="the reviewed tool registry")
+    regsub = reg.add_subparsers(dest="registry_command", required=True)
+    rlist = regsub.add_parser("list", help="tool ids with their category")
+    rlist.add_argument("--stack", help="only this stack's tools and the cross-cutting")
+    rshow = regsub.add_parser("show", help="one tool's rationale, limits and pin")
+    rshow.add_argument("id", help="a tool id from `alpha registry list`")
+    regsub.add_parser("stale", help="tools not reviewed in the last 180 days")
     gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
     boot = sub.add_parser("bootstrap", help="install toolchains and run the tests")
@@ -194,6 +201,46 @@ def _recipe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _registry(args: argparse.Namespace) -> int:
+    try:
+        source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+        reg = registry.load_registry(source)
+        if args.registry_command == "show":
+            print(_describe_tool(reg.tool(args.id)))
+            return 0
+        if args.registry_command == "list":
+            tools = reg.for_stack(args.stack) if args.stack else reg.all()
+        else:
+            tools = reg.stale(date.today())
+    except defaults.DefaultsError as e:
+        print(e, file=sys.stderr)
+        return 3
+    except answers.AnswersError as e:
+        print(e, file=sys.stderr)
+        return 1
+    for t in tools:
+        print(f"{t.id}\t{t.category}\t{t.last_reviewed}")
+    return 0
+
+
+def _describe_tool(t: registry.Tool) -> str:
+    lines = [
+        f"{t.id}: {t.name} (https://github.com/{t.repo})",
+        f"category: {t.category}",
+        f"stacks: {', '.join(t.stacks) or 'all'}",
+        f"last reviewed: {t.last_reviewed}",
+        f"rationale: {t.rationale}",
+        f"limitations: {t.limitations}",
+    ]
+    if t.pin:
+        lines += [
+            f"mise: {t.pin.mise}@{t.pin.version}",
+            f"command: {t.pin.command}",
+            f"exit code on a violation: {t.pin.fails_with}",
+        ]
+    return "\n".join(lines)
+
+
 def _generate(target: Path) -> None:
     source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
     if not source.live:
@@ -313,6 +360,8 @@ def main(argv: list[str] | None = None) -> int:
         return _answers(args)
     if args.command == "recipe":
         return _recipe(args)
+    if args.command == "registry":
+        return _registry(args)
     if args.command in (
         "generate",
         "bootstrap",
