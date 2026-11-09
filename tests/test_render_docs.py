@@ -310,6 +310,14 @@ WORKING_RULES = [
     "- Before you report work as done, re-read every changed file top to bottom "
     "as a stranger would.",
     "- At the end of a planned piece of work, run the principles-reviewer agent.",
+    "- When you add a code generator, add a `generate` task to `mise.toml` and to "
+    "the `ci` task's `depends`; CI fails when checks change tracked files.",
+    "- Never disable a lint rule to pass; an exception names one path and one "
+    "rule, gives a reason, and needs the user's yes.",
+    "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
+    "review date: in `osv-scanner.toml`, `ignoreUntil` and `reason`; in "
+    "`.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly "
+    "above the entry.",
 ]
 COMMUNICATION = [
     "- Answer a question before making edits or running commands for it.",
@@ -425,3 +433,45 @@ def test_claude_md_has_no_stack_rules_section_without_rules(tmp_path: Path):
     md = render_docs(a, principles, 2026, TODAY)["CLAUDE.md"]
     assert "## Stack rules" not in md
     assert "## Communication" in md and "## Commands" in md
+
+
+def test_claude_md_says_how_to_run_every_check(tmp_path: Path):
+    md = render(load(tmp_path))["CLAUDE.md"]
+    assert "Run every check: `mise run check` (CI runs the same checks)" in md
+    assert md.index("Run every check") > md.index("## Commands")
+    assert md.index("Run every check") < md.index("## Definition of done")
+
+
+def test_claude_md_rules_for_generators_lint_and_suppressions(tmp_path: Path):
+    md = render(load(tmp_path))["CLAUDE.md"]
+    for line in (
+        "- When you add a code generator, add a `generate` task to `mise.toml` and "
+        "to the `ci` task's `depends`; CI fails when checks change tracked files.",
+        "- Never disable a lint rule to pass; an exception names one path and one "
+        "rule, gives a reason, and needs the user's yes.",
+        "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
+        "review date: in `osv-scanner.toml`, `ignoreUntil` and `reason`; in "
+        "`.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly "
+        "above the entry.",
+    ):
+        assert line in md
+    assert "trailing comment" not in md
+
+
+def test_claude_md_points_at_the_commit_skill(tmp_path: Path):
+    # The skill is user-invoked only, so this line is how Claude finds it.
+    md = render(load(tmp_path))["CLAUDE.md"]
+    assert "Follow the commit skill (`.claude/skills/commit/SKILL.md`" in md
+    assert md.index("## Commits") < md.index("commit skill")
+
+
+def test_contributing_documents_the_checks(tmp_path: Path):
+    md = render(load(tmp_path))["CONTRIBUTING.md"]
+    section = md[md.index("## Checks") :].split("\n## ")[0]
+    assert "mise install" in section
+    assert "mise run check" in section
+    assert "| Check | What it checks | Runs |" in section
+    assert "| secrets | Secrets in the repo and its history (betterleaks) |" in section
+    assert "| typos |" in section and "pull request, at Stop" in section
+    assert "| toolchain |" in section and "| weekly |" in section
+    assert "| vulns |" in section and "pull request, weekly" in section

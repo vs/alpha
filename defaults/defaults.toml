@@ -223,7 +223,7 @@ title = "Generated files come from their source"
 statement = "A generated file changes only by changing its source and regenerating it, never by hand."
 rationale = "A hand edit to generated output is lost on the next regeneration, and the source no longer describes what runs."
 applies = ["always"]
-checked_by = ["reviewer"]
+checked_by = ["reviewer", "ci:tree"]
 core = true
 
 [[principles]]
@@ -313,7 +313,7 @@ title = "Safe migrations"
 statement = "Every schema change is a migration, reversible where possible."
 rationale = "Persisted data outlives code, so changes to it must be repeatable and recoverable."
 applies = ["persisted_data"]
-checked_by = ["reviewer", "hook:stop_checks"]
+checked_by = ["reviewer", "hook:stop_checks", "ci:migrations"]
 core = false
 
 [[principles]]
@@ -322,7 +322,7 @@ title = "No secrets in the repo"
 statement = "Secrets come from the environment or a secret store."
 rationale = "A committed secret is leaked for good, since history keeps it even after deletion."
 applies = ["always"]
-checked_by = ["reviewer", "hook:stop_checks"]
+checked_by = ["reviewer", "hook:stop_checks", "ci:secrets"]
 core = true
 
 [[principles]]

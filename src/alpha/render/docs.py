@@ -9,9 +9,11 @@ from typing import Any
 from alpha.answers import Answers, Component, Documentation, Identity
 from alpha.recipes import OPTIONAL_STEPS, check_commands
 from alpha.records import Records, record_number, record_paths
+from alpha.registry import Registry, default_registry
 from alpha.render import area_docs
 from alpha.render.ci import WORKFLOW
 from alpha.render.markdown import row
+from alpha.repo_checks import RepoCheck, repo_checks
 
 LICENSES_DIR = Path(__file__).resolve().parents[1] / "licenses"
 _STEPS = ("setup", "test", "lint", "format", "format_check", "typecheck", "structure")
@@ -53,6 +55,30 @@ _COMMUNICATION = (
     "- Explain a non-trivial problem or design as the problem, a concrete example "
     "or short trace, then the solution and why it's needed.",
 )
+_CHECK_RULES = (
+    "- When you add a code generator, add a `generate` task to `mise.toml` and to "
+    "the `ci` task's `depends`; CI fails when checks change tracked files.",
+    "- Never disable a lint rule to pass; an exception names one path and one "
+    "rule, gives a reason, and needs the user's yes.",
+    "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
+    "review date: in `osv-scanner.toml`, `ignoreUntil` and `reason`; in "
+    "`.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly "
+    "above the entry.",
+)
+_CHECK_WHAT = {
+    "actions": "GitHub Actions workflows",
+    "secrets": "Secrets in the repo and its history",
+    "vulns": "Known vulnerabilities in locked dependencies",
+    "typos": "Spelling in code and docs",
+    "markdown": "Markdown style",
+    "links": "Relative links in docs resolve",
+    "links-online": "Links to other sites still work",
+    "agent-config": "CLAUDE.md and .claude/ configuration",
+    "migrations": "Committed migrations are not edited",
+    "squawk": "Unsafe SQL in migrations",
+    "review-dates": "Suppressions past their review date",
+    "toolchain": "Pinned tools that have a newer release",
+}
 _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
     "each leaving the checks green.",
@@ -225,6 +251,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "## Working rules",
         "",
         *_WORKING_RULES,
+        *_CHECK_RULES,
         "",
         "## Communication",
         "",
@@ -237,6 +264,10 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     for comp in principles["components"]:
         c = next(x for x in a.components if x.name == comp["name"])
         lines += _command_table(c, comp) + [""]
+    lines += [
+        "Run every check: `mise run check` (CI runs the same checks).",
+        "",
+    ]
     lines += ["## Definition of done", ""]
     lines += [f"{i}. {item}" for i, item in enumerate(_DONE, 1)]
     lines += [
@@ -305,7 +336,18 @@ def _readme(a: Answers, principles: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _contributing(a: Answers, principles: dict[str, Any]) -> str:
+_WHEN = {"pr": "pull request", "both": "pull request, weekly", "schedule": "weekly"}
+
+
+def _check_row(c: RepoCheck) -> str:
+    what = _CHECK_WHAT[c.id] + (f" ({c.tool})" if c.tool else "")
+    runs = _WHEN[c.when] + (", at Stop" if c.stop else "")
+    return row(c.id, what, runs)
+
+
+def _contributing(
+    a: Answers, principles: dict[str, Any], checks: list[RepoCheck]
+) -> str:
     assert a.git is not None
     git = principles["git"]
     branching = _BRANCHING.get(a.git.branching, f"Branching model: {a.git.branching}.")
@@ -326,6 +368,20 @@ def _contributing(a: Answers, principles: dict[str, Any]) -> str:
         for c in principles["components"]
     ]
     lines += [
+        "",
+        "## Checks",
+        "",
+        "```sh",
+        "mise install",
+        "mise run check",
+        "```",
+        "",
+        "`mise install` installs the pinned tools; `mise run check` runs every "
+        "component's checks and the repository checks below, the same as CI.",
+        "",
+        "| Check | What it checks | Runs |",
+        "|---|---|---|",
+        *(_check_row(c) for c in checks),
         "",
         "## Commit convention",
         "",
@@ -450,12 +506,14 @@ def render_docs(
     root: Path = Path(),
     records: Records | None = None,
     added: Mapping[str, date] | None = None,
+    registry: Registry | None = None,
 ) -> dict[str, str]:
     records = records or record_paths(a)
+    checks = repo_checks(a, principles, registry or default_registry())
     out = {
         "README.md": _readme(a, principles),
         "LICENSE": _license(a, year, root),
-        "CONTRIBUTING.md": _contributing(a, principles),
+        "CONTRIBUTING.md": _contributing(a, principles, checks),
         "CLAUDE.md": _claude_md(a, principles),
         "docs/product.md": _product(a),
         "docs/architecture.md": _architecture(a),

@@ -165,7 +165,14 @@ def render_project(
     texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
     texts.update(
         render_docs(
-            a, principles, year, today, root=target, records=records, added=added
+            a,
+            principles,
+            year,
+            today,
+            root=target,
+            records=records,
+            added=added,
+            registry=registry,
         )
     )
     component_files: dict[str, tuple[str, str]] = {}  # path -> (text, name)

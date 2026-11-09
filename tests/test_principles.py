@@ -491,3 +491,11 @@ def test_diff_coverage_bad_default_says_how_to_fix(value: object):
         build_principles(_defaults_with(diff_coverage=value), A, "0.1.0")
     assert f"diff_coverage is {value!r}" in str(e.value)
     assert "0 to 100" in str(e.value)
+
+
+def test_ci_checks_reach_the_built_principles():
+    by_id = {p["id"]: p for p in build_principles(D, A, "0.1.0")["principles"]}
+    assert "ci:secrets" in by_id["no-secrets"]["checked_by"]
+    assert "ci:tree" in by_id["generated-from-source"]["checked_by"]
+    assert "ci:migrations" in by_id["safe-migrations"]["checked_by"]
+    assert "ci:" not in "".join(by_id["dependency-reasons"]["checked_by"])

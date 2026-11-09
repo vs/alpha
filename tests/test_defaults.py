@@ -115,6 +115,20 @@ def test_checked_by_names_the_hooks_that_check_each_principle():
     assert unreviewed == []
 
 
+def test_checked_by_prefixes_are_known():
+    """`reviewer`, `hook:<script>` (checked above) or `ci:<check>`."""
+    d = load_defaults(Source(ROOT, True, ""))
+    ci_checks = {"secrets", "tree", "migrations"}
+    for p in d["principles"]:
+        for who in p["checked_by"]:
+            kind, _, name = who.partition(":")
+            assert kind in ("reviewer", "hook", "ci"), (p["id"], who)
+            if kind == "ci":
+                assert name in ci_checks, (p["id"], who)
+            if kind == "reviewer":
+                assert not name
+
+
 def test_overrides_layer_wins(tmp_path: Path):
     src = make_source(tmp_path / "src")
     (src.path / "defaults/overrides.toml").write_text(
