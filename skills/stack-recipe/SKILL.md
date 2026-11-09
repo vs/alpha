@@ -39,8 +39,10 @@ Leave out `proven`: a drafted recipe is always less proven, and alpha marks it s
 ## Steps
 
 1. **Facts first; never ask them.** Look up:
+   - The alpha tool registry's picks: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry list --stack <stack>` prints one tab-separated line per tool (id, category, last reviewed date), including tools that apply to every stack. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry show <id>` gives a tool's rationale and limitations. Prefer its picks for lint and format, type check, `structure` (unused dependencies, import rules) and `coverage`.
+   - `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry stale` lists tools not reviewed lately (it prints nothing when none are). If it lists a tool you mean to use, check it is still maintained before using it, and tell the user.
+   - The stack's usual test runner, formatter, linter and type or compile check, preferring what ships with the toolchain. A stack the registry doesn't cover (empty list, or only tools for every stack) falls back to these.
    - Is the toolchain installed, and which version: `<tool> --version`.
-   - The stack's usual test runner, formatter, linter and type or compile check, preferring what ships with the toolchain.
    - The manifest and lockfile names.
    - The current GitHub Actions setup action and its latest release tag.
    - The Dependabot ecosystem name.

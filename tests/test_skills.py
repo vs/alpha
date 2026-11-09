@@ -626,3 +626,12 @@ def test_extend_bootstraps_moved_components_too():
     bootstrap = _section("extend", "6. Bootstrap")
     assert "For each new or moved component" in bootstrap
     assert "node_modules" in bootstrap and ".venv" in bootstrap
+
+
+def test_stack_recipe_reads_registry():
+    text = _text("stack-recipe")
+    facts = _section("stack-recipe", "Steps")
+    assert f"{CLI} registry list --stack <stack>" in facts
+    assert f"{CLI} registry stale" in facts
+    assert f"{CLI} registry show <id>" in facts
+    assert "`structure`" in text and "`coverage`" in text
