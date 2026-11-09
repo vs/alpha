@@ -51,13 +51,15 @@ def git(*args: str) -> subprocess.CompletedProcess[str]:
 
 def resolve_base(check: str) -> str | None:
     base = os.environ.get("ALPHA_BASE", "").strip()
-    if (
-        base
-        and git("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}").returncode
-        == 0
-    ):
+    if not base:
+        print(f"alpha: no base ref (not a pull request); {check} skipped")
+        return None
+    if git("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}").returncode == 0:
         return base
-    print(f"alpha: no base ref (not a pull request); {check} skipped")
+    print(
+        f"alpha: base {base} didn't resolve; fetch the full history "
+        f"(actions/checkout with fetch-depth: 0). {check} skipped"
+    )
     return None
 
 

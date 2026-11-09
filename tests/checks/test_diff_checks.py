@@ -68,11 +68,21 @@ def commit(repo: Path) -> None:
 
 
 @pytest.mark.parametrize("check", ["immutable-migrations", "squawk"])
-@pytest.mark.parametrize("base", [None, "", "origin/nope"])
+@pytest.mark.parametrize("base", [None, ""])
 def test_diff_checks_without_base_skip(repo: Path, check: str, base: str | None):
     result = run(repo, check, base=base)
     assert result.returncode == 0
     assert "skipped" in result.stdout
+    assert "not a pull request" in result.stdout
+
+
+@pytest.mark.parametrize("check", ["immutable-migrations", "squawk"])
+def test_unresolved_base_says_to_fetch_history(repo: Path, check: str):
+    result = run(repo, check, base="origin/nope")
+    assert result.returncode == 0
+    assert "base origin/nope didn't resolve" in result.stdout
+    assert "fetch-depth: 0" in result.stdout
+    assert "not a pull request" not in result.stdout
 
 
 def test_modified_migration_fails(repo: Path):
