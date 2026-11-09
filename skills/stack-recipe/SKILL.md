@@ -39,9 +39,11 @@ Leave out `proven`: a drafted recipe is always less proven, and alpha marks it s
 ## Steps
 
 1. **Facts first; never ask them.** Look up:
-   - The alpha tool registry's picks: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry list --stack <stack>` prints one tab-separated line per tool (id, category, last reviewed date), including tools that apply to every stack. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry show <id>` gives a tool's rationale and limitations. Prefer its picks for lint and format, type check, `structure` (unused dependencies, import rules) and `coverage`.
-   - `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry stale` lists tools not reviewed lately (it prints nothing when none are). If it lists a tool you mean to use, check it is still maintained before using it, and tell the user.
-   - The stack's usual test runner, formatter, linter and type or compile check, preferring what ships with the toolchain. A stack the registry doesn't cover (empty list, or only tools for every stack) falls back to these.
+   - The alpha tool registry's picks: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry list --stack <stack>` prints one tab-separated line per tool: id, category, last reviewed date, stacks (comma-separated). Spell `<stack>` as the registry's stacks column does; a mismatch silently returns only the cross-cutting tools. Tools marked `all` are cross-cutting and apply to every stack.
+   - `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry show <id>` gives a tool's rationale and limitations. Its `mise:` line is the version alpha itself installs, so take a recipe's dev-tool versions from your own lookup, not from the registry.
+   - Registry picks come first: use them for lint and format, type check, `structure` (unused dependencies, import rules) and `coverage`. Use the toolchain's own tool only for a check the registry has nothing for. If no row names `<stack>`, the registry doesn't cover the stack: use the toolchain's own tools for every check.
+   - `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry stale` lists tools not reviewed lately (same columns; it prints nothing when none are). If it lists a tool you mean to use, check it is still maintained before using it, and tell the user.
+   - The stack's usual test runner, formatter, linter and type or compile check, for the checks the registry leaves open.
    - Is the toolchain installed, and which version: `<tool> --version`.
    - The manifest and lockfile names.
    - The current GitHub Actions setup action and its latest release tag.

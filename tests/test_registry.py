@@ -117,6 +117,9 @@ def test_cli_list_and_stale():
     assert done.returncode == 0
     assert "ruff" in done.stdout.split()
     assert "biome" not in done.stdout.split()
+    rows = {line.split("\t")[0]: line.split("\t") for line in done.stdout.splitlines()}
+    assert rows["ruff"][3] == "python"
+    assert rows["mise"][3] == "all"
     assert run_cli("registry", "stale").returncode == 0
 
 

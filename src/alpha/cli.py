@@ -222,7 +222,8 @@ def _registry(args: argparse.Namespace) -> int:
         print(e, file=sys.stderr)
         return 1
     for t in tools:
-        print(f"{t.id}\t{t.category}\t{t.last_reviewed}")
+        stacks = ",".join(t.stacks) or "all"
+        print(f"{t.id}\t{t.category}\t{t.last_reviewed}\t{stacks}")
     return 0
 
 

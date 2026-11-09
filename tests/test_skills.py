@@ -635,3 +635,9 @@ def test_stack_recipe_reads_registry():
     assert f"{CLI} registry stale" in facts
     assert f"{CLI} registry show <id>" in facts
     assert "`structure`" in text and "`coverage`" in text
+    assert "Registry picks come first" in facts
+    assert "If no row names `<stack>`" in facts
+    assert "Tools marked `all` are cross-cutting" in facts
+    assert "not from the registry" in facts
+    assert "Spell `<stack>` as the registry" in facts
+    assert "ships with the toolchain" not in facts
