@@ -119,3 +119,19 @@ def project(tmp_path: Path) -> Project:
         check["stop"] = False
     p.write_principles(data)
     return p
+
+
+@pytest.fixture(autouse=True)
+def isolated_home(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Keep hook subprocesses off the real ~/.cache/alpha/slots.
+
+    Git keeps the user's global config (or the test's own GIT_CONFIG_GLOBAL).
+    """
+    real = Path.home() / ".gitconfig"
+    home = tmp_path_factory.mktemp("home")
+    monkeypatch.setenv("HOME", str(home))
+    if "GIT_CONFIG_GLOBAL" not in os.environ and real.is_file():
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(real))
+    return home

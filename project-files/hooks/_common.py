@@ -88,7 +88,7 @@ def heavy_slot(deadline: float) -> Generator[bool]:
                 except OSError:
                     handle.close()
                     continue
-                held = handle
+                held = handle  # assigned at once so the finally closes it
                 break
             if held is None:
                 if time.monotonic() >= deadline:
@@ -97,11 +97,15 @@ def heavy_slot(deadline: float) -> Generator[bool]:
         if held is None:
             yield False
             return
+        previous = os.environ.get("ALPHA_SLOT_HELD")
         os.environ["ALPHA_SLOT_HELD"] = "1"  # so nested hook calls don't wait
         try:
             yield True
         finally:
-            os.environ.pop("ALPHA_SLOT_HELD", None)
+            if previous is None:
+                os.environ.pop("ALPHA_SLOT_HELD", None)
+            else:
+                os.environ["ALPHA_SLOT_HELD"] = previous
     finally:
         if held is not None:
             held.close()

@@ -17,6 +17,18 @@ from alpha.generate import GenerateError, generate
 from alpha.gitops import commit_skeleton
 from alpha.principles import render_principles
 
+
+@pytest.fixture(autouse=True)
+def isolated_home(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hooks take machine-wide slots under HOME; keep them off the real one."""
+    real = Path.home() / ".gitconfig"
+    monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
+    if "GIT_CONFIG_GLOBAL" not in os.environ and real.is_file():
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(real))
+
+
 STANDARD_ROOT = {
     "README.md",
     "LICENSE",

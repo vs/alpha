@@ -1136,3 +1136,13 @@ def test_slot_wait_past_deadline_is_a_problem_and_not_cached(
     assert not (project.root / "api" / "t.marker").exists()
     cache = project.root / ".claude" / "alpha" / "state" / "stop-cache.json"
     assert not cache.exists() or "typecheck" not in cache.read_text()
+
+
+def test_heavy_step_uses_slots_under_the_test_home(
+    project: Project, isolated_home: Any
+) -> None:
+    project.set_commands("api", typecheck=STUB, structure="", test="")
+    (project.root / "api" / "app").mkdir(parents=True, exist_ok=True)
+    (project.root / "api" / "app" / "x.py").write_text("x = 1\n")
+    project.run_hook("stop_checks.py", {"cwd": str(project.root)})
+    assert (isolated_home / ".cache" / "alpha" / "slots" / "0.lock").is_file()

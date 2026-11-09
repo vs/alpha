@@ -357,3 +357,53 @@ def test_unwritable_home_falls_back_to_no_slots(
     _slot_env(monkeypatch, blocker)
     with _common.heavy_slot(time.monotonic() + 1) as got:
         assert got is True
+
+
+def test_previous_slot_held_value_is_restored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _slot_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("ALPHA_SLOT_HELD", "0")
+    with _common.heavy_slot(time.monotonic() + 5) as got:
+        assert got is True
+        assert os.environ["ALPHA_SLOT_HELD"] == "1"
+    assert os.environ["ALPHA_SLOT_HELD"] == "0"
+
+
+def _lock_is_free(tmp_path: Path) -> bool:
+    import fcntl
+
+    with (tmp_path / ".cache" / "alpha" / "slots" / "0.lock").open("a") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return False
+        return True
+
+
+def test_slot_released_after_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _slot_env(monkeypatch, tmp_path)
+    with pytest.raises(RuntimeError), _common.heavy_slot(time.monotonic() + 5):
+        raise RuntimeError("boom")
+    assert _lock_is_free(tmp_path)
+    assert "ALPHA_SLOT_HELD" not in os.environ
+
+
+def test_slot_released_after_timed_out(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _slot_env(monkeypatch, tmp_path)
+    with pytest.raises(_common.TimedOut), _common.heavy_slot(time.monotonic() + 5):
+        _common.run_command("sleep 5", tmp_path, 0.2)
+    assert _lock_is_free(tmp_path)
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "abc"])
+def test_bad_alpha_slots_falls_back_to_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+):
+    _slot_env(monkeypatch, tmp_path, value)
+    with _common.heavy_slot(time.monotonic() + 5) as got:
+        assert got is True
+    expected = max(1, (os.cpu_count() or 2) // 4)
+    files = list((tmp_path / ".cache" / "alpha" / "slots").glob("*.lock"))
+    assert expected >= 1
+    assert len(files) == 1  # only the first free slot file is opened
