@@ -620,6 +620,22 @@ def test_update_state_labels_conflict_digests(tmp_path: Path, git_env):
     }
 
 
+def test_commit_update_reads_a_pre_label_state_file(tmp_path: Path, git_env):
+    # An update.json written before digests were labelled holds bare hex.
+    target = generated_repo(tmp_path, SCENARIO)
+    conflicting_update(target)
+    state_file = target / UPDATE_STATE
+    state = json.loads(state_file.read_text())
+    state["conflicts"] = {
+        path: recorded.removeprefix("sha256:")
+        for path, recorded in state["conflicts"].items()
+    }
+    state_file.write_text(json.dumps(state))
+    _, notes = commit_the_update(target)
+    assert [n for n in notes if "wasn't merged" in n]
+    assert (target / PROPOSALS / "docs/principles.toml").is_file()
+
+
 def test_commit_update_deletes_proposals_of_merged_conflicts(tmp_path: Path, git_env):
     target = generated_repo(tmp_path, SCENARIO)
     principles = conflicting_update(target)

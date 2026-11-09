@@ -233,8 +233,10 @@ def commit_update(
 
     for path, recorded in sorted(conflicts.items()):
         file = target / path
+        # An update.json from before digests were labelled holds bare hex.
+        now = digest(file.read_bytes()) if file.is_file() else None
         unmerged = (  # a deleted file was resolved by the user
-            file.is_file() and digest(file.read_bytes()) == recorded
+            now is not None and recorded in (now, now.removeprefix("sha256:"))
         )
         if unmerged:  # the baseline moved on: its proposal is the only copy left
             notes.append(
