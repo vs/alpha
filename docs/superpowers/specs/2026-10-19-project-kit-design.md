@@ -83,6 +83,7 @@ installed once and used everywhere.
 | `grilling` skill | Shared interview primitive used by `new-project` and every area skill (design tree, rounds, recommended answers; see §4). |
 | Area skills | One per area in §5. Each owns its questions, its principles, and the files it writes. Callable by `new-project` and directly. |
 | Stack recipes | Per-stack data and templates: test runner, linter/formatter, type checker, commands, permission lists, and stack rules. Full for Python and TypeScript, generic fallback for others. |
+| `registry/` | The repo-check tool registry (§8a): one entry per tool, with its pinned version and the command that runs it. |
 | Hook scripts | The mechanical checks in §8. Shipped by the kit, wired into each project's `.claude/settings.json` and git hooks. |
 | `principles-reviewer` agent | The judgment-based reviewer in §9. |
 | `commit` skill + `committer` agent | Ported from the user's `~/.claude/commands/commit.md` and `~/.claude/agents/committer.md` (see §10). |
@@ -298,6 +299,9 @@ the builder's, with these constraints:
   (allow its test/build/lint commands, deny dangerous ones), hooks wired to
   the kit's scripts.
 - **Git hooks**: `commit-msg` check, plus whatever the mechanical checks need.
+- **Repository checks** (§8a): a root `mise.toml` pinning the check tools,
+  their tool configs, a `scheduled.yml` workflow, and the check scripts under
+  `.claude/alpha/checks/`.
 - **Per component:** the stack's config files (package manifest, lockfile,
   tool configs with strict settings) and an empty test layout with the
   runner wired up so `test` runs green from day one. No app code. Any minimal
@@ -348,6 +352,78 @@ fail-helpfully principle: what's wrong, and how to fix it.
 
 Per-edit hooks must be fast enough not to slow down normal work. Exact
 budgets are the builder's call.
+
+## 8a. Repository checks and the tool registry
+
+Beyond the checks in §8, a generated project gets repository checks: tools
+that look at the whole repo, not one component. They run at Stop (the fast
+ones) and in CI, which is the gate.
+
+Decisions:
+
+- **D1 Toolchain file.** Repo-check tools are pinned in a generated root
+  `mise.toml`. CI installs them with `jdx/mise-action`; bootstrap runs
+  `mise trust`, `mise install` and `mise run ci`. Generated projects now need
+  mise, the same way they need uv or pnpm.
+- **D2 No hk or pre-commit/pre-push hooks.** §9 keeps `commit-msg` as the only
+  git hook that binds everyone. Claude gets the fast repo checks at Stop, and
+  CI is the gate.
+- **D3 Facts, not questions.** Gates switch on from facts already in the
+  answers. There are two new tunables, each offered inside an existing round
+  with a recommended default: `dependencies.cooldown_days` (7) and
+  `testing.diff_coverage` (80). No new area. This keeps interview cost flat.
+- **D4 Existing projects stay as they are.** `alpha update` renders before and
+  after with the current kit, so kit changes cancel out and old projects
+  don't gain these gates. This matches §11. Opting an old project in is out
+  of scope.
+- **D5 Python import rules aren't generated.** import-linter needs packages a
+  skeleton doesn't have. The Python recipe gains a reviewer-checked rule to
+  add contracts once packages exist. TypeScript gets dependency-cruiser with
+  rules that need no app code (no cycles, no production import of a dev
+  dependency).
+- **D6 Kept as alpha's picks:** pyright, Biome, Dependabot, alpha's regex
+  secret check at Stop, and new-projects-only scope. Using alpha on existing
+  repos is not covered.
+- **D7 Links.** lychee runs `--offline` on pull requests and at Stop; the
+  online check runs on the schedule only, so PRs don't flake.
+- **D8 Toolchain freshness.** The scheduled workflow fails when `mise outdated`
+  lists a pinned repo-check tool. Dependabot doesn't update `mise.toml`, and
+  a failing scheduled run emails the owner.
+
+The checks. "Stop" means the check also runs in the Stop hook. "When" is
+where CI runs it: `pr`, `schedule`, or `both`.
+
+| id | tool | command | globs | stop | when | applies when |
+|---|---|---|---|---|---|---|
+| actions | jactionlint | lint `.github/` | `.github/**` | yes | pr | `build.ci == "github-actions"` |
+| secrets | betterleaks | scan the working tree | `**` | no | pr | always |
+| vulns | osv-scanner | scan source recursively | lockfiles | no | both | any component has lockfiles |
+| typos | typos | `typos` | `**` | yes | pr | always |
+| markdown | rumdl | `rumdl check .` | `**/*.md` | yes | pr | always |
+| links | lychee | `lychee --offline --no-progress .` | `**/*.md` | yes | pr | always |
+| links-online | lychee | `lychee --no-progress .` | none | no | schedule | always |
+| agent-config | agnix | strict lint of `.` | `CLAUDE.md`, `.claude/**` | yes | pr | always |
+| migrations | none | `python3 .claude/alpha/checks/diff_checks.py immutable-migrations` | none | no | pr | `data.migration_paths` non-empty |
+| squawk | squawk | `python3 .claude/alpha/checks/diff_checks.py squawk` | none | no | pr | `data.squawk_paths` non-empty |
+| review-dates | none | `python3 .claude/alpha/checks/review_dates.py` | none | no | both | always |
+| toolchain | none | `mise outdated --json \| python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(d, indent=2)); sys.exit(1 if d else 0)"` | none | no | schedule | always |
+
+Recipe commands. A stack recipe may add two commands to the ones in §3:
+
+- `structure`: checks the component's dependency structure. Python:
+  `uv run deptry .`. TypeScript: `pnpm knip && pnpm depcruise --config
+  .dependency-cruiser.cjs .`. Bootstrap adds the tools, each with a `[why]`
+  line.
+- `coverage` and `coverage_report`: run the tests with coverage and name the
+  report file, for the diff-coverage gate (`testing.diff_coverage`, 0 turns
+  it off). Python: `uv run pytest --cov --cov-report=xml:coverage.xml`, report
+  `coverage.xml`. TypeScript: `pnpm vitest run --coverage
+  --coverage.reporter=cobertura`, report `coverage/cobertura-coverage.xml`.
+
+The registry (`registry/` in the kit) has one entry per repo-check tool. An
+entry holds the tool's pinned version and `pin.command`, the command that
+runs it. The generated `mise.toml`, CI and the Stop hook all read the same
+entries, so a command is written once.
 
 ## 9. The principles reviewer
 
@@ -438,6 +514,7 @@ The kit follows its own principles:
   exist, settings are valid, hooks fire on seeded violations, each component's
   test command runs green, commits follow the convention, and the reviewer
   catches seeded principle violations.
+- Seeded violations prove every repo check can fail.
 - The kit repo uses its own commit convention and clean history.
 
 ## 13. Constraints
@@ -468,3 +545,5 @@ The kit follows its own principles:
 
 - Skills that bring existing codebases up to the principles.
 - Re-syncing a project with newer kit defaults.
+- Opting an existing project into newer kit gates (see §8a, D4).
+- alpha on existing repos (see §8a, D6).
