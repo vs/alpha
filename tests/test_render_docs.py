@@ -164,7 +164,7 @@ def test_dependencies_md_seeded_per_component(tmp_path: Path):
     md = render(load(tmp_path))["docs/dependencies.md"]
     assert "| Dependency | Component | Why | Added |" in md
     rows = [ln for ln in md.splitlines() if ln.startswith("| ") and "2026" in ln]
-    assert len(rows) == 7
+    assert len(rows) == 11
     assert any(r.startswith("| pytest | api |") for r in rows)
     assert any(r.startswith("| @biomejs/biome | web |") for r in rows)
 
@@ -214,7 +214,7 @@ def test_build_doc_lists_ci_checks_artifacts_and_environments(tmp_path: Path):
     assert "every push to main and every pull request" in doc
     assert (
         "| api | `uv sync`, `uv run ruff format --check`, `uv run ruff check`, "
-        "`uv run pyright`, `uv run pytest` |"
+        "`uv run pyright`, `uv run deptry .`, `uv run pytest` |"
     ) in doc
     assert "| api | container | Fly.io |" in doc
     assert "| web | static-site | Cloudflare Pages |" in doc
@@ -397,6 +397,10 @@ def test_claude_md_lists_each_stacks_rules_once(tmp_path: Path):
         "- **python:typed-boundaries**: Parse external input (JSON, files, "
         "environment, requests) into dataclasses or typed models at the "
         "boundary; don't pass `dict[str, Any]` inward.",
+        "- **python:import-contracts**: Once a component has more than one "
+        "package, add import-linter contracts for the layers "
+        "`docs/architecture.md` names, and add `lint-imports` to its "
+        "`structure` command.",
         "",
         "### typescript (web)",
         "",

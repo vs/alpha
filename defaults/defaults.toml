@@ -201,7 +201,7 @@ title = "No dead code"
 statement = "No commented-out code, no speculative options."
 rationale = "Unused code still has to be read and maintained, and version control already remembers what was removed."
 applies = ["always"]
-checked_by = ["reviewer"]
+checked_by = ["reviewer", "hook:stop_checks"]
 core = true
 
 [[principles]]

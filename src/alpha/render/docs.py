@@ -7,14 +7,14 @@ from string import Template
 from typing import Any
 
 from alpha.answers import Answers, Component, Documentation, Identity
-from alpha.recipes import check_commands
+from alpha.recipes import OPTIONAL_STEPS, check_commands
 from alpha.records import Records, record_number, record_paths
 from alpha.render import area_docs
 from alpha.render.ci import WORKFLOW
 from alpha.render.markdown import row
 
 LICENSES_DIR = Path(__file__).resolve().parents[1] / "licenses"
-_STEPS = ("setup", "test", "lint", "format", "format_check", "typecheck")
+_STEPS = ("setup", "test", "lint", "format", "format_check", "typecheck", "structure")
 _DONE = (
     "Tests written and passing.",
     "Types and lint clean.",
@@ -177,7 +177,11 @@ def _command_table(c: Component, comp: dict[str, Any]) -> list[str]:
         "| Step | Command |",
         "|---|---|",
     ]
-    rows += [row(s, f"`{commands[s]}`") for s in _STEPS]
+    rows += [
+        row(s, f"`{commands[s]}`")
+        for s in _STEPS
+        if commands.get(s) or s not in OPTIONAL_STEPS
+    ]
     rows.append("| run | add when the entry point exists |")
     return rows
 
@@ -391,7 +395,7 @@ def _architecture(a: Answers) -> str:
     for stack in dict.fromkeys(c.stack for c in a.components):
         recipe = book.get(stack)
         tools = ", ".join(recipe.why) or "the stack's own toolchain"
-        commands = [recipe.commands[s] for s in _STEPS if recipe.commands[s]]
+        commands = [recipe.commands[s] for s in _STEPS if recipe.commands.get(s)]
         line = f"- {stack}: {tools}. Commands: " + ", ".join(f"`{c}`" for c in commands)
         if not recipe.proven:
             line += " (less proven: recipe drafted for this project)"

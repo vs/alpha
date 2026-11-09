@@ -22,7 +22,7 @@ A recipe tells alpha how to set up a component on a stack: the commands for each
 One JSON object, saved under `recipes.<stack>` in project.json. Paths and globs are relative to the component's folder.
 
 - `bootstrap` - commands that install the dev tools into a fresh skeleton (often `[]` when the toolchain brings them).
-- `commands` - one shell command each for `setup` (install dependencies), `format_check` (fails on unformatted files without changing them), `lint`, `typecheck` (type check or compile check), `test`, plus `format` (rewrites files), `format_file` and `lint_file` (one file, with `{file}` where the path goes). `setup` and `test` can't be empty; use `""` for a step the stack really doesn't have.
+- `commands` - one shell command each for `setup` (install dependencies), `format_check` (fails on unformatted files without changing them), `lint`, `typecheck` (type check or compile check), `test`, plus `format` (rewrites files), `format_file` and `lint_file` (one file, with `{file}` where the path goes). `setup` and `test` can't be empty; use `""` for a step the stack really doesn't have. An optional `structure` step runs between `typecheck` and `test`: unused or undeclared dependencies, dead exports and import cycles. Leave the key out when the stack has no such tool; it then counts as `""` and is skipped.
 - `manifests`, `lockfiles` - e.g. `["Cargo.toml"]`, `["Cargo.lock"]`.
 - `source_globs`, `test_globs`, `exclude_globs` - which files are code, which are tests, which are build output or vendored.
 - `ignores` - `.gitignore` entries (e.g. `"target/"`).

@@ -239,3 +239,31 @@ def test_repo_checks_can_fail(seeded: Path, request: pytest.FixtureRequest):
     # mise run passes the task's exit code through unchanged.
     assert done.returncode == pin.fails_with, output
     assert SEEDS[check][3] in output, output
+
+
+def _sh(command: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
+
+
+@pytest.mark.slow
+def test_structure_fails_on_unused_dependency(
+    tmp_path: Path, generate_scenario, git_env
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    unused = {"python": "uv add requests", "typescript": "pnpm add left-pad"}
+    for c in principles["components"]:
+        cwd = tmp_path / c["path"]
+        command = c["commands"]["structure"]
+
+        assert _sh(command, cwd).returncode == 0, c["name"]
+        files = [cwd / "pyproject.toml", cwd / "package.json"]
+        lockfiles = [cwd / "uv.lock", cwd / "pnpm-lock.yaml"]
+        saved = {f: f.read_bytes() for f in [*files, *lockfiles] if f.exists()}
+        add = _sh(unused[c["stack"]], cwd)
+        assert add.returncode == 0, add.stdout + add.stderr
+        done = _sh(command, cwd)
+        assert done.returncode != 0, f"{c['name']}: {done.stdout}{done.stderr}"
+        for f, data in saved.items():  # revert, so the tree is as it was
+            f.write_bytes(data)

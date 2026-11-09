@@ -60,6 +60,9 @@ def test_typescript_component_files():
         "web/biome.json",
         "web/tests/setup.test.ts",
         "web/.node-version",
+        "web/knip.jsonc",
+        "web/pnpm-workspace.yaml",
+        "web/.dependency-cruiser.cjs",
     }
     assert files["web/.node-version"] == "26\n"
     tsc = json.loads(files["web/tsconfig.json"])
@@ -90,6 +93,7 @@ def test_command_keys_complete():
             "format",
             "format_check",
             "typecheck",
+            "structure",
             "format_file",
             "lint_file",
         }
@@ -103,6 +107,27 @@ def test_unknown_stack_says_how_to_fix():
 def test_check_commands_keep_order_and_skip_empty():
     commands = {"test": "t", "setup": "s", "lint": "", "format": "f"}
     assert check_commands(commands) == [("setup", "s"), ("test", "t")]
+
+
+def test_structure_step_order():
+    steps = [s for s, _ in check_commands(load_recipe("typescript").commands)]
+    assert steps.index("typecheck") + 1 == steps.index("structure")
+    assert steps.index("structure") + 1 == steps.index("test")
+
+
+def test_structure_commands():
+    assert load_recipe("python").commands["structure"] == "uv run deptry ."
+    assert load_recipe("typescript").commands["structure"] == (
+        "pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs ."
+    )
+
+
+def test_drafted_recipe_without_structure_valid():
+    data = drafted()
+    assert "structure" not in data["commands"]
+    recipe = recipe_from_data("shell", data, "recipes.shell", None)
+    assert recipe.commands["structure"] == ""
+    assert "structure" not in dict(check_commands(recipe.commands))
 
 
 @pytest.mark.parametrize("stack", ["python", "typescript"])
@@ -171,6 +196,7 @@ def test_kit_recipes_carry_stack_rules():
     assert [r.id for r in load_recipe("python").rules] == [
         "uv-for-dependencies",
         "typed-boundaries",
+        "import-contracts",
     ]
     assert [r.id for r in load_recipe("typescript").rules] == [
         "top-level-imports",

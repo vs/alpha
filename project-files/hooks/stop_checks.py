@@ -192,7 +192,11 @@ def run_step(command: str, cwd: Path, timeout: float | None = None) -> tuple[str
 
 
 # The principle each command run at Stop checks.
-COMMAND_PRINCIPLES = {"typecheck": "strict-types", "test": "definition-of-done"}
+COMMAND_PRINCIPLES = {
+    "typecheck": "strict-types",
+    "structure": "no-dead-code",
+    "test": "definition-of-done",
+}
 
 
 def tree_hash(root: Path, comp: dict[str, Any]) -> str | None:

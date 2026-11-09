@@ -1,7 +1,7 @@
 stack = "typescript"
 proven = true  # the kit's own, run in real projects
 bootstrap = [
-  "pnpm add -D typescript vitest @biomejs/biome @types/node",
+  "pnpm add -D typescript vitest @biomejs/biome @types/node knip dependency-cruiser @swc/core",
   # CI's pnpm/action-setup installs the version recorded here.
   "pnpm pkg set packageManager=pnpm@$(pnpm --version)",
 ]
@@ -26,6 +26,8 @@ allow = [
   "Bash(pnpm vitest:*)",
   "Bash(pnpm biome:*)",
   "Bash(pnpm tsc:*)",
+  "Bash(pnpm knip:*)",
+  "Bash(pnpm depcruise:*)",
   "Bash(pnpm install:*)",
   "Bash(pnpm add:*)",
 ]
@@ -37,6 +39,7 @@ lint = "pnpm biome lint --error-on-warnings ."
 format = "pnpm biome format --write ."
 format_check = "pnpm biome format ."
 typecheck = "pnpm tsc --noEmit"
+structure = "pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs ."
 format_file = "pnpm biome format --write {file}"
 lint_file = "pnpm biome lint --error-on-warnings {file}"
 
@@ -46,6 +49,9 @@ lint_file = "pnpm biome lint --error-on-warnings {file}"
 "biome.json" = "biome.json.tmpl"
 "tests/setup.test.ts" = "setup.test.ts.tmpl"
 ".node-version" = "node-version.tmpl"
+"pnpm-workspace.yaml" = "pnpm-workspace.yaml.tmpl"
+"knip.jsonc" = "knip.json.tmpl"
+".dependency-cruiser.cjs" = "dependency-cruiser.cjs.tmpl"
 
 # The dev tools bootstrap installs, with the reason the dependency log gives.
 [why]
@@ -53,6 +59,9 @@ typescript = "Type checking and compilation"
 vitest = "Test runner"
 "@biomejs/biome" = "Linting and formatting"
 "@types/node" = "Node.js type definitions"
+knip = "Unused files, exports and dependencies"
+dependency-cruiser = "Circular and undeclared imports"
+"@swc/core" = "Parses TypeScript sources for dependency-cruiser"
 
 [ci]
 env = {}

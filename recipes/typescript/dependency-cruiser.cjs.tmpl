@@ -1,0 +1,41 @@
+// Import rules, run by `pnpm depcruise --config .dependency-cruiser.cjs .`.
+// The excluded paths match the recipe's exclude_globs.
+/** @type {import("dependency-cruiser").IConfiguration} */
+module.exports = {
+  forbidden: [
+    {
+      name: "no-circular",
+      severity: "error",
+      comment:
+        "Circular imports make load order matter and hide layering mistakes.",
+      from: {},
+      to: { circular: true },
+    },
+    {
+      name: "not-to-dev-dep",
+      severity: "error",
+      comment:
+        "Shipped code can't import a devDependency; move it to dependencies.",
+      from: { path: "^", pathNot: "(^tests/|\\.test\\.tsx?$)" },
+      to: { dependencyTypes: ["npm-dev"] },
+    },
+    {
+      name: "no-non-package-json",
+      severity: "error",
+      comment: "Every imported package must be declared in package.json.",
+      from: {},
+      to: { dependencyTypes: ["npm-no-pkg", "npm-unknown"] },
+    },
+  ],
+  options: {
+    doNotFollow: { path: "node_modules" },
+    exclude: {
+      path: "(^|/)(\\.[^/]+|node_modules|dist|build|coverage)/|\\.config\\.m?ts$",
+    },
+    // dependency-cruiser reads TypeScript through the typescript package only
+    // up to 6.x; swc reads every version, so no import goes unseen.
+    parser: "swc",
+    tsPreCompilationDeps: true,
+    tsConfig: { fileName: "tsconfig.json" },
+  },
+};

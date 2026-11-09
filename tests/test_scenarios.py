@@ -355,8 +355,11 @@ def test_generated_hooks_enforce_the_generated_principles(
     ran = log.read_text().splitlines()[4:]
     assert ran == [
         "api: uv run pyright",
+        "api: uv run deptry .",
         "api: uv run pytest",
         "web: pnpm tsc --noEmit",
+        "web: pnpm knip",
+        "web: pnpm depcruise --config .dependency-cruiser.cjs .",
         "web: pnpm vitest run",
     ]
 

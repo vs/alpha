@@ -1,6 +1,6 @@
 stack = "python"
 proven = true  # the kit's own, run in real projects
-bootstrap = ["uv add --dev pytest ruff pyright"]
+bootstrap = ["uv add --dev pytest ruff pyright deptry"]
 lockfiles = ["uv.lock"]
 ignores = [".venv/", "__pycache__/", ".pytest_cache/"]
 dependabot = "uv"  # Dependabot package-ecosystem
@@ -19,6 +19,7 @@ lint = "uv run ruff check"
 format = "uv run ruff format"
 format_check = "uv run ruff format --check"
 typecheck = "uv run pyright"
+structure = "uv run deptry ."
 format_file = "uv run ruff format {file}"
 lint_file = "uv run ruff check {file}"
 
@@ -32,6 +33,7 @@ lint_file = "uv run ruff check {file}"
 pytest = "Test runner"
 ruff = "Linting and formatting"
 pyright = "Strict type checking"
+deptry = "Unused, missing and transitive dependencies"
 
 [ci]
 env = { UV_LOCKED = "1" }  # uv fails instead of updating a stale uv.lock
@@ -51,3 +53,7 @@ rule = "Add and remove dependencies with `uv add` and `uv remove`, never by edit
 [[rules]]
 id = "typed-boundaries"
 rule = "Parse external input (JSON, files, environment, requests) into dataclasses or typed models at the boundary; don't pass `dict[str, Any]` inward."
+
+[[rules]]
+id = "import-contracts"
+rule = "Once a component has more than one package, add import-linter contracts for the layers `docs/architecture.md` names, and add `lint-imports` to its `structure` command."

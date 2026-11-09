@@ -21,7 +21,9 @@ if TYPE_CHECKING:
 
 RECIPES_DIR = Path(__file__).resolve().parents[2] / "recipes"
 # What CI runs per component, in order; bootstrap runs the same commands.
-CHECK_STEPS = ("setup", "format_check", "lint", "typecheck", "test")
+CHECK_STEPS = ("setup", "format_check", "lint", "typecheck", "structure", "test")
+# Steps a recipe may leave out; a missing one means "" (skipped).
+OPTIONAL_STEPS = frozenset({"structure"})
 
 
 @dataclass(frozen=True)
@@ -286,6 +288,9 @@ def recipe_from_data(
     commands: dict[str, str] = {}
     for key in COMMAND_KEYS:
         here = f"{where}.commands.{key}"
+        if key not in commands_in and key in OPTIONAL_STEPS:
+            commands[key] = ""
+            continue
         if key not in commands_in:
             raise _fail(here, "is missing", 'Add it; use "" when the stack has none')
         value = commands_in[key]

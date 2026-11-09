@@ -17,6 +17,9 @@ testpaths = ["tests"]
 typeCheckingMode = "strict"
 reportUnnecessaryTypeIgnoreComment = "error"
 
+[tool.deptry]
+extend_exclude = ["\\.claude"]  # alpha's hooks, not this project's code
+
 [tool.ruff]
 extend-exclude = [".claude"]  # alpha's hooks, not this project's code
 

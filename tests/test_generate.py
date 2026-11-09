@@ -263,27 +263,33 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
     bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
     announced = [
-        "api: uv add --dev pytest ruff pyright",
+        "api: uv add --dev pytest ruff pyright deptry",
         "api: uv sync",
         "api: uv run ruff format --check",
         "api: uv run ruff check",
         "api: uv run pyright",
+        "api: uv run deptry .",
         "api: uv run pytest",
-        "web: pnpm add -D typescript vitest @biomejs/biome @types/node",
+        "web: pnpm add -D typescript vitest @biomejs/biome @types/node "
+        "knip dependency-cruiser @swc/core",
         "web: pnpm pkg set packageManager=pnpm@$(pnpm --version)",
         "web: pnpm install",
         "web: pnpm biome format .",
         "web: pnpm biome lint --error-on-warnings .",
         "web: pnpm tsc --noEmit",
+        "web: pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs .",
         "web: pnpm vitest run",
     ]
     tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
     repo = ["mise trust --yes", f"mise install {' '.join(tools)}", "mise run ci"]
     ran = [
-        *announced[:7],
+        *announced[:8],
         "web: pnpm --version",  # the $(...) runs first
         "web: pnpm pkg set packageManager=pnpm@pnpm output",
-        *announced[8:],
+        *announced[9:-2],
+        "web: pnpm knip",  # the && list runs as two commands
+        "web: pnpm depcruise --config .dependency-cruiser.cjs .",
+        announced[-1],
         *(f"proj: {command}" for command in repo),
     ]
     assert (tmp_path / "tools.log").read_text().splitlines() == ran
@@ -479,7 +485,10 @@ def test_bootstrap_failure_names_command_output_and_fix(
             project, tomllib.loads((project / "docs/principles.toml").read_text())
         )
     message = str(err.value)
-    assert '"pnpm add -D typescript vitest @biomejs/biome @types/node"' in message
+    assert (
+        '"pnpm add -D typescript vitest @biomejs/biome @types/node '
+        'knip dependency-cruiser @swc/core"'
+    ) in message
     assert "exit 3" in message
     assert "pnpm output" in message
     assert message.endswith(

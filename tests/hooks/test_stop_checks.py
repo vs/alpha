@@ -228,6 +228,16 @@ def test_typecheck_runs_before_test_and_failure_blocks(project: Project) -> None
     assert (project.root / "api" / "t.marker").exists()  # test still runs
 
 
+def test_stop_runs_structure(project: Project) -> None:
+    project.set_commands("api", structure=FAIL, test=marker_cmd("t.marker"))
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    text = reason(run(project))
+    assert "api: structure failed" in text
+    assert (project.root / "api" / "t.marker").exists()
+
+
 def test_missing_tool_gives_setup_hint(project: Project) -> None:
     project.set_commands("api", test="definitely-not-a-tool-xyz", setup="make setup")
     commit_all(project)
@@ -341,7 +351,7 @@ def test_readme_only_change_runs_nothing(project: Project) -> None:
 def test_budget_exhausted_skips_steps(project: Project, monkeypatch: Any) -> None:
     import stop_checks
 
-    project.set_commands("api", typecheck=STUB, test=STUB)
+    project.set_commands("api", typecheck=STUB, structure="", test=STUB)
     data = project.principles()
     monkeypatch.setattr(stop_checks, "BUDGET", 0)
     problems = stop_checks.command_problems(
