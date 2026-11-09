@@ -55,7 +55,7 @@ Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`. If it prints that the r
 
 ## 6. Bootstrap
 
-For each new or moved component, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --component <name>` (`git mv` leaves ignored env folders such as node_modules or .venv behind).
+For each new or moved component, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --component <name>` (`git mv` leaves ignored env folders such as node_modules or .venv behind). Tell the user first that this installs the component's toolchain, runs its tests, then runs the whole-repo checks (`mise run ci`), and can take a few minutes. Those checks can fail on the user's own files; show the message (it names `mise run check:<id>` to rerun one check), fix the cause with them, and rerun the step.
 
 ## 7. Commit
 

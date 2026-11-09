@@ -28,7 +28,15 @@ claude --plugin-dir ~/workspace/alpha
 | `docs/decisions/` | a record per interview area and per override |
 | `.claude/` | permissions, hooks, the principles reviewer, a commit skill |
 | each component | strict lint, types and tests, wired up with no `src/` |
-| `.github/` | CI running the same checks, Dependabot |
+| `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, typos, markdown, links, action pins, agent config) |
+| `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
+
+## Needs
+
+[uv](https://docs.astral.sh/uv/) and [pnpm](https://pnpm.io/) for the Python
+and TypeScript components, and [mise](https://mise.jdx.dev/) to install and run
+the repository checks. A component's own toolchain (Rust, say) must be
+installed too.
 
 ## Change it later
 
