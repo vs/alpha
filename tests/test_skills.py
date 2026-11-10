@@ -505,6 +505,13 @@ def test_extend_keeps_earlier_decisions():
     assert "add one new decision" in text and "unchanged" in text
 
 
+def test_extend_explains_kit_changes_in_conflicts():
+    text = _text("extend")
+    assert "may include kit changes" in text
+    assert "keep the user's side for anything the requested change doesn't need" in text
+    assert "left out" in text
+
+
 def test_extend_refuses_projects_alpha_did_not_generate():
     assert "out of scope" in _text("extend")
 
@@ -617,3 +624,18 @@ def test_extend_bootstraps_moved_components_too():
     bootstrap = _section("extend", "6. Bootstrap")
     assert "For each new or moved component" in bootstrap
     assert "node_modules" in bootstrap and ".venv" in bootstrap
+
+
+def test_stack_recipe_reads_registry():
+    text = _text("stack-recipe")
+    facts = _section("stack-recipe", "Steps")
+    assert f"{CLI} registry list --stack <stack>" in facts
+    assert f"{CLI} registry stale" in facts
+    assert f"{CLI} registry show <id>" in facts
+    assert "`structure`" in text and "`coverage`" in text
+    assert "Registry picks come first" in facts
+    assert "If no row names `<stack>`" in facts
+    assert "Tools marked `all` are cross-cutting" in facts
+    assert "not from the registry" in facts
+    assert "Spell `<stack>` as the registry" in facts
+    assert "ships with the toolchain" not in facts

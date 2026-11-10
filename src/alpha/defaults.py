@@ -232,6 +232,7 @@ def set_default(
     try:
         overrides_path.write_text(_OVERRIDES_HEADER + toml_write.dumps(data))
         with changelog.open("a") as f:
+            f.write(_list_gap(before[changelog] or ""))
             f.write(f"- {today} · {key} = {value} · from {project} · {reason}\n")
         _git(source.path, "add", _OVERRIDES, _CHANGELOG)
         _git(source.path, "commit", "-q", "-m", message, "--", _OVERRIDES, _CHANGELOG)
@@ -239,6 +240,19 @@ def set_default(
         _restore(source.path, before)
         raise
     return _git(source.path, "rev-parse", "--short", "HEAD")
+
+
+def _list_gap(existing: str) -> str:
+    """What to write before a new list item: a blank line unless the file is
+    empty or already ends in a list item (Markdown wants a list set apart from
+    the paragraph above it), plus a newline if the last line lacks one."""
+    if not existing:
+        return ""
+    end = "" if existing.endswith("\n") else "\n"
+    text = [line for line in existing.splitlines() if line.strip()]
+    if not text:  # only whitespace: no paragraph to set the list apart from
+        return end
+    return end if text[-1].startswith("- ") else end + "\n"
 
 
 def _restore(repo: Path, before: dict[Path, str | None]) -> None:

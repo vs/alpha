@@ -1,5 +1,6 @@
 import hashlib
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -22,9 +23,12 @@ from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
 from alpha.recipes import RecipeBook, check_commands, render_component
 from alpha.records import Records, record_paths
+from alpha.registry import Registry, default_registry, load_registry
 from alpha.render.ci import render_ci, render_dependabot
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
+from alpha.render.tooling import MISE, render_tooling
+from alpha.repo_checks import repo_checks
 
 PRINCIPLES_TOML = "docs/principles.toml"
 _ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
@@ -53,7 +57,8 @@ def _unexpected(target: Path) -> list[str]:
     return sorted(found)
 
 
-def _gitignore(principles: dict[str, Any], book: RecipeBook) -> str:
+def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
+    """The .gitignore entries."""
     # Hooks run with python3, which leaves bytecode next to them.
     lines = [
         ".claude/alpha/state/",
@@ -70,7 +75,13 @@ def _gitignore(principles: dict[str, Any], book: RecipeBook) -> str:
         for entry in book.get(c["stack"]).ignores:
             # "**/" keeps the any-depth match the unprefixed pattern has.
             lines.append(entry if c["path"] == "." else f"{c['path']}/**/{entry}")
-    return "\n".join(lines) + "\n"
+    return lines
+
+
+def _tooling_excludes(principles: dict[str, Any], book: RecipeBook) -> list[str]:
+    """What the repository checks skip: what git ignores, plus the lockfiles."""
+    locks = [lock for c in principles["components"] for lock in c["lockfiles"]]
+    return [*_ignored(principles, book), *locks]
 
 
 def _copies(plugin_root: Path) -> dict[str, Path]:
@@ -85,6 +96,8 @@ def _copies(plugin_root: Path) -> dict[str, Path]:
     out[".claude/agents/principles-reviewer.md"] = (
         files / "agents/principles-reviewer.md"
     )
+    for script in sorted((files / "checks").glob("*.py")):
+        out[f".claude/alpha/checks/{script.name}"] = script
     out[".claude/alpha/githooks/commit-msg"] = files / "githooks/commit-msg"
     return out
 
@@ -134,14 +147,24 @@ def render_project(
     today: date,
     records: Records | None = None,
     added: Mapping[str, date] | None = None,
+    *,
+    registry: Registry | None = None,
 ) -> Rendered:
     records = records or record_paths(a)
-    principles = build_principles(defaults, a, VERSION, records)
+    registry = registry or default_registry()
+    principles = build_principles(defaults, a, VERSION, records, registry=registry)
     book = a.book()
     texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
     texts.update(
         render_docs(
-            a, principles, year, today, root=target, records=records, added=added
+            a,
+            principles,
+            year,
+            today,
+            root=target,
+            records=records,
+            added=added,
+            registry=registry,
         )
     )
     component_files: dict[str, tuple[str, str]] = {}
@@ -151,10 +174,21 @@ def render_project(
     texts[".claude/settings.json"] = (
         json.dumps(render_settings(principles, book), indent=2) + "\n"
     )
-    texts[".gitignore"] = _gitignore(principles, book)
+    texts[".gitignore"] = "\n".join(_ignored(principles, book)) + "\n"
+    texts.update(
+        render_tooling(
+            repo_checks(a, principles, registry),
+            registry,
+            _tooling_excludes(principles, book),
+            components=principles["components"],
+        )
+    )
     assert a.build is not None
-    texts.update(render_ci(principles, a.build.ci, book))
+    texts.update(render_ci(principles, a.build.ci, book, registry))
     assert a.dependencies is not None
+    cooldown = a.dependencies.cooldown_days
+    if cooldown is None:
+        cooldown = defaults["dependencies"]["cooldown_days"]
     texts.update(
         render_dependabot(
             principles,
@@ -162,6 +196,7 @@ def render_project(
             a.dependencies.schedule,
             a.build.ci,
             book,
+            cooldown,
         )
     )
     component_of: dict[str, str] = {}
@@ -196,7 +231,15 @@ def generate(
     a = load_answers(answers_path)
     records = record_paths(a)
     today = today or date.today()
-    rendered = render_project(target, a, load_defaults(source), year, today, records)
+    rendered = render_project(
+        target,
+        a,
+        load_defaults(source),
+        year,
+        today,
+        records,
+        registry=load_registry(source),
+    )
     texts = rendered.texts
     copies = _copies(plugin_root)
     for rel, name in rendered.component_of.items():
@@ -231,10 +274,14 @@ def generate(
     return sorted([*generated, PROJECT_JSON])
 
 
+def digest(data: bytes) -> str:
+    """A labelled digest: a bare hex string next to a path like "...-api-keys.md"
+    reads as a leaked key to the project's secrets check."""
+    return f"sha256:{hashlib.sha256(data).hexdigest()}"
+
+
 def file_hashes(target: Path, rels: list[str]) -> dict[str, str]:
-    return {
-        rel: hashlib.sha256((target / rel).read_bytes()).hexdigest() for rel in rels
-    }
+    return {rel: digest((target / rel).read_bytes()) for rel in rels}
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
@@ -279,6 +326,97 @@ def project_book(target: Path) -> RecipeBook:
     return RecipeBook(drafted_recipes(raw, generated=True))
 
 
+def _run(label: str, command: str, cwd: Path, fix: str) -> None:
+    """Run one bootstrap step, announced on stderr; raise with its output's tail."""
+    print(f"alpha: {label}: {command}", file=sys.stderr, flush=True)
+    done = subprocess.run(
+        command,
+        shell=True,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    if done.returncode != 0:
+        tail = "\n".join(done.stdout.splitlines()[-_TAIL_LINES:])
+        raise GenerateError(
+            f'"{command}" failed in {cwd} (exit {done.returncode}). '
+            f"Last lines of its output:\n{tail}\n{fix}"
+        )
+
+
+def _require_mise(target: Path) -> None:
+    if shutil.which("mise") is None:
+        raise GenerateError(
+            "mise is not installed. Install it (brew install mise, or "
+            "https://mise.jdx.dev/getting-started.html), then rerun "
+            f'"alpha bootstrap {target}".'
+        )
+
+
+def _mise_tools(target: Path) -> list[str]:
+    """The tools the project's mise.toml pins, as `mise install` names them."""
+    path = target / MISE
+    try:
+        tools: object = tomllib.loads(path.read_text(encoding="utf-8")).get("tools")
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        raise GenerateError(
+            f"{path} can't be read ({e}). Fix it, or restore alpha's version with "
+            f'"git checkout {MISE}", then rerun "alpha bootstrap {target}".'
+        ) from None
+    return list(cast(dict[str, object], tools)) if isinstance(tools, dict) else []
+
+
+def _repo_checks(target: Path) -> None:
+    """Install the repository checks' tools and run the ones CI runs on a PR."""
+    _require_mise(target)
+    if not (target / ".git").exists():
+        # jactionlint needs a repository; commit-skeleton then keeps this one.
+        try:
+            done = subprocess.run(
+                ["git", "init", "-q", "-b", "main"],
+                cwd=target,
+                capture_output=True,
+                text=True,
+            )
+            problem = done.stderr.strip() if done.returncode else ""
+        except OSError as e:
+            problem = str(e)
+        if problem:
+            raise GenerateError(
+                f"git init failed in {target}: {problem}\nThe repository checks "
+                f'need a git repository. Fix that, then rerun "alpha bootstrap '
+                f'{target}".'
+            )
+    rerun = f'rerun "alpha bootstrap {target}"'
+    label = "repository checks"
+    _run(
+        label,
+        "mise trust --yes",
+        target,
+        f"Fix what mise reports about {target / MISE}, then {rerun}",
+    )
+    # Only the project's tools: a bare `mise install` also installs everything
+    # in the user's global config, and would blame its failures on the checks.
+    tools = _mise_tools(target)
+    if tools:
+        install = shlex.join(["mise", "install", *tools])
+        _run(
+            label,
+            install,
+            target,
+            f'Check your network, or run "{install}" in {target} to see which '
+            f"tool failed, then {rerun}",
+        )
+    _run(
+        label,
+        "mise run --continue-on-error ci",  # report every failing check
+        target,
+        "Fix what the repository checks report (mise run check:<id> reruns one) "
+        f"and {rerun}",
+    )
+
+
 def bootstrap(
     target: Path, principles: dict[str, Any], only: Sequence[str] = ()
 ) -> None:
@@ -293,6 +431,9 @@ def bootstrap(
                 f"No component named {name} in {PRINCIPLES_TOML} "
                 f"(components: {', '.join(known)})."
             )
+    repo_checks = (target / MISE).is_file()
+    if repo_checks:
+        _require_mise(target)  # before the components' slow steps
     book = project_book(target)
     for c in principles["components"]:
         if only and c["name"] not in only:
@@ -311,19 +452,7 @@ def bootstrap(
             *(command for _, command in check_commands(c["commands"])),
         ]
         for command in commands:
-            print(f"alpha: {c['name']}: {command}", file=sys.stderr, flush=True)
-            done = subprocess.run(
-                command,
-                shell=True,
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            if done.returncode != 0:
-                tail = "\n".join(done.stdout.splitlines()[-_TAIL_LINES:])
-                raise GenerateError(
-                    f'"{command}" failed in {cwd} (exit {done.returncode}). '
-                    f"Last lines of its output:\n{tail}\n{fix}"
-                )
+            _run(c["name"], command, cwd, fix)
+    if repo_checks:
+        _repo_checks(target)
     refresh_manifest(target)

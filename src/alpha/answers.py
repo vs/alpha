@@ -23,6 +23,7 @@ from alpha.core_areas import (
     Ui,
 )
 from alpha.recipes import Recipe, RecipeBook, recipe_from_data, recipe_hash
+from alpha.render.ci import REPO_JOB
 from alpha.validate import (
     NAME,
     as_list,
@@ -288,7 +289,9 @@ def drafted_recipes(
                 "is set, but a drafted recipe is always less proven than the kit's",
                 'Remove "proven"; alpha marks drafted recipes itself',
             )
-        drafted[stack] = recipe_from_data(stack, fields, where, None)
+        drafted[stack] = recipe_from_data(
+            stack, fields, where, None, generated=generated
+        )
         if require_proven and fields.get("proven_hash") != recipe_hash(fields):
             raise fail(
                 where,
@@ -368,6 +371,13 @@ def _component(raw: object, i: int, stacks: set[str], drafted: set[str]) -> Comp
             f"{where}.name",
             f"{name!r} is not a valid name",
             "Use lowercase letters, digits and hyphens, starting with a letter",
+        )
+    if name == REPO_JOB:
+        raise fail(
+            f"{where}.name",
+            f"{name!r} is reserved: the CI job that runs the repository checks "
+            "has that name, and a component's job would replace it",
+            'Give the component another name, such as "repo-tools"',
         )
     path = string(d, "path", where)
     if path != "." and unmatchable(path):

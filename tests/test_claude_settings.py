@@ -20,6 +20,11 @@ def entries(event: str) -> list[dict[str, Any]]:
     return SETTINGS["hooks"][event]
 
 
+def test_allow_covers_the_mise_checks():
+    # CLAUDE.md tells Claude to run `mise run check`.
+    assert "Bash(mise run:*)" in SETTINGS["permissions"]["allow"]
+
+
 def test_allow_covers_both_stacks_and_git_sorted():
     allow = SETTINGS["permissions"]["allow"]
     assert "Bash(uv run:*)" in allow

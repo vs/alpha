@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 from typing import Any
 
@@ -225,6 +226,16 @@ def test_typecheck_runs_before_test_and_failure_blocks(project: Project) -> None
     assert (project.root / "api" / "t.marker").exists()
 
 
+def test_stop_runs_structure(project: Project) -> None:
+    project.set_commands("api", structure=FAIL, test=marker_cmd("t.marker"))
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    text = reason(run(project))
+    assert "api: structure failed" in text
+    assert (project.root / "api" / "t.marker").exists()
+
+
 def test_missing_tool_gives_setup_hint(project: Project) -> None:
     project.set_commands("api", test="definitely-not-a-tool-xyz", setup="make setup")
     commit_all(project)
@@ -338,7 +349,7 @@ def test_readme_only_change_runs_nothing(project: Project) -> None:
 def test_budget_exhausted_skips_steps(project: Project, monkeypatch: Any) -> None:
     import stop_checks
 
-    project.set_commands("api", typecheck=STUB, test=STUB)
+    project.set_commands("api", typecheck=STUB, structure="", test=STUB)
     data = project.principles()
     monkeypatch.setattr(stop_checks, "BUDGET", 0)
     problems = stop_checks.command_problems(
@@ -934,3 +945,197 @@ def test_a_new_session_records_where_it_started(project: Project) -> None:
         "session_start.py", {"hook_event_name": "SessionStart", "source": "resume"}
     )
     assert start.read_text().strip() == head
+
+
+def enable_repo_checks(project: Project, *ids: str) -> None:
+    data = project.principles()
+    for check in data["repo_checks"]:
+        check["stop"] = check["id"] in ids
+    project.write_principles(data)
+
+
+def fake_mise(project: Project, code: int = 0) -> dict[str, str | None]:
+    """A `mise` on PATH that logs each task it is asked to run to calls.log."""
+    log = project.root.parent / f"{project.root.name}-calls.log"
+    script = project.write(
+        "fake-bin/mise", f'#!/bin/sh\necho "$@" >> "{log}"\nexit {code}\n'
+    )
+    script.chmod(0o755)
+    return {"PATH": f"{script.parent}:{os.environ['PATH']}"}
+
+
+def calls(project: Project) -> list[str]:
+    log = project.root.parent / f"{project.root.name}-calls.log"
+    return log.read_text().splitlines() if log.exists() else []
+
+
+def run_with(project: Project, env: dict[str, str | None]) -> Any:
+    import review
+
+    state = review.ensure_state(project.root)
+    state["reviewed_tree"] = review.snapshot(project.root)
+    review.save_state(project.root, state)
+    return project.run_hook("stop_checks.py", PAYLOAD, env=env)
+
+
+def test_stop_runs_matching_repo_check(project: Project) -> None:
+    enable_repo_checks(project, "typos", "actions")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    proc = run_with(project, fake_mise(project))
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    assert calls(project) == ["run check:typos"]
+
+
+def test_stop_repo_check_failure_blocks(project: Project) -> None:
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    proc = run_with(project, fake_mise(project, code=2))
+    assert "repo check typos failed (mise run check:typos)" in reason(proc)
+
+
+def test_stop_repo_check_missing_mise(project: Project) -> None:
+    enable_repo_checks(project, "typos", "markdown")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    empty = project.root.parent / "empty-bin"
+    empty.mkdir()
+    git = shutil.which("git")
+    assert git is not None
+    (empty / "git").symlink_to(git)  # git stays; mise doesn't
+    env: dict[str, str | None] = {"PATH": str(empty)}
+    for _ in range(3):
+        proc = project.run_hook("stop_checks.py", PAYLOAD, env=env)
+        text = reason(proc)
+        assert text.count("mise install") == 1
+        assert text.count("\n") == 1  # header plus exactly one problem
+    final = project.run_hook("stop_checks.py", PAYLOAD, env=env)
+    assert final.returncode == 0
+    assert final.stderr.startswith("alpha: checks still failing after 3 attempts")
+
+
+def test_stop_repo_check_cached(project: Project) -> None:
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    env = fake_mise(project)
+    assert run_with(project, env).stdout == ""
+    assert run_with(project, env).stdout == ""
+    assert calls(project) == ["run check:typos"]
+    project.write("README.md", "changed\n")
+    assert run_with(project, env).stdout == ""
+    assert len(calls(project)) == 2
+
+
+def test_subagent_stop_runs_repo_check_on_its_files(project: Project) -> None:
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    edited_by(project, "ag1", "README.md")
+    env = fake_mise(project, code=2)
+    proc = project.run_hook(
+        "stop_checks.py",
+        {
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": False,
+            "agent_id": "ag1",
+            "agent_type": "general-purpose",
+        },
+        env=env,
+    )
+    assert "repo check typos failed" in reason(proc)
+
+
+def test_finished_checks_are_cached_when_a_later_one_is_missing(
+    project: Project,
+) -> None:
+    enable_repo_checks(project, "typos", "markdown")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    log = project.root.parent / f"{project.root.name}-calls.log"
+    script = project.write(
+        "fake-bin/mise",
+        f'#!/bin/sh\necho "$@" >> "{log}"\n'
+        '[ "$2" = check:markdown ] && exit 127\nexit 0\n',
+    )
+    script.chmod(0o755)
+    env: dict[str, str | None] = {"PATH": f"{script.parent}:{os.environ['PATH']}"}
+    assert "mise install" in reason(run_with(project, env))
+    assert "mise install" in reason(run_with(project, env))
+    assert calls(project) == [
+        "run check:typos",
+        "run check:markdown",
+        "run check:markdown",
+    ]
+
+
+def test_cached_failed_repo_check_is_reported_without_rerunning(
+    project: Project,
+) -> None:
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("README.md", "hello\n")
+    env = fake_mise(project, code=2)
+    first = reason(run_with(project, env))
+    second = reason(run_with(project, env))
+    assert first == second and "repo check typos failed" in first
+    assert len(calls(project)) == 1
+
+
+def test_component_and_repo_check_failures_both_block(project: Project) -> None:
+    project.set_commands("api", test=FAIL)
+    enable_repo_checks(project, "typos")
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    text = reason(run_with(project, fake_mise(project, code=2)))
+    assert "api: test failed" in text
+    assert "repo check typos failed" in text
+
+
+def test_deleted_matched_file_does_not_crash(project: Project) -> None:
+    enable_repo_checks(project, "typos", "markdown")
+    project.write("README.md", "hello\n")
+    commit_all(project)
+    (project.root / "README.md").unlink()
+    proc = run_with(project, fake_mise(project))
+    assert proc.returncode == 0 and proc.stdout == "", proc.stderr
+
+
+def test_slot_wait_past_deadline_is_a_problem_and_not_cached(
+    project: Project, monkeypatch: Any, tmp_path: Any
+) -> None:
+    import contextlib
+    import time
+
+    import stop_checks
+
+    @contextlib.contextmanager
+    def no_slot(deadline: float) -> Any:
+        yield False
+
+    monkeypatch.setattr(stop_checks._common, "heavy_slot", no_slot)
+    project.set_commands("api", typecheck=STUB, structure="", test="")
+    data = project.principles()
+    problems = stop_checks.command_problems(
+        data["components"][0], data, project.root, time.monotonic() + 100
+    )
+    assert len(problems) == 1
+    assert (
+        f"waited for other agents' checks until alpha's {stop_checks.BUDGET}s "
+        f"budget ran out; run {STUB} by hand"
+    ) in problems[0]
+    assert not (project.root / "api" / "t.marker").exists()
+    cache = project.root / ".claude" / "alpha" / "state" / "stop-cache.json"
+    assert not cache.exists() or "typecheck" not in cache.read_text()
+
+
+def test_heavy_step_uses_slots_under_the_test_home(
+    project: Project, isolated_home: Any
+) -> None:
+    project.set_commands("api", typecheck=STUB, structure="", test="")
+    (project.root / "api" / "app").mkdir(parents=True, exist_ok=True)
+    (project.root / "api" / "app" / "x.py").write_text("x = 1\n")
+    project.run_hook("stop_checks.py", {"cwd": str(project.root)})
+    assert (isolated_home / ".cache" / "alpha" / "slots" / "0.lock").is_file()

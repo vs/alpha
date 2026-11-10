@@ -376,7 +376,11 @@ def test_no_ui_sets_no_accessibility_level(tmp_path: Path):
 
 def test_migrations_and_tokens_are_risk_paths(tmp_path: Path):
     out = build_principles(D, A, "0.1.0")
-    assert out["data"] == {"migration_paths": ["api/migrations/versions/**"]}
+    assert out["data"] == {
+        "migration_paths": ["api/migrations/versions/**"],
+        # PostgreSQL, but Alembic writes Python migrations squawk can't read.
+        "squawk_paths": [],
+    }
     risk = out["review"]["risk_paths"]
     assert "api/migrations/versions/**" in risk
     assert "web/src/styles/tokens.css" in risk
@@ -386,7 +390,7 @@ def test_migrations_and_tokens_are_risk_paths(tmp_path: Path):
 
 def test_no_stored_data_means_no_migration_paths(tmp_path: Path):
     out = build_principles(D, scenario_answers(tmp_path, "rust-cli"), "0.1.0")
-    assert out["data"] == {"migration_paths": []}
+    assert out["data"] == {"migration_paths": [], "squawk_paths": []}
 
 
 def test_project_override_of_level_wins(tmp_path: Path):
@@ -442,3 +446,56 @@ def test_components_carry_their_stacks_rules_with_prefixed_ids():
     ]
     out = tomllib.loads(render_principles(build_principles(D, A, "0.1.0")))
     assert out["components"][0]["rules"] == comps["api"]["rules"]
+
+
+def _defaults_with(**testing: Any) -> dict[str, Any]:
+    d = copy.deepcopy(D)
+    d.pop("testing", None)
+    if testing:
+        d["testing"] = testing
+    return d
+
+
+def test_diff_coverage_answer_overrides_the_default(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["testing"]["diff_coverage"] = 55
+
+    out = build_principles(D, variant(tmp_path, mutate), "0.1.0")
+    assert out["testing"] == {"diff_coverage": 55}
+
+
+def test_diff_coverage_zero_answer_beats_the_default(tmp_path: Path):
+    def mutate(data: dict[str, Any]) -> None:
+        data["testing"]["diff_coverage"] = 0
+
+    out = build_principles(D, variant(tmp_path, mutate), "0.1.0")
+    assert out["testing"] == {"diff_coverage": 0}
+
+
+def test_diff_coverage_defaults_when_not_answered():
+    assert A.testing is not None and A.testing.diff_coverage is None
+    out = build_principles(D, A, "0.1.0")
+    assert out["testing"] == {"diff_coverage": D["testing"]["diff_coverage"]}
+
+
+def test_diff_coverage_missing_from_defaults_says_how_to_fix():
+    with pytest.raises(AnswersError) as e:
+        build_principles(_defaults_with(), A, "0.1.0")
+    assert "[testing] diff_coverage is missing" in str(e.value)
+    assert "diff_coverage = 80" in str(e.value)
+
+
+@pytest.mark.parametrize("value", [80.5, "80", True, 101, -1])
+def test_diff_coverage_bad_default_says_how_to_fix(value: object):
+    with pytest.raises(AnswersError) as e:
+        build_principles(_defaults_with(diff_coverage=value), A, "0.1.0")
+    assert f"diff_coverage is {value!r}" in str(e.value)
+    assert "0 to 100" in str(e.value)
+
+
+def test_ci_checks_reach_the_built_principles():
+    by_id = {p["id"]: p for p in build_principles(D, A, "0.1.0")["principles"]}
+    assert "ci:secrets" in by_id["no-secrets"]["checked_by"]
+    assert "ci:tree" in by_id["generated-from-source"]["checked_by"]
+    assert "ci:migrations" in by_id["safe-migrations"]["checked_by"]
+    assert "ci:" not in "".join(by_id["dependency-reasons"]["checked_by"])

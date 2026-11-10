@@ -175,9 +175,28 @@ def secret_problems(
     return problems
 
 
-def run_step(command: str, cwd: Path, timeout: float | None = None) -> tuple[str, str]:
+def slot_problem(command: str) -> str:
+    return (
+        f"waited for other agents' checks until alpha's {BUDGET}s budget ran "
+        f"out; run {command} by hand"
+    )
+
+
+def run_step(
+    command: str,
+    cwd: Path,
+    timeout: float | None = None,
+    deadline: float | None = None,
+) -> tuple[str, str]:
+    limit = timeout or TIMEOUT
+    wait_until = deadline if deadline is not None else time.monotonic() + limit
     try:
-        code, output = _common.run_command(command, cwd, timeout or TIMEOUT)
+        with _common.heavy_slot(wait_until) as got:
+            if not got:
+                return "slot", ""
+            if deadline is not None:
+                limit = max(1.0, min(limit, deadline - time.monotonic()))
+            code, output = _common.run_command(command, cwd, limit)
     except _common.TimedOut:
         return "timeout", ""
     if code == _common.NOT_FOUND:
@@ -185,7 +204,11 @@ def run_step(command: str, cwd: Path, timeout: float | None = None) -> tuple[str
     return ("ok" if code == 0 else "failed"), output
 
 
-COMMAND_PRINCIPLES = {"typecheck": "strict-types", "test": "definition-of-done"}
+COMMAND_PRINCIPLES = {
+    "typecheck": "strict-types",
+    "structure": "no-dead-code",
+    "test": "definition-of-done",
+}
 
 
 def tree_hash(root: Path, comp: dict[str, Any]) -> str | None:
@@ -274,10 +297,13 @@ def run_steps(
             )
             continue
         timeout = min(TIMEOUT, remaining)
-        status, output = run_step(command, cwd, timeout)
+        status, output = run_step(command, cwd, timeout, deadline)
         if status == "ok":
             continue
-        if status == "timeout":
+        if status == "slot":
+            complete = False
+            problems.append(f"{name}: {key} {slot_problem(command)}")
+        elif status == "timeout":
             complete = False
             problems.append(
                 f"{name}: {key} took longer than {int(timeout)}s ({command}). Run it "
@@ -295,6 +321,96 @@ def run_steps(
                 f"{name}: {key} failed ({command}):\n{_common.tail(output)}"
             )
     return problems, complete
+
+
+MISSING_MISE = (
+    "mise is not installed or the tool is missing. Run: mise install "
+    "(install mise from https://mise.jdx.dev)"
+)
+
+
+def files_hash(root: Path, files: list[str]) -> str:
+    """Hash of the given files' paths and contents."""
+    digest = hashlib.sha256()
+    for rel in sorted(files):
+        digest.update(rel.encode() + b"\0")
+        path = root / rel
+        try:
+            info = path.stat()
+            if info.st_size <= HASH_CONTENT_BYTES:
+                digest.update(hashlib.sha256(path.read_bytes()).digest())
+            else:
+                digest.update(f"{info.st_size}:{info.st_mtime_ns}".encode())
+        except OSError:
+            digest.update(b"-")  # deleted from the working tree
+    return digest.hexdigest()
+
+
+def repo_check_problems(
+    root: Path, principles: dict[str, Any], changed: list[str], deadline: float
+) -> list[str]:
+    """Run the `stop = true` repository checks whose globs match a changed
+    file, in catalog order. Results are reused while the matched files and the
+    command are unchanged."""
+    entries = principles.get("repo_checks")
+    if not isinstance(entries, list):
+        return []
+    cache_path = _common.state_path(root, "stop-cache.json")
+    cache = read_json(cache_path)
+    dirty = False
+    problems: list[str] = []
+    for raw in cast("list[Any]", entries):
+        if not isinstance(raw, dict):
+            continue
+        check = cast("dict[str, Any]", raw)
+        command = check.get("command")
+        if check.get("stop") is not True or not isinstance(command, str):
+            continue
+        check_id = str(check.get("id", command))
+        globs = [str(g) for g in check.get("globs", [])]
+        hit = [f for f in changed if _common.matches(f, globs)]
+        if not hit:
+            continue
+        key = json.dumps([files_hash(root, hit), command])
+        name = f"repo:{check_id}"
+        cached: object = cache.get(name)
+        if isinstance(cached, dict):
+            entry = cast("dict[str, Any]", cached)
+            if entry.get("key") == key and isinstance(entry.get("problems"), list):
+                problems += [str(p) for p in cast("list[Any]", entry["problems"])]
+                continue
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            problems.append(
+                f"repo check {check_id} skipped \u2014 alpha's {BUDGET}s check "
+                f"budget ran out. Run it by hand: {command}"
+            )
+            continue
+        timeout = min(TIMEOUT, remaining)
+        status, output = run_step(command, root, timeout, deadline)
+        if status == "missing":  # installing the tool doesn't change the files
+            problems.append(MISSING_MISE)
+            break
+        if status == "ok":
+            found: list[str] = []
+        elif status == "slot":
+            found = [f"repo check {check_id}: " + slot_problem(command)]
+        elif status == "timeout":
+            found = [
+                f"repo check {check_id} took longer than {int(timeout)}s "
+                f"({command}). Run it by hand to see why, or tell the user."
+            ]
+        else:
+            found = [
+                f"repo check {check_id} failed ({command}):\n{_common.tail(output)}"
+            ]
+        problems += found
+        if status in ("ok", "failed"):
+            cache[name] = {"key": key, "problems": found}
+            dirty = True
+    if dirty:
+        cache_path.write_text(json.dumps(cache))
+    return problems
 
 
 def read_count(path: Path) -> int:
@@ -447,6 +563,7 @@ def find_problems(
             for f in by_comp[str(comp.get("name"))]
         ):
             problems.extend(command_problems(comp, principles, root, deadline))
+    problems += repo_check_problems(root, principles, changed, deadline)
     return problems
 
 
@@ -480,6 +597,9 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
     if mine:
         found = find_problems(root, principles, changed, base, run_commands=False)
         problems = secrets + [p for p in found if any(f in p for f in mine)]
+        problems += repo_check_problems(
+            root, principles, mine, time.monotonic() + BUDGET
+        )
     if not problems:
         record.unlink(missing_ok=True)
         counter.unlink(missing_ok=True)

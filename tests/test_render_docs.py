@@ -164,7 +164,7 @@ def test_dependencies_md_seeded_per_component(tmp_path: Path):
     md = render(load(tmp_path))["docs/dependencies.md"]
     assert "| Dependency | Component | Why | Added |" in md
     rows = [ln for ln in md.splitlines() if ln.startswith("| ") and "2026" in ln]
-    assert len(rows) == 7
+    assert len(rows) == 13
     assert any(r.startswith("| pytest | api |") for r in rows)
     assert any(r.startswith("| @biomejs/biome | web |") for r in rows)
 
@@ -214,7 +214,7 @@ def test_build_doc_lists_ci_checks_artifacts_and_environments(tmp_path: Path):
     assert "every push to main and every pull request" in doc
     assert (
         "| api | `uv sync`, `uv run ruff format --check`, `uv run ruff check`, "
-        "`uv run pyright`, `uv run pytest` |"
+        "`uv run pyright`, `uv run deptry .`, `uv run pytest` |"
     ) in doc
     assert "| api | container | Fly.io |" in doc
     assert "| web | static-site | Cloudflare Pages |" in doc
@@ -311,6 +311,15 @@ WORKING_RULES = [
     "- Before you report work as done, re-read every changed file top to bottom "
     "as a stranger would.",
     "- At the end of a planned piece of work, run the principles-reviewer agent.",
+    "- When you add a code generator, add a `generate` task to `mise.toml` and to "
+    "the `ci` task's `depends`; CI fails when checks change tracked files.",
+    "- Never disable a lint rule to pass; an exception names one path and one "
+    "rule, gives a reason, and needs the user's yes.",
+    "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
+    "review date: in the `osv-scanner.toml` next to the lockfile it applies "
+    "to, `ignoreUntil` and `reason`; in "
+    "`.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly "
+    "above the entry.",
 ]
 COMMUNICATION = [
     "- Answer a question before making edits or running commands for it.",
@@ -419,6 +428,10 @@ def test_claude_md_lists_each_stacks_rules_once(tmp_path: Path):
         "- **python:typed-boundaries**: Parse external input (JSON, files, "
         "environment, requests) into dataclasses or typed models at the "
         "boundary; don't pass `dict[str, Any]` inward.",
+        "- **python:import-contracts**: Once a component has more than one "
+        "package, add import-linter contracts for the layers "
+        "`docs/architecture.md` names, and add `lint-imports` to its "
+        "`structure` command.",
         "",
         "### typescript (web)",
         "",
@@ -443,3 +456,64 @@ def test_claude_md_has_no_stack_rules_section_without_rules(tmp_path: Path):
     md = render_docs(a, principles, 2026, TODAY)["CLAUDE.md"]
     assert "## Stack rules" not in md
     assert "## Communication" in md and "## Commands" in md
+
+
+def test_claude_md_says_how_to_run_every_check(tmp_path: Path):
+    md = render(load(tmp_path))["CLAUDE.md"]
+    assert "Run every check: `mise run check` (CI runs the same checks)" in md
+    assert md.index("Run every check") > md.index("## Commands")
+    assert md.index("Run every check") < md.index("## Definition of done")
+
+
+def test_claude_md_rules_for_generators_lint_and_suppressions(tmp_path: Path):
+    md = render(load(tmp_path))["CLAUDE.md"]
+    for line in (
+        "- When you add a code generator, add a `generate` task to `mise.toml` and "
+        "to the `ci` task's `depends`; CI fails when checks change tracked files.",
+        "- Never disable a lint rule to pass; an exception names one path and one "
+        "rule, gives a reason, and needs the user's yes.",
+        "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
+        "review date: in the `osv-scanner.toml` next to the lockfile it applies "
+        "to, `ignoreUntil` and `reason`; in "
+        "`.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly "
+        "above the entry.",
+    ):
+        assert line in md
+    assert "trailing comment" not in md
+
+
+def test_claude_md_points_at_the_commit_skill(tmp_path: Path):
+    # The skill is user-invoked only, so this line is how Claude finds it.
+    md = render(load(tmp_path))["CLAUDE.md"]
+    assert "Follow the commit skill (`.claude/skills/commit/SKILL.md`" in md
+    assert md.index("## Commits") < md.index("commit skill")
+
+
+def test_contributing_documents_the_checks(tmp_path: Path):
+    md = render(load(tmp_path))["CONTRIBUTING.md"]
+    section = md[md.index("## Checks") :].split("\n## ")[0]
+    assert "mise install" in section
+    assert "mise run check" in section
+    assert "| Check | What it checks | Runs |" in section
+    rows = section.splitlines()
+    assert (
+        "| secrets | Secrets in the working tree (betterleaks) | pull request |" in rows
+    )
+    assert (
+        "| typos | Spelling in code and docs (typos) | pull request, at Stop |" in rows
+    )
+    assert (
+        "| links-online | Links to other sites still work (lychee) | weekly |" in rows
+    )
+    assert (
+        "| vulns | Known vulnerabilities in locked dependencies (osv-scanner) "
+        "| pull request, weekly |"
+    ) in rows
+    assert "`ci:tree` is when every CI job ends by checking" in section
+
+
+def test_contributing_lists_no_data_checks_without_data(tmp_path: Path):
+    md = render(load(tmp_path, cli_only))["CONTRIBUTING.md"]
+    section = md[md.index("## Checks") :].split("\n## ")[0]
+    assert "| typos |" in section
+    assert "| migrations |" not in section and "| squawk |" not in section

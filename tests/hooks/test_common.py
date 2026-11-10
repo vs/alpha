@@ -1,8 +1,10 @@
 import ast
 import io
 import json
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -282,3 +284,126 @@ def test_root_component_ignores_dot_dirs(tmp_path: Path):
     assert _common.is_source("main.py", comp)
     assert not _common.is_source(".claude/alpha/hooks/stop_checks.py", comp)
     assert not _common.is_test(".claude/alpha/hooks/stop_checks.py", comp)
+
+
+def _slot_env(monkeypatch: pytest.MonkeyPatch, home: Path, slots: str = "1") -> None:
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("ALPHA_SLOTS", slots)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("ALPHA_SLOT_HELD", raising=False)
+
+
+def test_slot_taken_and_released(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _slot_env(monkeypatch, tmp_path)
+    with _common.heavy_slot(time.monotonic() + 5) as got:
+        assert got is True
+        assert (tmp_path / ".cache" / "alpha" / "slots" / "0.lock").is_file()
+        assert os.environ["ALPHA_SLOT_HELD"] == "1"
+    assert "ALPHA_SLOT_HELD" not in os.environ
+    with _common.heavy_slot(time.monotonic() + 5) as again:
+        assert again is True
+
+
+def test_second_holder_waits(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _slot_env(monkeypatch, tmp_path)
+    slots = tmp_path / ".cache" / "alpha" / "slots"
+    slots.mkdir(parents=True)
+    ready = tmp_path / "ready"
+    code = (
+        "import fcntl, pathlib, sys, time\n"
+        f"f = open({str(slots / '0.lock')!r}, 'a')\n"
+        "fcntl.flock(f, fcntl.LOCK_EX)\n"
+        f"pathlib.Path({str(ready)!r}).write_text('x')\n"
+        "time.sleep(60)\n"
+    )
+    child = subprocess.Popen([sys.executable, "-c", code])
+    try:
+        end = time.monotonic() + 10
+        while not ready.exists() and time.monotonic() < end:
+            time.sleep(0.05)
+        assert ready.exists()
+        start = time.monotonic()
+        with _common.heavy_slot(start + 0.6) as got:
+            assert got is False
+        assert time.monotonic() - start >= 0.5
+    finally:
+        child.kill()
+        child.wait()
+
+
+def test_ci_skips_slots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _slot_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("CI", "true")
+    with _common.heavy_slot(time.monotonic() + 1) as got:
+        assert got is True
+    assert not (tmp_path / ".cache").exists()
+
+
+def test_nested_skips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _slot_env(monkeypatch, tmp_path)
+    with _common.heavy_slot(time.monotonic() + 5):
+        code, out = _common.run_command('echo "$ALPHA_SLOT_HELD"', tmp_path, 10)
+        assert out.strip() == "1"
+        # a nested call does not wait on the slot its parent holds
+        with _common.heavy_slot(time.monotonic() + 0.3) as got:
+            assert got is True
+
+
+def test_unwritable_home_falls_back_to_no_slots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    blocker = tmp_path / "home"
+    blocker.write_text("not a dir")
+    _slot_env(monkeypatch, blocker)
+    with _common.heavy_slot(time.monotonic() + 1) as got:
+        assert got is True
+
+
+def test_previous_slot_held_value_is_restored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _slot_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("ALPHA_SLOT_HELD", "0")
+    with _common.heavy_slot(time.monotonic() + 5) as got:
+        assert got is True
+        assert os.environ["ALPHA_SLOT_HELD"] == "1"
+    assert os.environ["ALPHA_SLOT_HELD"] == "0"
+
+
+def _lock_is_free(tmp_path: Path) -> bool:
+    import fcntl
+
+    with (tmp_path / ".cache" / "alpha" / "slots" / "0.lock").open("a") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return False
+        return True
+
+
+def test_slot_released_after_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _slot_env(monkeypatch, tmp_path)
+    with pytest.raises(RuntimeError), _common.heavy_slot(time.monotonic() + 5):
+        raise RuntimeError("boom")
+    assert _lock_is_free(tmp_path)
+    assert "ALPHA_SLOT_HELD" not in os.environ
+
+
+def test_slot_released_after_timed_out(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _slot_env(monkeypatch, tmp_path)
+    with pytest.raises(_common.TimedOut), _common.heavy_slot(time.monotonic() + 5):
+        _common.run_command("sleep 5", tmp_path, 0.2)
+    assert _lock_is_free(tmp_path)
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "abc"])
+def test_bad_alpha_slots_falls_back_to_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+):
+    _slot_env(monkeypatch, tmp_path, value)
+    with _common.heavy_slot(time.monotonic() + 5) as got:
+        assert got is True
+    expected = max(1, (os.cpu_count() or 2) // 4)
+    files = list((tmp_path / ".cache" / "alpha" / "slots").glob("*.lock"))
+    assert expected >= 1
+    assert len(files) == 1  # only the first free slot file is opened

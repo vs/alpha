@@ -2,6 +2,8 @@ from typing import Any, cast
 
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
 from alpha.records import Records, record_paths
+from alpha.registry import Registry, default_registry
+from alpha.repo_checks import principles_entries, repo_checks
 from alpha.toml_write import dumps
 from alpha.validate import prefixed
 
@@ -84,11 +86,56 @@ def _docs_map(documentation: Documentation) -> dict[str, list[str]]:
     return out
 
 
+def _diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
+    """The answer when the interview set one, else the kit's default."""
+    if a.testing is not None and a.testing.diff_coverage is not None:
+        return a.testing.diff_coverage
+    try:
+        value = defaults["testing"]["diff_coverage"]
+    except KeyError:
+        raise AnswersError(
+            "defaults: [testing] diff_coverage is missing (the defaults checkout "
+            "is older than this kit). Add 'diff_coverage = 80' under [testing] in "
+            "defaults/defaults.toml, or update the checkout."
+        ) from None
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 100:
+        raise AnswersError(
+            f"defaults: [testing] diff_coverage is {value!r}, not a whole "
+            "percentage from 0 to 100. Fix it in defaults/defaults.toml, e.g. "
+            "'diff_coverage = 80'."
+        )
+    return value
+
+
+# Migration tools whose migrations are SQL files: squawk lints only added
+# `.sql` files, so a tool that writes Python (Alembic, Django) gets no squawk
+# check. A tool counts when its name, lowercased, contains one of these.
+SQL_MIGRATION_TOOLS = (
+    "sql",
+    "flyway",
+    "dbmate",
+    "goose",
+    "golang-migrate",
+    "migrate",
+    "atlas",
+    "prisma",
+    "sqitch",
+)
+
+
+def writes_sql(migration_tool: str) -> bool:
+    """Whether the migration tool's migrations are SQL files squawk can lint."""
+    tool = migration_tool.lower()
+    return any(name in tool for name in SQL_MIGRATION_TOOLS)
+
+
 def build_principles(
     defaults: dict[str, Any],
     a: Answers,
     kit_version: str,
     records: Records | None = None,
+    *,
+    registry: Registry | None = None,
 ) -> dict[str, Any]:
     missing = [area for area in AREAS if area != "components" and not getattr(a, area)]
     if missing:
@@ -99,6 +146,14 @@ def build_principles(
     assert a.git and a.agent_workflow and a.documentation and a.identity
     assert a.security and a.architecture and a.ui and a.data and a.accessibility
     migration_paths = _dedupe([g for d in a.data.components for g in d.migrations])
+    squawk_paths = _dedupe(
+        [
+            g
+            for d in a.data.components
+            if "postgres" in d.storage.lower() and writes_sql(d.migration_tool)
+            for g in d.migrations
+        ]
+    )
     tokens = {u.name: u.tokens for u in a.ui.components}
     review = dict(defaults["review"])
     review["mode"] = a.agent_workflow.review_mode
@@ -208,7 +263,7 @@ def build_principles(
 
     docs_map = _docs_map(a.documentation)
     protected += a.security.extra_protected
-    return {
+    out: dict[str, Any] = {
         "schema": 1,
         "kit_version": kit_version,
         "project": {"name": a.identity.name, "slug": a.identity.slug},
@@ -224,10 +279,14 @@ def build_principles(
             "branching": a.git.branching,
         },
         "docs_map": docs_map,
-        "data": {"migration_paths": migration_paths},
+        "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
+        "testing": {"diff_coverage": _diff_coverage(a, defaults)},
         "components": components,
         "principles": principles,
     }
+    pins = registry or default_registry()
+    out["repo_checks"] = principles_entries(repo_checks(a, out, pins))
+    return out
 
 
 def render_principles(data: dict[str, Any]) -> str:

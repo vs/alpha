@@ -43,14 +43,17 @@ Any stack works. The kit has proven recipes for some (`"${CLAUDE_PLUGIN_ROOT}/bi
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds. Base recommendations on the identity answers (value proposition, users, requirements).
 
 Round 1:
+
 - **Components** - which parts does the project need? Recommend a list with a name and a kind for each, drawn from the requirements (e.g. a browser UI needs a `frontend`; an API needs a `backend`). Keep it to the simplest set that meets the requirements.
 
 Round 2 (needs the component list):
+
 - **Layout** - with one component, recommend `single`; with more, `monorepo` is required. Rule: `single` means exactly one component, at path `"."`.
 - **Stack per component** - recommend `defaults.stacks[kind]`. The user may pick any stack. Say which stacks the kit has proven recipes for (from `recipe list`); for any other, explain in one line that a recipe will be drafted and proven for this project, and that it's less proven.
 - **Talk to each other** - ask only when there is more than one component: "Do these components call each other?" Explain: yes turns on the "Contracts are the source of truth" principle, so their interfaces are defined once (e.g. OpenAPI) and checked. With one component, set `components_talk` to `false` without asking.
 
 Round 3 (needs the layout):
+
 - **Path per component** - with `single`, the path is `"."` (don't ask). With `monorepo`, recommend the component's name as its folder; folders must not be nested in each other.
 - **Traits per component** - ask all six for each component in one question, recommending answers from its kind and the requirements. Explain each in one sentence:
   - *Has a UI* - turns on the visual-system and accessibility principles.

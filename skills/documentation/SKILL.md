@@ -34,6 +34,7 @@ Decide where documentation lives and how it stays true. Internal docs (product b
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds. Base recommendations on the identity answers (who the users are) and the components.
 
 Round 1:
+
 - **User-facing docs** - recommend `defaults.documentation.external`, unless the users need more than a README can hold (an API many people call, a CLI with many commands, a product with non-technical users): then recommend `folder` at `docs/guide`. Explain each choice in one line:
   - `readme` - the README is the user documentation.
   - `folder` - a folder of guides inside `docs/`, versioned with the code.
@@ -41,6 +42,7 @@ Round 1:
   - `none` - nobody outside the team uses it.
 
 Round 2 (needs the answer above):
+
 - **Docs mappings** - propose all mappings in one question. For each component, take `defaults.documentation.public_paths[kind]` and put the component's path in front of each glob (`api/**/routes/**`; a component at `"."` gets no prefix). Map them:
   - user-facing kinds (`backend` with outside callers, `frontend`, `cli`, `mobile`, `library`) to the user-facing docs: `README.md` for `readme`, `<external_path>/**` for `folder`;
   - everything else, and every component when user docs are `elsewhere` or `none`, to `docs/architecture.md`;

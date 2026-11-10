@@ -18,6 +18,8 @@ ORDER = [
     "settings",
     "hooks",
     "commands",
+    "repo-checks",
+    "repo-seeds",
     "commits",
     "prompts",
     "reviewer",

@@ -1,4 +1,3 @@
-import hashlib
 import json
 import subprocess
 from collections.abc import Mapping
@@ -6,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from alpha.answers import PROJECT_JSON
-from alpha.generate import GenerateError
-from alpha.render.ci import DEPENDABOT, WORKFLOW
+from alpha.generate import GenerateError, digest
+from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
+from alpha.render.tooling import BETTERLEAKS, LYCHEE, MISE, RUMDL, TYPOS
 
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = [
@@ -18,6 +18,8 @@ _DOCS = [
     "docs",
     ".gitignore",
 ]
+_TOOLING = [MISE, TYPOS, RUMDL, LYCHEE, BETTERLEAKS]
+_TOOLING_SUBJECT = "build: Pin the repository's check tools"
 _CLAUDE = ["CLAUDE.md", ".claude"]
 UPDATE_STATE = ".claude/alpha/state/update.json"
 PROPOSALS = ".claude/alpha/state/update"
@@ -28,8 +30,10 @@ _MAX_DESCRIPTION = 50
 def commit_group(path: str, component_of: Mapping[str, str]) -> str:
     if path in component_of:
         return f"build:{component_of[path]}"
-    if path == WORKFLOW:
+    if path in (WORKFLOW, SCHEDULED, JACTIONLINT):
         return "ci"
+    if path in _TOOLING:
+        return "tooling"
     if path == DEPENDABOT:
         return "dependabot"
     if path == "CLAUDE.md" or path.startswith(".claude/"):
@@ -101,6 +105,7 @@ def commit_skeleton(
     groups = [
         ("docs: Add product brief, principles and decisions", _DOCS),
         ("chore: Add Claude Code settings and guardrails", _CLAUDE),
+        (_TOOLING_SUBJECT, _TOOLING),
     ]
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
     for c in principles["components"]:
@@ -108,7 +113,9 @@ def commit_skeleton(
         if c["path"] == ".":
             paths.append(f":(exclude){_CI}")
         groups.append((_build_subject(c, scopes), paths))
-    groups.append(("ci: Run every component's checks in CI", [WORKFLOW]))
+    groups.append(
+        ("ci: Run every component's checks in CI", [WORKFLOW, SCHEDULED, JACTIONLINT])
+    )
     groups.append(("ci: Schedule dependency updates", [DEPENDABOT]))
 
     return _commit_groups(target, groups, trailers, "commit-skeleton")
@@ -188,6 +195,7 @@ def commit_update(
             "chore: Update Claude Code rules and settings",
             [*paths_of("chore"), PROJECT_JSON],
         ),
+        (_TOOLING_SUBJECT, paths_of("tooling")),
     ]
     notes: list[str] = []
     for c in principles["components"]:
@@ -214,9 +222,8 @@ def commit_update(
 
     for path, recorded in sorted(conflicts.items()):
         file = target / path
-        unmerged = (
-            file.is_file() and hashlib.sha256(file.read_bytes()).hexdigest() == recorded
-        )
+        now = digest(file.read_bytes()) if file.is_file() else None
+        unmerged = now is not None and recorded in (now, now.removeprefix("sha256:"))
         if unmerged:
             notes.append(
                 f"{path}: alpha's change wasn't merged in (proposal: "

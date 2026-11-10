@@ -17,6 +17,18 @@ from alpha.generate import GenerateError, generate
 from alpha.gitops import commit_skeleton
 from alpha.principles import render_principles
 
+
+@pytest.fixture(autouse=True)
+def isolated_home(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hooks take machine-wide slots under HOME; keep them off the real one."""
+    real = Path.home() / ".gitconfig"
+    monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
+    if "GIT_CONFIG_GLOBAL" not in os.environ and real.is_file():
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(real))
+
+
 STANDARD_ROOT = {
     "README.md",
     "LICENSE",
@@ -25,6 +37,12 @@ STANDARD_ROOT = {
     ".gitignore",
     "docs",
     ".claude",
+    # the repository checks' toolchain and the configs of the tools it pins
+    "mise.toml",
+    "_typos.toml",
+    ".rumdl.toml",
+    "lychee.toml",
+    ".betterleaks.toml",
 }
 ROOT_ENTRIES = {
     "python-ml-single": STANDARD_ROOT
@@ -37,7 +55,7 @@ TRAILER = "Co-Authored-By: T <t@t>"
 
 
 def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
 
 
 def hook_commands(settings: dict[str, Any]) -> list[str]:
@@ -116,6 +134,7 @@ def test_commit_skeleton_groups_and_trailers(
         "ci: Run every component's checks in CI",
         "build(web): Set up typescript toolchain and tests",
         "build(api): Set up python toolchain and tests",
+        "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
         "docs: Add product brief, principles and decisions",
     ]
@@ -134,7 +153,7 @@ def test_commit_skeleton_groups_and_trailers(
         out = git(tmp_path, "show", "--name-only", "--format=", commit)
         return set(out.splitlines())
 
-    docs, claude, api, web, ci, deps = hashes
+    docs, claude, tooling, api, web, ci, deps = hashes
     assert {f.split("/")[0] for f in files_in(docs)} == {
         "README.md",
         "LICENSE",
@@ -143,10 +162,21 @@ def test_commit_skeleton_groups_and_trailers(
         "docs",
         ".gitignore",
     }
+    assert files_in(tooling) == {
+        "mise.toml",
+        "_typos.toml",
+        ".rumdl.toml",
+        "lychee.toml",
+        ".betterleaks.toml",
+    }
     assert {f.split("/")[0] for f in files_in(claude)} == {"CLAUDE.md", ".claude"}
     assert all(f.startswith("api/") for f in files_in(api))
     assert all(f.startswith("web/") for f in files_in(web))
-    assert files_in(ci) == {".github/workflows/ci.yml"}
+    assert files_in(ci) == {
+        ".github/jactionlint.yaml",
+        ".github/workflows/ci.yml",
+        ".github/workflows/scheduled.yml",
+    }
     assert files_in(deps) == {".github/dependabot.yml"}
 
 
@@ -159,6 +189,7 @@ def test_commit_skeleton_component_at_root_takes_the_rest(
         "ci: Schedule dependency updates",
         "ci: Run every component's checks in CI",
         "build(ml): Set up python toolchain and tests",
+        "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
         "docs: Add product brief, principles and decisions",
     ]
@@ -198,6 +229,7 @@ def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
         "ci: Run every component's checks in CI",
         "build(web): Set up typescript toolchain and tests",
         "build: Set up api toolchain and tests",
+        "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
         "docs: Add product brief, principles and decisions",
     ]
@@ -333,8 +365,11 @@ def test_generated_hooks_enforce_the_generated_principles(
     ran = log.read_text().splitlines()[4:]
     assert ran == [
         "api: uv run pyright",
+        "api: uv run deptry .",
         "api: uv run pytest",
         "web: pnpm tsc --noEmit",
+        "web: pnpm knip",
+        "web: pnpm depcruise --config .dependency-cruiser.cjs .",
         "web: pnpm vitest run",
     ]
 
@@ -369,6 +404,8 @@ def test_commit_skeleton_commits_ci_last(tmp_path: Path, generate_scenario, git_
         ".github/dependabot.yml"
     ]
     assert git(tmp_path, "show", "--name-only", "--format=", "HEAD~").split() == [
-        ".github/workflows/ci.yml"
+        ".github/jactionlint.yaml",
+        ".github/workflows/ci.yml",
+        ".github/workflows/scheduled.yml",
     ]
     assert git(tmp_path, "status", "--porcelain") == ""

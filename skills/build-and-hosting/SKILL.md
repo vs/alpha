@@ -34,10 +34,12 @@ Decide build and hosting up front, so nothing about shipping is left for later (
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds. Base recommendations on the components, their kinds and their `deployed` traits.
 
 Round 1:
+
 - **CI** - recommend `defaults.build.ci`. Explain in one line: GitHub Actions runs every component's checks on each push and pull request, from `.github/workflows/ci.yml`. If the user wants another provider, say this version of alpha sets up GitHub Actions only and ask them to accept it or choose `none`. `none` loosens the build-hosting-upfront principle, so it needs a reason (see below).
 - **Environments** - ask only when a component is deployed; recommend `["production"]`, or `["staging", "production"]` when the users' requirements make a broken release costly. With nothing deployed, save `[]` without asking.
 
 Round 2 (needs the CI answer):
+
 - **Artifact per component** - recommend `defaults.build.artifacts[kind]`, adjusted to what the component is (a backend that is a library for others is a `package`). Explain each in a few words: `package` (published to a registry), `container` (an image), `static-site` (files a CDN serves), `binary` (an executable), `app` (a store release), `none` (nothing is shipped), `other`.
 - **Hosting per deployed component** - where does it run? Offer two or three common fits for the artifact and say they're examples; never pick one silently. Record the user's words. Components that aren't deployed get `""` without asking.
 

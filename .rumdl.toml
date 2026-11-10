@@ -1,0 +1,14 @@
+# rumdl settings. `rumdl fmt .` fixes most findings.
+# MD013: the kit's docs are one line per paragraph or list item, so editing a
+# sentence never means rewrapping its paragraph. Headings and code blocks keep
+# the 80-column limit.
+[global]
+exclude = [
+  ".superpowers",      # git-ignored session scratch
+  ".claude/worktrees", # other sessions' checkouts
+  ".venv",
+  "docs/superpowers",  # historical specs and plans, kept as written
+]
+
+[MD013]
+paragraphs = false

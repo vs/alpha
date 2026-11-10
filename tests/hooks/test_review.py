@@ -210,6 +210,10 @@ def test_brief_lists_the_stack_rules_of_touched_components(project: Project) -> 
         "- python:typed-boundaries: Parse external input (JSON, files, "
         "environment, requests) into dataclasses or typed models at the "
         "boundary; don't pass `dict[str, Any]` inward. [components: api]",
+        "- python:import-contracts: Once a component has more than one package, "
+        "add import-linter contracts for the layers `docs/architecture.md` "
+        "names, and add `lint-imports` to its `structure` command. "
+        "[components: api]",
     ]
 
 
@@ -223,6 +227,7 @@ def test_brief_lists_every_stacks_rules_for_a_change_outside_components(
     assert ids == [
         "- python:uv-for-dependencies",
         "- python:typed-boundaries",
+        "- python:import-contracts",
         "- typescript:top-level-imports",
         "- typescript:unknown-at-boundaries",
         "- typescript:pnpm-for-dependencies",

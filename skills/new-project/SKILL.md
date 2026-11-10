@@ -29,6 +29,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 ## 3. Load the kit defaults
 
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show --json` and keep the result: every recommendation in the interview comes from its `defaults`. Tell the user where they come from, using `source`:
+
 - `live` is true: "Using your kit defaults from <path>. If you override a default during the interview, I'll ask whether to make it your new default; it's saved there only after you say yes."
 - `live` is false: "Using the defaults bundled with the installed kit (<reason>). New defaults can't be saved on this machine; any you ask for are noted in this project's decision log instead."
 
@@ -72,7 +73,7 @@ Run these in order. If one fails, show the user its message (it says what went w
 
 1. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json` must print `ok`.
 2. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" generate <target>` writes the skeleton.
-3. Tell the user the next step installs each component's toolchain and runs its tests, and can take a minute. Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target>`.
+3. Tell the user the next step installs each component's toolchain and runs its tests, then installs the repository checks' tools with mise and runs them, and can take a few minutes. Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target>`.
 4. Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-skeleton <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, in that order. If there are none, pass no `--trailer`. Never invent co-author lines.
 5. For each recipe drafted in this interview (the `recipes` in project.json), ask: "Save the <stack> recipe to the kit for future projects?" On yes, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe save <target> <stack> --trailer "<line>"` with the same trailers. Exit 0: tell the user the next project can use it. Exit 4: the kit's source isn't available on this machine, so it stays in this project only. Exit 3: show the message and follow its fix.
 

@@ -1,0 +1,34 @@
+# The kit's own checks: the same docs and agent-config gates it generates.
+# `mise install` fetches the tools, `mise run check` runs everything.
+[settings.task]
+run_auto_install = false  # don't install missing tools of the global config
+
+[tools]
+typos = "1.52.0"
+rumdl = "0.3.2"
+"github:agent-sh/agnix" = "0.61.0"
+
+[tasks."check:typos"]
+description = "Spell-check docs and code"
+run = "typos"
+
+[tasks."check:rumdl"]
+description = "Lint Markdown"
+run = "rumdl check ."
+
+[tasks."check:agnix"]
+description = "Lint skills and agent config"
+run = "agnix --strict"
+
+[tasks."check:python"]
+description = "Tests, lint, format and types"
+run = [
+  "uv run pytest",
+  "uv run ruff check src tests project-files",
+  "uv run ruff format --check src tests project-files",
+  "uv run pyright",
+]
+
+[tasks.check]
+description = "Every check the kit runs on itself"
+depends = ["check:typos", "check:rumdl", "check:agnix", "check:python"]

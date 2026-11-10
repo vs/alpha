@@ -18,7 +18,8 @@ if TYPE_CHECKING:
     from alpha.answers import Component
 
 RECIPES_DIR = Path(__file__).resolve().parents[2] / "recipes"
-CHECK_STEPS = ("setup", "format_check", "lint", "typecheck", "test")
+CHECK_STEPS = ("setup", "format_check", "lint", "typecheck", "structure", "test")
+OPTIONAL_STEPS = frozenset({"structure"})
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,10 @@ class Recipe:
     ci: CiSetup
     proven: bool
     rules: list[StackRule]
+    # Optional: the command that writes a coverage report, and the report path
+    # (relative to the component). A stack with both gets a diff coverage check.
+    coverage: str = ""
+    coverage_report: str = ""
 
 
 class RecipeError(AnswersError):
@@ -78,9 +83,11 @@ _RECIPE_KEYS = frozenset(
         "templates",
         "files",
         "rules",
+        "coverage",
+        "coverage_report",
     }
 )
-_STEP_KEYS = frozenset({"uses", "with", "name", "id", "env"})
+_STEP_KEYS = frozenset({"uses", "version", "with", "name", "id", "env"})
 # Dependabot's package-ecosystem values (its config schema, 2026-10).
 DEPENDABOT_ECOSYSTEMS = frozenset(
     {
@@ -122,6 +129,7 @@ DEPENDABOT_ECOSYSTEMS = frozenset(
 _RESERVED = (".git", ".claude", ".github")
 _ALLOW = re.compile(r"Bash\(([A-Za-z0-9_.-]+)((?: [A-Za-z0-9_.=/-]+)*):\*\)")
 _ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@(v\d+(\.\d+){0,2}|[0-9a-f]{40})")
+_SHA_ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40}")
 _RULE_ID = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 _TEMPLATE_VALUE = re.compile(r"(?<!\$)\$(?:\{(name|slug)\}|(name|slug)\b)")
 
@@ -239,7 +247,13 @@ def _rules(value: object, where: str) -> list[StackRule]:
 
 
 def recipe_from_data(
-    stack: str, data: Mapping[str, Any], where: str, template_dir: Path | None
+    stack: str,
+    data: Mapping[str, Any],
+    where: str,
+    template_dir: Path | None,
+    *,
+    generated: bool = False,
+    checkout: Path | None = None,
 ) -> Recipe:
 
     _unknown(data, _RECIPE_KEYS, where)
@@ -260,6 +274,9 @@ def recipe_from_data(
     commands: dict[str, str] = {}
     for key in COMMAND_KEYS:
         here = f"{where}.commands.{key}"
+        if key not in commands_in and key in OPTIONAL_STEPS:
+            commands[key] = ""
+            continue
         if key not in commands_in:
             raise _fail(here, "is missing", 'Add it; use "" when the stack has none')
         value = commands_in[key]
@@ -313,13 +330,38 @@ def recipe_from_data(
                 "Write every value as text (quote numbers like versions)",
             )
         uses = step_data.get("uses")
-        if not isinstance(uses, str) or not _ACTION.fullmatch(uses):
+        if generated:
+            pinned = isinstance(uses, str) and _ACTION.fullmatch(uses)
+        else:
+            pinned = isinstance(uses, str) and _SHA_ACTION.fullmatch(uses)
+        if not pinned and checkout is not None:
             raise _fail(
                 here,
-                f"uses {uses!r} isn't a pinned action",
-                "Pin it to a release tag (owner/repo@v4 or @v4.2.1) or a full "
-                "commit SHA",
+                f"uses {uses!r}, which isn't pinned to a full commit SHA",
+                f"The alpha checkout at {checkout} is older than the plugin, and "
+                f"its {stack} recipe replaces the plugin's. Update it (git -C "
+                f"{checkout} pull) or unset ALPHA_SOURCE, then retry",
             )
+        if not pinned:
+            raise _fail(
+                here,
+                f"uses {uses!r}, which isn't pinned to a full commit SHA",
+                "Pin it to the commit SHA of the latest release tag "
+                "(`git ls-remote https://github.com/<owner>/<repo> "
+                "refs/tags/<tag>`, the peeled `^{}` line for an annotated tag) "
+                "as owner/repo@<40 hex digits>, and put the tag in `version`",
+            )
+        version = step_data.get("version")
+        if version is None and not generated:
+            raise _fail(
+                here,
+                "has no `version`",
+                'Add the release tag the SHA belongs to, e.g. "version": "v4.2.1"',
+            )
+        if version is not None:
+            if not isinstance(version, str):
+                raise _fail(here, "`version` must be text", "Write the release tag")
+            _one_line(version, f"{here}.version")
         steps.append(step_data)
     env = _mapping(ci_data.get("env", {}), f"{where}.ci.env")
     dependabot = get("dependabot")
@@ -330,6 +372,25 @@ def recipe_from_data(
             f"{where}.dependabot",
             f"{dependabot!r} isn't a Dependabot ecosystem",
             f'Use one of: {", ".join(sorted(DEPENDABOT_ECOSYSTEMS))}, or ""',
+        )
+    coverage = data.get("coverage", "")
+    coverage_report = data.get("coverage_report", "")
+    for key, value in (("coverage", coverage), ("coverage_report", coverage_report)):
+        if not isinstance(value, str):
+            raise _fail(f"{where}.{key}", "must be text", 'Write it, or "" for none')
+        _one_line(value, f"{where}.{key}")
+    if bool(coverage) != bool(coverage_report):
+        missing = "coverage_report" if coverage else "coverage"
+        raise _fail(
+            f"{where}.{missing}",
+            "is empty but its pair is set",
+            "Give both the coverage command and the report path it writes, or neither",
+        )
+    if coverage_report and unmatchable(coverage_report):
+        raise _fail(
+            f"{where}.coverage_report",
+            f"{coverage_report!r} must be relative to the component folder",
+            'Write e.g. "coverage.xml"',
         )
     proven = data.get("proven", False)
     if not isinstance(proven, bool):
@@ -395,6 +456,8 @@ def recipe_from_data(
         ci=CiSetup(steps=steps, env=env),
         proven=proven,
         rules=_rules(data.get("rules", []), f"{where}.rules"),
+        coverage=coverage,
+        coverage_report=coverage_report,
     )
 
 
@@ -425,7 +488,15 @@ class RecipeBook:
             if path.is_file():
                 try:
                     data = tomllib.loads(path.read_text())
-                    return recipe_from_data(stack, data, str(path), folder)
+                    bundled = (RECIPES_DIR / f"{stack}.toml").is_file()
+                    older = bundled and folder.resolve() != RECIPES_DIR.resolve()
+                    return recipe_from_data(
+                        stack,
+                        data,
+                        str(path),
+                        folder,
+                        checkout=folder.parent if older else None,
+                    )
                 except (tomllib.TOMLDecodeError, OSError) as e:
                     raise RecipeError(
                         f"{path}: can't be read ({e}). Fix it, or remove the "

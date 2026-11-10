@@ -13,6 +13,7 @@ from helpers import (
     SCENARIOS,
     SHIM,
     TODAY,
+    generated_repo,
     git,
     override_record,
     place_answers,
@@ -96,6 +97,9 @@ def test_manifest_records_kit_defaults_and_hashes(
     assert m["defaults"] == {"path": str(ROOT), "live": True, "commit": source_head()}
     assert list(m["files"]) == sorted(m["files"])
     assert set(m["files"]) == set(files) - {PROJECT_JSON}
+    # Labelled digests: a bare hex string next to a path like
+    # "...-api-keys.md" reads as a leaked key to the secrets check.
+    assert all(re.fullmatch(r"sha256:[0-9a-f]{64}", h) for h in m["files"].values())
     assert (tmp_path / PROJECT_JSON).read_text().endswith("}\n")
 
 
@@ -133,6 +137,8 @@ def test_gitignore_prefixes_component_paths(tmp_path: Path, generate_scenario):
         "api/**/.venv/\n"
         "api/**/__pycache__/\n"
         "api/**/.pytest_cache/\n"
+        "api/**/coverage.xml\n"
+        "api/**/.coverage\n"
         "web/**/node_modules/\n"
         "web/**/dist/\n"
         "web/**/coverage/\n"
@@ -154,6 +160,8 @@ def test_gitignore_for_root_component(tmp_path: Path, generate_scenario):
         ".venv/\n"
         "__pycache__/\n"
         ".pytest_cache/\n"
+        "coverage.xml\n"
+        ".coverage\n"
     )
 
 
@@ -228,11 +236,15 @@ def test_decision_records_carry_the_full_date(tmp_path: Path, generate_scenario)
         assert "\nDate: 2026-10-19\n" in record.read_text(), record.name
 
 
-def fake_tools(tmp_path: Path, exit_codes: dict[str, int]) -> Path:
+def fake_tools(
+    tmp_path: Path,
+    exit_codes: dict[str, int],
+    tools: tuple[str, ...] = ("uv", "pnpm", "mise"),
+) -> Path:
     bin_dir = tmp_path / "fakebin"
     bin_dir.mkdir()
     log = tmp_path / "tools.log"
-    for tool in ("uv", "pnpm"):
+    for tool in tools:
         script = bin_dir / tool
         script.write_text(
             f'#!/bin/sh\necho "$(basename "$PWD"): {tool} $*" >> "{log}"\n'
@@ -254,30 +266,171 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
     bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
     announced = [
-        "api: uv add --dev pytest ruff pyright",
+        "api: uv add --dev pytest pytest-cov ruff pyright deptry",
         "api: uv sync",
         "api: uv run ruff format --check",
         "api: uv run ruff check",
         "api: uv run pyright",
+        "api: uv run deptry .",
         "api: uv run pytest",
-        "web: pnpm add -D typescript vitest @biomejs/biome @types/node",
+        "web: pnpm add -D typescript vitest @biomejs/biome @types/node "
+        "knip dependency-cruiser @swc/core @vitest/coverage-v8",
         "web: pnpm pkg set packageManager=pnpm@$(pnpm --version)",
         "web: pnpm install",
         "web: pnpm biome format .",
         "web: pnpm biome lint --error-on-warnings .",
         "web: pnpm tsc --noEmit",
+        "web: pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs .",
         "web: pnpm vitest run",
     ]
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    repo = [
+        "mise trust --yes",
+        f"mise install {' '.join(tools)}",
+        "mise run --continue-on-error ci",  # every failing check, not the first
+    ]
     ran = [
-        *announced[:7],
+        *announced[:8],
         "web: pnpm --version",
         "web: pnpm pkg set packageManager=pnpm@pnpm output",
-        *announced[8:],
+        *announced[9:-2],
+        "web: pnpm knip",  # the && list runs as two commands
+        "web: pnpm depcruise --config .dependency-cruiser.cjs .",
+        announced[-1],
+        *(f"proj: {command}" for command in repo),
     ]
     assert (tmp_path / "tools.log").read_text().splitlines() == ran
     out = capsys.readouterr()
-    assert out.err.splitlines() == [f"alpha: {line}" for line in announced]
+    assert out.err.splitlines() == [
+        *(f"alpha: {line}" for line in announced),
+        *(f"alpha: repository checks: {command}" for command in repo),
+    ]
     assert out.out == ""
+    # jactionlint needs a repository; commit-skeleton keeps this one.
+    assert git(project, "rev-parse", "--show-toplevel") == str(project.resolve())
+
+
+def test_bootstrap_without_mise_says_how_to_install(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv", "pnpm"))
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/principles.toml").read_text())
+        )
+    assert str(err.value) == (
+        "mise is not installed. Install it (brew install mise, or "
+        "https://mise.jdx.dev/getting-started.html), then rerun "
+        f'"alpha bootstrap {project}".'
+    )
+    assert not (tmp_path / "tools.log").exists()  # before the slow steps
+
+
+def mise_recording_argv(bin_dir: Path, fail_on: str = "") -> Path:
+    """A stand-in mise that writes each call's argv as a JSON line; it exits 1
+    with a message when its first argument is `fail_on`."""
+    log = bin_dir / "mise.argv"
+    mise = bin_dir / "mise"
+    mise.write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        f"open({str(log)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        f"if sys.argv[1:2] == [{fail_on!r}]:\n"
+        "    print('mise ERROR failed to install jactionlint'); sys.exit(1)\n"
+    )
+    mise.chmod(0o755)
+    return log
+
+
+def test_bootstrap_installs_only_the_project_s_check_tools(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    # A bare `mise install` would also install the user's global tools.
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv", "pnpm"))
+    log = mise_recording_argv(bin_dir)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    assert "github:betterleaks/betterleaks" in tools
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    assert calls == [
+        ["trust", "--yes"],
+        ["install", *tools],
+        ["run", "--continue-on-error", "ci"],
+    ]
+
+
+def test_bootstrap_install_failure_points_at_the_install(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
+    mise_recording_argv(bin_dir, fail_on="install")
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/principles.toml").read_text())
+        )
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    install = f"mise install {' '.join(tools)}"
+    message = str(err.value)
+    assert message.startswith(f'"{install}" failed in {project} (exit 1).')
+    assert "mise ERROR failed to install jactionlint" in message
+    assert message.endswith(
+        f'Check your network, or run "{install}" in {project} to see which tool '
+        f'failed, then rerun "alpha bootstrap {project}"'
+    )
+    assert "mise run check" not in message
+
+
+def test_bootstrap_repo_check_failure_names_command_and_fix(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
+    mise = bin_dir / "mise"
+    mise.write_text(
+        '#!/bin/sh\n[ "$*" = "run --continue-on-error ci" ] || exit 0\n'
+        'echo "README.md:3:1: teh should be the"\nexit 2\n'
+    )
+    mise.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/principles.toml").read_text())
+        )
+    assert str(err.value) == (
+        f'"mise run --continue-on-error ci" failed in {project} (exit 2). Last '
+        "lines of its output:\n"
+        "README.md:3:1: teh should be the\n"
+        "Fix what the repository checks report (mise run check:<id> reruns one) "
+        f'and rerun "alpha bootstrap {project}"'
+    )
+
+
+def test_bootstrap_without_mise_toml_skips_the_repository_checks(
+    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    (project / "mise.toml").unlink()  # a project from before the repository checks
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
+    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    ran = (tmp_path / "tools.log").read_text()
+    assert "mise" not in ran
+    assert not (project / ".git").exists()
 
 
 def test_bootstrap_only_named_components(
@@ -290,7 +443,9 @@ def test_bootstrap_only_named_components(
     principles = tomllib.loads((project / "docs/principles.toml").read_text())
     bootstrap(project, principles, only=["api"])
     ran = (tmp_path / "tools.log").read_text().splitlines()
-    assert ran and all(line.startswith("api: ") for line in ran)
+    components = [line for line in ran if not line.startswith("proj: mise ")]
+    assert components and all(line.startswith("api: ") for line in components)
+    assert ran[-1] == "proj: mise run --continue-on-error ci"  # still run
 
 
 def test_bootstrap_unknown_component_is_explained(
@@ -317,7 +472,8 @@ def test_bootstrap_refreshes_the_manifest_hashes(
     generate_scenario(project, "web-ts-plus-python-api")
     bin_dir = tmp_path / "fakebin"
     bin_dir.mkdir()
-    for tool, action in (("uv", "echo '# added' >> pyproject.toml"), ("pnpm", ":")):
+    steps = (("uv", "echo '# added' >> pyproject.toml"), ("pnpm", ":"), ("mise", ":"))
+    for tool, action in steps:
         (bin_dir / tool).write_text(f"#!/bin/sh\n{action}\n")
         (bin_dir / tool).chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
@@ -325,7 +481,8 @@ def test_bootstrap_refreshes_the_manifest_hashes(
     files = json.loads((project / PROJECT_JSON).read_text())["manifest"]["files"]
     assert "api/pyproject.toml" in files
     for rel, digest in files.items():
-        assert hashlib.sha256((project / rel).read_bytes()).hexdigest() == digest, rel
+        actual = hashlib.sha256((project / rel).read_bytes()).hexdigest()
+        assert digest == f"sha256:{actual}", rel
 
 
 def test_bootstrap_failure_names_command_output_and_fix(
@@ -340,7 +497,10 @@ def test_bootstrap_failure_names_command_output_and_fix(
             project, tomllib.loads((project / "docs/principles.toml").read_text())
         )
     message = str(err.value)
-    assert '"pnpm add -D typescript vitest @biomejs/biome @types/node"' in message
+    assert (
+        '"pnpm add -D typescript vitest @biomejs/biome @types/node '
+        'knip dependency-cruiser @swc/core @vitest/coverage-v8"'
+    ) in message
     assert "exit 3" in message
     assert "pnpm output" in message
     assert message.endswith(
@@ -360,6 +520,8 @@ def test_bootstrap_keeps_only_the_last_40_lines(
     uv = bin_dir / "uv"
     uv.write_text('#!/bin/sh\nfor i in $(seq 1 100); do echo "line $i"; done\nexit 1\n')
     uv.chmod(0o755)
+    (bin_dir / "mise").write_text("#!/bin/sh\n")
+    (bin_dir / "mise").chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     with pytest.raises(GenerateError) as err:
         bootstrap(
@@ -498,7 +660,7 @@ def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
     assert (tmp_path / "tool.cfg").read_text() == "name = leaf-lens-ml\n"
     ci = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
     runs = [s.get("run") for s in ci["jobs"]["ml"]["steps"] if "run" in s]
-    assert runs == ["true", "sh tests/setup.sh"]
+    assert runs[:2] == ["true", "sh tests/setup.sh"]
     deps = yaml.safe_load((tmp_path / ".github/dependabot.yml").read_text())
     assert [u["package-ecosystem"] for u in deps["updates"]] == ["github-actions"]
     settings = json.loads((tmp_path / ".claude/settings.json").read_text())
@@ -508,10 +670,14 @@ def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
     assert "(less proven: recipe drafted for this project)" in architecture
 
 
-def test_bootstrap_runs_a_drafted_recipe(tmp_path: Path):
-    shell_project(tmp_path)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
-    bootstrap(tmp_path, principles)
+def test_bootstrap_runs_a_drafted_recipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    shell_project(project)
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {}, ('mise',))}:/usr/bin:/bin")
+    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    bootstrap(project, principles)
 
 
 @pytest.mark.parametrize(
@@ -529,3 +695,23 @@ def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: 
     with pytest.raises(GenerateError, match=rf"{re.escape(path)}.*alpha generates"):
         generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
     assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_tooling_commit(tmp_path: Path, git_env):
+    repo = generated_repo(tmp_path, "web-ts-plus-python-api")
+    subjects = git(repo, "log", "--format=%s").splitlines()
+    subject = "build: Pin the repository's check tools"
+    assert subject in subjects
+    tooling = git(repo, "log", "--grep", subject, "--format=%H").splitlines()
+    assert len(tooling) == 1
+    files = git(repo, "show", "--name-only", "--format=", tooling[0]).splitlines()
+    assert sorted(files) == [
+        ".betterleaks.toml",
+        ".rumdl.toml",
+        "_typos.toml",
+        "lychee.toml",
+        "mise.toml",
+    ]
+    ci = git(repo, "log", "--grep", "^ci: Run every", "--format=%H").splitlines()
+    ci_files = git(repo, "show", "--name-only", "--format=", ci[0]).splitlines()
+    assert ".github/workflows/scheduled.yml" in ci_files

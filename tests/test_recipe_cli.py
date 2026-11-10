@@ -164,7 +164,7 @@ def test_save_writes_the_recipe_and_commits(
     saved = RecipeBook().get("shell")
     assert saved.proven is False
     assert saved.templates == shell_recipe()["templates"]
-    assert saved.commands == shell_recipe()["commands"]
+    assert saved.commands == {**shell_recipe()["commands"], "structure": ""}
     assert git(src.path, "status", "--porcelain") == ""
 
 

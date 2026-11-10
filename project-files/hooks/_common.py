@@ -6,6 +6,7 @@ are lazy), so that `check_python()` can print its guard message, not a SyntaxErr
 
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import json
 import os
@@ -14,7 +15,10 @@ import shlex
 import signal
 import subprocess
 import sys
+import time
+from collections.abc import Generator
 from pathlib import Path
+from types import ModuleType
 from typing import Any, NoReturn, cast
 
 STATE_DIR = ".claude/alpha/state"
@@ -24,6 +28,87 @@ TAIL_LINES = 60
 
 class TimedOut(Exception):
     pass
+
+
+fcntl: ModuleType | None
+try:
+    import fcntl
+except ImportError:  # not POSIX: run heavy commands without slots
+    fcntl = None
+
+SLOT_POLL = 0.2
+
+
+def _slot_files() -> list[Path] | None:
+    """The machine-wide slot lock files, or None when slots can't be used."""
+    try:
+        count = int(os.environ.get("ALPHA_SLOTS", ""))
+    except ValueError:
+        count = 0
+    if count < 1:
+        count = max(1, (os.cpu_count() or 2) // 4)
+    folder = Path.home() / ".cache" / "alpha" / "slots"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    return [folder / f"{n}.lock" for n in range(count)]
+
+
+@contextlib.contextmanager
+def heavy_slot(deadline: float) -> Generator[bool]:
+    """Hold one machine-wide slot while a heavy command runs.
+
+    Several agents' Stop hooks otherwise start typechecks and test suites at
+    once and starve each other. Yields True when a slot is held (or none is
+    needed: CI, a nested call, no fcntl, no writable HOME) and False when
+    `deadline` (a time.monotonic() value) passed while waiting.
+    """
+    if (
+        fcntl is None
+        or os.environ.get("CI")
+        or os.environ.get("ALPHA_SLOT_HELD") == "1"
+    ):
+        yield True
+        return
+    files = _slot_files()
+    if files is None:
+        yield True
+        return
+    held: Any = None
+    try:
+        while held is None:
+            for path in files:
+                try:
+                    handle = path.open("a")
+                except OSError:
+                    continue
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError:
+                    handle.close()
+                    continue
+                held = handle  # assigned at once so the finally closes it
+                break
+            if held is None:
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(SLOT_POLL)
+        if held is None:
+            yield False
+            return
+        previous = os.environ.get("ALPHA_SLOT_HELD")
+        os.environ["ALPHA_SLOT_HELD"] = "1"  # so nested hook calls don't wait
+        try:
+            yield True
+        finally:
+            if previous is None:
+                os.environ.pop("ALPHA_SLOT_HELD", None)
+            else:
+                os.environ["ALPHA_SLOT_HELD"] = previous
+    finally:
+        if held is not None:
+            held.close()
 
 
 def python_problem() -> str | None:

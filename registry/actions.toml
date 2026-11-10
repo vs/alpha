@@ -1,0 +1,22 @@
+# GitHub Actions that generated workflows use, each pinned to the commit its release
+# tag points to (peeled when the tag is annotated). Check with:
+#   git ls-remote https://github.com/<repo> refs/tags/<version>
+[actions."actions/checkout"]
+version = "v7.0.1"
+sha = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+
+[actions."jdx/mise-action"]
+version = "v5.2.7"
+sha = "b44d12e7d0d8ee7461bb893e1b1993500433185b"
+
+[actions."astral-sh/setup-uv"]
+version = "v10.3.3"
+sha = "68559e99cc807c1eb7e9238fd43a15bba460eec2"
+
+[actions."pnpm/action-setup"]
+version = "v6.1.1"
+sha = "73e46992e05b19abd31f2f3c20e0e7370d762115"
+
+[actions."actions/setup-node"]
+version = "v7.1.0"
+sha = "949feb2413d6458794dcd2491c4babbbce0c15c1"

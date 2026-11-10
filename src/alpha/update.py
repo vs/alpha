@@ -1,8 +1,8 @@
 import difflib
-import hashlib
 import json
 import os
 import subprocess
+import tomllib
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path, PurePosixPath
@@ -17,8 +17,10 @@ from alpha.answers import (
 )
 from alpha.defaults import Source, load_defaults
 from alpha.generate import (
+    PRINCIPLES_TOML,
     GenerateError,
     Rendered,
+    digest,
     file_hashes,
     render_project,
     write_json,
@@ -26,6 +28,7 @@ from alpha.generate import (
 from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group
 from alpha.merge import Change, classify
 from alpha.records import Records, record_paths, taken_numbers
+from alpha.registry import load_registry
 from alpha.validate import AnswersError, area_of
 
 _WRITES = ("new", "change", "merge", "conflict")
@@ -38,6 +41,17 @@ _NOTES = {
     "stale": " (alpha no longer generates it: delete it if you don't need it)",
     "skipped": " (you deleted it: alpha's change to it is left out)",
 }
+# When the kit changed since generation, both renders carry the new kit, so
+# its changes show up as overlaps with "your edits" the user never made.
+_KIT_NOTES = {
+    "merge": " (alpha's change merged in; the rest of the file is kept)",
+    "conflict": " (overlaps alpha's change, which may include kit changes since "
+    "the project was generated: merge by hand, keeping your side for anything "
+    "the requested change doesn't need)",
+}
+_NEWER_KIT = (
+    " (alpha's newer kit adds it; this project doesn't have it, so it's left out)"
+)
 
 
 @dataclass(frozen=True)
@@ -47,6 +61,7 @@ class UpdatePlan:
     groups: dict[str, str]
     manifest: dict[str, Any]
     answers: dict[str, Any]
+    kit_changed: bool = False
 
 
 def _read(path: Path) -> str | None:
@@ -218,6 +233,16 @@ def _dirty(target: Path, paths: list[str]) -> list[str]:
     return seen
 
 
+def _older_kit(target: Path) -> bool:
+    """Whether an older kit generated the project: its principles file has no
+    [[repo_checks]] (or doesn't load)."""
+    try:
+        data = tomllib.loads((target / PRINCIPLES_TOML).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return True
+    return "repo_checks" not in data
+
+
 def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     top, manifest = _load(target)
     records, added, year = _baseline(target, manifest)
@@ -229,11 +254,15 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
         )
     applied = cast(dict[str, Any], manifest["applied"])
     defaults = load_defaults(source)
+    # One registry for both renders, so kit changes cancel out.
+    registry = load_registry(source)
     try:
         was = parse_answers(
             applied, target, generated=True, former=generated_components(applied)
         )
-        before = render_project(target, was, defaults, year, today, records, added)
+        before = render_project(
+            target, was, defaults, year, today, records, added, registry=registry
+        )
     except (AnswersError, GenerateError, ValueError, KeyError) as e:
         raise GenerateError(_not_loaded(target, manifest, e)) from None
     try:
@@ -246,7 +275,9 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     _check_history(applied, top)
     new_records = record_paths(now, known=records, taken=taken_numbers(target))
     dates = {c.name: added.get(c.name, today) for c in now.components}
-    after = render_project(target, now, defaults, year, today, new_records, dates)
+    after = render_project(
+        target, now, defaults, year, today, new_records, dates, registry=registry
+    )
     moves = _moves(target, was, now, (before, after))
     changes: list[Change] = []
     for path in sorted({*before.texts, *after.texts}):
@@ -285,6 +316,7 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
             "updated_at": today.isoformat(),
         },
         answers=top,
+        kit_changed=_older_kit(target),
     )
 
 
@@ -332,7 +364,7 @@ def apply_update(target: Path, plan: UpdatePlan) -> list[str]:
     manifest["files"] = file_hashes(target, [r for r in rels if (target / r).is_file()])
     write_json(target / PROJECT_JSON, {**plan.answers, "manifest": manifest})
     conflicts = {
-        c.path: hashlib.sha256((target / c.path).read_bytes()).hexdigest()
+        c.path: digest((target / c.path).read_bytes())
         for c in plan.changes
         if c.kind == "conflict"
     }
@@ -362,8 +394,15 @@ def describe(plan: UpdatePlan, target: Path) -> str:
     if not plan.changes and not plan.new_components:
         return "alpha update: nothing to change"
     lines = [f"alpha update: {count} file{'' if count == 1 else 's'} to change"]
+    old: object = plan.manifest.get("files")
+    generated = cast(dict[str, object], old) if isinstance(old, dict) else None
     for c in sorted(plan.changes, key=lambda c: (_ORDER.index(c.kind), c.path)):
-        lines.append(f"  {c.kind:<10}{c.path}{_NOTES.get(c.kind, '')}")
+        note = _NOTES.get(c.kind, "")
+        if plan.kit_changed:
+            note = _KIT_NOTES.get(c.kind, note)
+        if c.kind == "skipped" and generated is not None and c.path not in generated:
+            note = _NEWER_KIT  # alpha never wrote it here, so nobody deleted it
+        lines.append(f"  {c.kind:<10}{c.path}{note}")
     if plan.new_components:
         flags = " ".join(f"--component {n}" for n in plan.new_components)
         lines.append(

@@ -1,7 +1,7 @@
 import pytest
 import yaml
 
-from alpha.yaml_write import dumps
+from alpha.yaml_write import Commented, dumps
 
 
 def test_round_trips_through_pyyaml():
@@ -47,3 +47,30 @@ def test_keys_yaml_reads_as_non_strings_are_quoted(key: str):
 def test_characters_outside_the_bmp_round_trip():
     data = {"emoji": "ship it 🚀", "control": "a\x7fb\x85c d﻿e"}
     assert yaml.safe_load(dumps(data)) == data
+
+
+def test_commented_scalar():
+    sha = "a/b@" + "0" * 40
+    text = dumps({"uses": Commented(sha, "v1.2.3")})
+    assert f'uses: "{sha}" # v1.2.3' in text
+    assert yaml.safe_load(text) == {"uses": sha}
+
+
+@pytest.mark.parametrize(
+    ("text", "written"),
+    [
+        ('test -z "$(git status)"', "'test -z \"$(git status)\"'"),
+        ('it\'s "x" and "y"', "'it''s \"x\" and \"y\"'"),
+        ("a 'b' \"c\"", "'a ''b'' \"c\"'"),
+        ("plain 's'", "\"plain 's'\""),  # no double quote: stays double
+        ('a "b"\nc', '"a \\"b\\"\\nc"'),  # escapes keep double quotes
+        ('back\\slash "q"', '"back\\\\slash \\"q\\""'),
+    ],
+)
+def test_strings_take_the_quotes_biome_prefers(text: str, written: str):
+    # Biome's YAML formatter (a root TypeScript component formats .github/)
+    # single-quotes a string with a double quote, unless it needs an escape.
+    # Each case was checked against Biome 2.6.6.
+    out = dumps({"run": text})
+    assert out == f"run: {written}\n"
+    assert yaml.safe_load(out) == {"run": text}

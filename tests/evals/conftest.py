@@ -5,6 +5,33 @@ from pathlib import Path
 
 import pytest
 
+from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
+from alpha.registry import load_registry
+from alpha_evals.seeded import REPO_SEEDS
+
+
+@pytest.fixture(autouse=True)
+def isolated_home(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hooks take machine-wide slots under HOME; keep them off the real one."""
+    real = Path.home() / ".gitconfig"
+    monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
+    if "GIT_CONFIG_GLOBAL" not in os.environ and real.is_file():
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(real))
+
+
+def honest_mise() -> str:
+    """A mise that passes `run ci` and fails each check:<id> like the real tool."""
+    registry = load_registry(Source(PLUGIN_ROOT, True, ""))
+    cases = ""
+    for check, (tool, _, _, says) in REPO_SEEDS.items():
+        pin = registry.tool(tool).pin
+        assert pin is not None
+        cases += f"  check:{check}) echo {says!r}; exit {pin.fails_with};;\n"
+    return f'#!/bin/sh\ncase "$2" in\n{cases}  *) exit 0;;\nesac\n'
+
 
 @pytest.fixture
 def stub_tools(
@@ -17,6 +44,8 @@ def stub_tools(
         script.write_text(f'#!/bin/sh\necho "$(basename "$PWD"): {tool} $*" >> {log}\n')
         script.chmod(0o755)
     (bin_dir / "python3").symlink_to(sys.executable)
+    (bin_dir / "mise").write_text(honest_mise())
+    (bin_dir / "mise").chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
     return log
 

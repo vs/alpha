@@ -1,4 +1,5 @@
 import json
+import os
 import tomllib
 from pathlib import Path
 
@@ -6,7 +7,13 @@ import pytest
 from helpers import generated_repo, git
 
 from alpha.principles import render_principles
-from alpha_evals.seeded import check_commands, check_hooks, seed_source_path
+from alpha_evals.seeded import (
+    REPO_SEEDS,
+    check_commands,
+    check_hooks,
+    check_repo_seeds,
+    seed_source_path,
+)
 
 from .conftest import snapshot
 
@@ -141,3 +148,69 @@ def test_a_hung_hook_times_out(
     assert "1. git commit --no-verify: expected a block, got timed out after 0.5s" in (
         check.detail
     )
+
+
+def lax_mise(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A mise that never fails a check, so no check catches its seed."""
+    bin_dir = tmp_path / "fake-bin"
+    bin_dir.mkdir()
+    (bin_dir / "mise").write_text("#!/bin/sh\nexit 0\n")
+    (bin_dir / "mise").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+
+
+def test_repo_seeds_pass_when_every_check_fails_on_its_seed(
+    tmp_path: Path, git_env, stub_tools
+):
+    project = generated_repo(tmp_path / "p", WEB)
+    check = check_repo_seeds(project)
+    assert (check.name, check.status, check.detail) == ("repo-seeds", "pass", "")
+
+
+def test_repo_seeds_name_a_check_that_misses_its_seed(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    project = generated_repo(tmp_path / "p", WEB)
+    lax_mise(tmp_path, monkeypatch)
+    check = check_repo_seeds(project)
+    assert check.status == "fail"
+    for name in REPO_SEEDS:
+        assert f"{name}: expected exit" in check.detail
+
+
+def test_repo_seeds_leave_the_project_untouched(tmp_path: Path, git_env, stub_tools):
+    project = generated_repo(tmp_path / "p", WEB)
+    before = snapshot(project)
+    check_repo_seeds(project)
+    assert snapshot(project) == before
+    assert git(project, "status", "--porcelain") == ""
+
+
+def test_repo_seeds_say_when_mise_is_missing(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    project = generated_repo(tmp_path / "p", WEB)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    check = check_repo_seeds(project)
+    assert (check.name, check.status) == ("repo-seeds", "fail")
+    assert check.detail == "mise is not installed"
+
+
+def test_repo_seeds_restore_files_when_a_check_times_out(
+    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+):
+    from alpha_evals import seeded
+
+    project = generated_repo(tmp_path / "p", WEB)
+    bin_dir = tmp_path / "slow-bin"
+    bin_dir.mkdir()
+    (bin_dir / "mise").write_text("#!/bin/sh\nsleep 5\n")
+    (bin_dir / "mise").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+    monkeypatch.setattr(seeded, "COMMAND_TIMEOUT", 0.3)
+    before = snapshot(project)
+    check = check_repo_seeds(project)
+    assert check.status == "fail"
+    assert "typos: timed out after 0.3s" in check.detail
+    assert snapshot(project) == before
+    assert git(project, "status", "--porcelain") == ""

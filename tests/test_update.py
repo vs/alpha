@@ -1,4 +1,8 @@
+import hashlib
 import json
+import os
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -161,11 +165,14 @@ def test_commit_group_sorts_paths_by_what_made_them():
     component_of = {"api/pyproject.toml": "api"}
     assert commit_group("api/pyproject.toml", component_of) == "build:api"
     assert commit_group(WORKFLOW, component_of) == "ci"
+    assert commit_group(".github/jactionlint.yaml", component_of) == "ci"
     assert commit_group(DEPENDABOT, component_of) == "dependabot"
     assert commit_group("CLAUDE.md", component_of) == "chore"
     assert commit_group(".claude/settings.json", component_of) == "chore"
     assert commit_group("docs/x.md", component_of) == "docs"
     assert commit_group("README.md", component_of) == "docs"
+    for tooling in ("mise.toml", "_typos.toml", "lychee.toml", ".betterleaks.toml"):
+        assert commit_group(tooling, component_of) == "tooling"
 
 
 def test_nothing_to_change_after_generation(tmp_path: Path, git_env):
@@ -498,6 +505,7 @@ def test_commit_update_commits_only_alphas_files_in_groups(tmp_path: Path, git_e
     expected = [
         "docs: Update docs and decision records",
         "chore: Update Claude Code rules and settings",
+        "build: Pin the repository's check tools",
         "build(worker): Set up python toolchain and tests",
         "ci: Update the CI checks",
     ]
@@ -597,6 +605,34 @@ def test_commit_update_keeps_proposals_of_unmerged_conflicts(tmp_path: Path, git
     commit_the_update(target)
     assert (target / PROPOSALS / "docs/principles.toml").is_file()
     assert not (target / UPDATE_STATE).exists()
+
+
+def test_update_state_labels_conflict_digests(tmp_path: Path, git_env):
+    # The secrets check scans the state folder too, and reads bare hex next
+    # to a path like "...-api-keys.md" as a leaked key.
+    target = generated_repo(tmp_path, SCENARIO)
+    principles = conflicting_update(target)
+    state = json.loads((target / UPDATE_STATE).read_text())
+    assert state["conflicts"] == {
+        "docs/principles.toml": "sha256:"
+        + hashlib.sha256(principles.read_bytes()).hexdigest()
+    }
+
+
+def test_commit_update_reads_a_pre_label_state_file(tmp_path: Path, git_env):
+    # An update.json written before digests were labelled holds bare hex.
+    target = generated_repo(tmp_path, SCENARIO)
+    conflicting_update(target)
+    state_file = target / UPDATE_STATE
+    state = json.loads(state_file.read_text())
+    state["conflicts"] = {
+        path: recorded.removeprefix("sha256:")
+        for path, recorded in state["conflicts"].items()
+    }
+    state_file.write_text(json.dumps(state))
+    _, notes = commit_the_update(target)
+    assert [n for n in notes if "wasn't merged" in n]
+    assert (target / PROPOSALS / "docs/principles.toml").is_file()
 
 
 def test_commit_update_deletes_proposals_of_merged_conflicts(tmp_path: Path, git_env):
@@ -766,3 +802,105 @@ def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env):
     _, notes = commit_update(target, loaded, [])
     assert not [n for n in notes if "wasn't merged" in n]
     assert not (target / UPDATE_STATE).exists()
+
+
+PRE_BRANCH = "260b370"  # the kit before the repository checks (mise.toml etc.)
+TOOLING = (
+    "mise.toml",
+    "_typos.toml",
+    ".rumdl.toml",
+    "lychee.toml",
+    ".betterleaks.toml",
+)
+
+
+@pytest.fixture
+def pre_branch_project(tmp_path: Path, git_env) -> Path:
+    """The web+API scenario, generated and committed by the pre-branch kit."""
+    known = subprocess.run(
+        ["git", "cat-file", "-e", f"{PRE_BRANCH}^{{commit}}"],
+        cwd=PLUGIN_ROOT,
+        capture_output=True,
+    )
+    if known.returncode != 0:
+        pytest.skip(f"needs the kit's history up to {PRE_BRANCH} (fetch-depth: 0)")
+    kit = tmp_path / "old-kit"
+    kit.mkdir()
+    archive = subprocess.run(
+        ["git", "archive", PRE_BRANCH], cwd=PLUGIN_ROOT, capture_output=True, check=True
+    )
+    subprocess.run(["tar", "-x", "-C", str(kit)], input=archive.stdout, check=True)
+    target = tmp_path / "project"
+    answers_file = target / PROJECT_JSON
+    answers_file.parent.mkdir(parents=True)
+    answers_file.write_bytes(
+        (kit / "evals/scenarios" / f"{SCENARIO}.json").read_bytes()
+    )
+    subprocess.run(
+        [sys.executable, str(kit / "bin/alpha"), "generate", str(target)],
+        env={**os.environ, "ALPHA_SOURCE": str(kit)},
+        capture_output=True,
+        check=True,
+    )
+    git(target, "init", "-q", "-b", "main")
+    commit(target, "chore: Generate the skeleton")
+    return target
+
+
+def test_update_of_a_pre_branch_project_blames_kit_changes(pre_branch_project: Path):
+    target = pre_branch_project
+    assert not (target / "mise.toml").exists()
+    add_worker(target)
+    commit(target, "chore: Add a worker to the answers")
+    p = plan(target)
+    found = kinds(p)
+    # The kit's newer files: the project never had them, so nobody deleted them.
+    for path in TOOLING:
+        assert found[path] == "skipped"
+    conflicts = [path for path, kind in found.items() if kind == "conflict"]
+    assert ".github/workflows/ci.yml" in conflicts
+    assert "docs/principles.toml" in conflicts
+    out = describe(p, target)
+    assert "you deleted it" not in out
+    for path in TOOLING:
+        assert (
+            f"  skipped   {path} (alpha's newer kit adds it; this project doesn't "
+            "have it, so it's left out)"
+        ) in out
+    for path in conflicts:
+        assert (
+            f"  conflict  {path} (overlaps alpha's change, which may include kit "
+            "changes since the project was generated: merge by hand, keeping your "
+            "side for anything the requested change doesn't need)"
+        ) in out
+    committed = {path: (target / path).read_bytes() for path in conflicts}
+    apply_update(target, p)
+    for path in TOOLING:
+        assert not (target / path).exists()
+    for path in conflicts:  # nothing applied silently: alpha's side is a proposal
+        assert (target / path).read_bytes() == committed[path]
+        assert (target / PROPOSALS / path).is_file()
+    assert (target / "worker/pyproject.toml").is_file()
+
+
+def test_update_of_a_current_project_keeps_the_plain_notes(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    (target / "docs/build.md").unlink()
+    commit(target, "docs: Drop the build doc")
+    principles = target / "docs/principles.toml"
+    principles.write_text(
+        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+    )
+    commit(target, "docs: Review smaller batches")
+    add_worker(target)
+    commit(target, "chore: Add a worker to the answers")
+    data = answers(target)
+    data["agent_workflow"]["max_lines"] = 120
+    save(target, data)
+    out = describe(plan(target), target)
+    assert (
+        "  conflict  docs/principles.toml (your edits overlap alpha's change: "
+        "merge by hand)"
+    ) in out
+    assert "  skipped   docs/build.md (you deleted it: alpha's change to it is " in out
+    assert "kit changes" not in out

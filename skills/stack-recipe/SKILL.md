@@ -22,14 +22,15 @@ A recipe tells alpha how to set up a component on a stack: the commands for each
 One JSON object, saved under `recipes.<stack>` in project.json. Paths and globs are relative to the component's folder.
 
 - `bootstrap` - commands that install the dev tools into a fresh skeleton (often `[]` when the toolchain brings them).
-- `commands` - one shell command each for `setup` (install dependencies), `format_check` (fails on unformatted files without changing them), `lint`, `typecheck` (type check or compile check), `test`, plus `format` (rewrites files), `format_file` and `lint_file` (one file, with `{file}` where the path goes). `setup` and `test` can't be empty; use `""` for a step the stack really doesn't have.
+- `commands` - one shell command each for `setup` (install dependencies), `format_check` (fails on unformatted files without changing them), `lint`, `typecheck` (type check or compile check), `test`, plus `format` (rewrites files), `format_file` and `lint_file` (one file, with `{file}` where the path goes). `setup` and `test` can't be empty; use `""` for a step the stack really doesn't have. An optional `structure` step runs between `typecheck` and `test`: unused or undeclared dependencies, dead exports and import cycles. Leave the key out when the stack has no such tool; it then counts as `""` and is skipped.
+- `coverage`, `coverage_report` - optional, and only together: a command that runs the tests and writes a coverage report in Cobertura or another XML format diff-cover reads, and the report's path in the component (e.g. `"coverage.xml"`). Pull requests then run `coverage` instead of `test` and must cover `testing.diff_coverage`% of the lines they change. Add the coverage plugin to `bootstrap` and the report to `ignores`, or CI's "tree unchanged" step fails. Leave both out when the stack has no easy coverage tool; the component then gets only `test`.
 - `manifests`, `lockfiles` - e.g. `["Cargo.toml"]`, `["Cargo.lock"]`.
 - `source_globs`, `test_globs`, `exclude_globs` - which files are code, which are tests, which are build output or vendored.
 - `ignores` - `.gitignore` entries (e.g. `"target/"`).
 - `allow` - Claude Code permission rules for the stack's commands, each `Bash(<tool> <args>:*)` for a tool the recipe's own commands use (e.g. `"Bash(cargo test:*)"`); nothing broader.
 - `why` - dev tool → reason, for the dependency log (`{}` when none are added).
 - `templates` - file path → content: the manifest with strict settings, and **one setup test that checks the toolchain itself** (it must match `test_globs`). No source files and no app code. `$name` and `$slug` are always replaced (the component and the project), with no escape, so don't name a shell variable that; any other `$` stays as written. Templates are text only: binary files (a Gradle wrapper jar, say) must come from `bootstrap`. Nothing under `.git/`, `.claude/` or `.github/`, and no file alpha writes itself (`CLAUDE.md`, `README.md`, `.gitignore`, `docs/`).
-- `ci` - `{"steps": [...], "env": {...}}`: GitHub Actions steps that install the toolchain, each with a `uses` pinned to a release tag or commit SHA, and no `run` steps; `${dir}` in a value is the component's folder plus `/`. CI runs `setup` and the checks, never `bootstrap`, so a tool `bootstrap` installs globally (a linter, say) must instead be a project dependency, come from a CI step, or ship with the toolchain.
+- `ci` - `{"steps": [...], "env": {...}}`: GitHub Actions steps that install the toolchain, each with a `uses` pinned to the commit SHA of the latest release tag (`git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag>`; for an annotated tag, the peeled `^{}` line), with the tag in `version`, and no `run` steps; `${dir}` in a value is the component's folder plus `/`. CI runs `setup` and the checks, never `bootstrap`, so a tool `bootstrap` installs globally (a linter, say) must instead be a project dependency, come from a CI step, or ship with the toolchain.
 - `dependabot` - the Dependabot ecosystem name (e.g. `cargo`, `gomod`, `gradle`, `nuget`, `swift`), or `""` if it has none.
 - `rules` - optional: rules for code on this stack that no tool in the recipe checks, each `{"id": "<lowercase-with-hyphens>", "rule": "<one line>"}`. They go into the project's CLAUDE.md and the principles reviewer checks them. Write code names in backticks.
 
@@ -38,8 +39,12 @@ Leave out `proven`: a drafted recipe is always less proven, and alpha marks it s
 ## Steps
 
 1. **Facts first; never ask them.** Look up:
+   - The alpha tool registry's picks: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry list --stack <stack>` prints one tab-separated line per tool: id, category, last reviewed date, stacks (comma-separated). Spell `<stack>` as the registry's stacks column does; a mismatch silently returns only the cross-cutting tools. Tools marked `all` are cross-cutting and apply to every stack.
+   - `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry show <id>` gives a tool's rationale and limitations. Its `mise:` line is the version alpha itself installs, so take a recipe's dev-tool versions from your own lookup, not from the registry.
+   - Registry picks come first: use them for lint and format, type check, `structure` (unused dependencies, import rules) and `coverage`. Use the toolchain's own tool only for a check the registry has nothing for. If no row names `<stack>`, the registry doesn't cover the stack: use the toolchain's own tools for every check.
+   - `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" registry stale` lists tools not reviewed lately (same columns; it prints nothing when none are). If it lists a tool you mean to use, check it is still maintained before using it, and tell the user.
+   - The stack's usual test runner, formatter, linter and type or compile check, for the checks the registry leaves open.
    - Is the toolchain installed, and which version: `<tool> --version`.
-   - The stack's usual test runner, formatter, linter and type or compile check, preferring what ships with the toolchain.
    - The manifest and lockfile names.
    - The current GitHub Actions setup action and its latest release tag.
    - The Dependabot ecosystem name.

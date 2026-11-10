@@ -1,7 +1,9 @@
 import copy
 import json
 import re
+import shutil
 import tomllib
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -9,8 +11,10 @@ from helpers import shell_recipe
 
 from alpha.answers import AnswersError, Component, Traits, drafted_recipes
 from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
 from alpha.recipes import (
     CHECK_STEPS,
+    RecipeBook,
     RecipeError,
     check_commands,
     load_recipe,
@@ -18,6 +22,7 @@ from alpha.recipes import (
     render_component,
     render_template,
 )
+from alpha.registry import BUNDLED, load_registry
 
 
 def _component(stack: str, kind: str, name: str, path: str) -> Component:
@@ -55,6 +60,9 @@ def test_typescript_component_files():
         "web/biome.json",
         "web/tests/setup.test.ts",
         "web/.node-version",
+        "web/knip.jsonc",
+        "web/pnpm-workspace.yaml",
+        "web/.dependency-cruiser.cjs",
     }
     assert files["web/.node-version"] == "26\n"
     tsc = json.loads(files["web/tsconfig.json"])
@@ -85,6 +93,7 @@ def test_command_keys_complete():
             "format",
             "format_check",
             "typecheck",
+            "structure",
             "format_file",
             "lint_file",
         }
@@ -100,13 +109,34 @@ def test_check_commands_keep_order_and_skip_empty():
     assert check_commands(commands) == [("setup", "s"), ("test", "t")]
 
 
+def test_structure_step_order():
+    steps = [s for s, _ in check_commands(load_recipe("typescript").commands)]
+    assert steps.index("typecheck") + 1 == steps.index("structure")
+    assert steps.index("structure") + 1 == steps.index("test")
+
+
+def test_structure_commands():
+    assert load_recipe("python").commands["structure"] == "uv run deptry ."
+    assert load_recipe("typescript").commands["structure"] == (
+        "pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs ."
+    )
+
+
+def test_drafted_recipe_without_structure_valid():
+    data = drafted()
+    assert "structure" not in data["commands"]
+    recipe = recipe_from_data("shell", data, "recipes.shell", None)
+    assert recipe.commands["structure"] == ""
+    assert "structure" not in dict(check_commands(recipe.commands))
+
+
 @pytest.mark.parametrize("stack", ["python", "typescript"])
 def test_every_recipe_has_every_check_step_and_pinned_ci_actions(stack: str):
     recipe = load_recipe(stack)
     assert [step for step, _ in check_commands(recipe.commands)] == list(CHECK_STEPS)
     assert recipe.ci.steps, f"{stack}: CI needs a step that installs its toolchain"
     for step in recipe.ci.steps:
-        assert re.fullmatch(r"[\w.-]+/[\w.-]+@v\d+(\.\d+\.\d+)?", step["uses"])
+        assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", step["uses"])
     assert recipe.ignores
     assert all(isinstance(v, str) for v in recipe.ci.env.values())
 
@@ -165,6 +195,7 @@ def test_kit_recipes_carry_stack_rules():
     assert [r.id for r in load_recipe("python").rules] == [
         "uv-for-dependencies",
         "typed-boundaries",
+        "import-contracts",
     ]
     assert [r.id for r in load_recipe("typescript").rules] == [
         "top-level-imports",
@@ -232,16 +263,46 @@ def test_recipe_text_fields_are_one_line(changes: dict[str, Any], where: str):
 @pytest.mark.parametrize(
     "uses",
     [
-        "actions/checkout@v7",
-        "astral-sh/setup-uv@v10.3.2",
+        "actions/checkout@" + "b" * 40,
         "dtolnay/rust-toolchain@" + "a" * 40,
     ],
 )
 def test_pinned_ci_actions_are_accepted(uses: str):
-    data = drafted(ci__steps=[{"uses": uses}])
-    assert recipe_from_data("shell", data, "recipes.shell", None).ci.steps == [
-        {"uses": uses}
+    step = {"uses": uses, "version": "v1.2.3"}
+    data = drafted(ci__steps=[step])
+    assert recipe_from_data("shell", data, "recipes.shell", None).ci.steps == [step]
+
+
+def test_kit_recipes_pin_shas():
+    book = RecipeBook()
+    registry = load_registry(Source(BUNDLED, False, ""))
+    for stack in book.kit_stacks():
+        for step in book.get(stack).ci.steps:
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", step["uses"])
+            assert step.get("version"), f"{stack}: {step['uses']} has no version"
+            repo, sha = step["uses"].split("@")
+            action = registry.action(repo)
+            assert (sha, step["version"]) == (action.sha, action.version)
+
+
+def test_drafted_recipe_tag_refused():
+    data = drafted(ci__steps=[{"uses": "x/y@v4"}])
+    with pytest.raises(RecipeError, match="full commit SHA") as e:
+        recipe_from_data("shell", data, "recipes.shell", None)
+    assert "git ls-remote" in str(e.value)
+    raw = {"shell": data}
+    with pytest.raises(AnswersError, match="full commit SHA"):
+        drafted_recipes(raw)
+    # a project generated earlier keeps working
+    assert drafted_recipes(raw, generated=True)["shell"].ci.steps == [
+        {"uses": "x/y@v4"}
     ]
+
+
+def test_drafted_recipe_sha_needs_a_version():
+    data = drafted(ci__steps=[{"uses": "x/y@" + "c" * 40}])
+    with pytest.raises(RecipeError, match="version"):
+        recipe_from_data("shell", data, "recipes.shell", None)
 
 
 def test_render_template_substitutes_only_name_and_slug():
@@ -296,3 +357,61 @@ def test_kit_allow_rules_pass_the_same_check():
 def test_recipe_shape_is_strict(changes: dict[str, Any], where: str):
     with pytest.raises(RecipeError, match=where):
         recipe_from_data("shell", drafted(**changes), "recipes.shell", None)
+
+
+def test_older_checkouts_tagged_kit_recipe_says_to_update_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # A live checkout from before SHA pins: its python recipe wins over the
+    # plugin's, so the fix is updating the checkout, not pinning by hand.
+    checkout = tmp_path / "alpha"
+    kit = checkout / "recipes"
+    kit.mkdir(parents=True)
+    shutil.copytree(PLUGIN_ROOT / "recipes" / "python", kit / "python")
+    text = (PLUGIN_ROOT / "recipes" / "python.toml").read_text()
+    (kit / "python.toml").write_text(
+        re.sub(r"setup-uv@[0-9a-f]{40}", "setup-uv@v10", text)
+    )
+    monkeypatch.setattr(
+        "alpha.recipes.kit_dirs", lambda: [kit, PLUGIN_ROOT / "recipes"]
+    )
+    with pytest.raises(RecipeError) as e:
+        RecipeBook().get("python")
+    message = str(e.value)
+    assert "isn't pinned to a full commit SHA" in message
+    assert f"The alpha checkout at {checkout} is older than the plugin" in message
+    assert f"git -C {checkout} pull" in message
+    assert "unset ALPHA_SOURCE" in message
+    assert "Pin it" not in message
+
+
+def test_saved_recipe_with_a_tag_still_says_to_pin_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # A recipe saved from an earlier project: the plugin has no copy of it.
+    kit = tmp_path / "alpha" / "recipes"
+    kit.mkdir(parents=True)
+    shutil.copytree(PLUGIN_ROOT / "recipes" / "python", kit / "shellish")
+    text = (PLUGIN_ROOT / "recipes" / "python.toml").read_text()
+    (kit / "shellish.toml").write_text(
+        re.sub(r"setup-uv@[0-9a-f]{40}", "setup-uv@v10", text)
+    )
+    monkeypatch.setattr(
+        "alpha.recipes.kit_dirs", lambda: [kit, PLUGIN_ROOT / "recipes"]
+    )
+    with pytest.raises(RecipeError, match="Pin it to the commit SHA"):
+        RecipeBook().get("shellish")
+
+
+def test_kit_recipe_with_a_tag_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    kit = tmp_path / "recipes"
+    kit.mkdir()
+    shutil.copytree(PLUGIN_ROOT / "recipes" / "python", kit / "python")
+    text = (PLUGIN_ROOT / "recipes" / "python.toml").read_text()
+    text = re.sub(r"setup-uv@[0-9a-f]{40}", "setup-uv@v10", text)
+    (kit / "python.toml").write_text(text)
+    monkeypatch.setattr("alpha.recipes.kit_dirs", lambda: [kit])
+    with pytest.raises(RecipeError, match=r"ci\.steps\[0\].*full commit SHA"):
+        RecipeBook().get("python")

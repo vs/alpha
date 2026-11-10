@@ -332,10 +332,11 @@
       "ci": {
         "steps": [
           {
-            "uses": "actions-rust-lang/setup-rust-toolchain@v2",
+            "uses": "actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30",
             "with": {
               "components": "rustfmt, clippy"
-            }
+            },
+            "version": "v2.0.1"
           }
         ],
         "env": {}
@@ -345,7 +346,7 @@
         "Cargo.toml": "[package]\nname = \"$slug-$name\"\nversion = \"0.1.0\"\nedition = \"2024\"\npublish = false\n\n[dependencies]\n\n[lints.rust]\nunsafe_code = \"forbid\"\n",
         "tests/setup.rs": "//! Checks that the Rust toolchain builds and runs this project's tests.\n\n#[test]\nfn toolchain_runs_tests() {\n    assert_eq!(2 + 2, 4);\n}\n"
       },
-      "proven_hash": "3b2be675b0ac1ed0427fab57551c90ea444d26d0caa67cb1d9f2993cd31ff767"
+      "proven_hash": "4241c82598f4dd3d9bfc3d7b39c612d0f9e846f55a2683406f6762b8c2b617d0"
     }
   }
 }
