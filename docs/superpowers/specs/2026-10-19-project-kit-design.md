@@ -363,8 +363,15 @@ Decisions:
 
 - **D1 Toolchain file.** Repo-check tools are pinned in a generated root
   `mise.toml`. CI installs them with `jdx/mise-action`; bootstrap runs
-  `mise trust`, `mise install` and `mise run ci`. Generated projects now need
-  mise, the same way they need uv or pnpm.
+  `mise trust`, `mise install <the project's tools>` and `mise run
+  --continue-on-error ci`. Generated projects now need mise, the same way
+  they need uv or pnpm.
+- **D1a Every failure at once.** `mise run` cancels the other tasks after the
+  first failure, so CI and bootstrap run `ci` and `scheduled` with
+  `--continue-on-error`.
+- **D1b No global tools.** The generated `mise.toml` sets
+  `[settings.task] run_auto_install = false`, so a task (at Stop, or `mise
+  run ci`) doesn't install missing tools from the user's global mise config.
 - **D2 No hk or pre-commit/pre-push hooks.** §9 keeps `commit-msg` as the only
   git hook that binds everyone. Claude gets the fast repo checks at Stop, and
   CI is the gate.
@@ -375,7 +382,9 @@ Decisions:
 - **D4 Existing projects stay as they are.** `alpha update` renders before and
   after with the current kit, so kit changes cancel out and old projects
   don't gain these gates. This matches §11. Opting an old project in is out
-  of scope.
+  of scope. When an older kit generated the project (no `[[repo_checks]]` in
+  its principles), the overlaps can be kit changes, so `alpha update` says so,
+  and lists the newer kit's files as left out, not as deleted.
 - **D5 Python import rules aren't generated.** import-linter needs packages a
   skeleton doesn't have. The Python recipe gains a reviewer-checked rule to
   add contracts once packages exist. TypeScript gets dependency-cruiser with
@@ -388,7 +397,17 @@ Decisions:
   online check runs on the schedule only, so PRs don't flake.
 - **D8 Toolchain freshness.** The scheduled workflow fails when `mise outdated`
   lists a pinned repo-check tool. Dependabot doesn't update `mise.toml`, and
-  a failing scheduled run emails the owner.
+  a failing scheduled run emails the owner. It fails almost weekly, so it is
+  its own step after the scans (not part of the `scheduled` task), and its
+  failure says to run `mise upgrade --bump --no-global` and commit
+  `mise.toml`.
+- **D9 Secrets in the working tree.** betterleaks `dir` also reads gitignored
+  files, where local secrets belong (`.env`). A generated `.betterleaks.toml`
+  extends the default rules with a path allowlist from the same excludes as
+  the other tool configs (`.env.example` is still scanned).
+- **D10 squawk only for SQL migrations.** squawk lints added `.sql` files, so
+  it applies only to a PostgreSQL store whose migration tool writes SQL
+  (`SQL_MIGRATION_TOOLS` in `principles.py`); Alembic gets none.
 
 The checks. "Stop" means the check also runs in the Stop hook. "When" is
 where CI runs it: `pr`, `schedule`, or `both`.
@@ -396,7 +415,7 @@ where CI runs it: `pr`, `schedule`, or `both`.
 | id | tool | command | globs | stop | when | applies when |
 |---|---|---|---|---|---|---|
 | actions | jactionlint | lint `.github/` | `.github/**` | yes | pr | `build.ci == "github-actions"` |
-| secrets | betterleaks | scan the working tree | `**` | no | pr | always |
+| secrets | betterleaks | scan the working tree, `--config .betterleaks.toml` | `**` | no | pr | always |
 | vulns | osv-scanner | scan source recursively | lockfiles | no | both | any component has lockfiles |
 | typos | typos | `typos` | `**` | yes | pr | always |
 | markdown | rumdl | `rumdl check .` | `**/*.md` | yes | pr | always |
@@ -404,9 +423,9 @@ where CI runs it: `pr`, `schedule`, or `both`.
 | links-online | lychee | `lychee --no-progress .` | none | no | schedule | always |
 | agent-config | agnix | strict lint of `.` | `CLAUDE.md`, `.claude/**` | yes | pr | always |
 | migrations | none | `python3 .claude/alpha/checks/diff_checks.py immutable-migrations` | none | no | pr | `data.migration_paths` non-empty |
-| squawk | squawk | `python3 .claude/alpha/checks/diff_checks.py squawk` | none | no | pr | `data.squawk_paths` non-empty |
+| squawk | squawk | `python3 .claude/alpha/checks/diff_checks.py squawk` | none | no | pr | `data.squawk_paths` non-empty (PostgreSQL with SQL migrations) |
 | review-dates | none | `python3 .claude/alpha/checks/review_dates.py` | none | no | both | always |
-| toolchain | none | `mise outdated --json \| python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(d, indent=2)); sys.exit(1 if d else 0)"` | none | no | schedule | always |
+| toolchain | none | `mise outdated --no-global --bump --json \| python3 -c "…"`: prints the outdated tools and, if any, the `mise upgrade --bump --no-global` fix, then exits 1 | none | no | schedule (own step) | always |
 
 Recipe commands. A stack recipe may add two commands to the ones in §3:
 
