@@ -1,6 +1,6 @@
 ---
 name: decision
-description: Record a decision in this project's decision log (docs/decisions/). Use whenever the user settles a question, an ambiguous requirement gets an answer, a principle is loosened or dropped, the user accepts a review finding, or an earlier decision is replaced.
+description: Record a decision in this project's decision log (docs/decisions/). Use whenever the user settles a question, you make a choice on an ambiguous requirement, a check needs an exception in one place, a principle is loosened or dropped, a review finding is accepted, or an earlier decision is replaced.
 ---
 
 # Record a decision
@@ -40,9 +40,9 @@ Extra header lines go right under `Status:`, one per line:
 
 - `Supersedes: NNNN` when this record replaces an earlier one.
 - `Principle: <id> (<loosen|drop|tighten>, scope <project|component:name>)` when it changes a principle.
-- `Accepts: F-xxxxxx` for each review finding the user accepted.
+- `Accepts: F-xxxxxx` for each review finding that stands: one the user accepted, or one you disproved. A disproof says in `## Decision` why the finding is wrong, concretely enough for the next review to check; a finding on a risk path needs the user's "accept F-xxxxxx" first.
 
-Use the user's own words for what they decided. The title names the choice ("Use OpenAPI for the api contract"), not the question.
+When the user decided, use their own words. When you made the choice, say so in `## Context` and give the reason, so the user can correct it later. The title names the choice ("Use OpenAPI for the api contract"), not the question.
 
 ## 3. Replacing an earlier decision
 

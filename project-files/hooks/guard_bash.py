@@ -212,20 +212,66 @@ def short_flags(arg: str, sub: str) -> str:
     return letters
 
 
-def pushed_branches(root: Path) -> str:
+def git_output(root: Path, *args: str) -> str | None:
     try:
         proc = subprocess.run(
-            ["git", "branch", "-r", "--contains", "HEAD"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=False,
+            ["git", *args], cwd=root, capture_output=True, text=True, check=False
         )
     except OSError:
-        return ""
-    if proc.returncode != 0:
-        return ""
-    return ", ".join(line.strip() for line in proc.stdout.splitlines() if line.strip())
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def main_branches(root: Path) -> set[str]:
+    names = {"main", "master"}
+    head = git_output(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+    if head and "/" in head:
+        names.add(head.strip().split("/", 1)[1])
+    return names
+
+
+def current_branch(root: Path) -> str:
+    return (git_output(root, "branch", "--show-current") or "").strip()
+
+
+PUSH_VALUE_FLAGS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
+PUSH_EVERY_BRANCH = {"--all", "--mirror", "--branches"}
+
+
+def pushed_to(root: Path, raw_args: list[str]) -> set[str] | None:
+    words: list[str] = []
+    skip = False
+    for arg in raw_args:
+        if skip:
+            skip = False
+        elif arg in PUSH_EVERY_BRANCH:
+            return None
+        elif arg in PUSH_VALUE_FLAGS:
+            skip = True
+        elif not arg.startswith("-"):
+            words.append(arg)
+    refspecs = words[1:]
+    if not refspecs:
+        return {current_branch(root)}
+    targets: set[str] = set()
+    for spec in refspecs:
+        dst = spec.lstrip("+").rsplit(":", 1)[-1]
+        if dst in ("", "HEAD"):
+            dst = current_branch(root)
+        targets.add(dst.removeprefix("refs/heads/"))
+    return targets
+
+
+def touches_main(root: Path, raw_args: list[str]) -> bool:
+    targets = pushed_to(root, raw_args)
+    return targets is None or bool(targets & main_branches(root))
+
+
+def on_main_remote(root: Path) -> list[str]:
+    out = git_output(root, "branch", "-r", "--contains", "HEAD") or ""
+    remotes = [line.strip() for line in out.splitlines() if "->" not in line]
+    main = main_branches(root)
+    return [r for r in remotes if r and r.split("/", 1)[-1] in main]
 
 
 def check_command(command: str, root: Path, depth: int = 0) -> None:
@@ -406,7 +452,7 @@ def check_review(root: Path) -> None:
     principles = _common.load_principles(root)
     if principles is None:
         return
-    reason = review.push_blocker(root, principles)
+    reason = review.merge_blocker(root, principles)
     if reason:
         _common.block(reason)
 
@@ -432,7 +478,14 @@ def pathspecs(raw_args: list[str]) -> list[str]:
     return words + raw_args[cut + 1 :]
 
 
-def check_shared_work(sub: str, raw_args: list[str], args: list[str]) -> None:
+def uncommitted(root: Path) -> list[str]:
+    out = git_output(root, "status", "--porcelain", "--untracked-files=no") or ""
+    return [line[3:] for line in out.splitlines() if line.strip()]
+
+
+def check_shared_work(
+    sub: str, raw_args: list[str], args: list[str], root: Path
+) -> None:
     whole = next((p for p in pathspecs(raw_args) if p in WHOLE_TREE), None)
     if sub == "add":
         flag = next(
@@ -454,11 +507,13 @@ def check_shared_work(sub: str, raw_args: list[str], args: list[str]) -> None:
                 "Stage the files you changed by path (git add <path> …), then "
                 "commit without -a."
             )
-    if sub == "reset" and "--hard" in args:
+    dirty = uncommitted(root) if sub == "reset" and "--hard" in args else []
+    if dirty:
         _common.block(
-            f"git reset --hard discards every uncommitted change, and {SHARED}. "
-            "Put back your own files by path (git restore <path>), or ask the "
-            "user to run it."
+            f"git reset --hard would discard uncommitted changes to tracked files "
+            f"({', '.join(dirty[:5])}), and {SHARED}. Commit your own "
+            "files or put them back by path (git restore <path>); on a clean tree "
+            "reset --hard is allowed."
         )
     # restore --staged alone only unstages; the files themselves stay.
     staged_only = bool({"--staged", "-S"} & set(args)) and not (
@@ -480,7 +535,7 @@ def check_shared_work(sub: str, raw_args: list[str], args: list[str]) -> None:
 
 def check_segment(segment: list[str], root: Path) -> None:
     gh = gh_command(segment)
-    if gh is not None and gh[:1] == ["pr"] and gh[1:2] in (["create"], ["new"]):
+    if gh is not None and gh[:2] == ["pr", "merge"]:
         check_review(root)
     invocation = git_invocation(segment)
     if invocation is None:
@@ -497,21 +552,7 @@ def check_segment(segment: list[str], root: Path) -> None:
         if sub == "commit" and any("n" in short_flags(a, sub) for a in args):
             _common.block(NO_VERIFY_MESSAGE)
     if sub == "push":
-        for arg in args:
-            forced = (
-                arg in ("--force", "--force-if-includes")
-                or arg.startswith("--force-with-lease")
-                or (len(arg) > 1 and arg.startswith("+"))
-                or "f" in short_flags(arg, sub)
-            )
-            if forced:
-                _common.block(
-                    f"git push {arg} can overwrite history on the remote. Push "
-                    "normally after making a new commit instead, or ask the user "
-                    "to run the forced push themselves."
-                )
-    if sub == "push":
-        check_review(root)
+        check_push(root, raw_args, args)
     if sub == "clean" and any(
         a in ("-x", "-X") or ("x" in short_flags(a, sub) or "X" in short_flags(a, sub))
         for a in args
@@ -521,14 +562,40 @@ def check_segment(segment: list[str], root: Path) -> None:
             f"in {_common.STATE_DIR}/. Delete the files you mean by name, or ask the "
             "user to run it."
         )
-    check_shared_work(sub, raw_args, args)
+    check_shared_work(sub, raw_args, args, root)
     if sub == "commit" and "--amend" in args:
-        branches = pushed_branches(root)
+        branches = on_main_remote(root)
         if branches:
             _common.block(
-                f"HEAD is already pushed ({branches}); amending rewrites shared "
-                "history. Make a new commit instead."
+                f"HEAD is already on {', '.join(branches)}; amending rewrites the "
+                "main branch's history. Make a new commit instead."
             )
+
+
+def check_push(root: Path, raw_args: list[str], args: list[str]) -> None:
+    lease = [a for a in args if a.startswith(("--force-with-lease", "--force-if-"))]
+    blind = [
+        a
+        for a in args
+        if a == "--force"
+        or (len(a) > 1 and a.startswith("+"))
+        or "f" in short_flags(a, "push")
+    ]
+    if blind:
+        _common.block(
+            f"git push {blind[0]} overwrites the remote branch without checking "
+            "what's on it. To publish a rebased or amended branch, push it with "
+            "--force-with-lease instead."
+        )
+    to_main = touches_main(root, raw_args)
+    if lease and to_main:
+        _common.block(
+            f"git push {lease[0]} would rewrite the main branch, which others "
+            "build on. Merge or revert with a new commit instead; only the user "
+            "rewrites main."
+        )
+    if to_main:
+        check_review(root)
 
 
 REVIEWER = "principles-reviewer"

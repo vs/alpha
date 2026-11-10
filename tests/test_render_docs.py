@@ -354,8 +354,8 @@ def test_contributing_names_the_review_checkpoint(tmp_path: Path):
     text = render(load(tmp_path))["CONTRIBUTING.md"]
     branching = text.split("## Branching\n")[1]
     assert (
-        "Claude runs the principles reviewer before it pushes or opens a pull "
-        "request; people can push by hand." in branching
+        "Claude runs the principles reviewer before its work reaches main: a "
+        "push to main, or merging a pull request. People can push by hand." in branching
     )
 
 
@@ -369,7 +369,8 @@ def test_feature_branches_merge_through_pull_requests(tmp_path: Path):
     assert "Feature branches: short-lived branches merged into main through " in (
         branching
     )
-    assert "merge main into it" in branching
+    assert "rebase the branch on main into small, ordered commits" in branching
+    assert "--force-with-lease" in branching
     commits = out["CLAUDE.md"].split("## Commits\n")[1].split("\n## ")[0]
     assert "open a pull request into main" in commits
 

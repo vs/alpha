@@ -75,8 +75,27 @@ def test_brief_lists_accepted_findings_not_to_report_again(project: Project) -> 
     state["findings"][0]["accepted"] = True
     review.save_state(project.root, state)
     text = review.brief(project.root)
-    assert "## Accepted findings (don't report these again)" in text
+    assert "## Findings the user accepted (don't report these again)" in text
     assert f"- {state['findings'][0]['id']} safe-migrations" in text
+
+
+def test_brief_asks_the_reviewer_to_check_claudes_disproofs(
+    project: Project,
+) -> None:
+    started(project)
+    tree = review.brief(project.root).splitlines()[0].removeprefix("Tree: ")
+    off_risk = {**FINDING, "file": "api/src/x.py", "principle": "fail-helpfully"}
+    report(project, tree, [off_risk])
+    (finding,) = review.load_state(project.root)["findings"]
+    project.write(
+        "docs/decisions/0001-disprove.md",
+        "# 0001. Keep the broad except\n\nDate: 2026-11-10\nStatus: accepted\n"
+        f"Accepts: {finding['id']}\n\n## Decision\n\nIt re-raises.\n",
+    )
+    text = review.brief(project.root)
+    assert "## Findings Claude accepted (read the decision that accepts each" in text
+    assert f"- {finding['id']} fail-helpfully api/src/x.py" in text
+    assert "## Open findings" not in text
 
 
 def test_a_report_on_the_reviewed_tree_is_sent_back(project: Project) -> None:

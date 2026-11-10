@@ -366,14 +366,33 @@ def brief(root: Path) -> str:
         for n, title, status, path in records
         if status == "accepted"
     ]
-    accepted = [f for f in state.get("findings", []) if f.get("accepted")]
-    if accepted:
-        lines += ["", "## Accepted findings (don't report these again)", ""]
+    logged = accepted_in_log(root)
+    by_user = [f for f in state.get("findings", []) if f.get("accepted")]
+    if by_user:
+        lines += ["", "## Findings the user accepted (don't report these again)", ""]
         lines += [
             f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
-            for f in accepted
+            for f in by_user
         ]
-    findings = [f for f in state.get("findings", []) if not f.get("accepted")]
+    by_claude = [
+        f
+        for f in state.get("findings", [])
+        if not f.get("accepted") and settled(principles, f, logged)
+    ]
+    if by_claude:
+        lines += [
+            "",
+            "## Findings Claude accepted (read the decision that accepts each; "
+            "report it as a new finding if its reason doesn't hold)",
+            "",
+        ]
+        lines += [
+            f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
+            for f in by_claude
+        ]
+    findings = [
+        f for f in state.get("findings", []) if not settled(principles, f, logged)
+    ]
     if findings:
         lines += ["", "## Open findings", ""]
         lines += [
@@ -446,23 +465,43 @@ def accepted_in_log(root: Path) -> set[str]:
     return ids
 
 
+def on_risk_path(principles: dict[str, Any], finding: dict[str, Any]) -> bool:
+    globs = [str(g) for g in principles.get("review", {}).get("risk_paths", [])]
+    return _common.matches(str(finding.get("file", "")), globs)
+
+
+def settled(
+    principles: dict[str, Any], finding: dict[str, Any], logged: set[str]
+) -> bool:
+    if finding.get("accepted"):
+        return True
+    return finding["id"] in logged and not on_risk_path(principles, finding)
+
+
 def gate(root: Path, principles: dict[str, Any]) -> str | None:
     state = ensure_state(root)
     findings: list[dict[str, Any]] = list(state.get("findings", []))
-    still_open = [f for f in findings if not f.get("accepted")]
+    logged = accepted_in_log(root)
+    still_open = [f for f in findings if not settled(principles, f, logged)]
     if still_open:
         listing = "\n".join(
             f"{f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']} "
             f"Fix: {f['fix']}"
             for f in still_open
         )
-        first = still_open[0]["id"]
+        risky = [str(f["id"]) for f in still_open if on_risk_path(principles, f)]
+        escalate = (
+            f" {', '.join(risky)} touch risk paths: only the user accepts those, "
+            f'by replying "accept {risky[0]}".'
+            if risky
+            else ""
+        )
         return (
             f"alpha review: open findings:\n{listing}\nFix them and run the "
-            "principles-reviewer agent again. If one can't or shouldn't be fixed, "
-            f'ask the user; they accept it by replying "accept {first}".'
+            "principles-reviewer agent again. A finding you can disprove: record "
+            "the disproof with the decision skill, with an `Accepts: <id>` header "
+            f"line, and carry on.{escalate}"
         )
-    logged = accepted_in_log(root)
     unrecorded = [str(f["id"]) for f in findings if f["id"] not in logged]
     if unrecorded:
         lines = ", ".join(f"Accepts: {i}" for i in unrecorded)
@@ -484,32 +523,34 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
     return None
 
 
-def push_blocker(root: Path, principles: dict[str, Any]) -> str | None:
+def merge_blocker(root: Path, principles: dict[str, Any]) -> str | None:
     state = ensure_state(root)
     logged = accepted_in_log(root)
     pending = [
         str(f["id"])
         for f in state.get("findings", [])
-        if not f.get("accepted") or f["id"] not in logged
+        if not settled(principles, f, logged) or f["id"] not in logged
     ]
     if pending:
         return (
-            "Nothing leaves the machine unreviewed: resolve the review findings "
-            f"first ({', '.join(pending)}): fix them and run the principles-reviewer "
-            "again, or have the user accept them and record that in the decision log."
+            "Nothing reaches main unreviewed: resolve the review findings first "
+            f"({', '.join(pending)}): fix them and run the principles-reviewer "
+            "again, or record why one stands with the decision skill (an "
+            "`Accepts: <id>` line; a finding on a risk path needs the user's "
+            '"accept <id>" too).'
         )
     try:
         files = debt(root, principles)["files"]
     except SnapshotError as e:
         return (
-            "Nothing leaves the machine unreviewed, but alpha can't measure the "
-            f"review debt ({e}). Fix that and retry, or ask the user to push by hand."
+            "Nothing reaches main unreviewed, but alpha can't measure the review "
+            f"debt ({e}). Fix that and retry; the snapshot error says what's wrong."
         )
     if files:
         noun = "file" if len(files) == 1 else "files"
         return (
-            "Nothing leaves the machine unreviewed: run the principles-reviewer "
-            f"agent first ({len(files)} {noun} changed since the last review)."
+            "Nothing reaches main unreviewed: run the principles-reviewer agent "
+            f"first ({len(files)} {noun} changed since the last review)."
         )
     return None
 

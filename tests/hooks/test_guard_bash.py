@@ -39,8 +39,6 @@ def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
         ("cd a && git push -f", "-f"),
         ("git push --force", "--force"),
         ("git push origin +main", "+main"),
-        ("git push --force-with-lease", "--force-with-lease"),
-        ("git push --force-if-includes", "--force-if-includes"),
         ("echo hi; git push -uf origin main", "-uf"),
         ("ls | git push -f", "-f"),
         ("echo hi\ngit push -f", "-f"),
@@ -161,20 +159,98 @@ def test_amend_allowed_on_detached_head(project: Project) -> None:
     assert bash(project, "git commit --amend -m x").returncode == 0
 
 
-def test_amend_blocked_when_pushed(project: Project, tmp_path: Path) -> None:
+def with_remote(project: Project, tmp_path: Path) -> None:
     remote = tmp_path.parent / f"{tmp_path.name}-remote.git"
     subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    project.git("checkout", "-q", "-B", "main")
     project.git("commit", "--allow-empty", "-m", "feat: One")
     project.git("remote", "add", "origin", str(remote))
     project.git("push", "-q", "origin", "HEAD")
     project.git("fetch", "-q", "origin")
+
+
+def test_amend_blocked_when_on_the_remote_main(
+    project: Project, tmp_path: Path
+) -> None:
+    with_remote(project, tmp_path)
     result = bash(project, "git commit --amend --no-edit")
     assert result.returncode == 2
-    assert "HEAD is already pushed (" in result.stderr
-    assert "origin/" in result.stderr
+    assert "HEAD is already on origin/main;" in result.stderr
     assert "Make a new commit instead." in result.stderr
     project.git("commit", "--allow-empty", "-m", "feat: Two")
     assert bash(project, "git commit --amend --no-edit").returncode == 0
+
+
+def test_amend_allowed_on_a_pushed_feature_branch(
+    project: Project, tmp_path: Path
+) -> None:
+    with_remote(project, tmp_path)
+    project.git("checkout", "-q", "-b", "topic")
+    project.git("commit", "--allow-empty", "-m", "feat: Two")
+    project.git("push", "-q", "origin", "topic")
+    project.git("fetch", "-q", "origin")
+    assert bash(project, "git commit --amend --no-edit").returncode == 0
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push --force-with-lease",
+        "git push --force-with-lease origin topic",
+        "git push --force-with-lease=topic:abc123 origin topic",
+        "git push --force-with-lease --force-if-includes origin HEAD",
+        "git push --force-with-lease origin topic:topic",
+    ],
+)
+def test_lease_push_of_a_feature_branch_is_allowed(
+    project: Project, command: str
+) -> None:
+    project.git("checkout", "-q", "-b", "topic")
+    assert bash(project, command).returncode == 0, bash(project, command).stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push --force-with-lease",
+        "git push --force-with-lease origin main",
+        "git push --force-with-lease origin HEAD:main",
+        "git push --force-with-lease origin topic:refs/heads/master",
+        "git push --force-with-lease --all",
+        "git push --force-with-lease --mirror",
+    ],
+)
+def test_lease_push_to_main_is_blocked(project: Project, command: str) -> None:
+    project.git("checkout", "-q", "-B", "main")
+    proc = bash(project, command)
+    assert proc.returncode == 2
+    assert "would rewrite the main branch" in proc.stderr
+
+
+def test_blind_force_push_is_blocked_on_any_branch(project: Project) -> None:
+    project.git("checkout", "-q", "-b", "topic")
+    proc = bash(project, "git push --force origin topic")
+    assert proc.returncode == 2
+    assert "--force-with-lease instead" in proc.stderr
+
+
+def test_reset_hard_is_blocked_while_tracked_files_have_changes(
+    project: Project,
+) -> None:
+    project.write("api/src/a.py", "x = 1\n")
+    committed(project)
+    project.write("api/src/a.py", "x = 2\n")
+    for command in ("git reset --hard", "git reset --hard origin/topic"):
+        proc = bash(project, command)
+        assert proc.returncode == 2, command
+        assert "uncommitted changes to tracked files (api/src/a.py)" in (proc.stderr)
+        assert SWEEP in proc.stderr
+
+
+def test_reset_hard_is_allowed_on_a_clean_tree(project: Project) -> None:
+    committed(project)
+    project.write("api/src/new.py", "x = 1\n")
+    assert bash(project, "git reset --hard origin/topic").returncode == 0
 
 
 @pytest.mark.parametrize(
@@ -348,21 +424,42 @@ def committed(project: Project) -> None:
     [
         "git push",
         "git push --dry-run origin main",
-        "gh pr create --fill",
-        "gh pr new --fill",
-        "gh -R owner/repo pr create --fill",
-        "gh --repo=owner/repo pr new",
+        "git push origin topic:main",
+        "gh pr merge 12",
+        "gh pr merge --squash --auto",
+        "gh -R owner/repo pr merge 12",
+        "gh --repo=owner/repo pr merge",
     ],
 )
-def test_unreviewed_work_is_not_pushed(project: Project, command: str) -> None:
+def test_unreviewed_work_does_not_reach_main(project: Project, command: str) -> None:
+    project.git("checkout", "-q", "-B", "main")
     committed(project)
     project.write("api/src/x.py", "x = 1\n")
     proc = bash(project, command)
     assert proc.returncode == 2
     assert proc.stderr.startswith(
-        "Nothing leaves the machine unreviewed: run the principles-reviewer agent "
+        "Nothing reaches main unreviewed: run the principles-reviewer agent "
         "first (1 file changed since the last review)."
     )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push",
+        "git push -u origin topic",
+        "git push --force-with-lease origin HEAD",
+        "gh pr create --fill",
+        "gh pr new --fill",
+    ],
+)
+def test_a_feature_branch_is_pushed_before_its_review(
+    project: Project, command: str
+) -> None:
+    committed(project)
+    project.git("checkout", "-q", "-b", "topic")
+    project.write("api/src/x.py", "x = 1\n")
+    assert bash(project, command).returncode == 0, command
 
 
 def test_push_allowed_right_after_a_clean_review(project: Project) -> None:
@@ -455,8 +552,6 @@ SWEEP = "may be the user's or another session's"
         ("git commit -am x", "git commit -am commits every tracked change"),
         ("git commit -a -m x", "git commit -a commits every tracked change"),
         ("git commit --all -m x", "git commit --all commits every tracked change"),
-        ("git reset --hard", "git reset --hard discards"),
-        ("git reset --hard HEAD~1", "git reset --hard discards"),
         ("git checkout .", "git checkout . discards"),
         ("git checkout -- .", "git checkout . discards"),
         ("git checkout HEAD -- .", "git checkout . discards"),

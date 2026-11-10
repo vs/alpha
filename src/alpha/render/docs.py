@@ -69,8 +69,10 @@ _BRANCHING = {
     "trunk": "Trunk-based: small commits straight to the main branch, "
     "each leaving the checks green.",
     "feature-branches": "Feature branches: short-lived branches merged into main "
-    "through pull requests, each leaving the checks green. To update a pushed "
-    "branch, merge main into it; the hooks stop Claude from force-pushing.",
+    "through pull requests, each leaving the checks green. Before opening a pull "
+    "request, rebase the branch on main into small, ordered commits and push it "
+    "with --force-with-lease; the hooks block a plain --force and any rewrite "
+    "of main.",
 }
 
 
@@ -397,8 +399,8 @@ def _contributing(
         "",
         branching,
         "",
-        "Claude runs the principles reviewer before it pushes or opens a pull "
-        "request; people can push by hand.",
+        "Claude runs the principles reviewer before its work reaches main: a "
+        "push to main, or merging a pull request. People can push by hand.",
     ]
     return "\n".join(lines) + "\n"
 

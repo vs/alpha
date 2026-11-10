@@ -446,10 +446,10 @@ def test_a_fresh_lock_fails_loudly(project: Project) -> None:
     lock.write_text("")
     with pytest.raises(review.SnapshotError, match="lock"):
         review.debt(project.root, project.principles())
-    reason = review.push_blocker(project.root, project.principles())
+    reason = review.merge_blocker(project.root, project.principles())
     assert reason is not None
-    assert reason.startswith("Nothing leaves the machine unreviewed, but alpha can't")
-    assert "push by hand" in reason
+    assert reason.startswith("Nothing reaches main unreviewed, but alpha can't")
+    assert "the snapshot error says what's wrong" in reason
 
 
 def test_an_unreadable_file_fails_loudly(project: Project) -> None:

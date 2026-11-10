@@ -31,13 +31,14 @@ Commit changes with proper, fine-grained, atomic commits.
      - Unrelated bug fixes or features
      - Formatting/style changes vs functional changes
      - Different features or independent refactors
-   - If changes can be split, propose the split to the user before committing
+   - If changes can be split, split them and commit each group; say how you split them in your report
 
 4. **Decide: new commit or amend:**
-   - If changes are a direct continuation or fix of the most recent unpushed commit, use `git commit --amend`
+   - If changes are a direct continuation or fix of the most recent commit on your branch, use `git commit --amend`
    - Before amending, verify with `git log -1 --format='%h %s'` that it's the right commit
    - If changes are new/unrelated work, create a new commit
-   - NEVER amend commits that have already been pushed
+   - Before opening a pull request, you may rebase your branch into small, ordered commits; publish a rewritten branch with `git push --force-with-lease`
+   - NEVER amend or rewrite commits already on the main branch
 
 5. **Create commits (smallest logical group first):**
    - Stage only related files: `git add <specific files>`

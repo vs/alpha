@@ -646,14 +646,16 @@ def test_subagent_stop_leaves_component_commands_to_the_main_stop(
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
 
 
-def open_finding(project: Project, accepted: bool = False) -> dict[str, Any]:
+def open_finding(
+    project: Project, accepted: bool = False, file: str = "api/src/x.py"
+) -> dict[str, Any]:
     import review
 
     state = review.ensure_state(project.root)
     finding = {
         "id": "F-abc123",
         "principle": "fail-helpfully",
-        "file": "api/src/x.py",
+        "file": file,
         "line": 3,
         "problem": "The except clause swallows every error.",
         "fix": "Catch the specific error.",
@@ -683,14 +685,35 @@ def test_open_findings_block_with_ids_and_how_to_accept(project: Project) -> Non
         "F-abc123 fail-helpfully api/src/x.py:3: The except clause swallows every "
         "error. Fix: Catch the specific error." in text
     )
-    assert 'they accept it by replying "accept F-abc123"' in text
+    assert "record the disproof with the decision skill" in text
+    assert "Accepts: <id>" in text
+    assert "risk paths" not in text
 
 
-def test_forged_acceptance_does_not_clear_a_finding(project: Project) -> None:
+def test_a_recorded_disproof_clears_a_finding_off_risk_paths(
+    project: Project,
+) -> None:
+    import review
+
     commit_all(project)
     open_finding(project)
     accepts_record(project, "F-abc123")
-    assert "alpha review: open findings:" in reason(run(project))
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    state = review.load_state(project.root)
+    assert state["findings"] == [] and state["reviewed_tree"] == state["reviewed_for"]
+
+
+def test_a_finding_on_a_risk_path_needs_the_user(project: Project) -> None:
+    commit_all(project)
+    open_finding(project, file="api/migrations/0001.sql")
+    accepts_record(project, "F-abc123")
+    text = reason(run(project))
+    assert text.startswith("alpha review: open findings:")
+    assert (
+        "F-abc123 touch risk paths: only the user accepts those, by replying "
+        '"accept F-abc123".' in text
+    )
 
 
 def test_accepted_but_unrecorded_findings_block(project: Project) -> None:

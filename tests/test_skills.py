@@ -381,10 +381,10 @@ def test_agent_workflow_says_the_reviewer_is_real():
 def test_new_project_reports_the_reviewer():
     report = _section("new-project", "7. Final report")
     assert (
-        "Claude can't finish, or push, with unreviewed changes past the thresholds "
-        "or open review findings; findings you accept are recorded in the decision "
-        "log." in report
+        "Claude can't finish, push to main, or merge a pull request with unreviewed "
+        "changes past the thresholds or open review findings." in report
     )
+    assert 'a finding on a risk path needs your "accept".' in report
     assert "Not covered yet" not in report
 
 
