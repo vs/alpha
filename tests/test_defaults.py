@@ -121,6 +121,18 @@ def test_branching_defaults_to_feature_branches():
     assert d["git"]["branching"] == "feature-branches"
 
 
+def test_reversible_work_does_not_wait_for_the_user():
+    d = load_defaults(Source(ROOT, True, ""))
+    ids = {p["id"] for p in d["principles"]}
+    assert "ask-when-ambiguous" not in ids
+    statement = principle(d, "never-block-on-the-human")["statement"]
+    assert "record it in the decision log" in statement
+    assert "can't be undone" in statement
+    weaken = principle(d, "never-weaken-checks")["statement"]
+    assert "raise it with the user" not in weaken
+    assert "names the path and the rule" in weaken
+
+
 def hook_checks() -> set[tuple[str, str]]:
     hooks = ROOT / "project-files" / "hooks"
     sys.path.insert(0, str(hooks))

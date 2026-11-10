@@ -296,8 +296,10 @@ WORKING_RULES = [
     "docs/principles.toml. Follow them.",
     "- A change that contradicts an accepted decision needs a new decision that "
     "supersedes it. Ask the user first, then record it with the decision skill.",
-    "- When a requirement is ambiguous, ask the user, then record the answer with "
-    "the decision skill.",
+    "- When a requirement is ambiguous, make the reasonable choice, record it "
+    "with the decision skill and say what you chose; don't stop to ask about "
+    "reversible work. Ask first only about product direction or what can't be "
+    "undone (rewriting main, deploys, deleting data, messages to people).",
     "- Read a file in full before you edit it, and every file a wide change "
     "touches; search snippets aren't enough.",
     "- Look up a dependency's API in its installed source or types instead of "

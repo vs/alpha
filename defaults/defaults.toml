@@ -374,10 +374,10 @@ checked_by = ["reviewer"]
 core = true
 
 [[principles]]
-id = "ask-when-ambiguous"
-title = "Ask when ambiguous"
-statement = "Ask when a requirement is ambiguous, and record the answer in the decision log."
-rationale = "A guess that turns out wrong costs more than a question, and a recorded answer is never asked twice."
+id = "never-block-on-the-human"
+title = "Never block on the human"
+statement = "Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, record it in the decision log, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people."
+rationale = "The user supervises asynchronously: a recorded, reversible choice costs less than a stalled session, and the record makes it quick to correct."
 applies = ["always"]
 checked_by = ["reviewer"]
 core = true
