@@ -387,12 +387,12 @@ def _contributing(
         "",
         "## Commit convention",
         "",
-        f"{a.git.convention.capitalize()} commits: `type(scope): Description`.",
+        f"{a.git.convention.capitalize()} commits: `type(scope): description`.",
         "",
         "- Types: " + ", ".join(f"`{t}`" for t in git["types"]),
         "- Scopes: " + ", ".join(f"`{s}`" for s in git["scopes"]),
-        "- The description is at most 50 characters, imperative, capitalized, "
-        "with no trailing period.",
+        "- The description is at most 50 characters, imperative, with no trailing "
+        "period; it may start lowercase, e.g. with the symbol it changes.",
         "- Body lines wrap at 72 characters.",
         "",
         *area_docs.testing_section(a),

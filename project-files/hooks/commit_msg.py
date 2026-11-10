@@ -97,14 +97,14 @@ def is_imperative(word: str) -> bool:
 
 def check(lines: list[str], types: list[str], scopes: list[str] | None) -> None:
     if not lines:
-        fail("the message is empty; write a header like type(scope): Description")
+        fail("the message is empty; write a header like type(scope): description")
     header = lines[0]
     if header.startswith(PASS_PREFIXES):
         return
     m = HEADER.match(header)
     if m is None:
         fail(
-            f'the header "{header}" does not match type(scope): Description '
+            f'the header "{header}" does not match type(scope): description '
             "(lowercase type, optional scope in parentheses, a colon and a space)"
         )
         return
@@ -115,8 +115,6 @@ def check(lines: list[str], types: list[str], scopes: list[str] | None) -> None:
         fail(f'unknown scope "{scope}"; use one of: {", ".join(scopes)}')
     if len(desc) > MAX_DESC:
         fail(f"the description is {len(desc)} chars; keep it to {MAX_DESC} or fewer")
-    if not desc[0].isupper():
-        fail("the description must start with a capital letter")
     if desc.endswith("."):
         fail("the description must not end with a period")
     word = desc.split()[0]

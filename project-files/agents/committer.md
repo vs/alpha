@@ -76,7 +76,6 @@ Use this format if no project-specific style is found:
 ### Subject Line Rules
 
 - Limit to 50 characters
-- Capitalize only the first letter
 - No period at the end
 - Use imperative mood ("Add feature" not "Added feature")
 - Complete this sentence: "If applied, this commit will ___"

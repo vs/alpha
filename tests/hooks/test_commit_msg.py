@@ -34,6 +34,7 @@ def run_msg(
     "message",
     [
         "feat(api): Add token refresh\n",
+        "fix(api): retarget parse_config\n",
         "docs: Add design doc\n",
         "feat(api)!: Drop v1 routes\n",
         "feat: Embed the viewer\n",
@@ -59,7 +60,6 @@ def test_valid_messages_pass(project: Project, message: str) -> None:
 @pytest.mark.parametrize(
     ("message", "fragment"),
     [
-        ("feat: add x\n", "capital"),
         ("feat: Added x\n", "imperative"),
         ("feat: Adding x\n", "imperative"),
         ("feat: Adds x\n", "imperative"),
