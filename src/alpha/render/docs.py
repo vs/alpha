@@ -259,6 +259,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "Run every check: `mise run check` (CI runs the same checks).",
         "",
     ]
+    scopes = ", ".join([*a.git.scopes, "or another area it touches"])
     lines += ["## Definition of done", ""]
     lines += [f"{i}. {item}" for i, item in enumerate(_DONE, 1)]
     lines += [
@@ -268,7 +269,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "Follow the commit skill (`.claude/skills/commit/SKILL.md`, which "
         "the user runs as /commit). "
         f"Convention: {a.git.convention} commits, "
-        f"scopes: {', '.join(a.git.scopes) or 'any'}, "
+        f"scopes: {scopes if a.git.scopes else 'any'}, "
         "enforced by the commit-msg hook."
         + (
             " Work on a short-lived branch and open a pull request into main; "
@@ -390,7 +391,10 @@ def _contributing(
         f"{a.git.convention.capitalize()} commits: `type(scope): description`.",
         "",
         "- Types: " + ", ".join(f"`{t}`" for t in git["types"]),
-        "- Scopes: " + ", ".join(f"`{s}`" for s in git["scopes"]),
+        "- Scopes: "
+        + ", ".join(
+            [*(f"`{s}`" for s in git["scopes"]), "or another area the commit touches"]
+        ),
         "- The description is at most 50 characters, imperative, with no trailing "
         "period; it may start lowercase, e.g. with the symbol it changes.",
         "- Body lines wrap at 72 characters.",

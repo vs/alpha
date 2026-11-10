@@ -95,7 +95,7 @@ def is_imperative(word: str) -> bool:
     return not (low in NOT_IMPERATIVE or low.endswith(("ed", "ing")))
 
 
-def check(lines: list[str], types: list[str], scopes: list[str] | None) -> None:
+def check(lines: list[str], types: list[str]) -> None:
     if not lines:
         fail("the message is empty; write a header like type(scope): description")
     header = lines[0]
@@ -108,11 +108,9 @@ def check(lines: list[str], types: list[str], scopes: list[str] | None) -> None:
             "(lowercase type, optional scope in parentheses, a colon and a space)"
         )
         return
-    kind, scope, desc = m.group("type"), m.group("scope"), m.group("desc")
+    kind, desc = m.group("type"), m.group("desc")
     if kind not in types:
         fail(f'unknown type "{kind}"; use one of: {", ".join(types)}')
-    if scope is not None and scopes and scope not in scopes:
-        fail(f'unknown scope "{scope}"; use one of: {", ".join(scopes)}')
     if len(desc) > MAX_DESC:
         fail(f"the description is {len(desc)} chars; keep it to {MAX_DESC} or fewer")
     if desc.endswith("."):
@@ -146,14 +144,13 @@ def main() -> None:
         )
         sys.exit(1)
     principles = _common.load_principles(toplevel(), fail_code=1)
-    types, scopes = DEFAULT_TYPES, None
+    types = DEFAULT_TYPES
     if principles is not None:
         if not _common.principle_applies(principles, "clean-history"):
             sys.exit(0)
         git = principles.get("git", {})
         types = [str(t) for t in git.get("types", DEFAULT_TYPES)]
-        scopes = [str(s) for s in git.get("scopes", [])]
-    check(clean(text), types, scopes)
+    check(clean(text), types)
 
 
 if __name__ == "__main__":

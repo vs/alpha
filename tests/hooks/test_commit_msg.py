@@ -69,7 +69,6 @@ def test_valid_messages_pass(project: Project, message: str) -> None:
         ("just some words\n", "type(scope)"),
         ("feat: Add x\nbody right away\n", "blank line"),
         ("feat: Add x\n\n" + "w" * 73 + "\n", "72"),
-        ("feat(nope): Add x\n", "scope"),
         ("\n", "empty"),
     ],
 )
@@ -86,10 +85,14 @@ def test_description_of_exactly_50_chars_passes(project: Project) -> None:
     assert run_msg(project, "feat: " + "A" * 50 + "\n").returncode == 0
 
 
-def test_unknown_scope_lists_the_scopes(project: Project) -> None:
-    result = run_msg(project, "feat(nope): Add x\n")
-    assert "api" in result.stdout + result.stderr
-    assert "web" in result.stdout + result.stderr
+def test_a_scope_off_the_list_passes(project: Project) -> None:
+    assert run_msg(project, "fix(poteto-mode): retarget the babysit\n").returncode == 0
+
+
+def test_a_malformed_scope_is_rejected(project: Project) -> None:
+    result = run_msg(project, "feat(Api_v2): Add x\n")
+    assert result.returncode == 1
+    assert "does not match type(scope): description" in result.stdout + result.stderr
 
 
 def test_without_principles_uses_defaults_and_any_scope(project: Project) -> None:
@@ -115,10 +118,13 @@ def test_malformed_principles_rejects_the_commit(project: Project) -> None:
 
 
 def test_runs_from_a_subdirectory_using_toplevel_principles(project: Project) -> None:
+    data = project.principles()
+    data["git"]["types"] = ["feat"]
+    project.write_principles(data)
     sub = project.root / "api"
     sub.mkdir()
     assert run_msg(project, "feat(api): Add x\n", cwd=sub).returncode == 0
-    assert run_msg(project, "feat(nope): Add x\n", cwd=sub).returncode == 1
+    assert run_msg(project, "fix(api): Add x\n", cwd=sub).returncode == 1
 
 
 def test_shim_is_posix_sh_and_executable() -> None:

@@ -352,7 +352,9 @@ fail-helpfully principle: what's wrong, and how to fix it.
 - New or changed dependency without a dependency-log entry → flag.
 - Secrets in the diff → block.
 - Hand edits to lockfiles and other protected paths → block.
-- `commit-msg`: type, scope, subject length, imperative mood → reject.
+- `commit-msg`: type, scope format, subject length, imperative mood →
+  reject. The project's scopes are suggestions; any well-formed scope passes,
+  so an area outside the list (pstack's habit) works too.
 - `--no-verify`, a plain `--force` push, a `--force-with-lease` push to the
   main branch, and `--amend` of a commit already on the remote main → block
   (for Claude, via Claude Code hooks; see §9). Claude may rebase its own
@@ -521,8 +523,8 @@ so every project has them on any machine. Changes when porting:
   body explains what and why.
 
 The interview writes the project's commit convention (default: conventional
-commits, scopes = component names) into CONTRIBUTING and CLAUDE.md, where the
-commit skill already looks.
+commits, suggested scopes = component names) into CONTRIBUTING and
+CLAUDE.md, where the commit skill already looks.
 
 ## 11. Kit defaults and how they evolve
 
