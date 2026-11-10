@@ -268,13 +268,18 @@ both), and any parameters.
 - ★ **Never weaken a check to pass it.** No skipped tests, loosened lint, or
   catch-all exception handlers, and no mocking the thing under test. A type
   error from an outdated dependency is fixed by upgrading it, not by removing
-  or downgrading code. If a check is wrong, raise it with the user.
+  or downgrading code. If a check is wrong in one place, record why in a
+  decision that names the path and the rule, then make the exception there.
 - ★ **Stay in scope.** No drive-by refactors of code the task doesn't touch.
 - ★ **Subtract before you add.** In the code a task touches, first remove
   what's dead there: unused code, redundant checks, stubs. A new internal API
   replaces the old one in the same change: every caller migrated, the old one
   deleted, no compatibility layer.
-- ★ **Ask when ambiguous**, and record the answer in the decision log.
+- ★ **Never block on the human.** Don't stop to ask about reversible work.
+  When a requirement is ambiguous, make the reasonable choice, record it in
+  the decision log, and say what you chose. Ask first only when the choice
+  sets product direction or can't be undone: rewriting the main branch,
+  deploys, deleting data, messages to people.
 - ★ **Definition of done:** tests written and passing, types and lint clean,
   docs updated, committed per the history principle, reviewer passed (§9).
 
@@ -348,14 +353,16 @@ fail-helpfully principle: what's wrong, and how to fix it.
 - Secrets in the diff → block.
 - Hand edits to lockfiles and other protected paths → block.
 - `commit-msg`: type, scope, subject length, imperative mood → reject.
-- `--no-verify`, force-push, and `--amend` of pushed commits → block (for
-  Claude, via Claude Code hooks; see §9).
+- `--no-verify`, a plain `--force` push, a `--force-with-lease` push to the
+  main branch, and `--amend` of a commit already on the remote main → block
+  (for Claude, via Claude Code hooks; see §9). Claude may rebase its own
+  branch and push it with `--force-with-lease`.
 - Git commands that stage, stash or discard changes nobody named (`git add
-  -A`/`.`, `commit -a`, `reset --hard`, `checkout .`/`restore .`, `stash`)
-  → block (for Claude); `git clean` stays allowed, except `-x`/`-X`. The tree may hold the
+  -A`/`.`, `commit -a`, `reset --hard` while tracked files have uncommitted
+  changes, `checkout .`/`restore .`, `stash`) → block (for Claude); `git clean` stays allowed, except `-x`/`-X`. The tree may hold the
   user's or another session's uncommitted work; Claude names its files.
-- Disabling or skipping tests, or loosening lint/type settings → block (or
-  flag for user approval).
+- Disabling or skipping tests, or loosening lint/type settings → block,
+  until an accepted decision record names the file and says why.
 
 Per-edit hooks must be fast enough not to slow down normal work. Exact
 budgets are the builder's call.
@@ -455,8 +462,11 @@ entries, so a command is written once.
 
 A Claude Code agent that reviews batched changes against the project's
 principles file and decision log, reporting each problem against the
-specific principle it breaks. Findings block "done" until fixed or knowingly
-accepted by the user. An acceptance is recorded in the decision log.
+specific principle it breaks. Findings block "done" until fixed or accepted,
+and every acceptance is recorded in the decision log. Claude may accept a
+finding it disproves; the next review reads that disproof and reports it
+again if it doesn't hold. A finding on a risk path is accepted only by the
+user.
 
 **When it runs: "review debt".** The project records the last reviewed
 commit. Everything after it (plus uncommitted work) is unreviewed. When an
@@ -467,12 +477,14 @@ agent signals done, a cheap script decides whether the reviewer runs:
 2. **Risk, regardless of size:** the change touches a contract, a migration,
    auth/security/secrets-related code, dependencies, build/CI/hosting config,
    adds a component, or edits the principles file.
-3. **Checkpoints:** before push/PR and at the end of a planned piece of
-   work, everything unreviewed is reviewed. **Nothing Claude pushes leaves
-   the machine unreviewed.**
+3. **Checkpoints:** before a push to main or a pull request merge, and at
+   the end of a planned piece of work, everything unreviewed is reviewed.
+   **Nothing Claude does reaches main unreviewed.** A feature branch can be
+   pushed and its pull request opened before the review, so CI runs
+   alongside it.
 
-**Who it binds (user decision):** review-before-push and the git guardrails
-(no `--no-verify`, no force-push, no amending pushed commits, nothing that
+**Who it binds (user decision):** review-before-main and the git guardrails
+(no `--no-verify`, no plain force-push, no rewriting main, nothing that
 sweeps up or discards unnamed changes) are enforced
 on **Claude only**, through Claude Code hooks. The user can push by hand
 freely. The only git hook that binds everyone is `commit-msg` (format
@@ -500,10 +512,13 @@ so every project has them on any machine. Changes when porting:
 
 - **Remove the hard-coded co-author footer.** Use the attribution lines
   Claude Code provides.
+- **Don't wait for the user** (pstack): split changes into commits and
+  report the split instead of proposing it; amend or rebase the branch's own
+  commits before a pull request, but never rewrite main.
 - Keep everything else: check the project convention first; atomic splitting
   (`.claude/` changes always separate, formatting separate from behavior);
-  amend only unpushed commits; conventional types; 50-char imperative
-  subject; body explains what and why.
+  conventional types; 50-char imperative subject, which may start lowercase;
+  body explains what and why.
 
 The interview writes the project's commit convention (default: conventional
 commits, scopes = component names) into CONTRIBUTING and CLAUDE.md, where the
