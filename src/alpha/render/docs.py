@@ -58,7 +58,7 @@ _CHECK_RULES = (
     "- When you add a code generator, add a `generate` task to `mise.toml` and to "
     "the `ci` task's `depends`; CI fails when checks change tracked files.",
     "- Never disable a lint rule to pass; an exception names one path and one "
-    "rule, gives a reason, and needs the user's yes.",
+    "rule, and a decision record that names that path gives the reason.",
     "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
     "review date: in the `osv-scanner.toml` next to the lockfile it applies "
     "to, `ignoreUntil` and `reason`; in "

@@ -349,8 +349,8 @@ core = true
 [[principles]]
 id = "never-weaken-checks"
 title = "Never weaken a check to pass it"
-statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong, raise it with the user."
-rationale = "A check bent to pass proves nothing; a wrong check is a decision for the user, not a shortcut for the agent."
+statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong in one place, record why in a decision that names the path and the rule, then make the exception there."
+rationale = "A check bent to pass proves nothing; an exception with a recorded reason can be reviewed, and reverted when the reason stops holding."
 applies = ["always"]
 checked_by = ["reviewer", "hook:guard_paths"]
 core = true

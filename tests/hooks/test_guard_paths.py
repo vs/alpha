@@ -23,6 +23,13 @@ def edit(
 
 
 def reason(proc: subprocess.CompletedProcess[str]) -> str:
+    assert proc.returncode == 2
+    assert proc.stdout == ""
+    return proc.stderr
+
+
+def asked(proc: subprocess.CompletedProcess[str]) -> str:
+    assert proc.returncode == 0
     out = json.loads(proc.stdout)["hookSpecificOutput"]
     assert out["hookEventName"] == "PreToolUse"
     assert out["permissionDecision"] == "ask"
@@ -94,13 +101,38 @@ def test_non_alpha_project_passes(tmp_path: Any) -> None:
     assert proc.stderr == ""
 
 
-def test_adding_type_ignore_asks(project: Project) -> None:
+def test_adding_type_ignore_blocks(project: Project) -> None:
     proc = edit(project, "api/a.py", "x = f()", "x = f()  # type: ignore")
-    assert proc.returncode == 0
-    assert reason(proc) == (
-        "This edit weakens a check (# type: ignore). Principle never-weaken-checks: "
-        "fix the cause instead, or approve if you are sure."
+    assert reason(proc).strip() == (
+        "This edit weakens a check (# type: ignore) in api/a.py. Principle "
+        "never-weaken-checks: fix the cause instead. If the check is wrong here, "
+        "record why with the decision skill, naming the path api/a.py and the "
+        "rule, then retry; the principles-reviewer checks that reason."
     )
+
+
+def decision(project: Project, n: int, status: str, body: str) -> None:
+    project.write(
+        f"docs/decisions/{n:04d}-exception.md",
+        f"# {n:04d}. Allow an exception\n\nDate: 2026-11-10\nStatus: {status}\n\n"
+        f"## Decision\n\n{body}\n",
+    )
+
+
+def test_a_decision_naming_the_file_lets_the_exception_through(
+    project: Project,
+) -> None:
+    decision(project, 14, "accepted", "api/a.py keeps `# type: ignore` on f().")
+    proc = edit(project, "api/a.py", "x = f()", "x = f()  # type: ignore")
+    assert proc.returncode == 0 and proc.stdout == ""
+    other = edit(project, "api/b.py", "x = f()", "x = f()  # type: ignore")
+    assert "api/b.py" in reason(other)
+
+
+def test_a_superseded_decision_does_not_count(project: Project) -> None:
+    decision(project, 14, "superseded by 0015", "api/a.py keeps `# type: ignore`.")
+    proc = edit(project, "api/a.py", "x = f()", "x = f()  # type: ignore")
+    assert "never-weaken-checks" in reason(proc)
 
 
 def test_editing_line_that_already_has_pattern_passes(project: Project) -> None:
@@ -111,7 +143,7 @@ def test_editing_line_that_already_has_pattern_passes(project: Project) -> None:
     assert proc.stdout == ""
 
 
-def test_adding_second_instance_asks(project: Project) -> None:
+def test_adding_second_instance_blocks(project: Project) -> None:
     proc = edit(
         project,
         "api/a.py",
@@ -149,7 +181,7 @@ def test_write_compares_against_existing_content(project: Project) -> None:
     assert "@ts-ignore" in reason(more)
 
 
-def test_write_new_file_with_pattern_asks(project: Project) -> None:
+def test_write_new_file_with_pattern_blocks(project: Project) -> None:
     path = str(project.root / "web/new.ts")
     proc = run(project, "Write", {"file_path": path, "content": 'x: "strict": false'})
     assert '"strict": false' in reason(proc)
@@ -189,13 +221,13 @@ def test_identifier_lookalikes_pass(project: Project) -> None:
         assert edit(project, "api/a.py", "x", new).stdout == "", new
 
 
-def test_test_skip_calls_at_identifier_boundary_ask(project: Project) -> None:
+def test_test_skip_calls_at_identifier_boundary_block(project: Project) -> None:
     assert "xit(" in reason(edit(project, "web/a.ts", "x", "xit('a', f)"))
     assert "it.skip(" in reason(edit(project, "web/a.ts", "x", "a\n  it.skip('a')"))
     assert "test.skip(" in reason(edit(project, "web/a.ts", "x", "test.skip('a')"))
 
 
-def test_dropped_never_weaken_checks_does_not_ask(project: Project) -> None:
+def test_dropped_never_weaken_checks_does_not_block(project: Project) -> None:
     project.drop_principle("never-weaken-checks", component="api")
     proc = edit(project, "api/src/app.py", "x = 1", "x = 1  # noqa")
     assert proc.returncode == 0 and proc.stdout == ""
@@ -213,8 +245,7 @@ def test_nested_env_files_blocked(project: Project) -> None:
 
 def test_principles_file_edit_asks(project: Project) -> None:
     proc = edit(project, "docs/principles.toml", 'test = "x"', 'test = "true"')
-    assert proc.returncode == 0
-    text = reason(proc)
+    text = asked(proc)
     assert "docs/principles.toml" in text
     assert "single source of truth" in text
     write = run(
@@ -222,7 +253,7 @@ def test_principles_file_edit_asks(project: Project) -> None:
         "Write",
         {"file_path": str(project.root / "docs/principles.toml"), "content": ""},
     )
-    assert "single source of truth" in reason(write)
+    assert "single source of truth" in asked(write)
 
 
 def test_the_review_state_is_not_editable(project: Project) -> None:

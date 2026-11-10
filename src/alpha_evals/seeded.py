@@ -109,17 +109,6 @@ def _blocked(runs: list[subprocess.CompletedProcess[str]]) -> bool:
     return any(r.returncode == 2 for r in runs)
 
 
-def _asked(runs: list[subprocess.CompletedProcess[str]]) -> bool:
-    for r in runs:
-        try:
-            out = json.loads(r.stdout)
-            if out["hookSpecificOutput"]["permissionDecision"] == "ask":
-                return True
-        except (ValueError, KeyError, TypeError):
-            continue
-    return False
-
-
 def _stop_reason(runs: list[subprocess.CompletedProcess[str]]) -> str | None:
     for r in runs:
         try:
@@ -172,9 +161,9 @@ def check_hooks(project: Path, scratch: Path) -> Check:
     seeds = {c["name"]: seed_source_path(c) for c in components}
     weak = seeds[first["name"]]
     runs = hooks.run("PreToolUse", EDIT_MATCHER, write(weak, "x = 1  # type: ignore\n"))
-    if not _asked(runs):
+    if not _blocked(runs):
         problems.append(
-            f"3. # type: ignore in {weak}: expected an ask, got {_got(runs)}"
+            f"3. # type: ignore in {weak}: expected a block, got {_got(runs)}"
         )
 
     for rel in seeds.values():

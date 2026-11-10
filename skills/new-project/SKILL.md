@@ -85,7 +85,7 @@ Tell the user, briefly:
 - **Enforced now:**
   - Every commit, by anyone, must follow the convention and scopes (the git `commit-msg` hook).
   - Claude can't skip git hooks, push with a plain `--force`, or rewrite main; it may rebase its own branch and push it with `--force-with-lease`.
-  - Claude can't edit protected files (secrets, lockfiles, and any extra protected paths), and must ask the user before skipping a test, adding an ignore comment or loosening strictness.
+  - Claude can't edit protected files (secrets, lockfiles, and any extra protected paths), and can't skip a test, add an ignore comment or loosen strictness until a decision record names the file and says why.
   - Every file Claude edits is formatted and linted right away.
   - Claude can't finish while it has added a secret, changed source without changing tests, changed a mapped path without its docs, added a dependency without a recorded reason, or left the type checks or tests failing.
   - Claude can't edit a migration that existed before the session: migrations are append-only, so a fix is a new migration (when a component stores data).

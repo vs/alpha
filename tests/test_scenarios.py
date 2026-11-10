@@ -381,9 +381,9 @@ def test_generated_hooks_enforce_the_generated_principles(
             "new_string": "// @ts-ignore\nx",
         },
     }
-    asked = hook("PreToolUse", "Edit|Write|MultiEdit", weaken)
-    decision = json.loads(asked.stdout)["hookSpecificOutput"]["permissionDecision"]
-    assert decision == "ask"
+    weakened = hook("PreToolUse", "Edit|Write|MultiEdit", weaken)
+    assert weakened.returncode == 2
+    assert "never-weaken-checks" in weakened.stderr
     env_write = {
         "tool_name": "Write",
         "tool_input": {"file_path": str(target / "api/.env")},

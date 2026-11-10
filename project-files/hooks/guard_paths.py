@@ -120,12 +120,27 @@ def main() -> None:
         sys.exit(0)
     old, new = texts(str(tool), args, root / rel)
     found = weakened(old, new)
-    if found:
-        ask(
-            f"This edit weakens a check ({', '.join(found)}). Principle "
-            "never-weaken-checks: fix the cause instead, or approve if you are sure."
+    if found and not recorded_exception(root, rel):
+        _common.block(
+            f"This edit weakens a check ({', '.join(found)}) in {rel}. Principle "
+            "never-weaken-checks: fix the cause instead. If the check is wrong "
+            "here, record why with the decision skill, naming the path "
+            f"{rel} and the rule, then retry; the principles-reviewer checks "
+            "that reason."
         )
     sys.exit(0)
+
+
+def recorded_exception(root: Path, rel: str) -> bool:
+    for _n, _title, status, path in _common.decision_index(root)[0]:
+        if status != "accepted":
+            continue
+        try:
+            if rel in (root / path).read_text(encoding="utf-8"):
+                return True
+        except (OSError, UnicodeDecodeError):
+            continue
+    return False
 
 
 if __name__ == "__main__":
