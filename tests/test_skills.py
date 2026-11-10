@@ -171,8 +171,9 @@ def test_grilling_credits_its_source_with_the_full_license():
 def test_grilling_override_protocol_reads_the_exit_codes():
     text = _text("grilling")
     assert "Make this the default for future projects too?" in text
-    for code in ("exits 0", "exits 4", "exits 3"):
+    for code in ("exits 0", "exits 3"):
         assert code in text
+    assert "exits 4" not in text and "--trailer" not in text.split("defaults set")[1]
     assert "<target>/.claude/alpha/project.json" in text
 
 
@@ -417,7 +418,8 @@ def test_components_offers_any_stack():
 def test_new_project_offers_to_save_drafted_recipes():
     text = _text("new-project")
     assert f"{CLI} recipe save <target> <stack>" in text
-    assert "Save the <stack> recipe to the kit for future projects?" in text
+    assert "Save the <stack> recipe for your future projects?" in text
+    assert "recipe save <target> <stack> --trailer" not in text
     assert "less proven" in _section("new-project", "7. Final report")
 
 

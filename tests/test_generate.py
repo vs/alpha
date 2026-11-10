@@ -30,7 +30,7 @@ from alpha.defaults import Source
 from alpha.generate import GenerateError, bootstrap, generate
 
 ROOT = PLUGIN_ROOT
-SRC = Source(ROOT, True, "")
+SRC = Source(ROOT, True)
 PROJECT_JSON = ".claude/alpha/project.json"
 
 
@@ -117,7 +117,7 @@ def test_manifest_commit_is_null_for_bundled_defaults(
 ):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     place_answers(tmp_path, "python-ml-single")
-    generate(tmp_path, ROOT, Source(ROOT, False, "no checkout"), 2026, TODAY)
+    generate(tmp_path, ROOT, Source(ROOT, False), 2026, TODAY)
     m = json.loads((tmp_path / PROJECT_JSON).read_text())["manifest"]
     assert m["defaults"] == {"path": str(ROOT), "live": False, "commit": None}
 
@@ -541,11 +541,15 @@ def test_cli_generate_prints_summary(tmp_path: Path):
     assert (tmp_path / "CLAUDE.md").is_file()
 
 
-def test_cli_generate_warns_when_defaults_are_bundled(tmp_path: Path):
+def test_cli_generate_uses_the_plugin_and_your_defaults(tmp_path: Path):
     project = tmp_path / "proj"
     place_answers(project, "python-ml-single")
+    mine = tmp_path / "config"
+    mine.mkdir()
+    (mine / "overrides.toml").write_text('[review]\nexclude = ["docs/**"]\n')
     env = {k: v for k, v in os.environ.items() if k != "ALPHA_SOURCE"}
     env["HOME"] = str(tmp_path / "home")
+    env["ALPHA_CONFIG_DIR"] = str(mine)
     out = subprocess.run(
         [sys.executable, str(SHIM), "generate", str(project)],
         capture_output=True,
@@ -553,8 +557,11 @@ def test_cli_generate_warns_when_defaults_are_bundled(tmp_path: Path):
         env=env,
     )
     assert out.returncode == 0, out.stderr
-    assert "bundled kit defaults" in out.stderr
-    assert "no alpha source checkout found" in out.stderr
+    assert "warning" not in out.stderr
+    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    assert principles["review"]["exclude"] == ["docs/**"]
+    data = json.loads((project / ".claude/alpha/project.json").read_text())
+    assert data["manifest"]["defaults"]["live"] is False
 
 
 def test_cli_generate_error_exits_1(tmp_path: Path):
@@ -651,7 +658,7 @@ def shell_project(target: Path) -> list[str]:
     dest = target / ".claude/alpha/project.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(data))
-    return generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    return generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
 
 
 def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
@@ -693,7 +700,7 @@ def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: 
     dest.parent.mkdir(parents=True)
     dest.write_text(json.dumps(data))
     with pytest.raises(GenerateError, match=rf"{re.escape(path)}.*alpha generates"):
-        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
     assert not (tmp_path / "CLAUDE.md").exists()
 
 

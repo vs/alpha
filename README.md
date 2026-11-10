@@ -12,8 +12,8 @@ Each principle is checked, by a hook or by a reviewer agent that blocks
 "done".
 
 ```sh
-git clone https://github.com/vs/alpha ~/workspace/alpha
-claude --plugin-dir ~/workspace/alpha
+claude plugin marketplace add vs/alpha
+claude plugin install alpha@alpha
 ```
 
 ```text
@@ -46,20 +46,23 @@ installed too.
 
 It asks again only what the change affects, and merges into files you edited.
 
-## Install
+## Update
 
 ```sh
-claude plugin marketplace add vs/alpha
-claude plugin install alpha@alpha-local
+claude plugin marketplace update alpha
+claude plugin update alpha@alpha
 ```
 
-When you override a default, alpha asks whether to keep it for the next
-project. A yes is committed to your checkout: `ALPHA_SOURCE`, or
-`~/workspace/alpha`.
+When you override a default, alpha asks whether to keep it for your next
+projects. A yes goes to `~/.config/alpha/overrides.toml`, a recipe drafted in
+an interview to `~/.config/alpha/recipes/`. Both apply on top of the installed
+plugin and survive its updates.
 
 ## Develop
 
 ```sh
+git clone https://github.com/vs/alpha ~/workspace/alpha
+claude --plugin-dir ~/workspace/alpha   # this checkout, for this session only
 uv run pytest
 uv run ruff check && uv run pyright
 bin/alpha-evals run   # real interviews; spends tokens

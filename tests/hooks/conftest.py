@@ -103,7 +103,7 @@ def project(tmp_path: Path) -> Project:
     p.git("init", "-q")
     p.git("config", "user.name", "Test")
     p.git("config", "user.email", "test@example.com")
-    defaults = load_defaults(Source(PLUGIN_ROOT, True, ""))
+    defaults = load_defaults(Source(PLUGIN_ROOT, True))
     data = build_principles(defaults, load_answers(FIXTURE), "0.1.0")
     for comp in data["components"]:
         comp["commands"] = dict.fromkeys(comp["commands"], STUB)

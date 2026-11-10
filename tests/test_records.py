@@ -61,7 +61,7 @@ def test_records_json_round_trip_and_malformed():
 
 def test_dependency_rows_use_each_components_added_date():
     a = load_answers(SCENARIO)
-    d = load_defaults(Source(PLUGIN_ROOT, True, ""))
+    d = load_defaults(Source(PLUGIN_ROOT, True))
     out = render_docs(
         a,
         build_principles(d, a, "0.1.0"),

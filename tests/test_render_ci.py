@@ -23,7 +23,7 @@ from alpha.render.ci import (
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 PRINCIPLES = build_principles(
-    load_defaults(Source(PLUGIN_ROOT, True, "")), load_answers(FIXTURE), "0.1.0"
+    load_defaults(Source(PLUGIN_ROOT, True)), load_answers(FIXTURE), "0.1.0"
 )
 
 
@@ -290,7 +290,7 @@ def test_drafted_recipe_without_coverage():
     scenario = Path(__file__).parents[1] / "evals" / "scenarios" / "rust-cli.json"
     answers = load_answers(scenario)
     principles = build_principles(
-        load_defaults(Source(PLUGIN_ROOT, True, "")), answers, "0.1.0"
+        load_defaults(Source(PLUGIN_ROOT, True)), answers, "0.1.0"
     )
     assert principles["testing"]["diff_coverage"] > 0
     book = answers.book()

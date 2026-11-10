@@ -12,7 +12,7 @@ from alpha.principles import build_principles, render_principles
 from alpha.registry import load_registry
 from alpha.repo_checks import repo_checks
 
-SOURCE = Source(PLUGIN_ROOT, True, "")
+SOURCE = Source(PLUGIN_ROOT, True)
 D = load_defaults(SOURCE)
 REGISTRY = load_registry(SOURCE)
 TABLE = [

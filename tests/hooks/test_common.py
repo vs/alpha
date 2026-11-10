@@ -238,7 +238,7 @@ def root_component_principles(tmp_path: Path) -> dict[str, Any]:
     path = tmp_path / ".claude" / "alpha" / "project.json"
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps(data))
-    defaults = load_defaults(Source(PLUGIN_ROOT, True, ""))
+    defaults = load_defaults(Source(PLUGIN_ROOT, True))
     return build_principles(defaults, load_answers(path), "0.1.0")
 
 

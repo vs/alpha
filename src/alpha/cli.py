@@ -25,16 +25,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="alpha")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("version", help="print the alpha version")
-    d = sub.add_parser("defaults", help="show or change kit defaults")
+    d = sub.add_parser("defaults", help="show the defaults, or save one of your own")
     dsub = d.add_subparsers(dest="defaults_command", required=True)
     show = dsub.add_parser("show", help="print the merged kit defaults")
     show.add_argument("--json", action="store_true", help="machine-readable output")
-    dset = dsub.add_parser("set", help="record a new kit default (after user consent)")
+    dset = dsub.add_parser(
+        "set", help="save a default for your future projects (after user consent)"
+    )
     dset.add_argument("--key", required=True, help="dotted key, e.g. review.max_lines")
     dset.add_argument("--value", required=True, help="TOML value, or a plain string")
     dset.add_argument("--project", required=True, help="project that prompted this")
     dset.add_argument("--reason", required=True, help="why the default changes")
-    dset.add_argument("--trailer", action="append", default=[], help="commit trailer")
     a = sub.add_parser("answers", help="work with the interview answers file")
     asub = a.add_subparsers(dest="answers_command", required=True)
     check = asub.add_parser("check", help="validate an answers file")
@@ -60,10 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
         rp = rsub.add_parser(name, help=text)
         rp.add_argument("target", type=Path, help="the folder being set up")
         rp.add_argument("stack", help="the drafted recipe's stack, e.g. rust")
-    rsave = rsub.add_parser("save", help="add a proven drafted recipe to the kit")
+    rsave = rsub.add_parser(
+        "save", help="save a proven drafted recipe for your future projects"
+    )
     rsave.add_argument("target", type=Path, help="the generated project")
     rsave.add_argument("stack", help="the drafted recipe's stack, e.g. rust")
-    rsave.add_argument("--trailer", action="append", default=[], help="commit trailer")
     reg = sub.add_parser("registry", help="the reviewed tool registry")
     regsub = reg.add_subparsers(dest="registry_command", required=True)
     rlist = regsub.add_parser("list", help="tool ids with their category")
@@ -102,32 +104,29 @@ def _defaults(args: argparse.Namespace) -> int:
     try:
         source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
         if args.defaults_command == "set":
-            print(
-                defaults.set_default(
-                    source,
-                    args.key,
-                    args.value,
-                    args.project,
-                    args.reason,
-                    args.trailer,
-                    date.today(),
-                )
+            saved = defaults.set_default(
+                source, args.key, args.value, args.project, args.reason, date.today()
             )
+            print(f"saved: {args.key} = {args.value} in {saved}; new projects use it")
             return 0
         merged = defaults.load_defaults(source)
-    except defaults.SourceNotLive as e:
-        print(e, file=sys.stderr)
-        return 4
     except defaults.DefaultsError as e:
         print(e, file=sys.stderr)
         return 3
+    mine = None if source.user is None else source.user / defaults.USER_OVERRIDES
+    has_mine = mine is not None and mine.is_file()
     if args.json:
-        info = {"path": str(source.path), "live": source.live, "reason": source.reason}
+        info = {
+            "path": str(source.path),
+            "checkout": source.checkout,
+            "user_defaults": str(mine) if has_mine else None,
+        }
         print(json.dumps({"source": info, "defaults": merged}, indent=2))
     else:
-        print(
-            f"live from {source.path}" if source.live else f"bundled ({source.reason})"
-        )
+        where = "alpha checkout (ALPHA_SOURCE)" if source.checkout else "alpha plugin"
+        print(f"kit defaults from the {where} at {source.path}")
+        if has_mine:
+            print(f"with your defaults from {mine}")
         print(toml_write.dumps(merged), end="")
     return 0
 
@@ -175,15 +174,10 @@ def _recipe(args: argparse.Namespace) -> int:
             return 0
         if args.recipe_command == "save":
             source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
-            short = recipe_cli.save_recipe(
-                args.target, args.stack, source, args.trailer
-            )
-            print(f"saved: {args.stack} recipe, commit {short}")
+            saved = recipe_cli.save_recipe(args.target, args.stack, source)
+            print(f"saved: {args.stack} recipe in {saved}; new projects can use it")
             return 0
         problem = recipe_cli.try_recipe(args.target, args.stack)
-    except defaults.SourceNotLive as e:
-        print(e, file=sys.stderr)
-        return 4
     except defaults.DefaultsError as e:
         print(e, file=sys.stderr)
         return 3
@@ -247,8 +241,6 @@ def _describe_tool(t: registry.Tool) -> str:
 
 def _generate(target: Path) -> None:
     source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
-    if not source.live:
-        print(f"warning: using bundled kit defaults ({source.reason})", file=sys.stderr)
     files = generate(target, PLUGIN_ROOT, source, date.today().year)
     print(f"Generated {len(files)} files in {target}.")
     print(f'Next: "alpha bootstrap {target}".')

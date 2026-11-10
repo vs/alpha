@@ -28,11 +28,11 @@ To change a project alpha generated (add a component, revisit an area's decision
 
 Optional: to stop Claude Code asking before each alpha CLI call during the interview, add `"Bash(<alpha checkout>/bin/alpha *)"` with the absolute path of this checkout to `permissions.allow` in `~/.claude/settings.json` (for an installed plugin, use the `bin/alpha` path the prompt shows).
 
-Install it for every session later with `claude plugin marketplace add ~/workspace/alpha`, then `claude plugin install alpha@alpha-local`. `claude plugin validate .claude-plugin/marketplace.json` checks the manifests.
+Install it for every session from GitHub with `claude plugin marketplace add vs/alpha`, then `claude plugin install alpha@alpha`; update with `claude plugin marketplace update alpha` and `claude plugin update alpha@alpha`. `claude plugin validate .claude-plugin/marketplace.json` checks the manifests.
 
-Recipes and defaults come from the live alpha checkout when one is found (`ALPHA_SOURCE`, then `source` in `~/.config/alpha/config.toml`, then `~/workspace/alpha`), before the copies bundled with the plugin. For a stack both have, the checkout's recipe wins, even if that checkout is older than the installed plugin.
+Recipes, defaults and the tool registry come from the plugin itself: the installed copy, or this checkout under `--plugin-dir`. Only `ALPHA_SOURCE` points alpha at another checkout (the evals set it to the kit commit they test); for a stack both have, that checkout's recipe wins, and one from before the quality gates has tag-pinned recipes the plugin refuses, with an error that says to `git pull` it or unset `ALPHA_SOURCE`.
 
-Since the quality gates (repository checks, SHA-pinned actions), update the installed plugin and the checkout together: a checkout from before them has tag-pinned recipes the plugin refuses, and the error says to `git pull` it or unset `ALPHA_SOURCE`.
+The user's own layer is `~/.config/alpha/` (`ALPHA_CONFIG_DIR` overrides it; the tests and evals point it at a temp folder): `overrides.toml` and `CHANGELOG.md` from `alpha defaults set`, and `recipes/` from `alpha recipe save`. It applies on top of the kit, and the kit's recipe wins for a stack both have. Nothing there is committed.
 
 Kit tests: `uv run pytest` runs the fast suite. `uv run pytest -m slow` also bootstraps real projects with uv and pnpm (needs both installed and network access).
 

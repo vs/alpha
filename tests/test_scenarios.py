@@ -312,7 +312,7 @@ def test_generated_hooks_enforce_the_generated_principles(
         }
     )
     answers.write_text(json.dumps(data))
-    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
     commit_skeleton(target, principles_of(target), [])
 
     bin_dir = tmp_path / "bin"

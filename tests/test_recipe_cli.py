@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import SCENARIOS, TODAY, git, proven, shell_recipe, single_component
-from test_defaults import make_source, reject_commits
+from helpers import SCENARIOS, TODAY, proven, shell_recipe, single_component
+from test_defaults import make_source
 
 from alpha import cli, toml_write
 from alpha.answers import AnswersError, load_answers
 from alpha.cli import PLUGIN_ROOT
-from alpha.defaults import DefaultsError, Source, SourceNotLive
+from alpha.defaults import DefaultsError, Source
 from alpha.generate import generate, project_book
 from alpha.recipe_cli import save_recipe
 from alpha.recipes import RecipeBook, RecipeError, recipe_hash
@@ -128,7 +128,7 @@ def test_an_unproven_recipe_is_refused(tmp_path: Path):
     with pytest.raises(
         AnswersError, match=r"recipes\.shell: not proven.*alpha recipe try"
     ):
-        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
 
 
 def test_a_recipe_edited_after_try_is_refused(tmp_path: Path):
@@ -137,7 +137,7 @@ def test_a_recipe_edited_after_try_is_refused(tmp_path: Path):
     recipe["commands"]["lint"] = "true"
     scenario_with_shell(tmp_path, recipe)
     with pytest.raises(AnswersError, match=r"not proven since it last changed"):
-        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
 
 
 def drafted_project(tmp_path: Path, recipe: dict[str, Any]) -> Path:
@@ -149,99 +149,119 @@ def drafted_project(tmp_path: Path, recipe: dict[str, Any]) -> Path:
     return target
 
 
-def test_save_writes_the_recipe_and_commits(
+def saving_to(src: Source, monkeypatch: pytest.MonkeyPatch) -> Path:
+    assert src.user is not None
+    monkeypatch.setenv("ALPHA_CONFIG_DIR", str(src.user))
+    return src.user / "recipes"
+
+
+def test_save_writes_the_recipe_to_your_folder(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    src = make_source(tmp_path / "src", repo=True)
-    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
-    recipe = proven(shell_recipe())
-    target = drafted_project(tmp_path / "p", recipe)
-    short = save_recipe(target, "shell", src, ["Co-Authored-By: X <x@y>"])
-    assert git(src.path, "rev-parse", "HEAD").startswith(short)
-    message = git(src.path, "log", "-1", "--format=%B")
-    assert message.startswith("feat(recipes): Add shell recipe from leaf-lens")
-    assert "Co-Authored-By: X <x@y>" in message
+    src = make_source(tmp_path / "src")
+    folder = saving_to(src, monkeypatch)
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    assert save_recipe(target, "shell", src) == folder / "shell.toml"
+    assert (
+        (folder / "shell.toml")
+        .read_text()
+        .startswith("# Drafted in the leaf-lens interview and proven there;")
+    )
     saved = RecipeBook().get("shell")
     assert saved.proven is False
     assert saved.templates == shell_recipe()["templates"]
     assert saved.commands == {**shell_recipe()["commands"], "structure": ""}
-    assert git(src.path, "status", "--porcelain") == ""
-
-
-def test_save_keeps_the_subject_short_for_a_long_slug(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    src = make_source(tmp_path / "src", repo=True)
-    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
-    path = target / ".claude/alpha/project.json"
-    data = json.loads(path.read_text())
-    data["identity"] = {"slug": "a-very-long-project-slug-for-testing"}
-    path.write_text(json.dumps(data))
-    save_recipe(target, "shell", src, [])
-    subject = git(src.path, "log", "-1", "--format=%s")
-    assert subject == "feat(recipes): Add shell recipe"
+    assert not (src.path / "recipes").exists()
 
 
 def test_save_keeps_templates_whose_flat_names_would_collide(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    src = make_source(tmp_path / "src", repo=True)
-    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
+    src = make_source(tmp_path / "src")
+    saving_to(src, monkeypatch)
     recipe = shell_recipe()
     recipe["templates"]["tests-setup.sh"] = "echo flat\n"
     target = drafted_project(tmp_path / "p", proven(recipe))
-    save_recipe(target, "shell", src, [])
+    save_recipe(target, "shell", src)
     saved = RecipeBook().get("shell").templates
     assert saved["tests/setup.sh"] == "test 1 -eq 1\n"
     assert saved["tests-setup.sh"] == "echo flat\n"
 
 
-def test_save_needs_a_live_source(tmp_path: Path):
+def test_save_needs_a_folder_for_your_recipes(tmp_path: Path):
     target = drafted_project(tmp_path, proven(shell_recipe()))
-    bundled = Source(tmp_path / "plugin", False, "no source checkout found")
-    with pytest.raises(SourceNotLive):
-        save_recipe(target, "shell", bundled, [])
+    with pytest.raises(DefaultsError, match="ALPHA_CONFIG_DIR"):
+        save_recipe(target, "shell", Source(tmp_path / "plugin", False))
 
 
 def test_save_refuses_an_unproven_recipe(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
+    src = make_source(tmp_path / "src")
     target = drafted_project(tmp_path / "p", shell_recipe())
     with pytest.raises(AnswersError, match="not proven"):
-        save_recipe(target, "shell", src, [])
+        save_recipe(target, "shell", src)
+
+
+def test_save_refuses_a_recipe_you_already_saved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    src = make_source(tmp_path / "src")
+    folder = saving_to(src, monkeypatch)
+    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    save_recipe(target, "shell", src)
+    with pytest.raises(AnswersError, match="already has a shell recipe"):
+        save_recipe(target, "shell", src)
+    (folder / "shell.toml").unlink()
+    with pytest.raises(AnswersError, match="you already saved a shell recipe"):
+        save_recipe(target, "shell", src)
 
 
 def test_save_refuses_a_stack_the_kit_has(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    src = make_source(tmp_path / "src", repo=True)
+    src = make_source(tmp_path / "src")
+    saving_to(src, monkeypatch)
+    (src.path / "recipes").mkdir()
+    (src.path / "recipes/shell.toml").write_text('stack = "shell"\n')
     monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
     target = drafted_project(tmp_path / "p", proven(shell_recipe()))
-    save_recipe(target, "shell", src, [])
-    with pytest.raises(AnswersError, match="already has a shell recipe"):
-        save_recipe(target, "shell", src, [])
+    with pytest.raises(AnswersError, match="the kit already has a shell recipe"):
+        save_recipe(target, "shell", src)
 
 
-def test_save_leaves_nothing_when_the_commit_fails(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    reject_commits(src.path)
+def test_save_leaves_nothing_when_a_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    src = make_source(tmp_path / "src")
+    folder = saving_to(src, monkeypatch)
     target = drafted_project(tmp_path / "p", proven(shell_recipe()))
-    with pytest.raises(DefaultsError, match="retry"):
-        save_recipe(target, "shell", src, [])
-    assert not (src.path / "recipes").exists() or not any(
-        (src.path / "recipes").iterdir()
-    )
-    assert git(src.path, "status", "--porcelain") == ""
+    write = Path.write_text
+
+    def full_disk(self: Path, *args: Any, **kwargs: Any) -> int:
+        if self.suffix == ".toml" and self.parent == folder:
+            raise OSError(28, "No space left on device", str(self))
+        return write(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", full_disk)
+    assert cli.main(["recipe", "save", str(target), "shell"]) == 3
+    assert "No space left on device" in capsys.readouterr().err
+    assert not (folder / "shell").exists()
+    assert not (folder / "shell.toml").exists()
 
 
 def test_cli_save_exit_codes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    monkeypatch.setenv("ALPHA_SOURCE", str(tmp_path / "missing"))
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     target = drafted_project(tmp_path / "p", proven(shell_recipe()))
-    assert cli.main(["recipe", "save", str(target), "shell"]) == 4
-    assert "Cannot save a recipe to the kit" in capsys.readouterr().err
+    monkeypatch.setenv("ALPHA_SOURCE", str(tmp_path / "missing"))
+    assert cli.main(["recipe", "save", str(target), "shell"]) == 3
+    assert "unset it to use the installed plugin" in capsys.readouterr().err
+    monkeypatch.delenv("ALPHA_SOURCE")
+    monkeypatch.setenv("ALPHA_CONFIG_DIR", str(tmp_path / "config"))
+    assert cli.main(["recipe", "save", str(target), "shell"]) == 0
+    saved = tmp_path / "config/recipes/shell.toml"
+    assert capsys.readouterr().out == (
+        f"saved: shell recipe in {saved}; new projects can use it\n"
+    )
 
 
 def broken_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -280,33 +300,22 @@ def test_list_keeps_going_past_a_broken_recipe(
 def test_saving_a_recipe_keeps_its_project_working(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    src = make_source(tmp_path / "src", repo=True)
-    monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
+    src = make_source(tmp_path / "src")
+    saving_to(src, monkeypatch)
     target = tmp_path / "proj"
     scenario_with_shell(target, proven(shell_recipe()))
-    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
-    save_recipe(target, "shell", src, [])
+    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    save_recipe(target, "shell", src)
     answers = load_answers(target / ".claude/alpha/project.json")
     assert answers.book().get("shell").proven is False
     assert project_book(target).get("shell").templates == shell_recipe()["templates"]
 
 
-def test_save_refuses_when_the_template_folder_exists(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    notes = src.path / "recipes" / "shell" / "notes.txt"
-    notes.parent.mkdir(parents=True)
-    notes.write_text("mine\n")
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
-    with pytest.raises(AnswersError, match=r"recipes/shell/ already exists"):
-        save_recipe(target, "shell", src, [])
-    assert notes.read_text() == "mine\n"
-    assert not (src.path / "recipes" / "shell.toml").exists()
-
-
 def test_save_writes_nothing_when_the_toml_cannot_be_rendered(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    src = make_source(tmp_path / "src", repo=True)
+    src = make_source(tmp_path / "src")
+    folder = saving_to(src, monkeypatch)
     target = drafted_project(tmp_path / "p", proven(shell_recipe()))
 
     def fail(_: object) -> str:
@@ -314,23 +323,8 @@ def test_save_writes_nothing_when_the_toml_cannot_be_rendered(
 
     monkeypatch.setattr(toml_write, "dumps", fail)
     with pytest.raises(AnswersError, match="can't be written as TOML"):
-        save_recipe(target, "shell", src, [])
-    assert not (src.path / "recipes").exists()
-
-
-def test_a_failed_save_keeps_other_staged_changes(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    other = src.path / "recipes" / "other.txt"
-    other.parent.mkdir(parents=True)
-    other.write_text("staged\n")
-    git(src.path, "add", "recipes/other.txt")
-    reject_commits(src.path)
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
-    with pytest.raises(DefaultsError):
-        save_recipe(target, "shell", src, [])
-    staged = git(src.path, "diff", "--cached", "--name-only").splitlines()
-    assert staged == ["recipes/other.txt"]
-    assert not (src.path / "recipes" / "shell").exists()
+        save_recipe(target, "shell", src)
+    assert not folder.exists()
 
 
 def test_try_fails_when_commands_create_source_files(

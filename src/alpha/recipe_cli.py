@@ -11,7 +11,7 @@ from typing import Any, cast
 
 from alpha import toml_write
 from alpha.answers import PROJECT_JSON, AnswersError, drafted_recipes, write_answers
-from alpha.defaults import DefaultsError, Source, SourceNotLive
+from alpha.defaults import USER_RECIPES, DefaultsError, Source
 from alpha.recipes import (
     Recipe,
     RecipeBook,
@@ -24,7 +24,6 @@ from alpha.recipes import (
 _TAIL_LINES = 40
 _NOT_FOUND = 127
 _TIMEOUT_SECONDS = 600.0
-_MAX_SUBJECT = 50
 # How sh, bash and zsh name a command they can't find.
 _MISSING = re.compile(
     r"(?:^|: )([^\s:]+): (?:command )?not found$|command not found: (\S+)$", re.M
@@ -169,24 +168,11 @@ def _template_name(rel: str) -> str:
     return rel + ".tmpl"
 
 
-def _git(repo: Path, *args: str) -> str:
-    done = subprocess.run(
-        ["git", "-C", str(repo), *args], capture_output=True, text=True
-    )
-    if done.returncode != 0:
+def save_recipe(target: Path, stack: str, source: Source) -> Path:
+    if source.user is None:
         raise DefaultsError(
-            f"git {args[0]} failed in {repo}: {done.stderr.strip()}. Fix the "
-            "repository state there, then retry."
-        )
-    return done.stdout.strip()
-
-
-def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -> str:
-    if not source.live:
-        raise SourceNotLive(
-            "Cannot save a recipe to the kit: no alpha source checkout is "
-            f"available ({source.reason}). Set ALPHA_SOURCE to your alpha "
-            "checkout and retry, or keep the recipe in this project only."
+            "Cannot save a recipe: there is no folder for your alpha recipes. Set "
+            "ALPHA_CONFIG_DIR to one, then retry."
         )
     data = check(target, stack)
     if data.get("proven_hash") != recipe_hash(data):
@@ -194,10 +180,14 @@ def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -
             f'recipes.{stack}: not proven since it last changed. Run "alpha recipe '
             f'try {target} {stack}" until it prints ok, then save it.'
         )
-    if (
-        stack in RecipeBook().kit_stacks()
-        or (source.path / "recipes" / f"{stack}.toml").exists()
-    ):
+    folder = source.user / USER_RECIPES
+    saved = folder / f"{stack}.toml"
+    if saved.exists() or (folder / stack).exists():
+        raise AnswersError(
+            f"recipes.{stack}: you already saved a {stack} recipe in {folder}. Keep "
+            f"using it, or remove {saved} and {folder / stack} to save this one."
+        )
+    if stack in RecipeBook().kit_stacks():
         raise AnswersError(
             f"recipes.{stack}: the kit already has a {stack} recipe. Keep using it, "
             "or change the kit's recipe by hand."
@@ -210,15 +200,9 @@ def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -
     }
     toml = {"stack": stack, "proven": False, **fields}
     toml["files"] = {rel: _template_name(rel) for rel in templates}
-    folder = source.path / "recipes"
-    if (folder / stack).exists():
-        raise AnswersError(
-            f"recipes/{stack}/ already exists in the kit source ({folder}). Move it "
-            "away or remove it, then retry."
-        )
     try:
         text = (
-            "# Drafted in a project interview and proven there; less proven than "
+            f"# Drafted in the {slug} interview and proven there; less proven than "
             "the kit's own.\n" + toml_write.dumps(toml)
         )
     except TypeError as e:
@@ -226,31 +210,15 @@ def save_recipe(target: Path, stack: str, source: Source, trailers: list[str]) -
             f"recipes.{stack}: can't be written as TOML ({e}). Fix that value in "
             "the drafted recipe, try it again, then save it."
         ) from None
-    created_folder = not folder.exists()
-    paths = [f"recipes/{stack}.toml", f"recipes/{stack}"]
     try:
         (folder / stack).mkdir(parents=True)
         for rel, template in templates.items():
             path = folder / stack / _template_name(rel)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(template)
-        (folder / f"{stack}.toml").write_text(text)
-        _git(source.path, "add", "--", *paths)
-        subject = f"Add {stack} recipe from {slug}"
-        if len(subject) > _MAX_SUBJECT:
-            subject = f"Add {stack} recipe"
-        message = f"feat(recipes): {subject}"
-        if trailers:
-            message += "\n\n" + "\n".join(trailers)
-        _git(source.path, "commit", "-q", "-m", message, "--", *paths)
-    except Exception:
-        subprocess.run(
-            ["git", "-C", str(source.path), "reset", "-q", "--", *paths],
-            capture_output=True,
-        )
+        saved.write_text(text)
+    except OSError:
         shutil.rmtree(folder / stack, ignore_errors=True)
-        (folder / f"{stack}.toml").unlink(missing_ok=True)
-        if created_folder:
-            shutil.rmtree(folder, ignore_errors=True)
+        saved.unlink(missing_ok=True)
         raise
-    return _git(source.path, "rev-parse", "--short", "HEAD")
+    return saved

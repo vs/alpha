@@ -62,6 +62,7 @@ def eval_env(run_dir: Path, kit: Path) -> dict[str, str]:
     return {
         **os.environ,
         "ALPHA_SOURCE": str(kit),
+        "ALPHA_CONFIG_DIR": str(run_dir / "alpha-config"),
         "GIT_CONFIG_GLOBAL": str(config),
         "GIT_CONFIG_NOSYSTEM": "1",
     }

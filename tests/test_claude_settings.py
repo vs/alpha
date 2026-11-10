@@ -11,7 +11,7 @@ from alpha.render.claude_settings import render_settings
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 HOOKS_DIR = Path(__file__).resolve().parents[1] / "project-files" / "hooks"
 PRINCIPLES = build_principles(
-    load_defaults(Source(PLUGIN_ROOT, True, "")), load_answers(FIXTURE), "0.0.0"
+    load_defaults(Source(PLUGIN_ROOT, True)), load_answers(FIXTURE), "0.0.0"
 )
 SETTINGS = render_settings(PRINCIPLES)
 

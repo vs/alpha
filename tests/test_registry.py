@@ -23,7 +23,7 @@ GENERATED = (
 
 
 def kit() -> Registry:
-    return load_registry(Source(PLUGIN_ROOT, True, ""))
+    return load_registry(Source(PLUGIN_ROOT, True))
 
 
 def test_registry_loads():
@@ -61,7 +61,7 @@ def bad_registry(tmp_path: Path, field: str, value: str) -> Source:
     body = "".join(f"{k} = {v}\n" for k, v in fields.items())
     (folder / "tools.toml").write_text(f"[tools.demo]\n{body}")
     (folder / "actions.toml").write_text("")
-    return Source(tmp_path, True, "")
+    return Source(tmp_path, True)
 
 
 def test_bad_field_names_it(tmp_path: Path):
@@ -79,7 +79,7 @@ def test_incomplete_pin_names_the_field(tmp_path: Path):
 def test_a_live_checkout_without_a_registry_falls_back_to_the_bundled_one(
     tmp_path: Path,
 ):
-    reg = load_registry(Source(tmp_path, True, ""))
+    reg = load_registry(Source(tmp_path, True))
     assert reg.tool("typos").pin is not None
 
 

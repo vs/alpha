@@ -21,7 +21,7 @@ from alpha.registry import load_registry
 from alpha.render.tooling import render_tooling
 from alpha.repo_checks import repo_checks
 
-SOURCE = Source(PLUGIN_ROOT, True, "")
+SOURCE = Source(PLUGIN_ROOT, True)
 D = load_defaults(SOURCE)
 REGISTRY = load_registry(SOURCE)
 

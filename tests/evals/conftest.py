@@ -24,7 +24,7 @@ def isolated_home(
 
 def honest_mise() -> str:
     """A mise that passes `run ci` and fails each check:<id> like the real tool."""
-    registry = load_registry(Source(PLUGIN_ROOT, True, ""))
+    registry = load_registry(Source(PLUGIN_ROOT, True))
     cases = ""
     for check, (tool, _, _, says) in REPO_SEEDS.items():
         pin = registry.tool(tool).pin

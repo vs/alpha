@@ -147,7 +147,6 @@ def _action(repo: str, value: object) -> Action:
 
 
 def _read(source: Source, name: str) -> dict[str, Any]:
-    # The live checkout first, then the copy bundled with the plugin.
     for root in (source.path, BUNDLED):
         path = root / name
         if path.is_file():
@@ -182,6 +181,5 @@ def load_registry(source: Source) -> Registry:
 
 
 def default_registry() -> Registry:
-    """The registry of the alpha checkout the defaults come from, for callers
-    that weren't handed one."""
+    """The registry the defaults come from, for callers that weren't handed one."""
     return load_registry(locate_source(BUNDLED, os.environ, Path.home()))

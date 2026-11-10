@@ -11,12 +11,18 @@ from alpha.generate import generate
 GenerateScenario = Callable[[Path, str], list[str]]
 
 
+@pytest.fixture(autouse=True)
+def own_alpha_config(tmp_path_factory: pytest.TempPathFactory, monkeypatch):
+    monkeypatch.setenv("ALPHA_CONFIG_DIR", str(tmp_path_factory.mktemp("alpha")))
+    monkeypatch.delenv("ALPHA_SOURCE", raising=False)
+
+
 @pytest.fixture
 def generate_scenario() -> GenerateScenario:
 
     def run(target: Path, scenario: str) -> list[str]:
         place_answers(target, scenario)
-        return generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+        return generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
 
     return run
 

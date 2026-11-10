@@ -102,7 +102,7 @@ def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env):
     data = json.loads(answers.read_text())
     data["components"][0].update(stack="typescript", kind="cli")
     answers.write_text(json.dumps(data))
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
@@ -156,7 +156,7 @@ def test_scenarios_pass_repo_checks(
 def bootstrapped_web(tmp_path_factory: pytest.TempPathFactory) -> Path:
     target = tmp_path_factory.mktemp("web")
     place_answers(target, "web-ts-plus-python-api")
-    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True, ""), 2026, TODAY)
+    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
     bootstrap(target, tomllib.loads((target / "docs/principles.toml").read_text()))
     return target
 
@@ -183,7 +183,7 @@ def seeded(bootstrapped_web: Path, request: pytest.FixtureRequest) -> Iterator[P
 @pytest.mark.parametrize("seeded", list(SEEDS), indirect=True)
 def test_repo_checks_can_fail(seeded: Path, request: pytest.FixtureRequest):
     check = request.node.callspec.params["seeded"]
-    pin = load_registry(Source(PLUGIN_ROOT, True, "")).tool(SEEDS[check][0]).pin
+    pin = load_registry(Source(PLUGIN_ROOT, True)).tool(SEEDS[check][0]).pin
     assert pin is not None
     done = mise_run(seeded, f"check:{check}")
     output = done.stdout + done.stderr
@@ -270,7 +270,7 @@ def test_diff_cover_catches_untested_line(tmp_path: Path, generate_scenario, git
         .replace("origin/${BASE_REF}", "${BASE_REF}")  # no remote here
     )
     diff_env = {**os.environ, "BASE_REF": "main"}  # CI's base_ref; local branch
-    pin = load_registry(Source(PLUGIN_ROOT, True, "")).tool("diff-cover").pin
+    pin = load_registry(Source(PLUGIN_ROOT, True)).tool("diff-cover").pin
     assert pin is not None
     assert f"diff-cover=={pin.version}" in diff
 

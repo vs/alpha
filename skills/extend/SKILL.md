@@ -63,4 +63,4 @@ Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-update <target> --trailer "<line>"
 
 ## 8. Report
 
-Say what changed and which commits were made. Tell the user to start a new Claude Code session (or run `/clear`) so Claude loads the updated rules. If a recipe was drafted, offer to save it as new-project does: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe save <target> <stack> --trailer "<line>"`.
+Say what changed and which commits were made. Tell the user to start a new Claude Code session (or run `/clear`) so Claude loads the updated rules. If a recipe was drafted, offer to save it as new-project does: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe save <target> <stack>`.

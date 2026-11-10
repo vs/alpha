@@ -12,7 +12,7 @@ from alpha.principles import build_principles
 from alpha.render.docs import render_docs
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
-D = load_defaults(Source(PLUGIN_ROOT, True, ""))
+D = load_defaults(Source(PLUGIN_ROOT, True))
 
 
 def load(tmp_path: Path, source: Path = FIXTURE, mutate: Any = None) -> Answers:

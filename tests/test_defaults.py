@@ -35,49 +35,35 @@ def git(repo: Path, *args: str) -> str:
     return out.stdout.strip()
 
 
-def make_source(path: Path, *, repo: bool = False) -> Source:
+def make_source(path: Path) -> Source:
     (path / "defaults").mkdir(parents=True)
-    for name in ("defaults.toml", "overrides.toml", "CHANGELOG.md"):
-        (path / "defaults" / name).write_text((ROOT / "defaults" / name).read_text())
-    if repo:
-        git(path, "init", "-q")
-        git(path, "config", "user.name", "Test")
-        git(path, "config", "user.email", "test@example.com")
-        git(path, "add", "-A")
-        git(path, "commit", "-q", "-m", "chore: Seed")
-    return Source(path, True, "")
+    defaults = ROOT / "defaults/defaults.toml"
+    (path / "defaults/defaults.toml").write_text(defaults.read_text())
+    return Source(path, True, path.parent / "config")
 
 
-def test_env_source_wins(tmp_path: Path):
+def test_the_installed_plugin_is_the_source(tmp_path: Path):
+    make_source(tmp_path / "home/workspace/alpha")
+    s = locate_source(tmp_path / "plugin", {}, tmp_path / "home")
+    assert s == Source(tmp_path / "plugin", False, tmp_path / "home/.config/alpha")
+
+
+def test_alpha_source_names_a_checkout(tmp_path: Path):
     src = make_source(tmp_path / "mine")
-    s = locate_source(tmp_path / "plugin", {"ALPHA_SOURCE": str(src.path)}, tmp_path)
-    assert s.live is True and s.path == src.path
+    env = {"ALPHA_SOURCE": str(src.path), "ALPHA_CONFIG_DIR": str(tmp_path / "c")}
+    s = locate_source(tmp_path / "plugin", env, tmp_path)
+    assert s == Source(src.path, True, tmp_path / "c")
 
 
-def test_config_file_source(tmp_path: Path):
-    src = make_source(tmp_path / "elsewhere")
-    cfg = tmp_path / "home/.config/alpha/config.toml"
-    cfg.parent.mkdir(parents=True)
-    cfg.write_text(f'source = "{src.path}"\n')
-    s = locate_source(tmp_path / "plugin", {}, tmp_path / "home")
-    assert s.live is True and s.path == src.path
-
-
-def test_default_workspace_source(tmp_path: Path):
-    src = make_source(tmp_path / "home/workspace/alpha")
-    s = locate_source(tmp_path / "plugin", {}, tmp_path / "home")
-    assert s.live is True and s.path == src.path
-
-
-def test_fallback_is_bundled_and_explains(tmp_path: Path):
-    s = locate_source(tmp_path / "plugin", {}, tmp_path / "home")
-    assert s.live is False and s.path == tmp_path / "plugin"
-    assert "ALPHA_SOURCE" in s.reason
-    assert str(tmp_path / "home/workspace/alpha") in s.reason
+def test_a_wrong_alpha_source_is_explained(tmp_path: Path):
+    with pytest.raises(DefaultsError) as e:
+        locate_source(tmp_path / "plugin", {"ALPHA_SOURCE": str(tmp_path)}, tmp_path)
+    assert str(e.value).startswith(f"ALPHA_SOURCE is {tmp_path}, which has no ")
+    assert "unset it to use the installed plugin" in str(e.value)
 
 
 def test_catalog_has_all_core_principles():
-    d = load_defaults(Source(ROOT, True, ""))
+    d = load_defaults(Source(ROOT, True))
     ids = {p["id"] for p in d["principles"]}
     assert {
         "fail-helpfully",
@@ -100,7 +86,7 @@ def principle(d: dict[str, Any], pid: str) -> dict[str, Any]:
 
 
 def test_comments_keep_only_what_the_code_cannot_say():
-    d = load_defaults(Source(ROOT, True, ""))
+    d = load_defaults(Source(ROOT, True))
     statement = principle(d, "code-over-comments")["statement"]
     for kept in ("license", "dependency", "public API", "issue"):
         assert kept in statement
@@ -109,7 +95,7 @@ def test_comments_keep_only_what_the_code_cannot_say():
 
 
 def test_subtract_first_replaces_internal_apis_in_one_change():
-    d = load_defaults(Source(ROOT, True, ""))
+    d = load_defaults(Source(ROOT, True))
     statement = principle(d, "subtract-first")["statement"]
     assert "dead" in statement
     assert "compatibility layer" in statement
@@ -117,12 +103,12 @@ def test_subtract_first_replaces_internal_apis_in_one_change():
 
 
 def test_branching_defaults_to_feature_branches():
-    d = load_defaults(Source(ROOT, True, ""))
+    d = load_defaults(Source(ROOT, True))
     assert d["git"]["branching"] == "feature-branches"
 
 
 def test_reversible_work_does_not_wait_for_the_user():
-    d = load_defaults(Source(ROOT, True, ""))
+    d = load_defaults(Source(ROOT, True))
     ids = {p["id"] for p in d["principles"]}
     assert "ask-when-ambiguous" not in ids
     statement = principle(d, "never-block-on-the-human")["statement"]
@@ -146,7 +132,7 @@ def hook_checks() -> set[tuple[str, str]]:
 
 
 def test_checked_by_names_the_hooks_that_check_each_principle():
-    d = load_defaults(Source(ROOT, True, ""))
+    d = load_defaults(Source(ROOT, True))
     listed = {
         (p["id"], who)
         for p in d["principles"]
@@ -165,14 +151,14 @@ def catalog_ids() -> set[str]:
     with tempfile.TemporaryDirectory() as tmp:
         a, _ = scenario(Path(tmp), "web-ts-plus-python-api")
         principles = build_principles(
-            load_defaults(Source(ROOT, True, "")), a, "0.1.0", registry=REGISTRY
+            load_defaults(Source(ROOT, True)), a, "0.1.0", registry=REGISTRY
         )
         return {c.id for c in repo_checks(a, principles, REGISTRY)}
 
 
 def test_checked_by_prefixes_are_known():
     """`reviewer`, `hook:<script>` (checked above) or `ci:<check>`."""
-    d = load_defaults(Source(ROOT, True, ""))
+    d = load_defaults(Source(ROOT, True))
     ci_checks = catalog_ids() | set(CI_STEPS)
     for p in d["principles"]:
         for who in p["checked_by"]:
@@ -184,14 +170,15 @@ def test_checked_by_prefixes_are_known():
                 assert not name
 
 
-def test_overrides_layer_wins(tmp_path: Path):
+def test_your_defaults_layer_over_the_kit(tmp_path: Path):
     src = make_source(tmp_path / "src")
-    (src.path / "defaults/overrides.toml").write_text(
-        HEADER + "[review]\nmax_lines = 400\n"
-    )
+    assert src.user is not None
+    src.user.mkdir()
+    (src.user / "overrides.toml").write_text(HEADER + "[review]\nmax_lines = 400\n")
     d = load_defaults(src)
     assert d["review"]["max_lines"] == 400
     assert d["review"]["max_files"] == 5
+    assert load_defaults(Source(src.path, True))["review"]["max_lines"] == 200
 
 
 def test_unknown_condition_is_rejected_with_hint(tmp_path: Path):
@@ -206,47 +193,50 @@ def test_unknown_condition_is_rejected_with_hint(tmp_path: Path):
     assert all(c in str(e.value) for c in CONDITIONS)
 
 
-def test_set_default_writes_logs_and_commits(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    h = set_default(
-        src,
-        "review.max_lines",
-        "400",
-        "demo",
-        "small CLIs",
-        ["Co-Authored-By: X <x@y>"],
-        date(2026, 10, 19),
+def user_files(src: Source) -> tuple[Path, Path]:
+    assert src.user is not None
+    return src.user / "overrides.toml", src.user / "CHANGELOG.md"
+
+
+def test_set_default_writes_your_defaults_and_their_log(tmp_path: Path):
+    src = make_source(tmp_path / "src")
+    kit = (src.path / "defaults/defaults.toml").read_text()
+    saved = set_default(
+        src, "review.max_lines", "400", "demo", "small CLIs", date(2026, 10, 19)
     )
-    overrides = (src.path / "defaults/overrides.toml").read_text()
-    assert overrides.startswith(HEADER)
-    assert tomllib.loads(overrides)["review"]["max_lines"] == 400
-    log = (src.path / "defaults/CHANGELOG.md").read_text()
-    assert "2026-10-19 · review.max_lines = 400 · from demo · small CLIs" in log
-    assert git(src.path, "log", "-1", "--format=%s") == "chore(defaults): Set max_lines"
-    assert "Co-Authored-By: X <x@y>" in git(src.path, "log", "-1", "--format=%B")
-    assert git(src.path, "rev-parse", "HEAD").startswith(h) and len(h) >= 7
+    overrides, log = user_files(src)
+    assert saved == overrides
+    assert overrides.read_text().startswith(HEADER)
+    assert tomllib.loads(overrides.read_text())["review"]["max_lines"] == 400
+    assert log.read_text() == (
+        '# Your alpha defaults\n\nEntries are appended by "alpha defaults set".\n'
+        "\n- 2026-10-19 · review.max_lines = 400 · from demo · small CLIs\n"
+    )
+    assert (src.path / "defaults/defaults.toml").read_text() == kit
+    assert load_defaults(src)["review"]["max_lines"] == 400
 
 
 def test_set_default_keeps_the_changelog_a_valid_list(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    log = src.path / "defaults/CHANGELOG.md"
-    seed = log.read_text()
+    src = make_source(tmp_path / "src")
     day = date(2026, 10, 19)
-    set_default(src, "review.max_lines", "400", "demo", "r1", [], day)
-    set_default(src, "review.mode", "every-task", "demo", "r2", [], day)
-    assert log.read_text() == (
-        seed
-        + "\n- 2026-10-19 · review.max_lines = 400 · from demo · r1\n"
-        + "- 2026-10-19 · review.mode = every-task · from demo · r2\n"
+    set_default(src, "review.max_lines", "400", "demo", "r1", day)
+    set_default(src, "review.mode", "every-task", "demo", "r2", day)
+    assert (
+        user_files(src)[1]
+        .read_text()
+        .endswith(
+            "\n\n- 2026-10-19 · review.max_lines = 400 · from demo · r1\n"
+            "- 2026-10-19 · review.mode = every-task · from demo · r2\n"
+        )
     )
 
 
 def test_set_default_on_a_whitespace_only_changelog(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    log = src.path / "defaults/CHANGELOG.md"
+    src = make_source(tmp_path / "src")
+    log = user_files(src)[1]
+    log.parent.mkdir()
     log.write_text("  \n\n")
-    git(src.path, "commit", "-q", "-am", "blank changelog")
-    set_default(src, "review.max_lines", "400", "demo", "r1", [], date(2026, 10, 19))
+    set_default(src, "review.max_lines", "400", "demo", "r1", date(2026, 10, 19))
     assert log.read_text().endswith(
         "\n- 2026-10-19 · review.max_lines = 400 · from demo · r1\n"
     )
@@ -262,12 +252,12 @@ def test_list_gap_without_text_adds_no_blank_line(existing: str, gap: str):
 @pytest.mark.slow
 @pytest.mark.skipif(shutil.which("rumdl") is None, reason="rumdl is not installed")
 def test_changelog_with_entries_passes_rumdl(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
+    src = make_source(tmp_path / "src")
     day = date(2026, 10, 19)
-    set_default(src, "review.max_lines", "400", "demo", "r1", [], day)
-    set_default(src, "review.mode", "every-task", "demo", "r2", [], day)
+    set_default(src, "review.max_lines", "400", "demo", "r1", day)
+    set_default(src, "review.mode", "every-task", "demo", "r2", day)
     run = subprocess.run(
-        ["rumdl", "check", "--no-config", str(src.path / "defaults/CHANGELOG.md")],
+        ["rumdl", "check", "--no-config", str(user_files(src)[1])],
         capture_output=True,
         text=True,
     )
@@ -275,65 +265,31 @@ def test_changelog_with_entries_passes_rumdl(tmp_path: Path):
 
 
 def test_set_default_merges_with_existing_overrides_and_parses_values(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
+    src = make_source(tmp_path / "src")
     day = date(2026, 10, 19)
-    set_default(src, "review.max_lines", "400", "demo", "r", [], day)
-    set_default(src, "review.mode", "every-task", "demo", "r", [], day)
-    set_default(src, "protected.paths", '["a", "b"]', "demo", "r", [], day)
-    got = tomllib.loads((src.path / "defaults/overrides.toml").read_text())
+    set_default(src, "review.max_lines", "400", "demo", "r", day)
+    set_default(src, "review.mode", "every-task", "demo", "r", day)
+    set_default(src, "protected.paths", '["a", "b"]', "demo", "r", day)
+    got = tomllib.loads(user_files(src)[0].read_text())
     assert got["review"] == {"max_lines": 400, "mode": "every-task"}
     assert got["protected"]["paths"] == ["a", "b"]
 
 
-def reject_commits(repo: Path) -> None:
-    hooks = repo.parent / "hooks"
-    hooks.mkdir()
-    hook = hooks / "pre-commit"
-    hook.write_text("#!/bin/sh\necho 'rejected by test hook' >&2\nexit 1\n")
-    hook.chmod(0o755)
-    git(repo, "config", "core.hooksPath", str(hooks))
-
-
-def test_set_default_commits_only_its_own_files(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    (src.path / "unrelated.txt").write_text("staged work in progress\n")
-    git(src.path, "add", "unrelated.txt")
-    set_default(src, "review.max_lines", "400", "demo", "r", [], date(2026, 10, 19))
-    committed = git(src.path, "show", "--name-only", "--format=", "HEAD").split()
-    assert sorted(committed) == ["defaults/CHANGELOG.md", "defaults/overrides.toml"]
-    assert git(src.path, "status", "--porcelain") == "A  unrelated.txt"
-
-
-@pytest.mark.parametrize("repo", [True, False], ids=["commit-fails", "no-repo"])
-def test_set_default_restores_files_when_git_fails(tmp_path: Path, repo: bool):
-    src = make_source(tmp_path / "src", repo=repo)
-    if repo:
-        reject_commits(src.path)
-    files = [src.path / "defaults/overrides.toml", src.path / "defaults/CHANGELOG.md"]
-    before = [f.read_text() for f in files]
+def test_set_default_restores_files_when_a_write_fails(tmp_path: Path):
+    src = make_source(tmp_path / "src")
+    set_default(src, "review.max_lines", "400", "demo", "r", date(2026, 10, 19))
+    overrides, log = user_files(src)
+    before = [overrides.read_text(), log.read_text()]
+    log.unlink()
+    log.mkdir()
     with pytest.raises(DefaultsError, match="retry"):
-        set_default(src, "review.max_lines", "400", "demo", "r", [], date.today())
-    assert [f.read_text() for f in files] == before
-    if repo:
-        assert git(src.path, "status", "--porcelain") == ""
+        set_default(src, "review.max_lines", "500", "demo", "r", date.today())
+    assert overrides.read_text() == before[0]
 
 
-def test_set_default_removes_a_new_overrides_file_when_git_fails(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    git(src.path, "rm", "-q", "defaults/overrides.toml")
-    git(src.path, "commit", "-q", "-m", "chore: Drop overrides")
-    reject_commits(src.path)
-    with pytest.raises(DefaultsError):
-        set_default(src, "review.max_lines", "400", "demo", "r", [], date.today())
-    assert not (src.path / "defaults/overrides.toml").exists()
-    assert git(src.path, "status", "--porcelain") == ""
-
-
-def test_set_default_refuses_when_not_live(tmp_path: Path):
-    with pytest.raises(DefaultsError, match="decision log"):
-        set_default(
-            Source(tmp_path, False, "bundled"), "a.b", "1", "p", "r", [], date.today()
-        )
+def test_set_default_needs_a_folder_for_your_defaults(tmp_path: Path):
+    with pytest.raises(DefaultsError, match="ALPHA_CONFIG_DIR"):
+        set_default(Source(tmp_path, False), "a.b", "1", "p", "r", date.today())
 
 
 def run_cli(*args: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -342,56 +298,54 @@ def run_cli(*args: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]
     )
 
 
-def test_cli_show_json_and_set(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
+def cli_env(tmp_path: Path, src: Source | None = None) -> dict[str, str]:
     env = {
-        "ALPHA_SOURCE": str(src.path),
         "HOME": str(tmp_path),
+        "ALPHA_CONFIG_DIR": str(tmp_path / "config"),
         "PATH": "/usr/bin:/bin",
     }
+    if src is not None:
+        env["ALPHA_SOURCE"] = str(src.path)
+    return env
+
+
+def test_cli_show_json_and_set(tmp_path: Path):
+    env = cli_env(tmp_path)
     shown = run_cli("defaults", "show", "--json", env=env)
     assert shown.returncode == 0, shown.stderr
     data = json.loads(shown.stdout)
-    assert data["source"]["live"] is True
-    assert data["defaults"]["review"]["max_lines"] == 200
-    text = run_cli("defaults", "show", env=env)
-    assert text.stdout.startswith(f"live from {src.path}\n")
-    done = run_cli(
-        *("defaults", "set", "--key", "review.max_lines", "--value", "300"),
-        *("--project", "demo", "--reason", "why", "--trailer", "Claude-Session: s"),
-        env=env,
-    )
-    assert done.returncode == 0, done.stderr
-    assert git(src.path, "rev-parse", "HEAD").startswith(done.stdout.strip())
-
-
-def test_cli_set_not_live_exits_4(tmp_path: Path):
-    env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}
-    done = run_cli(
-        *("defaults", "set", "--key", "a.b", "--value", "1"),
-        *("--project", "p", "--reason", "r"),
-        env=env,
-    )
-    assert done.returncode == 4
-    assert "decision log" in done.stderr
-
-
-def test_cli_set_git_failure_exits_3_and_explains(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    reject_commits(src.path)
-    env = {
-        "ALPHA_SOURCE": str(src.path),
-        "HOME": str(tmp_path),
-        "PATH": "/usr/bin:/bin",
+    assert data["source"] == {
+        "path": str(ROOT),
+        "checkout": False,
+        "user_defaults": None,
     }
+    assert data["defaults"]["review"]["max_lines"] == 200
     done = run_cli(
         *("defaults", "set", "--key", "review.max_lines", "--value", "300"),
         *("--project", "demo", "--reason", "why"),
         env=env,
     )
-    assert done.returncode == 3
-    assert "git commit failed" in done.stderr
-    assert "retry" in done.stderr
+    assert done.returncode == 0, done.stderr
+    mine = tmp_path / "config/overrides.toml"
+    assert done.stdout == (
+        f"saved: review.max_lines = 300 in {mine}; new projects use it\n"
+    )
+    text = run_cli("defaults", "show", env=env)
+    assert text.stdout.startswith(
+        f"kit defaults from the alpha plugin at {ROOT}\n"
+        f"with your defaults from {mine}\n"
+    )
+    assert "max_lines = 300" in text.stdout
+    data = json.loads(run_cli("defaults", "show", "--json", env=env).stdout)
+    assert data["source"]["user_defaults"] == str(mine)
+
+
+def test_cli_names_an_alpha_source_checkout(tmp_path: Path):
+    src = make_source(tmp_path / "src")
+    text = run_cli("defaults", "show", env=cli_env(tmp_path, src))
+    assert text.stdout.startswith(
+        f"kit defaults from the alpha checkout (ALPHA_SOURCE) at {src.path}\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -411,50 +365,47 @@ def test_cli_set_git_failure_exits_3_and_explains(tmp_path: Path):
 def test_set_default_rejects_unknown_keys_and_wrong_types(
     tmp_path: Path, key: str, value: str, expected: str
 ):
-    src = make_source(tmp_path / "src", repo=True)
-    head = git(src.path, "rev-parse", "HEAD")
-    files = [src.path / "defaults/overrides.toml", src.path / "defaults/CHANGELOG.md"]
-    before = [f.read_text() for f in files]
+    src = make_source(tmp_path / "src")
     with pytest.raises(DefaultsError) as e:
-        set_default(src, key, value, "demo", "r", [], date(2026, 10, 19))
+        set_default(src, key, value, "demo", "r", date(2026, 10, 19))
     assert str(e.value).startswith(expected)
     assert "review.max_lines" in str(e.value) or "--value" in str(e.value)
-    assert [f.read_text() for f in files] == before
-    assert git(src.path, "rev-parse", "HEAD") == head
-    assert git(src.path, "status", "--porcelain") == ""
+    assert not any(f.exists() for f in user_files(src))
 
 
 def test_cli_set_rejects_an_unknown_key_with_exit_3(tmp_path: Path):
-    src = make_source(tmp_path / "src", repo=True)
-    env = {
-        "ALPHA_SOURCE": str(src.path),
-        "HOME": str(tmp_path),
-        "PATH": "/usr/bin:/bin",
-    }
     done = run_cli(
         *("defaults", "set", "--key", "review.nope", "--value", "1"),
         *("--project", "p", "--reason", "r"),
-        env=env,
+        env=cli_env(tmp_path),
     )
     assert done.returncode == 3
     assert "Traceback" not in done.stderr
     assert '"review.nope" is not a kit default' in done.stderr
 
 
-@pytest.mark.parametrize("name", ["defaults.toml", "overrides.toml"])
-def test_malformed_defaults_are_explained(tmp_path: Path, name: str):
-    src = make_source(tmp_path / "src", repo=True)
-    (src.path / "defaults" / name).write_text("review = [oops\n")
+def test_malformed_kit_defaults_are_explained(tmp_path: Path):
+    src = make_source(tmp_path / "src")
+    kit = src.path / "defaults/defaults.toml"
+    kit.write_text("review = [oops\n")
     with pytest.raises(DefaultsError) as e:
         load_defaults(src)
-    assert str(e.value).startswith(f"{src.path / 'defaults' / name} is not valid TOML")
-    assert f"git -C {src.path} checkout defaults/{name}" in str(e.value)
-    env = {
-        "ALPHA_SOURCE": str(src.path),
-        "HOME": str(tmp_path),
-        "PATH": "/usr/bin:/bin",
-    }
-    shown = run_cli("defaults", "show", env=env)
+    assert str(e.value).startswith(f"{kit} is not valid TOML")
+    assert f"git -C {src.path} checkout defaults/defaults.toml" in str(e.value)
+    with pytest.raises(DefaultsError, match="reinstall the alpha plugin"):
+        load_defaults(Source(src.path, False))
+    shown = run_cli("defaults", "show", env=cli_env(tmp_path, src))
     assert shown.returncode == 3
     assert "Traceback" not in shown.stderr
     assert "is not valid TOML" in shown.stderr
+
+
+def test_malformed_user_defaults_are_explained(tmp_path: Path):
+    src = make_source(tmp_path / "src")
+    mine = user_files(src)[0]
+    mine.parent.mkdir()
+    mine.write_text("review = [oops\n")
+    with pytest.raises(DefaultsError) as e:
+        load_defaults(src)
+    assert str(e.value).startswith(f"{mine} is not valid TOML")
+    assert "delete it to go back to the kit's defaults" in str(e.value)

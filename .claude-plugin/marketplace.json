@@ -1,6 +1,6 @@
 {
-  "name": "alpha-local",
-  "description": "Local marketplace for alpha, the interview-driven project skeleton kit",
+  "name": "alpha",
+  "description": "alpha, the interview-driven project skeleton kit",
   "owner": {"name": "Semyon Vadishev"},
   "plugins": [{"name": "alpha", "source": "./"}]
 }

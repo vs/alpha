@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from alpha.defaults import DefaultsError, locate_source
+from alpha.defaults import USER_RECIPES, DefaultsError, locate_source
 from alpha.validate import AnswersError, unmatchable
 
 if TYPE_CHECKING:
@@ -467,11 +467,15 @@ def kit_dirs() -> list[Path]:
         source = locate_source(RECIPES_DIR.parent, os.environ, Path.home())
     except DefaultsError:
         source = None
-    if source is not None and source.live:
-        live = source.path / "recipes"
-        if live.is_dir() and live.resolve() != RECIPES_DIR.resolve():
-            dirs.append(live)
+    if source is not None and source.checkout:
+        checkout = source.path / "recipes"
+        if checkout.is_dir() and checkout.resolve() != RECIPES_DIR.resolve():
+            dirs.append(checkout)
     dirs.append(RECIPES_DIR)
+    if source is not None and source.user is not None:
+        mine = source.user / USER_RECIPES
+        if mine.is_dir():
+            dirs.append(mine)
     return dirs
 
 

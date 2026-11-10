@@ -34,7 +34,7 @@ from alpha.update import (
 )
 
 SCENARIO = "web-ts-plus-python-api"
-SOURCE = Source(PLUGIN_ROOT, True, "")
+SOURCE = Source(PLUGIN_ROOT, True)
 TODAY = date(2026, 11, 2)
 DECISION = {
     "area": "agent_workflow",

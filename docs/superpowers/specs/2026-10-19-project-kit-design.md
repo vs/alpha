@@ -74,8 +74,8 @@ user's consent each time.
 
 ## 3. The shape
 
-A Claude Code plugin, developed in this repo (`/Users/vs/workspace/alpha`),
-installed once and used everywhere.
+A Claude Code plugin, developed in this repo and installed from GitHub
+(`vs/alpha`) once, then used everywhere.
 
 | Part | What it is |
 |---|---|
@@ -529,20 +529,23 @@ CLAUDE.md, where the commit skill already looks.
 ## 11. Kit defaults and how they evolve
 
 - The kit's defaults (principles, conditions, thresholds, preferred stack
-  answers) live in a defaults file in this repo, with a change history:
-  each change records the project it came from and why. The kit is for this
-  user only.
-- **Read live from the repo (user decision).** The installed kit reads the
-  defaults from the source repo at a configurable path (default:
-  `/Users/vs/workspace/alpha`), so a "yes" takes effect for the very next
-  project with no reinstall. If the repo isn't there (another machine), the
-  kit falls back to the defaults bundled at install time and says so
-  clearly. In that case it can't save a new default, so it records the
-  wish in the project's decision log for later.
+  answers) live in a defaults file in this repo. The kit is for this user
+  only.
+- **Installed from GitHub (user decision, 2026-11-10; replaces reading the
+  defaults live from a local checkout).** The kit reads its defaults,
+  recipes and tool registry from the plugin as installed. Only an explicit
+  `ALPHA_SOURCE` points it at a checkout, for developing the kit and for its
+  evals.
+- **The user's own layer.** `~/.config/alpha/` (or `ALPHA_CONFIG_DIR`) holds
+  the user's defaults (`overrides.toml`, with a `CHANGELOG.md` that records
+  the project each change came from and why) and recipes drafted in
+  interviews (`recipes/`). It applies on top of the kit's and survives
+  plugin updates; the kit's recipe wins for a stack both have.
 - When the user overrides a default in a project, the kit asks: "Make this
-  the default for future projects too?" Yes → update the kit defaults in this
-  repo (the source, not an installed copy) and commit. No → the override stays
-  in the project's decision log only.
+  the default for future projects too?" Yes → save it in the user's layer,
+  so the next project starts from it. No → the override stays in the
+  project's decision log only. Changing the kit's own defaults is ordinary
+  work on this repo, released by pushing it and updating the plugin.
 - Existing projects never change when kit defaults change. A project can be
   compared with current kit defaults only on request (that skill can be added
   later; v1 only needs to record the kit version and defaults used).

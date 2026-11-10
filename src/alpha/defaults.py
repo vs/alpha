@@ -1,4 +1,3 @@
-import subprocess
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -25,53 +24,44 @@ CONDITIONS: frozenset[str] = frozenset(
 )
 
 _DEFAULTS = "defaults/defaults.toml"
-_OVERRIDES = "defaults/overrides.toml"
-_CHANGELOG = "defaults/CHANGELOG.md"
+USER_OVERRIDES = "overrides.toml"
+USER_CHANGELOG = "CHANGELOG.md"
+USER_RECIPES = "recipes"
 _OVERRIDES_HEADER = '# Managed by "alpha defaults set". Do not edit by hand.\n'
+_CHANGELOG_HEADER = (
+    '# Your alpha defaults\n\nEntries are appended by "alpha defaults set".\n'
+)
 
 
 class DefaultsError(Exception):
     pass
 
 
-class SourceNotLive(DefaultsError):
-    pass
-
-
 @dataclass(frozen=True)
 class Source:
     path: Path
-    live: bool
-    reason: str
+    checkout: bool
+    user: Path | None = None
+
+
+def user_dir(env: Mapping[str, str], home: Path) -> Path:
+    given = env.get("ALPHA_CONFIG_DIR")
+    return Path(given) if given else home / ".config/alpha"
 
 
 def locate_source(plugin_root: Path, env: Mapping[str, str], home: Path) -> Source:
-    candidates: list[Path] = []
-    if env.get("ALPHA_SOURCE"):
-        candidates.append(Path(env["ALPHA_SOURCE"]))
-    config = home / ".config/alpha/config.toml"
-    if config.is_file():
-        try:
-            configured = tomllib.loads(config.read_text()).get("source")
-        except tomllib.TOMLDecodeError as e:
-            raise DefaultsError(
-                f"{config} is not valid TOML ({e}). "
-                'Fix it so it reads source = "/path/to/alpha".'
-            ) from e
-        if isinstance(configured, str):
-            candidates.append(Path(configured))
-    candidates.append(home / "workspace/alpha")
-    for candidate in candidates:
-        if (candidate / _DEFAULTS).is_file():
-            return Source(candidate, True, "")
-    tried = ", ".join(str(c) for c in candidates)
-    return Source(
-        plugin_root,
-        False,
-        f"no alpha source checkout found (tried {tried}). "
-        'Set ALPHA_SOURCE to your alpha checkout, or add source = "/path/to/alpha" '
-        f"to {config}.",
-    )
+    user = user_dir(env, home)
+    given = env.get("ALPHA_SOURCE")
+    if not given:
+        return Source(plugin_root, False, user)
+    checkout = Path(given)
+    if not (checkout / _DEFAULTS).is_file():
+        raise DefaultsError(
+            f"ALPHA_SOURCE is {checkout}, which has no {_DEFAULTS}, so it isn't an "
+            "alpha checkout. Point it at one, or unset it to use the installed "
+            "plugin."
+        )
+    return Source(checkout, True, user)
 
 
 def _merge(base: dict[str, Any], over: Mapping[str, Any]) -> dict[str, Any]:
@@ -84,21 +74,25 @@ def _merge(base: dict[str, Any], over: Mapping[str, Any]) -> dict[str, Any]:
     return base
 
 
-def _load_toml(source: Source, name: str) -> dict[str, Any]:
-    path = source.path / name
+def _load_toml(path: Path, restore: str) -> dict[str, Any]:
     try:
         return tomllib.loads(path.read_text())
     except tomllib.TOMLDecodeError as e:
         raise DefaultsError(
-            f"{path} is not valid TOML ({e}). Fix the syntax, or restore it with "
-            f'"git -C {source.path} checkout {name}", then retry.'
+            f"{path} is not valid TOML ({e}). Fix the syntax, or {restore}, then retry."
         ) from None
 
 
 def load_defaults(source: Source) -> dict[str, Any]:
-    merged = _load_toml(source, _DEFAULTS)
-    if (source.path / _OVERRIDES).is_file():
-        _merge(merged, _load_toml(source, _OVERRIDES))
+    restore = (
+        f'restore it with "git -C {source.path} checkout {_DEFAULTS}"'
+        if source.checkout
+        else "reinstall the alpha plugin"
+    )
+    merged = _load_toml(source.path / _DEFAULTS, restore)
+    mine = None if source.user is None else source.user / USER_OVERRIDES
+    if mine is not None and mine.is_file():
+        _merge(merged, _load_toml(mine, "delete it to go back to the kit's defaults"))
     for principle in merged.get("principles", []):
         for condition in principle.get("applies", []):
             if condition not in CONDITIONS:
@@ -182,37 +176,23 @@ def _check_setting(merged: dict[str, Any], key: str, value: object) -> None:
         )
 
 
-def _git(repo: Path, *args: str) -> str:
-    done = subprocess.run(
-        ["git", "-C", str(repo), *args], capture_output=True, text=True
-    )
-    if done.returncode != 0:
-        raise DefaultsError(
-            f"git {args[0]} failed in {repo}: {done.stderr.strip()}. "
-            "Fix the repository state there, then retry."
-        )
-    return done.stdout.strip()
-
-
 def set_default(
     source: Source,
     key: str,
     value: str,
     project: str,
     reason: str,
-    trailers: list[str],
     today: date,
-) -> str:
-    if not source.live:
-        raise SourceNotLive(
-            "Cannot change kit defaults: no alpha source checkout is available "
-            f"({source.reason}). Record the wish in the project's decision log "
-            "instead, or set ALPHA_SOURCE and retry."
+) -> Path:
+    if source.user is None:
+        raise DefaultsError(
+            "Cannot save a default: there is no folder for your alpha defaults. "
+            "Set ALPHA_CONFIG_DIR to one, then retry."
         )
     parsed = _parse_value(value)
     _check_setting(load_defaults(source), key, parsed)
-    overrides_path = source.path / _OVERRIDES
-    changelog = source.path / _CHANGELOG
+    overrides_path = source.user / USER_OVERRIDES
+    changelog = source.user / USER_CHANGELOG
     before = {
         f: f.read_text() if f.is_file() else None for f in (overrides_path, changelog)
     }
@@ -226,20 +206,21 @@ def set_default(
             table[part] = child
         table = cast("dict[str, Any]", child)
     table[leaf] = parsed
-    message = f"chore(defaults): Set {leaf}"
-    if trailers:
-        message += "\n\n" + "\n".join(trailers)
+    log = before[changelog] or _CHANGELOG_HEADER
     try:
+        source.user.mkdir(parents=True, exist_ok=True)
         overrides_path.write_text(_OVERRIDES_HEADER + toml_write.dumps(data))
-        with changelog.open("a") as f:
-            f.write(_list_gap(before[changelog] or ""))
-            f.write(f"- {today} · {key} = {value} · from {project} · {reason}\n")
-        _git(source.path, "add", _OVERRIDES, _CHANGELOG)
-        _git(source.path, "commit", "-q", "-m", message, "--", _OVERRIDES, _CHANGELOG)
-    except (DefaultsError, OSError):
-        _restore(source.path, before)
-        raise
-    return _git(source.path, "rev-parse", "--short", "HEAD")
+        changelog.write_text(
+            log + _list_gap(log) + f"- {today} · {key} = {value} · from {project} · "
+            f"{reason}\n"
+        )
+    except OSError as e:
+        _restore(before)
+        raise DefaultsError(
+            f"Could not write {e.filename or source.user}: {e.strerror or e}. Check "
+            "its permissions and free space, then retry."
+        ) from None
+    return overrides_path
 
 
 def _list_gap(existing: str) -> str:
@@ -255,13 +236,12 @@ def _list_gap(existing: str) -> str:
     return end if text[-1].startswith("- ") else end + "\n"
 
 
-def _restore(repo: Path, before: dict[Path, str | None]) -> None:
+def _restore(before: dict[Path, str | None]) -> None:
     for path, text in before.items():
-        if text is None:
-            path.unlink(missing_ok=True)
-        else:
-            path.write_text(text)
-    subprocess.run(
-        ["git", "-C", str(repo), "reset", "-q", "--", _OVERRIDES, _CHANGELOG],
-        capture_output=True,
-    )
+        try:
+            if text is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_text(text)
+        except OSError:
+            continue

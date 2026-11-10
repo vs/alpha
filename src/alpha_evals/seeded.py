@@ -318,7 +318,7 @@ def check_repo_seeds(project: Path) -> Check:
     if shutil.which("mise") is None:
         return Check("repo-seeds", "fail", "mise is not installed")
     try:
-        registry = load_registry(Source(PLUGIN_ROOT, True, ""))
+        registry = load_registry(Source(PLUGIN_ROOT, True))
         codes = {c: registry.tool(t[0]).pin for c, t in REPO_SEEDS.items()}
     except RegistryError as e:
         return Check("repo-seeds", "fail", str(e))

@@ -80,14 +80,12 @@ When the user's answer differs from a kit default:
    - Any other setting goes in the current area's `decisions[]` entry: name the default in `context` and the choice in `decision`.
 2. Ask exactly: "Make this the default for future projects too?"
 3. On yes, for a setting, run:
-   `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults set --key <dotted key> --value <value> --project <slug> --reason "<user's reason>" --trailer "<line>"`
+   `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults set --key <dotted key> --value <value> --project <slug> --reason "<user's reason>"`
    - `--key` is the defaults key the recommendation came from, without the `defaults.` prefix (e.g. `review.max_lines`, `identity.license`, `stacks.backend`).
    - `--value` is written as in TOML (`300`, `true`); plain words are stored as text.
    - `--project` is `identity.slug` from project.json.
-   - Pass one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, in that order. If there are none, pass no `--trailer`. Never invent co-author lines.
 4. Read the exit code. Never tell the user a default was saved unless the command exits 0.
-   - If it exits 0, tell the user the new default is saved for their next project.
-   - If it exits 4, tell the user the defaults source isn't available on this machine, so the kit can't save a new default here. Add the wish to the current area's decision `consequences`, e.g. "Wish: make review.max_lines = 300 the kit default (defaults source not available on this machine)."
+   - If it exits 0, tell the user the new default is saved with their own defaults (the path it prints), so their next project starts from it.
    - If it exits 3, show the user its message and follow the fix it names, then run it again.
 5. On yes for a principle override: the kit can't save principle defaults yet; note the wish in the current area's decision `consequences`.
 6. On no, the override stays in this project only.

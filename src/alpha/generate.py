@@ -110,7 +110,7 @@ def _display_path(path: Path) -> str:
 
 
 def _source_commit(source: Source) -> str | None:
-    if not source.live:
+    if not source.checkout:
         return None
     try:
         done = subprocess.run(
@@ -262,7 +262,7 @@ def generate(
         "generated_at": today.isoformat(),
         "defaults": {
             "path": _display_path(source.path),
-            "live": source.live,
+            "live": source.checkout,
             "commit": _source_commit(source),
         },
         "files": file_hashes(target, generated),

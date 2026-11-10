@@ -275,7 +275,7 @@ def test_pinned_ci_actions_are_accepted(uses: str):
 
 def test_kit_recipes_pin_shas():
     book = RecipeBook()
-    registry = load_registry(Source(BUNDLED, False, ""))
+    registry = load_registry(Source(BUNDLED, False))
     for stack in book.kit_stacks():
         for step in book.get(stack).ci.steps:
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", step["uses"])
