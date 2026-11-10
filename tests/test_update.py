@@ -1,5 +1,8 @@
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -808,3 +811,105 @@ def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env):
     _, notes = commit_update(target, loaded, [])
     assert not [n for n in notes if "wasn't merged" in n]  # nothing to hash
     assert not (target / UPDATE_STATE).exists()
+
+
+PRE_BRANCH = "260b370"  # the kit before the repository checks (mise.toml etc.)
+TOOLING = (
+    "mise.toml",
+    "_typos.toml",
+    ".rumdl.toml",
+    "lychee.toml",
+    ".betterleaks.toml",
+)
+
+
+@pytest.fixture
+def pre_branch_project(tmp_path: Path, git_env) -> Path:
+    """The web+API scenario, generated and committed by the pre-branch kit."""
+    known = subprocess.run(
+        ["git", "cat-file", "-e", f"{PRE_BRANCH}^{{commit}}"],
+        cwd=PLUGIN_ROOT,
+        capture_output=True,
+    )
+    if known.returncode != 0:
+        pytest.skip(f"needs the kit's history up to {PRE_BRANCH} (fetch-depth: 0)")
+    kit = tmp_path / "old-kit"
+    kit.mkdir()
+    archive = subprocess.run(
+        ["git", "archive", PRE_BRANCH], cwd=PLUGIN_ROOT, capture_output=True, check=True
+    )
+    subprocess.run(["tar", "-x", "-C", str(kit)], input=archive.stdout, check=True)
+    target = tmp_path / "project"
+    answers_file = target / PROJECT_JSON
+    answers_file.parent.mkdir(parents=True)
+    answers_file.write_bytes(
+        (kit / "evals/scenarios" / f"{SCENARIO}.json").read_bytes()
+    )
+    subprocess.run(
+        [sys.executable, str(kit / "bin/alpha"), "generate", str(target)],
+        env={**os.environ, "ALPHA_SOURCE": str(kit)},
+        capture_output=True,
+        check=True,
+    )
+    git(target, "init", "-q", "-b", "main")
+    commit(target, "chore: Generate the skeleton")
+    return target
+
+
+def test_update_of_a_pre_branch_project_blames_kit_changes(pre_branch_project: Path):
+    target = pre_branch_project
+    assert not (target / "mise.toml").exists()
+    add_worker(target)
+    commit(target, "chore: Add a worker to the answers")
+    p = plan(target)
+    found = kinds(p)
+    # The kit's newer files: the project never had them, so nobody deleted them.
+    for path in TOOLING:
+        assert found[path] == "skipped"
+    conflicts = [path for path, kind in found.items() if kind == "conflict"]
+    assert ".github/workflows/ci.yml" in conflicts
+    assert "docs/principles.toml" in conflicts
+    out = describe(p, target)
+    assert "you deleted it" not in out
+    for path in TOOLING:
+        assert (
+            f"  skipped   {path} (alpha's newer kit adds it; this project doesn't "
+            "have it, so it's left out)"
+        ) in out
+    for path in conflicts:
+        assert (
+            f"  conflict  {path} (overlaps alpha's change, which may include kit "
+            "changes since the project was generated: merge by hand, keeping your "
+            "side for anything the requested change doesn't need)"
+        ) in out
+    committed = {path: (target / path).read_bytes() for path in conflicts}
+    apply_update(target, p)
+    for path in TOOLING:
+        assert not (target / path).exists()
+    for path in conflicts:  # nothing applied silently: alpha's side is a proposal
+        assert (target / path).read_bytes() == committed[path]
+        assert (target / PROPOSALS / path).is_file()
+    assert (target / "worker/pyproject.toml").is_file()
+
+
+def test_update_of_a_current_project_keeps_the_plain_notes(tmp_path: Path, git_env):
+    target = generated_repo(tmp_path, SCENARIO)
+    (target / "docs/build.md").unlink()
+    commit(target, "docs: Drop the build doc")
+    principles = target / "docs/principles.toml"
+    principles.write_text(
+        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+    )
+    commit(target, "docs: Review smaller batches")
+    add_worker(target)
+    commit(target, "chore: Add a worker to the answers")
+    data = answers(target)
+    data["agent_workflow"]["max_lines"] = 120
+    save(target, data)
+    out = describe(plan(target), target)
+    assert (
+        "  conflict  docs/principles.toml (your edits overlap alpha's change: "
+        "merge by hand)"
+    ) in out
+    assert "  skipped   docs/build.md (you deleted it: alpha's change to it is " in out
+    assert "kit changes" not in out

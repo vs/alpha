@@ -514,6 +514,13 @@ def test_extend_keeps_earlier_decisions():
     assert "add one new decision" in text and "unchanged" in text
 
 
+def test_extend_explains_kit_changes_in_conflicts():
+    text = _text("extend")
+    assert "may include kit changes" in text
+    assert "keep the user's side for anything the requested change doesn't need" in text
+    assert "left out" in text
+
+
 def test_extend_refuses_projects_alpha_did_not_generate():
     assert "out of scope" in _text("extend")
 
