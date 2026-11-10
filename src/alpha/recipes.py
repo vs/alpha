@@ -268,12 +268,15 @@ def recipe_from_data(
     template_dir: Path | None,
     *,
     generated: bool = False,
+    checkout: Path | None = None,
 ) -> Recipe:
     """Validate a recipe from a kit TOML file or a drafted JSON object.
 
     Kit recipes name template files in `files` (read from template_dir/stack);
     drafted recipes give `templates` inline. CI actions must be pinned to a full
     commit SHA, unless `generated`: a project generated earlier may name a tag.
+    `checkout` is the live alpha checkout whose copy of a recipe the plugin also
+    bundles: a tag there means that checkout is older than the plugin.
     """
 
     _unknown(data, _RECIPE_KEYS, where)
@@ -355,6 +358,14 @@ def recipe_from_data(
             pinned = isinstance(uses, str) and _ACTION.fullmatch(uses)
         else:
             pinned = isinstance(uses, str) and _SHA_ACTION.fullmatch(uses)
+        if not pinned and checkout is not None:
+            raise _fail(
+                here,
+                f"uses {uses!r}, which isn't pinned to a full commit SHA",
+                f"The alpha checkout at {checkout} is older than the plugin, and "
+                f"its {stack} recipe replaces the plugin's. Update it (git -C "
+                f"{checkout} pull) or unset ALPHA_SOURCE, then retry",
+            )
         if not pinned:
             raise _fail(
                 here,
@@ -507,7 +518,15 @@ class RecipeBook:
             if path.is_file():
                 try:
                     data = tomllib.loads(path.read_text())
-                    return recipe_from_data(stack, data, str(path), folder)
+                    bundled = (RECIPES_DIR / f"{stack}.toml").is_file()
+                    older = bundled and folder.resolve() != RECIPES_DIR.resolve()
+                    return recipe_from_data(
+                        stack,
+                        data,
+                        str(path),
+                        folder,
+                        checkout=folder.parent if older else None,
+                    )
                 except (tomllib.TOMLDecodeError, OSError) as e:
                     raise RecipeError(
                         f"{path}: can't be read ({e}). Fix it, or remove the "

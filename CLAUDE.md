@@ -32,6 +32,8 @@ Install it for every session later with `claude plugin marketplace add ~/workspa
 
 Recipes and defaults come from the live alpha checkout when one is found (`ALPHA_SOURCE`, then `source` in `~/.config/alpha/config.toml`, then `~/workspace/alpha`), before the copies bundled with the plugin. For a stack both have, the checkout's recipe wins, even if that checkout is older than the installed plugin.
 
+Since the quality gates (repository checks, SHA-pinned actions), update the installed plugin and the checkout together: a checkout from before them has tag-pinned recipes the plugin refuses, and the error says to `git pull` it or unset `ALPHA_SOURCE`.
+
 Kit tests: `uv run pytest` runs the fast suite. `uv run pytest -m slow` also bootstraps real projects with uv and pnpm (needs both installed and network access).
 
 ### Live run findings (2026-10-20, Claude Code 2.1.303)

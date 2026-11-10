@@ -360,6 +360,50 @@ def test_recipe_shape_is_strict(changes: dict[str, Any], where: str):
         recipe_from_data("shell", drafted(**changes), "recipes.shell", None)
 
 
+def test_older_checkouts_tagged_kit_recipe_says_to_update_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # A live checkout from before SHA pins: its python recipe wins over the
+    # plugin's, so the fix is updating the checkout, not pinning by hand.
+    checkout = tmp_path / "alpha"
+    kit = checkout / "recipes"
+    kit.mkdir(parents=True)
+    shutil.copytree(PLUGIN_ROOT / "recipes" / "python", kit / "python")
+    text = (PLUGIN_ROOT / "recipes" / "python.toml").read_text()
+    (kit / "python.toml").write_text(
+        re.sub(r"setup-uv@[0-9a-f]{40}", "setup-uv@v10", text)
+    )
+    monkeypatch.setattr(
+        "alpha.recipes.kit_dirs", lambda: [kit, PLUGIN_ROOT / "recipes"]
+    )
+    with pytest.raises(RecipeError) as e:
+        RecipeBook().get("python")
+    message = str(e.value)
+    assert "isn't pinned to a full commit SHA" in message
+    assert f"The alpha checkout at {checkout} is older than the plugin" in message
+    assert f"git -C {checkout} pull" in message
+    assert "unset ALPHA_SOURCE" in message
+    assert "Pin it" not in message
+
+
+def test_saved_recipe_with_a_tag_still_says_to_pin_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # A recipe saved from an earlier project: the plugin has no copy of it.
+    kit = tmp_path / "alpha" / "recipes"
+    kit.mkdir(parents=True)
+    shutil.copytree(PLUGIN_ROOT / "recipes" / "python", kit / "shellish")
+    text = (PLUGIN_ROOT / "recipes" / "python.toml").read_text()
+    (kit / "shellish.toml").write_text(
+        re.sub(r"setup-uv@[0-9a-f]{40}", "setup-uv@v10", text)
+    )
+    monkeypatch.setattr(
+        "alpha.recipes.kit_dirs", lambda: [kit, PLUGIN_ROOT / "recipes"]
+    )
+    with pytest.raises(RecipeError, match="Pin it to the commit SHA"):
+        RecipeBook().get("shellish")
+
+
 def test_kit_recipe_with_a_tag_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
