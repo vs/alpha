@@ -207,3 +207,49 @@ def test_bad_today_goes_to_stderr(tmp_path: Path) -> None:
         text=True,
     )
     assert r.returncode == 1 and "not a real date" in r.stderr and not r.stdout
+
+
+def test_osv_file_next_to_a_lockfile_is_checked(tmp_path: Path) -> None:
+    # osv-scanner loads <lockfile dir>/osv-scanner.toml, so that one counts.
+    (tmp_path / "api").mkdir()
+    (tmp_path / "api" / "osv-scanner.toml").write_text(
+        OSV_GOOD.replace("2026-12-31", "2026-11-30")
+    )
+    r = run(tmp_path, today="2026-12-01")
+    assert r.returncode == 1
+    assert "api/osv-scanner.toml:1: GHSA-aaaa-bbbb-cccc ignoreUntil" in r.stdout
+    assert "review date passed" in r.stdout
+
+
+def test_every_osv_file_is_checked(tmp_path: Path) -> None:
+    (tmp_path / "osv-scanner.toml").write_text(OSV_GOOD)
+    for folder in ("api", "web"):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "osv-scanner.toml").write_text(
+            '[[IgnoredVulns]]\nid = "X-1"\nreason = "no fix yet"\n'
+        )
+    r = run(tmp_path)
+    assert r.returncode == 1
+    assert "api/osv-scanner.toml:1: X-1 has no ignoreUntil" in r.stdout
+    assert "web/osv-scanner.toml:1: X-1 has no ignoreUntil" in r.stdout
+    assert "\nosv-scanner.toml" not in "\n" + r.stdout
+
+
+def git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
+
+def test_in_a_repository_ignored_osv_files_are_skipped(
+    tmp_path: Path, git_env: None
+) -> None:
+    bad = '[[IgnoredVulns]]\nid = "X-1"\nreason = "no fix yet"\n'
+    git(tmp_path, "init", "-q")
+    (tmp_path / ".gitignore").write_text("node_modules/\n")
+    (tmp_path / "node_modules" / "pkg").mkdir(parents=True)
+    (tmp_path / "node_modules" / "pkg" / "osv-scanner.toml").write_text(bad)
+    (tmp_path / "api").mkdir()
+    (tmp_path / "api" / "osv-scanner.toml").write_text(bad)  # untracked, not ignored
+    r = run(tmp_path)
+    assert r.returncode == 1
+    assert "api/osv-scanner.toml:1" in r.stdout
+    assert "node_modules" not in r.stdout

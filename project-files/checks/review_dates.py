@@ -1,12 +1,15 @@
 """Fail when a security suppression has no review date or its date passed.
 
 Usage, from the repo root: review_dates.py [--today YYYY-MM-DD]
-Stdlib only. Reads osv-scanner.toml and .betterleaksignore; a missing file
-passes. Prints one `file:line: problem. fix` per problem and exits 1.
+Stdlib only. Reads every osv-scanner.toml git would track (osv-scanner loads
+the one next to each lockfile) and .betterleaksignore; a missing file passes.
+Prints one `file:line: problem. fix` per problem and exits 1.
 """
 
 import argparse
+import os
 import re
+import subprocess
 import sys
 import tomllib
 from datetime import date, datetime
@@ -21,6 +24,9 @@ BL_FORM = "# <reason, 2+ words> (review YYYY-MM-DD)"
 REVIEW = re.compile(r"^#\s*(?P<reason>.*?)\s*\(review (?P<date>[^)]*)\)\s*$")
 HEADER = re.compile(r"^\s*\[\[\s*(\"IgnoredVulns\"|IgnoredVulns)\s*\]\]\s*(#.*)?$")
 ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
+# Outside a git repository, the walk skips these folders, which hold other
+# projects' files.
+SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "target", "__pycache__"})
 
 
 def parse_date(text: str) -> date | None:
@@ -55,13 +61,38 @@ def words(reason: str) -> int:
     return len(reason.split())
 
 
-def check_osv(today: date) -> list[str]:
-    path = Path(OSV)
+def osv_files() -> list[str]:
+    """Every osv-scanner.toml git tracks or would track, as sorted relpaths."""
+    listed: list[str] | None
+    try:
+        done = subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            capture_output=True,
+            text=True,
+        )
+        listed = done.stdout.split("\0") if done.returncode == 0 else None
+    except OSError:
+        listed = None
+    if listed is None:  # not a git repository: walk the folder
+        listed = []
+        for folder, dirs, files in os.walk("."):
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+            listed += [os.path.join(folder, f) for f in files]
+    found = {
+        Path(rel).as_posix().removeprefix("./")
+        for rel in listed
+        if rel and Path(rel).name == OSV and Path(rel).is_file()
+    }
+    return sorted(found)
+
+
+def check_osv(rel: str, today: date) -> list[str]:
+    path = Path(rel)
     if not path.is_file():
         return []
     text = read_utf8(path)
     if text is None:
-        return [f"{OSV}: unreadable"]
+        return [f"{rel}: unreadable"]
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
@@ -70,7 +101,7 @@ def check_osv(today: date) -> list[str]:
             m = re.match(r"\s*ignoreUntil\s*=\s*(\d{4}-\d+-\d+)", line)
             if m and parse_date(m.group(1)) is None:
                 found.append(
-                    f"{OSV}:{n}: ignoreUntil is not a real date; write "
+                    f"{rel}:{n}: ignoreUntil is not a real date; write "
                     "YYYY-MM-DD. Fix: set a real date, for example "
                     "ignoreUntil = 2026-12-31, or remove the [[IgnoredVulns]] "
                     "entry"
@@ -79,11 +110,11 @@ def check_osv(today: date) -> list[str]:
             return found
         at = re.search(r"line (\d+)", str(e))
         if at:
-            loc = f"{OSV}:{at.group(1)}"
+            loc = f"{rel}:{at.group(1)}"
         elif "end of document" in str(e):
-            loc = f"{OSV}:{max(len(text.splitlines()), 1)}"
+            loc = f"{rel}:{max(len(text.splitlines()), 1)}"
         else:
-            loc = OSV
+            loc = rel
         return [
             f"{loc}: not valid TOML ({e}). Fix: correct the syntax, or remove "
             "the suppression"
@@ -92,7 +123,7 @@ def check_osv(today: date) -> list[str]:
     raw_entries: Any = data.get("IgnoredVulns", [])
     if not isinstance(raw_entries, list):
         return [
-            f"{OSV}: IgnoredVulns must be an array of tables. Fix: write each "
+            f"{rel}: IgnoredVulns must be an array of tables. Fix: write each "
             "suppression as [[IgnoredVulns]], or remove it"
         ]
     entries = cast(list[Any], raw_entries)
@@ -101,7 +132,7 @@ def check_osv(today: date) -> list[str]:
     for i, raw in enumerate(entries):
         entry = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
         vid = entry.get("id", "?")
-        where = f"{OSV}:{headers[i]}" if aligned else f"{OSV}: entry {i + 1}"
+        where = f"{rel}:{headers[i]}" if aligned else f"{rel}: entry {i + 1}"
         fix = (
             "Fix: set ignoreUntil to a new real date and a reason of at least "
             "two words, or remove the suppression"
@@ -180,7 +211,8 @@ def main() -> int:
             )
             return 1
         today = parsed
-    problems = check_osv(today) + check_betterleaks(today)
+    problems = [p for rel in osv_files() for p in check_osv(rel, today)]
+    problems += check_betterleaks(today)
     for p in problems:
         print(p)
     return 1 if problems else 0

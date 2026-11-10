@@ -315,7 +315,8 @@ WORKING_RULES = [
     "- Never disable a lint rule to pass; an exception names one path and one "
     "rule, gives a reason, and needs the user's yes.",
     "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
-    "review date: in `osv-scanner.toml`, `ignoreUntil` and `reason`; in "
+    "review date: in the `osv-scanner.toml` next to the lockfile it applies "
+    "to, `ignoreUntil` and `reason`; in "
     "`.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly "
     "above the entry.",
 ]
@@ -450,7 +451,8 @@ def test_claude_md_rules_for_generators_lint_and_suppressions(tmp_path: Path):
         "- Never disable a lint rule to pass; an exception names one path and one "
         "rule, gives a reason, and needs the user's yes.",
         "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
-        "review date: in `osv-scanner.toml`, `ignoreUntil` and `reason`; in "
+        "review date: in the `osv-scanner.toml` next to the lockfile it applies "
+        "to, `ignoreUntil` and `reason`; in "
         "`.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly "
         "above the entry.",
     ):
