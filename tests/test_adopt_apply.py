@@ -243,3 +243,30 @@ def test_update_refusal_points_to_adopt(tmp_path: Path, git_env: None):
     root = existing_repo(tmp_path / "plain")
     with pytest.raises(GenerateError, match="/alpha:adopt"):
         plan_update(root, SOURCE, TODAY)
+
+
+def test_apply_refuses_a_repo_that_ignores_alphas_files(repo: Path):
+    (repo / ".gitignore").write_text(EXISTING[".gitignore"] + ".claude/\n")
+    git(repo, "add", ".gitignore")
+    git(repo, "commit", "-q", "-m", "chore: Ignore Claude Code")
+    with pytest.raises(AdoptError, match="ignore rules cover files alpha must") as e:
+        _plan(repo)
+    assert ".gitignore:4:.claude/" in str(e.value)
+    assert ".claude/settings.local.json only" in str(e.value)
+
+
+def test_apply_refuses_a_detached_head(repo: Path):
+    git(repo, "checkout", "-q", "--detach")
+    with pytest.raises(AdoptError, match="HEAD is detached"):
+        apply_adoption(repo, _plan(repo))
+
+
+def test_alpha_mode_refuses_to_replace_the_repos_hooks(repo: Path):
+    git(repo, "config", "core.hooksPath", ".githooks")
+    with pytest.raises(AdoptError, match='core.hooksPath is .githooks.*"chain"'):
+        _plan(repo)
+    git(repo, "config", "--unset", "core.hooksPath")
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nexit 0\n")
+    with pytest.raises(AdoptError, match="holds pre-commit"):
+        _plan(repo)

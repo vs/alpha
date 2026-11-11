@@ -105,9 +105,12 @@ def _default_branch(target: Path, branch: str) -> str:
     return branch
 
 
-def _dirty(target: Path) -> list[str]:
+def _status_paths(target: Path, untracked: str = "normal") -> list[str]:
+    """The paths `git status` lists, with untracked files shown as `untracked`
+    says (normal: folders, all: every file)."""
     # Unstripped: each entry starts with its status column, often a space.
-    fields = _git(target, "status", "--porcelain", "-z", "-unormal").stdout.split("\0")
+    status = _git(target, "status", "--porcelain", "-z", f"-u{untracked}").stdout
+    fields = status.split("\0")
     paths: list[str] = []
     i = 0
     while i < len(fields):
@@ -119,6 +122,10 @@ def _dirty(target: Path) -> list[str]:
         if entry[0] in "RC":  # a rename or copy: its source path comes next
             i += 1
     return paths
+
+
+def _dirty(target: Path) -> list[str]:
+    return _status_paths(target)
 
 
 def _conventional(target: Path, types: list[str]) -> dict[str, Any]:
@@ -282,20 +289,41 @@ def _answers(target: Path) -> dict[str, Any]:
 
 
 def _uncommitted(target: Path) -> list[str]:
-    status = _git(target, "status", "--porcelain", "-z", "-uall").stdout
-    paths: list[str] = []
-    fields = status.split("\0")
-    i = 0
-    while i < len(fields):
-        entry = fields[i]
-        i += 1
-        if not entry:
-            continue
-        if entry[0] in "RC":
-            i += 1
-        if entry[3:] not in (PROJECT_JSON, ".claude/settings.local.json"):
-            paths.append(entry[3:])
-    return paths
+    """Uncommitted changes other than the adoption's own answers."""
+    own = (PROJECT_JSON, ".claude/settings.local.json")
+    return [p for p in _status_paths(target, "all") if p not in own]
+
+
+# Paths alpha writes and commits; a repo that ignores them can't take alpha.
+_MUST_TRACK = (
+    "CLAUDE.md",
+    "docs/principles.toml",
+    "mise.toml",
+    SETTINGS,
+    PROJECT_JSON,
+    ".claude/alpha/hooks/stop_checks.py",
+    ".claude/alpha/githooks/commit-msg",
+)
+
+
+def _ignored(target: Path) -> list[str]:
+    """`git check-ignore -v` lines for alpha's paths the repo ignores."""
+    done = _git(target, "check-ignore", "-v", "--", *_MUST_TRACK)
+    return [line for line in done.stdout.splitlines() if line.strip()]
+
+
+def _hooks_in_use(target: Path) -> str | None:
+    """Where the repo's own git hooks run from, when it has any."""
+    path = _out(target, "config", "--get", "core.hooksPath")
+    if path and path != HOOKS_PATH:
+        return f"core.hooksPath is {path}"
+    hooks = Path(_out(target, "rev-parse", "--git-path", "hooks") or ".git/hooks")
+    folder = hooks if hooks.is_absolute() else target / hooks
+    entries: list[Path] = list(folder.iterdir()) if folder.is_dir() else []
+    found = sorted(
+        h.name for h in entries if h.is_file() and not h.name.endswith(".sample")
+    )
+    return f"{folder} holds {', '.join(found)}" if found else None
 
 
 def _change(path: str, after: str, disk: str | None, notes: list[str]) -> Change | None:
@@ -328,6 +356,23 @@ def plan_adoption(
         raise AdoptError(
             f"Commit or stash your changes first ({', '.join(dirty[:5])}): alpha "
             "installs onto the committed code, on a branch of its own."
+        )
+    ignored = _ignored(target)
+    if ignored:
+        raise AdoptError(
+            "The repo's ignore rules cover files alpha must commit:\n  "
+            + "\n  ".join(ignored)
+            + "\nNarrow that rule (to keep Claude Code's local files out, ignore "
+            ".claude/settings.local.json only), commit, then retry."
+        )
+    adopting = cast(dict[str, Any], top["adoption"])
+    in_use = _hooks_in_use(target) if adopting.get("git_hooks") == "alpha" else None
+    if in_use:
+        raise AdoptError(
+            f"adoption.git_hooks is alpha, but the repo runs its own git hooks "
+            f"({in_use}); taking core.hooksPath over would switch them off. Set "
+            'adoption.git_hooks to "chain", so they stay and call alpha\'s '
+            "commit check, then retry."
         )
     records = record_paths(a, taken=taken_numbers(target))
     added = {c.name: today for c in a.components}
@@ -379,6 +424,12 @@ def plan_adoption(
 
 def _branch(target: Path) -> str:
     branch = _out(target, "rev-parse", "--abbrev-ref", "HEAD") or ""
+    if branch in ("", "HEAD"):
+        raise AdoptError(
+            "HEAD is detached, so commits made here would be lost on the next "
+            "switch. Switch to the default branch (alpha then creates "
+            f"{ADOPT_BRANCH}) or to a branch of yours, then retry."
+        )
     if branch != _default_branch(target, branch):
         return branch
     if _out(target, "rev-parse", "--verify", "--quiet", f"refs/heads/{ADOPT_BRANCH}"):

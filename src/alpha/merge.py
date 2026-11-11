@@ -76,11 +76,16 @@ def union_lines(disk: str, alpha: str, header: str = "# alpha") -> str:
     """`disk` as it is, then alpha's lines it lacks under `header`: for a file
     of independent lines, such as .gitignore."""
     have = {line.strip() for line in disk.splitlines()}
-    missing = [
-        line for line in alpha.splitlines() if line.strip() and line.strip() not in have
-    ]
-    if not missing:
+    lines = [line for line in alpha.splitlines() if line.strip()]
+    if all(line.strip() in have for line in lines):
         return disk
+    # A later line wins in .gitignore, so alpha's negations (!.env.example)
+    # follow the patterns it adds, even when the repo has them already.
+    missing = [
+        line
+        for line in lines
+        if line.strip() not in have or line.strip().startswith("!")
+    ]
     lead = disk if not disk or disk.endswith("\n") else disk + "\n"
     gap = "\n" if lead else ""
     return f"{lead}{gap}{header}\n" + "\n".join(missing) + "\n"

@@ -155,3 +155,11 @@ def test_merge_json_keeps_repo_scalars_with_a_note() -> None:
 def test_merge_json_invalid_repo_file() -> None:
     assert merge_json("{nope", "{}") is None
     assert merge_json("[1]", "{}") is None
+
+
+def test_union_lines_keeps_alphas_negations_last() -> None:
+    disk = ".env*\n!.env.example\n"
+    merged = union_lines(disk, ".env\n.env.*\n**/.env.*\n!.env.example\n")
+    assert merged.startswith(disk)
+    tail = merged.split("# alpha\n", 1)[1].splitlines()
+    assert tail == [".env", ".env.*", "**/.env.*", "!.env.example"]
