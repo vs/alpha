@@ -26,6 +26,7 @@ TABLE = [
     "agent-config",
     "migrations",
     "squawk",
+    "shortcuts",
     "review-dates",
     "toolchain",
 ]
@@ -159,7 +160,14 @@ def test_principles_carry_stop_checks(tmp_path: Path):
         assert entry["command"] == f"mise run check:{entry['id']}"
         assert set(entry) == {"id", "command", "globs", "stop"}
     stop = {e["id"] for e in entries if e["stop"]}
-    assert stop == {"actions", "typos", "markdown", "links", "agent-config"}
+    assert stop == {
+        "actions",
+        "typos",
+        "markdown",
+        "links",
+        "agent-config",
+        "shortcuts",
+    }
 
 
 def test_principles_file_round_trips_repo_checks(tmp_path: Path):

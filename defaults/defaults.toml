@@ -205,7 +205,7 @@ core = true
 [[principles]]
 id = "code-over-comments"
 title = "Code over comments"
-statement = "A comment stays only for what the code can't say: a license header, a rule set by a dependency, platform or protocol we can't change, a public API's contract, or an issue link for a constraint. Anything surprising in our own code is fixed by renaming, extracting or retyping it until it reads plainly, not explained in prose."
+statement = "A comment stays only for what the code can't say: a license header, a rule set by a dependency, platform or protocol we can't change, a public API's contract, an issue link for a constraint, or a `shortcut: <the limit>, <when to upgrade>` note on a deliberate shortcut. Anything surprising in our own code is fixed by renaming, extracting or retyping it until it reads plainly, not explained in prose."
 rationale = "Comments about our own code drift from it and excuse unclear code; reshaping the code keeps one source of truth that the compiler and tests check."
 applies = ["always"]
 checked_by = ["reviewer"]

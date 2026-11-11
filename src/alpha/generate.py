@@ -91,8 +91,8 @@ def _copies(plugin_root: Path) -> dict[str, Path]:
         f".claude/alpha/hooks/{p.name}": p
         for p in sorted((files / "hooks").glob("*.py"))
     }
-    out[".claude/skills/commit/SKILL.md"] = files / "skills/commit/SKILL.md"
-    out[".claude/skills/decision/SKILL.md"] = files / "skills/decision/SKILL.md"
+    for skill in sorted((files / "skills").glob("*/SKILL.md")):
+        out[f".claude/skills/{skill.parent.name}/SKILL.md"] = skill
     out[".claude/agents/committer.md"] = files / "agents/committer.md"
     out[".claude/agents/principles-reviewer.md"] = (
         files / "agents/principles-reviewer.md"

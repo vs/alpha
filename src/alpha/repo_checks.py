@@ -18,6 +18,7 @@ BETTERLEAKS_CONFIG = ".betterleaks.toml"  # rendered by alpha.render.tooling
 _MIGRATIONS = "python3 .claude/alpha/checks/diff_checks.py immutable-migrations"
 _SQUAWK = "python3 .claude/alpha/checks/diff_checks.py squawk"
 _REVIEW_DATES = "python3 .claude/alpha/checks/review_dates.py"
+_SHORTCUTS = "python3 .claude/alpha/checks/shortcuts.py"
 # Exact pins never fall behind their own request, so compare against the
 # newest release (--bump), and only for the project's tools (--no-global).
 TOOLCHAIN = "toolchain"  # CI runs it as its own step, after the weekly scans
@@ -179,6 +180,15 @@ def repo_checks(
             )
         )
     checks += [
+        RepoCheck(
+            "shortcuts",
+            None,
+            _SHORTCUTS,
+            ("**",),
+            True,
+            "pr",
+            "Every `shortcut:` comment names when to upgrade",
+        ),
         RepoCheck(
             "review-dates",
             None,
