@@ -566,8 +566,8 @@ _INHERITED = (
 def adopted_data(entry: Mapping[str, Any], kit: Mapping[str, Any]) -> dict[str, Any]:
     """An adopted recipe's entry over the kit recipe it extends (spec §5b, A1).
     A step whose command the entry changes drops the kit's baseline reader for
-    it, which reads the kit's tool; so does `lint_file` for the reader's
-    `file_command`."""
+    it, which reads the kit's tool; a changed `lint_file` drops the lint
+    reader too, whose `file_command` runs the kit's."""
     merged: dict[str, Any] = {k: kit[k] for k in _INHERITED if k in kit}
     merged.update({"bootstrap": [], "why": {}, "templates": {}})
     # The kit's [adopt] variants: commands that keep alpha's own folder out
@@ -583,12 +583,11 @@ def adopted_data(entry: Mapping[str, Any], kit: Mapping[str, Any]) -> dict[str, 
     for step, reader in cast("dict[str, Any]", kit.get("baseline", {})).items():
         if commands.get(step) != kit_commands.get(step):
             continue
-        reader = {**cast("dict[str, Any]", reader), **variants.get(step, {})}
         if step == "lint" and commands.get("lint_file") != kit_commands.get(
             "lint_file"
         ):
-            reader.pop("file_command", None)
-        readers[step] = reader
+            continue  # its file_command runs the kit's lint_file
+        readers[step] = {**cast("dict[str, Any]", reader), **variants.get(step, {})}
     readers.update(cast("dict[str, Any]", entry.get("baseline", {})))
     merged.update({k: v for k, v in entry.items() if k not in ("commands", "baseline")})
     merged["commands"] = commands

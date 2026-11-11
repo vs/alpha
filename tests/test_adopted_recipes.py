@@ -87,10 +87,10 @@ def test_extends_drops_readers_of_changed_steps():
     assert recipe.baselines["typecheck"].command == "uv run mypy ."
 
 
-def test_changed_lint_file_needs_its_own_file_command():
+def test_changed_lint_file_drops_the_lint_reader():
     entry = adopted(commands={"lint_file": "uv run ruff check --select E {file}"})
-    with pytest.raises(AnswersError, match=r"baseline\.lint\.file_command: is missing"):
-        load(entry)
+    recipe = load(entry)  # no baseline section needed
+    assert "lint" not in recipe.baselines and "typecheck" in recipe.baselines
 
 
 def test_extends_unknown_stack():
