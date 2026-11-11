@@ -9,6 +9,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 from alpha import core_areas
+from alpha.baseline import (
+    BASELINE_STEPS,
+    NOT_BASELINED,
+    REPO_BASELINED,
+    REPO_NOT_BASELINED,
+)
 from alpha.core_areas import (
     Accessibility,
     Architecture,
@@ -122,6 +128,7 @@ _TOP_KEYS = frozenset(
         "decisions",
         "recipes",
         "manifest",
+        "adoption",
     }
 )
 
@@ -256,6 +263,9 @@ class Answers:
     overrides: tuple[Override, ...]
     decisions: tuple[Decision, ...]
     recipes: dict[str, Recipe]
+    # Checks that run through the ratchet (spec §8b): `<step>:<component>` or
+    # a repository check id. Only an adopted project has any.
+    baselines: tuple[str, ...] = ()
 
     def book(self) -> RecipeBook:
         return RecipeBook(self.recipes)
@@ -656,6 +666,82 @@ def _decision(raw: object, i: int) -> Decision:
     )
 
 
+_ADOPTION_KEYS = ("baselines",)
+
+
+def _baseline_id(
+    check: object, where: str, comps: tuple[Component, ...] | None, book: RecipeBook
+) -> str:
+    if not isinstance(check, str) or not check:
+        raise fail(where, "must be a check id", 'Write e.g. "typecheck:api" or "typos"')
+    step, sep, name = check.partition(":")
+    if not sep:
+        if check in REPO_NOT_BASELINED:
+            raise fail(
+                where,
+                f"{check} can't be baselined: {REPO_NOT_BASELINED[check]}",
+                "Remove it",
+            )
+        if check not in REPO_BASELINED:
+            raise fail(
+                where,
+                f"{check!r} isn't a check a baseline can hold",
+                "Use <step>:<component> (steps: "
+                f"{', '.join(BASELINE_STEPS)}) or one of: {', '.join(REPO_BASELINED)}",
+            )
+        return check
+    if step in NOT_BASELINED:
+        raise fail(
+            where, f"{step} can't be baselined: {NOT_BASELINED[step]}", "Remove it"
+        )
+    if step not in BASELINE_STEPS:
+        raise fail(
+            where,
+            f"{step!r} isn't a step a baseline can hold",
+            f"Use one of: {', '.join(BASELINE_STEPS)}",
+        )
+    if comps is None:
+        return check
+    comp = next((c for c in comps if c.name == name), None)
+    if comp is None:
+        raise fail(
+            where,
+            f"no component named {name!r}",
+            f"Use one of: {', '.join(c.name for c in comps)}",
+        )
+    if step not in book.get(comp.stack).baselines:
+        raise fail(
+            where,
+            f"the {comp.stack} recipe has no [baseline.{step}], so alpha can't read "
+            f"its {step} findings",
+            f"Add [baseline.{step}] to the recipe (the stack-recipe skill), or remove "
+            "this entry",
+        )
+    return check
+
+
+def _adoption(
+    raw: object, comps: tuple[Component, ...] | None, book: RecipeBook
+) -> tuple[str, ...]:
+    d = obj(raw, "adoption")
+    for key in d:
+        if key not in _ADOPTION_KEYS:
+            raise fail(
+                f"adoption.{key}",
+                "unknown key",
+                f"Remove it; allowed keys are {', '.join(_ADOPTION_KEYS)}",
+            )
+    checks = as_list(d.get("baselines", []), "adoption.baselines")
+    out: list[str] = []
+    for i, check in enumerate(checks):
+        where = f"adoption.baselines[{i}]"
+        found = _baseline_id(check, where, comps, book)
+        if found in out:
+            raise fail(where, f"{found} is listed twice", "Remove one")
+        out.append(found)
+    return tuple(out)
+
+
 def generated_components(applied: Mapping[str, Any]) -> set[str]:
 
     def entries(key: str) -> list[Mapping[str, object]]:
@@ -852,6 +938,7 @@ def parse_answers(
         _decision(x, i)
         for i, x in enumerate(as_list(top.get("decisions", []), "decisions"))
     )
+    baselines = _adoption(top.get("adoption", {}), comps_or_none, RecipeBook(drafted))
     have = {d.area for d in decisions}
     for area in AREAS:
         if areas[area] == "done" and area not in have:
@@ -886,6 +973,7 @@ def parse_answers(
         overrides,
         decisions,
         drafted,
+        baselines,
     )
 
 

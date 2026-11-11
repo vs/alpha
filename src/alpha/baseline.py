@@ -1,6 +1,7 @@
 """How a check's findings read, so a baseline can count them (spec §8b)."""
 
 import importlib.util
+import posixpath
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -15,6 +16,25 @@ NOT_BASELINED = {
     "setup": "setup installs the toolchain; it isn't a check of the code",
     "format_check": "formatting is fixed once, in one commit, instead of baselined",
 }
+# Repository checks whose tool can name each finding's file and rule (the
+# registry pin's `baseline`), by the check id the answers use.
+REPO_BASELINED = ("actions", "typos", "markdown", "links", "agent-config")
+REPO_NOT_BASELINED = {
+    "secrets": "a secret is rotated, or a false positive goes in .betterleaksignore",
+    "vulns": "a known vulnerability gets an osv-scanner.toml exception with a "
+    "reason and a review date",
+    "links-online": "it runs on the schedule only; baseline `links` instead",
+    "migrations": "it checks only a pull request's own changes",
+    "squawk": "it checks only a pull request's own migrations",
+    "shortcuts": "a shortcut: comment is fixed by naming when to upgrade it",
+    "review-dates": "a lapsed suppression is reviewed, not baselined",
+    "toolchain": "an outdated tool is upgraded, not baselined",
+    "baselines": "it is the check that keeps baselines from growing",
+}
+# Where projects keep the ratchet and the baselines.
+RATCHET_SCRIPT = ".claude/alpha/checks/ratchet.py"
+BASELINE_DIR = ".claude/alpha/baselines"
+BASELINE_GLOB = f"{BASELINE_DIR}/**"
 _KEYS = frozenset({"command", "pattern", "json", "file_command"})
 _JSON_KEYS = frozenset({"items", "file", "rule", "where"})
 _GROUPS = ("file", "rule")
@@ -138,6 +158,13 @@ def _json(value: object, where: str, fail: Fail) -> JsonFindings:
         rule=_text(d, "rule", where, fail),
         where=dict(cast("dict[str, str]", raw_where)),
     )
+
+
+def ratchet_command(check: str, folder: str = ".") -> str:
+    """The command that runs `check` through the ratchet from `folder` (a
+    component's path, relative to the project root)."""
+    up = posixpath.relpath(".", folder) if folder not in ("", ".") else ""
+    return f"python3 {posixpath.join(up, RATCHET_SCRIPT)} {check}"
 
 
 def baseline_from_data(

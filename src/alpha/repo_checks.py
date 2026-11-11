@@ -7,6 +7,7 @@ ones) and pinned in the project's root mise.toml.
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
+from alpha.baseline import ratchet_command
 from alpha.registry import Registry, RegistryError
 
 if TYPE_CHECKING:  # answers imports the CI renderer, which imports this module
@@ -18,6 +19,7 @@ BETTERLEAKS_CONFIG = ".betterleaks.toml"  # rendered by alpha.render.tooling
 _MIGRATIONS = "python3 .claude/alpha/checks/diff_checks.py immutable-migrations"
 _SQUAWK = "python3 .claude/alpha/checks/diff_checks.py squawk"
 _REVIEW_DATES = "python3 .claude/alpha/checks/review_dates.py"
+_BASELINES = "python3 .claude/alpha/checks/diff_checks.py baselines"
 _SHORTCUTS = "python3 .claude/alpha/checks/shortcuts.py"
 # Exact pins never fall behind their own request, so compare against the
 # newest release (--bump), and only for the project's tools (--no-global).
@@ -208,7 +210,27 @@ def repo_checks(
             "Pinned tools that have a newer release",
         ),
     ]
-    return checks
+    if a.baselines:
+        checks.append(
+            RepoCheck(
+                "baselines", None, _BASELINES, (), False, "pr", "Baselines only shrink"
+            )
+        )
+    return [_through_ratchet(c, a.baselines) for c in checks]
+
+
+def _through_ratchet(check: RepoCheck, baselined: tuple[str, ...]) -> RepoCheck:
+    if check.id not in baselined:
+        return check
+    return RepoCheck(
+        check.id,
+        check.tool,
+        ratchet_command(check.id),
+        check.globs,
+        check.stop,
+        check.when,
+        check.description,
+    )
 
 
 def principles_entries(checks: list[RepoCheck]) -> list[dict[str, Any]]:
