@@ -284,6 +284,11 @@ both), and any parameters.
   the codebase, then the standard library or platform, then an installed
   dependency, then one line, and only then new code. No dependency for a few
   lines, no unrequested abstraction, option or config.
+  Never cut validation at trust boundaries, error handling that prevents
+  data loss, security, accessibility, or anything asked for. These four apply
+  at ponytail's "full" level, always (no lite or ultra), and session start
+  and subagent start put them in context, so they steer code as it's
+  written, not only at review.
 - ★ **Scope before writing.** List every place a change must reach (callers,
   tests, fixtures, config, exports) and what it could break for users, then
   finish all of it.

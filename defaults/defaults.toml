@@ -376,7 +376,7 @@ core = true
 [[principles]]
 id = "smallest-change"
 title = "Smallest complete change"
-statement = "Take the first option that fully works: skip what nobody asked for, then reuse what the codebase has, then the standard library or platform, then an installed dependency, then one line a reader gets at a glance, and only then new code. No new dependency for a few lines, and no abstraction, wrapper, option, config or \"for later\" code nobody asked for; keep the structure the codebase already has."
+statement = "Take the first option that fully works: skip what nobody asked for, then reuse what the codebase has, then the standard library or platform, then an installed dependency, then one line a reader gets at a glance, and only then new code. No new dependency for a few lines, and no abstraction, wrapper, option, config or \"for later\" code nobody asked for; keep values in the form the platform already gives you, and keep the structure the codebase already has. Never cut validation at trust boundaries, error handling that prevents data loss, security, accessibility, or anything the user asked for."
 rationale = "Every line written must be read, tested and fixed later, so the smallest change that fully works is the cheapest to own."
 applies = ["always"]
 checked_by = ["reviewer"]

@@ -445,6 +445,22 @@ def overrides_in_effect(
     return lines
 
 
+WRITING = ("smallest-change", "scope-first", "fix-at-the-root", "lean-structure")
+
+
+def writing_principles(principles: dict[str, Any]) -> list[str]:
+    """The code-writing principles in effect, to steer code as it's written,
+    not only at review."""
+    found: list[str] = []
+    for entry in principles.get("principles", []):
+        if not isinstance(entry, dict):
+            continue
+        p = cast("dict[str, Any]", entry)
+        if p.get("id") in WRITING and p.get("active", True) is not False:
+            found.append(f"- {p.get('title')}: {p.get('statement')}")
+    return found
+
+
 def context_text(root: Path, principles: dict[str, Any]) -> str:
     records, warnings = decision_index(root)
     if records:
@@ -468,6 +484,9 @@ def context_text(root: Path, principles: dict[str, Any]) -> str:
     overrides = overrides_in_effect(principles, root)
     if overrides:
         lines += ["Principle overrides:", *(f"- {o}" for o in overrides)]
+    writing = writing_principles(principles)
+    if writing:
+        lines += ["Write code by these principles (docs/principles.toml):", *writing]
     lines += [f"Warning: {w}" for w in warnings]
     return "\n".join(lines)
 

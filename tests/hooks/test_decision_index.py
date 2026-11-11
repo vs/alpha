@@ -174,3 +174,25 @@ def test_duplicate_numbers_and_headingless_files_get_clear_warnings(
     assert any("0001" in w and "more than one record" in w for w in warnings)
     notes = next(w for w in warnings if "notes.md" in w)
     assert "rename it" not in notes and "move it out of docs/decisions/" in notes
+
+
+def test_context_steers_code_with_the_writing_principles(project: Project) -> None:
+    text = _common.context_text(project.root, project.principles())
+    head = "Write code by these principles (docs/principles.toml):\n"
+    assert head in text
+    section = text.split(head)[1]
+    for title in (
+        "Smallest complete change",
+        "Scope before writing",
+        "Fix bugs at the root",
+        "Lean structure",
+    ):
+        assert f"- {title}: " in section
+    assert "Never cut validation at trust boundaries" in section
+
+
+def test_a_dropped_writing_principle_is_not_injected(project: Project) -> None:
+    project.drop_principle("lean-structure")
+    text = _common.context_text(project.root, project.principles())
+    assert "- Lean structure: " not in text
+    assert "- Smallest complete change: " in text

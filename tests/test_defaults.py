@@ -105,7 +105,11 @@ def test_subtract_first_replaces_internal_apis_in_one_change():
 def test_ponytail_code_writing_principles_are_core():
     d = load_defaults(Source(ROOT, True))
     texts = {
-        "smallest-change": ("standard library", "No new dependency for a few lines"),
+        "smallest-change": (
+            "standard library",
+            "No new dependency for a few lines",
+            "Never cut validation at trust boundaries",
+        ),
         "scope-first": ("callers, tests, fixtures, config, exports",),
         "fix-at-the-root": ("every caller", "keeps its error handling and validation"),
         "lean-structure": ("split by job, never by line count", "edge cases"),
