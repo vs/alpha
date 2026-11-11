@@ -87,7 +87,8 @@ def _tooling_excludes(principles: dict[str, Any], book: RecipeBook) -> list[str]
     return [*_ignored(principles, book), *locks]
 
 
-def _copies(plugin_root: Path) -> dict[str, Path]:
+def copied_files(plugin_root: Path) -> dict[str, Path]:
+    """The files every project gets as they are: hooks, checks, skills, agents."""
     files = plugin_root / "project-files"
     out = {
         f".claude/alpha/hooks/{p.name}": p
@@ -124,6 +125,15 @@ def _source_commit(source: Source) -> str | None:
     except OSError:
         return None
     return done.stdout.strip() if done.returncode == 0 else None
+
+
+def source_info(source: Source) -> dict[str, Any]:
+    """Where the kit defaults came from, for the manifest."""
+    return {
+        "path": _display_path(source.path),
+        "live": source.checkout,
+        "commit": _source_commit(source),
+    }
 
 
 @dataclass(frozen=True)
@@ -244,7 +254,7 @@ def generate(
         registry=load_registry(source),
     )
     texts = rendered.texts
-    copies = _copies(plugin_root)
+    copies = copied_files(plugin_root)
     for rel, name in rendered.component_of.items():
         if rel in copies:
             raise _collision(a, name, rel)
@@ -263,11 +273,7 @@ def generate(
     data["manifest"] = {
         "kit_version": VERSION,
         "generated_at": today.isoformat(),
-        "defaults": {
-            "path": _display_path(source.path),
-            "live": source.checkout,
-            "commit": _source_commit(source),
-        },
+        "defaults": source_info(source),
         "files": file_hashes(target, generated),
         "applied": answers_snapshot(data),
         "records": records.to_json(),

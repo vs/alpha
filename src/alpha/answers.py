@@ -689,7 +689,8 @@ def _decision(raw: object, i: int) -> Decision:
     )
 
 
-_ADOPTION_KEYS = ("baselines", "survey")
+_ADOPTION_KEYS = ("baselines", "survey", "git_hooks")
+GIT_HOOKS = ("alpha", "chain")
 
 
 def _baseline_id(
@@ -755,6 +756,8 @@ def _adoption(
                 f"Remove it; allowed keys are {', '.join(_ADOPTION_KEYS)}",
             )
     obj(d.get("survey", {}), "adoption.survey")  # alpha adopt survey writes it
+    if "git_hooks" in d:
+        choice(d, "git_hooks", "adoption", GIT_HOOKS)
     checks = as_list(d.get("baselines", []), "adoption.baselines")
     out: list[str] = []
     for i, check in enumerate(checks):

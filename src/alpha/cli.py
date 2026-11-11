@@ -89,6 +89,13 @@ def build_parser() -> argparse.ArgumentParser:
     asurvey.add_argument(
         "--save", action="store_true", help="also store it as adoption.survey"
     )
+    aapply = adsub.add_parser(
+        "apply", help="install alpha's files onto the repo, on a branch"
+    )
+    aapply.add_argument("target", type=Path, help="the repository's root")
+    aapply.add_argument(
+        "--dry-run", action="store_true", help="show the changes, write nothing"
+    )
     b = sub.add_parser("baseline", help="an adopted project's baselines (spec §8b)")
     bsub = b.add_subparsers(dest="baseline_command", required=True)
     bshow = bsub.add_parser("show", help="the findings each baseline holds")
@@ -264,15 +271,33 @@ def _registry(args: argparse.Namespace) -> int:
     return 0
 
 
+def _adopt_apply(target: Path, dry_run: bool, source: defaults.Source) -> None:
+    plan = adopt.plan_adoption(target, PLUGIN_ROOT, source, date.today())
+    print(describe(plan.update, target))
+    for note in plan.notes:
+        print(f"  {note}")
+    if dry_run:
+        print(plan_diff(plan.update, target), end="")
+        return
+    for note in adopt.apply_adoption(target, plan):
+        print(note)
+    for c in plan.update.changes:
+        if c.kind == "conflict":
+            print(f"{c.path}: merge by hand; proposal: {PROPOSALS}/{c.path}")
+
+
 def _adopt(args: argparse.Namespace) -> int:
     target: Path = args.target
     try:
         source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+        if args.adopt_command == "apply":
+            _adopt_apply(target, args.dry_run, source)
+            return 0
         result = adopt.survey(target, source)
         if args.save:
             saved = {**adopt.saved_adoption(target), "survey": result}
             answers.write_answers(target, json.dumps({"adoption": saved}))
-    except (adopt.AdoptError, answers.AnswersError) as e:
+    except (adopt.AdoptError, answers.AnswersError, GenerateError) as e:
         print(e, file=sys.stderr)
         return 1
     except defaults.DefaultsError as e:
