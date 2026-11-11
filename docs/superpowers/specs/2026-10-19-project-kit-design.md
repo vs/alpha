@@ -43,9 +43,9 @@ user's consent each time.
   the hooks, and the reviewer all read.
 - Works for multi-component apps (backend, frontend, CLI, mobile, ML pipeline),
   where each component may use a different stack.
-- First-class recipes for **Python** (ML) and **TypeScript** (web apps). Any
-  other stack still works, set up from that stack's usual conventions and
-  marked as less proven.
+- First-class recipes for **Python** (ML), **TypeScript** (web apps) and
+  **Rust**. Any other stack still works, set up from that stack's usual
+  conventions and marked as less proven.
 
 **Non-goals (v1)**
 - No app code, not even a hello-world. The skeleton is configuration, docs,
@@ -83,7 +83,7 @@ A Claude Code plugin, developed in this repo and installed from GitHub
 | `adopt` skill | User-invoked entry point for an existing repo. Surveys it, runs the interview with the repo's practice as the recommendations, installs the enforcement with baselines for legacy debt, and writes a compliance plan it then carries out step by step (§5b). Resumable. |
 | `grilling` skill | Shared interview primitive used by `new-project` and every area skill (design tree, rounds, recommended answers; see §4). |
 | Area skills | One per area in §5. Each owns its questions, its principles, and the files it writes. Callable by `new-project` and directly. |
-| Stack recipes | Per-stack data and templates: test runner, linter/formatter, type checker, commands, permission lists, and stack rules. Full for Python and TypeScript, generic fallback for others. |
+| Stack recipes | Per-stack data and templates: test runner, linter/formatter, type checker, commands, permission lists, and stack rules. Full for Python, TypeScript and Rust, generic fallback for others. |
 | `registry/` | The repo-check tool registry (§8a): one entry per tool, with its pinned version and the command that runs it. |
 | Hook scripts | The mechanical checks in §8. Shipped by the kit, wired into each project's `.claude/settings.json` and git hooks. |
 | `principles-reviewer` agent | The judgment-based reviewer in §9. |
@@ -557,13 +557,15 @@ Recipe commands. A stack recipe may add two commands to the ones in §3:
 
 - `structure`: checks the component's dependency structure. Python:
   `uv run deptry .`. TypeScript: `pnpm knip && pnpm depcruise --config
-  .dependency-cruiser.cjs .`. Bootstrap adds the tools, each with a `[why]`
-  line.
+  .dependency-cruiser.cjs .`. Rust: `cargo machete`. Bootstrap adds the
+  tools, each with a `[why]` line.
 - `coverage` and `coverage_report`: run the tests with coverage and name the
   report file, for the diff-coverage gate (`testing.diff_coverage`, 0 turns
   it off). Python: `uv run pytest --cov --cov-report=xml:coverage.xml`, report
   `coverage.xml`. TypeScript: `pnpm vitest run --coverage
   --coverage.reporter=cobertura`, report `coverage/cobertura-coverage.xml`.
+  Rust: `cargo llvm-cov --cobertura --output-path coverage.xml`, report
+  `coverage.xml`.
 
 The registry (`registry/` in the kit) has one entry per repo-check tool. An
 entry holds the tool's pinned version and `pin.command`, the command that
@@ -770,8 +772,8 @@ The kit follows its own principles:
   language for hook scripts.
 - Exact question wording, round grouping within each area, and what goes in
   each template.
-- Specific tool choices inside the Python/TypeScript recipes, within the
-  defaults named above.
+- Specific tool choices inside the Python, TypeScript and Rust recipes,
+  within the defaults named above.
 - How "public behavior changed" and "secrets in the diff" are detected.
 - How the Stop hook triggers the reviewer (e.g. block with instructions to
   dispatch the agent, or an agent-type hook).

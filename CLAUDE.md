@@ -137,3 +137,12 @@ The three scenarios (`python-ml-single`, `web-ts-plus-python-api`, `rust-cli`) w
 - The first attempt stopped at `commit-skeleton`: the run had no git identity, and alpha refused to commit with a guessed one (as designed). A throwaway git config fixed it.
 - Not yet verified: the workflows on GitHub (repo job, diff-cover on a PR, scheduled run).
 - Not verified: the eval run with real interviews; the new checks ran on skeletons generated from the scenario files.
+
+### Rust recipe live check (2026-11-11)
+
+The kit now has a Rust recipe (`recipes/rust.toml`), and the `rust-cli` scenario uses it instead of a drafted one. The slow tests generated, bootstrapped and committed that scenario with Rust 1.99.1, cargo-llvm-cov 0.9.1 and cargo-machete 0.9.2.
+
+- Every check passed on the skeleton, and `mise run ci` passed too (jactionlint accepts the two new CI steps). Each check failed on its seeded violation: misformatted `tests/bad.rs`, `unwrap()` in `src/lib.rs` (`clippy::unwrap_used`), and an unused `itoa`. diff-cover caught an untested `src/double.rs` and passed once a `src/double/tests.rs` covered it. The report leaves out `tests/` and `tests.rs`.
+- cargo-llvm-cov asks before installing `llvm-tools-preview` and then waits on the terminal, so bootstrap adds the toolchain components first. `cargo install` of a version that's already installed does nothing in about 0.1 s.
+- On this machine the global mise config sets `RUSTUP_TOOLCHAIN`, which overrides a project's `rust-toolchain.toml`.
+- Not done: baseline readers for an adopted Rust repo. Clippy and cargo print findings as one JSON object per line, which the ratchet doesn't read yet. Not verified: the workflow on GitHub.
