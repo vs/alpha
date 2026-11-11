@@ -186,3 +186,18 @@ def _principles(root: Path) -> dict[str, Any]:
     import tomllib
 
     return tomllib.loads((root / "docs" / "principles.toml").read_text())
+
+
+def test_capture_needs_a_decision_new_to_the_branch(tmp_path: Path, git_env: None):
+    root = _project(tmp_path)
+    run_cli("baseline", "capture", str(root), "--check", CHECK)
+    record = root / "docs" / "decisions" / "0007-keep-a-finding.md"
+    record.write_text(RECORD.format(n=7, status="accepted", body=f"`{CHECK}` grows."))
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "chore: Start")
+    git(root, "switch", "-q", "-c", "feature")
+    (root / "api" / "src" / "app.py").write_text("x = 'BAD'\n" * 3)
+    done = run_cli(
+        "baseline", "capture", str(root), "--check", CHECK, "--decision", "7"
+    )
+    assert done.returncode == 1 and "already named `lint:api`" in done.stderr

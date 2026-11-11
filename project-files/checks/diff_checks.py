@@ -128,45 +128,74 @@ def _ratchet() -> Any:
     return ratchet
 
 
-def _counts_at(base: str, path: str) -> dict[str, dict[str, int]]:
-    shown = git("show", f"{base}:{path}")
+def _merge_base(base: str) -> str:
+    """Where this branch left the base: baselines are compared there, so a
+    branch behind the base isn't held to findings the base fixed since."""
+    found = git("merge-base", base, "HEAD")
+    return found.stdout.strip() if found.returncode == 0 else base
+
+
+def _counts_at(ref: str, path: str) -> dict[str, dict[str, int]]:
+    shown = git("show", f"{ref}:{path}")
     return _ratchet().parse_baseline(shown.stdout) if shown.returncode == 0 else {}
 
 
-def _accepting(base: str) -> list[tuple[str, str]]:
-    """(path, text) of each accepted decision record the pull request adds."""
-    out: list[tuple[str, str]] = []
-    for status, path in changes(base):
-        if status != "A" or not path.startswith(DECISIONS) or not path.endswith(".md"):
-            continue
+def _baselined(text: str) -> set[str]:
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return set()
+    entries = cast(list[object], data.get("baselines", []))
+    return {
+        str(cast(dict[str, object], e).get("id"))
+        for e in entries
+        if isinstance(e, dict)
+    }
+
+
+def _names_first_here(ref: str, check: str) -> str | None:
+    """An accepted decision record that names `check` (in backticks) and didn't
+    at `ref`: added on this branch, or edited here to name it."""
+    named = f"`{check}`"
+    for record in sorted(Path(DECISIONS).glob("*.md")):
         try:
-            text = Path(path).read_text(encoding="utf-8")
+            text = record.read_text(encoding="utf-8")
         except OSError:
             continue
         lines = [ln.strip() for ln in text.splitlines()]
-        if "Status: accepted" in lines:
-            out.append((path, text))
-    return out
+        if "Status: accepted" not in lines or named not in text:
+            continue
+        before = git("show", f"{ref}:{record.as_posix()}")
+        if before.returncode != 0 or named not in before.stdout:
+            return record.as_posix()
+    return None
 
 
 def baselines() -> int:
     base = resolve_base("baselines")
     if base is None:
         return 0
+    ref = _merge_base(base)
     ratchet = _ratchet()
+    principles = "docs/principles.toml"
+    try:
+        listed_now = _baselined(Path(principles).read_text(encoding="utf-8"))
+    except OSError:
+        listed_now: set[str] = set()
+    listed_before = _baselined(git("show", f"{ref}:{principles}").stdout)
     folder = Path(BASELINES)
     paths = {p.as_posix() for p in folder.glob("*.json")}
-    listed = git("ls-tree", "--name-only", f"{base}", f"{BASELINES}/")
+    listed = git("ls-tree", "--name-only", ref, f"{BASELINES}/")
     paths |= {p for p in listed.stdout.splitlines() if p.endswith(".json")}
-    records = _accepting(base)
     failed = False
     for path in sorted(paths):
         now_path = Path(path)
+        check = now_path.stem.replace(".", ":")
         try:
             now: dict[str, dict[str, int]] = (
                 ratchet.read_baseline(now_path) if now_path.is_file() else {}
             )
-            before = _counts_at(base, path)
+            before = _counts_at(ref, path)
         except ValueError as e:
             print(f"alpha: {path} can't be read ({e}). Restore it from {base}.")
             failed = True
@@ -174,19 +203,21 @@ def baselines() -> int:
         grown, _ = ratchet.compare(now, before)
         if not grown:
             continue
-        check = now_path.stem.replace(".", ":")
-        named = f"`{check}`"
-        if any(named in text for _, text in records):
-            print(f"alpha: {path} grows, accepted by a decision naming {named}.")
+        if check in listed_now and check not in listed_before:
+            print(f"alpha: {path} is a new baseline: {check} is listed in this change.")
+            continue
+        record = _names_first_here(ref, check)
+        if record is not None:
+            print(f"alpha: {path} grows, accepted by {record}.")
             continue
         failed = True
         print(f"alpha: {path} grows against {base}; baselines only shrink:")
         for file, rule, n, b in grown:
             print(f"  {file} {rule}: {n} findings, {b} before")
         print(
-            f"  Fix the new findings, or, if they're right to keep, add a decision "
-            f"record under {DECISIONS} (Status: accepted) that names {named} and "
-            "says why, in this pull request."
+            "  Fix the new findings, or, if they're right to keep, record why in "
+            f"an accepted decision under {DECISIONS} that names `{check}` and "
+            "didn't name it before this branch."
         )
     return 1 if failed else 0
 

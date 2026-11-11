@@ -603,9 +603,12 @@ its files don't change.
   baseline grows only through `alpha baseline capture --check <id>
   --decision <NNNN>`, with an accepted decision record naming the check and
   why, as loosening a principle needs (§6). The gate is the pull request: the
-  `baselines` check fails when a count rises against the base, unless the
-  pull request adds an accepted decision record that names the check. A
-  command guard can't tell a capture from a hand-written file; the diff can.
+  `baselines` check compares each baseline with where the branch left the
+  base, and fails when a count rises, unless an accepted decision record
+  names the check (in backticks) for the first time on the branch. Capture
+  holds to the same rule. A check newly listed in the change starts its
+  baseline there, as the adoption's own pull request does. A command guard
+  can't tell a capture from a hand-written file; the diff can.
 - **The edit hooks.** The post-edit lint runs over the whole edited file, so
   for a baselined check it goes through the ratchet too: legacy findings
   already in the file don't block an edit, new ones do.

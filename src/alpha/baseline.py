@@ -396,14 +396,48 @@ def _decision(target: Path, number: str, check: str) -> Path:
             f"No decision record {number} in docs/decisions/. Record the decision "
             "first (the project's /decision skill), then pass its number."
         )
+    rel = record.relative_to(target).as_posix()
     if not accepts(record, check):
-        rel = record.relative_to(target).as_posix()
         raise BaselineError(
             f"{rel} doesn't accept a larger {check} baseline: it needs "
             f"`Status: accepted` and the check id in backticks (`{check}`), with "
             "why the new findings stay."
         )
+    if named_before_branch(target, rel, check):
+        raise BaselineError(
+            f"{rel} already named `{check}` before this branch, so it accepted an "
+            "earlier growth, not this one. The pull request check counts only a "
+            "decision that names the check for the first time on the branch: "
+            "record a new one for these findings."
+        )
     return record
+
+
+def _branch_point(target: Path) -> str | None:
+    """Where HEAD left the default branch (origin's, else main or master)."""
+    for ref in ("origin/HEAD", "main", "master"):
+        done = subprocess.run(
+            ["git", "merge-base", ref, "HEAD"],
+            cwd=target,
+            capture_output=True,
+            text=True,
+        )
+        if done.returncode == 0:
+            return done.stdout.strip()
+    return None
+
+
+def named_before_branch(target: Path, rel: str, token: str) -> bool:
+    """Whether the record at `rel` already named `token` where the branch
+    started: the pull request check accepts only a record that names it here
+    first."""
+    point = _branch_point(target)
+    if point is None:
+        return False
+    shown = subprocess.run(
+        ["git", "show", f"{point}:{rel}"], cwd=target, capture_output=True, text=True
+    )
+    return shown.returncode == 0 and f"`{token}`" in shown.stdout
 
 
 def capture(target: Path, check: str, decision: str | None = None) -> str:
