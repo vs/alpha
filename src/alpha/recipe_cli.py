@@ -11,6 +11,7 @@ from typing import Any, cast
 
 from alpha import toml_write
 from alpha.answers import PROJECT_JSON, AnswersError, drafted_recipes, write_answers
+from alpha.baseline import Baseline, findings
 from alpha.defaults import USER_RECIPES, DefaultsError, Source
 from alpha.recipes import (
     Recipe,
@@ -113,6 +114,53 @@ def _created_sources(root: Path, recipe: Recipe) -> list[str]:
     return found
 
 
+def _baseline_problem(
+    step: str, baseline: Baseline, root: Path, target: Path, stack: str
+) -> str | None:
+    """On the clean skeleton, a baseline's command must read as no findings:
+    a failure it can't read, or a finding, means the reader is wrong."""
+    print(f"alpha: try: {baseline.command}", file=sys.stderr, flush=True)
+    again = f'save it, and run "alpha recipe try {target} {stack}" again.'
+    try:
+        done = subprocess.run(
+            baseline.command,
+            shell=True,
+            cwd=root,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return (
+            f'"{baseline.command}" took longer than {_TIMEOUT_SECONDS:g}s. Fix the '
+            f"recipe's baseline.{step} command, {again}"
+        )
+    tail = "\n".join((done.stdout + done.stderr).splitlines()[-_TAIL_LINES:])
+    try:
+        found = findings(baseline, done.stdout, done.stderr, root, root)
+    except ValueError as e:
+        return (
+            f'"{baseline.command}" printed output its baseline.{step} reader can\'t '
+            f"read ({e}). Last lines:\n{tail}\nFix the recipe's baseline.{step}, "
+            + again
+        )
+    if found:
+        lines = "\n".join(f"  {text}" for _, _, text in found[:10])
+        return (
+            f"baseline.{step} reads findings on the clean skeleton:\n{lines}\n"
+            "The checks pass there, so its pattern matches lines that aren't "
+            f"findings (such as a summary). Narrow it, {again}"
+        )
+    if done.returncode != 0:
+        return (
+            f'"{baseline.command}" failed (exit {done.returncode}) on the clean '
+            f"skeleton, though the {step} check passed. Last lines:\n{tail}\n"
+            f"Fix the recipe's baseline.{step} command, {again}"
+        )
+    return None
+
+
 def try_recipe(target: Path, stack: str) -> str | None:
     data = check(target, stack)
     recipe = drafted_recipes({stack: data})[stack]
@@ -150,6 +198,10 @@ def try_recipe(target: Path, stack: str) -> str | None:
                 f"{tail}\n{fix}, save it, and run "
                 f'"alpha recipe try {target} {stack}" again.'
             )
+        for step, baseline in recipe.baselines.items():
+            problem = _baseline_problem(step, baseline, root, target, stack)
+            if problem:
+                return problem
         created = _created_sources(root, recipe)
         if created:
             return (

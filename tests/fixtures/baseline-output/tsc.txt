@@ -1,0 +1,2 @@
+src/bad.ts(2,9): error TS2322: Type 'string' is not assignable to type 'number'.
+tsconfig.json(1,35): error TS5023: Unknown compiler option 'bogusOption'.

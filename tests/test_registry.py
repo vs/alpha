@@ -76,6 +76,25 @@ def test_incomplete_pin_names_the_field(tmp_path: Path):
         load_registry(source)
 
 
+BASELINED = ("typos", "rumdl", "lychee", "agnix", "jactionlint")
+
+
+@pytest.mark.parametrize("tool_id", BASELINED)
+def test_registry_baseline_pins(tool_id: str):
+    pin = kit().tool(tool_id).pin
+    assert pin is not None and pin.baseline is not None
+    assert pin.baseline.pattern or pin.baseline.json is not None
+
+
+def test_bad_baseline_names_the_field(tmp_path: Path):
+    pin = (
+        '{ mise = "demo", version = "1.0.0", command = "demo", fails_with = 1, '
+        'baseline = { command = "demo --brief", pattern = "(?P<file>.+)" } }'
+    )
+    with pytest.raises(RegistryError, match=r"tools\.demo\.pin\.baseline\.pattern"):
+        load_registry(bad_registry(tmp_path, "pin", pin))
+
+
 def test_a_live_checkout_without_a_registry_falls_back_to_the_bundled_one(
     tmp_path: Path,
 ):

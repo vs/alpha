@@ -23,6 +23,27 @@ structure = "uv run deptry ."
 format_file = "uv run ruff format {file}"
 lint_file = "uv run ruff check {file}"
 
+# How each check's findings read, for an adopted project's baselines (spec
+# §8b). Matched against output recorded from the pinned tools; see
+# tests/fixtures/baseline-output/.
+[baseline.lint]
+command = "uv run ruff check --output-format concise"
+pattern = '^(?P<file>[^:\s]+):\d+:\d+: (?P<rule>[A-Za-z][A-Za-z0-9-]*)[: ]'
+file_command = "uv run ruff check --output-format concise {file}"
+
+# Pyright's text output wraps long messages onto the next line, rule included.
+[baseline.typecheck]
+command = "uv run pyright --outputjson"
+json = { items = "generalDiagnostics.*", file = "file", rule = "rule", where = { severity = "error" } }
+
+[baseline.structure]
+command = "uv run deptry ."
+pattern = '^(?P<file>[^:\s]+)(?::\d+:\d+)?: (?P<rule>DEP\d+) '
+
+[baseline.test]
+command = "uv run pytest -rfE"
+pattern = '^(?:FAILED|ERROR) (?P<file>[^:\s]+)(?:::(?P<rule>\S+))?'
+
 [files]
 "pyproject.toml" = "pyproject.toml.tmpl"
 "tests/test_setup.py" = "test_setup.py.tmpl"

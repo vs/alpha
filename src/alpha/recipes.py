@@ -7,10 +7,11 @@ import os
 import re
 import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from alpha.baseline import BASELINE_STEPS, NOT_BASELINED, Baseline, baseline_from_data
 from alpha.defaults import USER_RECIPES, DefaultsError, locate_source
 from alpha.validate import AnswersError, unmatchable
 
@@ -56,6 +57,8 @@ class Recipe:
     # (relative to the component). A stack with both gets a diff coverage check.
     coverage: str = ""
     coverage_report: str = ""
+    # How each step's findings read, for a baseline (spec §8b); keyed by step.
+    baselines: Mapping[str, Baseline] = field(default_factory=lambda: {})
 
 
 class RecipeError(AnswersError):
@@ -85,6 +88,7 @@ _RECIPE_KEYS = frozenset(
         "rules",
         "coverage",
         "coverage_report",
+        "baseline",
     }
 )
 _STEP_KEYS = frozenset({"uses", "version", "with", "name", "id", "env"})
@@ -244,6 +248,33 @@ def _rules(value: object, where: str) -> list[StackRule]:
         _one_line(text, f"{here}.rule")
         rules.append(StackRule(id=rule_id, rule=text))
     return rules
+
+
+def _baselines(
+    value: object, where: str, commands: Mapping[str, str]
+) -> dict[str, Baseline]:
+    if not isinstance(value, dict):
+        raise _fail(where, "must be an object", "Key each entry by its step, e.g. lint")
+    out: dict[str, Baseline] = {}
+    for step, entry in cast("dict[str, object]", value).items():
+        here = f"{where}.{step}"
+        if step in NOT_BASELINED:
+            raise _fail(here, f"can't be baselined: {NOT_BASELINED[step]}", "Remove it")
+        if step not in BASELINE_STEPS:
+            raise _fail(
+                here,
+                "isn't a step a baseline can hold",
+                f"Use one of: {', '.join(BASELINE_STEPS)}",
+            )
+        if not commands.get(step):
+            raise _fail(
+                here,
+                f"is set, but commands.{step} is empty",
+                f"Give commands.{step}, or remove this entry",
+            )
+        file_slot = step == "lint" and bool(commands.get("lint_file"))
+        out[step] = baseline_from_data(entry, here, _fail, file_slot=file_slot)
+    return out
 
 
 def recipe_from_data(
@@ -458,6 +489,7 @@ def recipe_from_data(
         rules=_rules(data.get("rules", []), f"{where}.rules"),
         coverage=coverage,
         coverage_report=coverage_report,
+        baselines=_baselines(data.get("baseline", {}), f"{where}.baseline", commands),
     )
 
 
