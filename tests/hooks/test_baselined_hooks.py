@@ -133,3 +133,16 @@ def test_a_fixed_legacy_finding_tightens_the_baseline(baselined: Project):
     assert post_edit(baselined, "api/src/app.py").returncode == 0
     path = Path(baselined.root / ".claude/alpha/baselines/lint.api.json")
     assert json.loads(path.read_text())["counts"] == {}
+
+
+def test_stop_cache_follows_the_baseline(baselined: Project):
+    baselined.write("api/src/app.py", "x = 'BAD'\nlegacy = 'BAD'\n")
+    baselined.write("api/tests/test_app.py", "def test_x(): pass\n")
+    assert "typecheck failed" in json.loads(_stop(baselined).stdout)["reason"]
+    # The finding is accepted (alpha baseline capture), and only the baseline
+    # changes: the cached block must not stand.
+    baselined.write(
+        ".claude/alpha/baselines/typecheck.api.json",
+        json.dumps({"check": "typecheck:api", "counts": {"api/src/app.py": {"E1": 2}}}),
+    )
+    assert "typecheck" not in _stop(baselined).stdout
