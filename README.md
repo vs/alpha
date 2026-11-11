@@ -9,8 +9,8 @@
 alpha interviews you about a new project, then writes what agents build on:
 principles, docs, decision records, Claude Code and git hooks, CI, and a test
 setup per component that passes from the first commit. It writes no app code.
-Each principle is checked, by a hook or by a reviewer agent that blocks
-"done".
+Each principle is checked, by a hook or by a reviewer agent that must pass
+before a change reaches main.
 
 ```sh
 claude plugin marketplace add vs/alpha
@@ -27,7 +27,7 @@ claude plugin install alpha@alpha
 |---|---|
 | `docs/principles.toml` | the one file CLAUDE.md, hooks and reviewer read |
 | `docs/decisions/` | a record per interview area and per override |
-| `.claude/` | permissions, hooks, the principles reviewer, a commit skill |
+| `.claude/` | permissions, hooks, the principles reviewer, skills to commit, record a decision, and review a change, the whole repo or its `shortcut:` ledger |
 | each component | strict lint, types and tests, wired up with no `src/` |
 | `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, typos, markdown, links, action pins, agent config) |
 | `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
@@ -78,8 +78,8 @@ plugin and survive its updates.
 ```sh
 git clone https://github.com/vs/alpha ~/workspace/alpha
 claude --plugin-dir ~/workspace/alpha   # this checkout, for this session only
-uv run pytest
-uv run ruff check && uv run pyright
+mise install && mise run check   # every check the kit runs on itself
+uv run pytest -m slow   # also bootstraps real projects; needs uv, pnpm, network
 bin/alpha-evals run   # real interviews; spends tokens
 ```
 

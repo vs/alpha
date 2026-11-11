@@ -1,7 +1,8 @@
 # Project kit: design
 
 Date: 2026-10-19
-Status: draft for approval
+Status: approved, and built as of alpha 0.4.1 (2026-11-11). §15 lists what
+waits for a later version.
 
 Name: **alpha**, the same as this repo. "Alpha" is the first letter and the first version: where every project starts. Skills are invoked as `/alpha:<skill>` (e.g. `/alpha:new-project`).
 
@@ -586,7 +587,9 @@ its files don't change.
   expression with named groups `file` and `rule`. The kit's recipes and the
   registry carry these for their tools; an adopted recipe carries them for
   the repo's tools, and proving the recipe proves that the pattern reads
-  the output.
+  the output. The Rust recipe has no readers yet (Clippy and cargo print
+  one JSON object per line), so `answers check` refuses a baseline for a
+  kit Rust component; an adopted recipe that extends Rust can carry its own.
 - **The ratchet.** `ratchet.py <check-id> -- <command>` (copied under
   `.claude/alpha/checks/`) runs the check:
   - a file and rule counted above the baseline fails, and the message names
@@ -749,9 +752,11 @@ CLAUDE.md, where the commit skill already looks.
 
 The kit follows its own principles:
 - Hook scripts have automated tests.
-- The skills have evals: scripted interview scenarios (e.g. "Python ML
-  pipeline, single component", "TypeScript web app + Python API", "Go CLI"
-  for the fallback path). They check the generated skeleton: required files
+- The skills have evals: scripted interview scenarios ("Python ML
+  pipeline, single component", "TypeScript web app + Python API", "Rust
+  CLI"). Since Rust got a kit recipe, the fallback path for a stack with no
+  recipe is covered by the recipe tests and a live run, not by a scenario.
+  They check the generated skeleton: required files
   exist, settings are valid, hooks fire on seeded violations, each component's
   test command runs green, commits follow the convention, and the reviewer
   catches seeded principle violations.
