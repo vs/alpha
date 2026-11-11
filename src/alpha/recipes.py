@@ -59,6 +59,8 @@ class Recipe:
     coverage_report: str = ""
     # How each step's findings read, for a baseline (spec §8b); keyed by step.
     baselines: Mapping[str, Baseline] = field(default_factory=lambda: {})
+    # File names whose folder the adoption survey lists as a candidate.
+    detect: tuple[str, ...] = ()
 
 
 class RecipeError(AnswersError):
@@ -89,6 +91,7 @@ _RECIPE_KEYS = frozenset(
         "coverage",
         "coverage_report",
         "baseline",
+        "detect",
     }
 )
 _STEP_KEYS = frozenset({"uses", "version", "with", "name", "id", "env"})
@@ -275,6 +278,25 @@ def _baselines(
         file_slot = step == "lint" and bool(commands.get("lint_file"))
         out[step] = baseline_from_data(entry, here, _fail, file_slot=file_slot)
     return out
+
+
+_GLOB_CHARS = frozenset("*?[]{}")
+
+
+def _detect(value: object, where: str) -> tuple[str, ...]:
+    if not isinstance(value, dict):
+        raise _fail(where, "must be an object", 'Write {"markers": ["Cargo.toml"]}')
+    data = cast("dict[str, object]", value)
+    _unknown(data, ("markers",), where)
+    markers = _texts(data.get("markers", []), f"{where}.markers")
+    for i, name in enumerate(markers):
+        if "/" in name or set(name) & _GLOB_CHARS:
+            raise _fail(
+                f"{where}.markers[{i}]",
+                f"{name!r} isn't a plain file name",
+                'Name the file itself, e.g. "Cargo.toml": its folder is the component',
+            )
+    return tuple(markers)
 
 
 def recipe_from_data(
@@ -490,6 +512,7 @@ def recipe_from_data(
         coverage=coverage,
         coverage_report=coverage_report,
         baselines=_baselines(data.get("baseline", {}), f"{where}.baseline", commands),
+        detect=_detect(data.get("detect", {}), f"{where}.detect"),
     )
 
 

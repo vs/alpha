@@ -12,6 +12,10 @@ test_globs = ["tests/**/*.py", "**/test_*.py", "**/*_test.py", "**/conftest.py"]
 exclude_globs = ["**/.*/**", "**/__pycache__/**", "**/build/**", "**/dist/**"]
 allow = ["Bash(uv run:*)", "Bash(uv sync:*)", "Bash(uv add:*)"]
 
+# The files whose folder `alpha adopt survey` lists as a candidate component.
+[detect]
+markers = ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"]
+
 [commands]
 setup = "uv sync"
 test = "uv run pytest"

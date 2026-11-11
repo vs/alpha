@@ -497,3 +497,19 @@ def test_drafted_recipe_carries_its_baseline():
     changed = copy.deepcopy(raw)
     changed["baseline"]["lint"]["pattern"] = LINE + "x"
     assert recipe_hash(changed) != recipe_hash(raw)
+
+
+def test_kit_recipes_detect():
+    book = RecipeBook()
+    assert {"pyproject.toml", "setup.py", "requirements.txt"} <= set(
+        book.get("python").detect
+    )
+    assert {"package.json", "tsconfig.json"} <= set(book.get("typescript").detect)
+
+
+@pytest.mark.parametrize("marker", ["src/pyproject.toml", "*.toml"])
+def test_detect_must_be_file_names(marker: str):
+    raw = shell_recipe()
+    raw["detect"] = {"markers": [marker]}
+    with pytest.raises(RecipeError, match=r"detect\.markers\[0\].*plain file name"):
+        recipe_from_data("sh", raw, "recipe", None)

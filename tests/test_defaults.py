@@ -17,6 +17,7 @@ from alpha.defaults import (
     Source,
     _list_gap,
     load_defaults,
+    load_survey,
     locate_source,
     set_default,
 )
@@ -427,3 +428,30 @@ def test_malformed_user_defaults_are_explained(tmp_path: Path):
         load_defaults(src)
     assert str(e.value).startswith(f"{mine} is not valid TOML")
     assert "delete it to go back to the kit's defaults" in str(e.value)
+
+
+SURVEY_KEYS = (
+    "ci",
+    "docs",
+    "decisions",
+    "migrations",
+    "task_runners",
+    "hook_managers",
+    "license",
+    "env_examples",
+)
+
+
+def test_survey_globs_load(tmp_path: Path):
+    globs = load_survey(Source(ROOT, True))
+    for key in SURVEY_KEYS:
+        assert globs[key], key
+    # A checkout without the file falls back to the plugin's.
+    assert load_survey(make_source(tmp_path / "alpha")) == globs
+
+
+def test_bad_survey_globs_are_named(tmp_path: Path):
+    source = make_source(tmp_path / "alpha")
+    (tmp_path / "alpha/defaults/survey.toml").write_text('ci = "x"\n')
+    with pytest.raises(DefaultsError, match="ci must be a list of globs"):
+        load_survey(source)

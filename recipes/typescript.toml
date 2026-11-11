@@ -36,6 +36,11 @@ allow = [
   "Bash(pnpm add:*)",
 ]
 
+# The files whose folder `alpha adopt survey` lists as a candidate component.
+# A JavaScript-only package is found too; the interview decides what it is.
+[detect]
+markers = ["package.json", "tsconfig.json"]
+
 [commands]
 setup = "pnpm install"
 test = "pnpm vitest run"
