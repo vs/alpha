@@ -130,8 +130,8 @@ def test_twice_and_unknown_keys_refused(tmp_path: Path):
     data["adoption"] = {"baselines": ["typos", "typos"]}
     with pytest.raises(AnswersError, match="listed twice"):
         _texts(tmp_path / "a", data)
-    data["adoption"] = {"steps": []}
-    with pytest.raises(AnswersError, match=r"adoption\.steps: unknown key"):
+    data["adoption"] = {"plan": []}
+    with pytest.raises(AnswersError, match=r"adoption\.plan: unknown key"):
         _texts(tmp_path / "b", data)
 
 

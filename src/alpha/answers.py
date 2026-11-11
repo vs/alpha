@@ -243,6 +243,53 @@ class Decision:
     consequences: str
 
 
+PHASES = ("P0", "P1", "P2", "P3", "P4", "P5", "P6")
+STEP_STATUSES = ("pending", "in_progress", "done", "dropped")
+CONDITIONS = ("run", "recipe", "no_baseline", "commit_hook", "confirm")
+_STEP_KEYS = frozenset(
+    {
+        "id",
+        "phase",
+        "title",
+        "why",
+        "component",
+        "principles",
+        "depends_on",
+        "acceptance",
+        "status",
+        "branch",
+        "decision",
+    }
+)
+
+
+@dataclass(frozen=True)
+class Condition:
+    """One part of a step's acceptance (spec §5b): `kind` is one of
+    CONDITIONS; `value` is its command, recipe field, check id or text."""
+
+    kind: str
+    value: str
+    dir: str = "."
+
+
+@dataclass(frozen=True)
+class Step:
+    """A step of an adopted repo's compliance plan (spec §5b, step 6)."""
+
+    id: str
+    phase: str
+    title: str
+    why: str
+    component: str | None
+    principles: tuple[str, ...]
+    depends_on: tuple[str, ...]
+    acceptance: tuple[Condition, ...]
+    status: str
+    branch: str | None
+    decision: int | None
+
+
 @dataclass(frozen=True)
 class Answers:
     schema: int
@@ -275,6 +322,8 @@ class Answers:
     # Who runs git's hooks in an adopted repo: alpha ("alpha"), or the repo's
     # own hook manager, which calls alpha's commit-msg check ("chain").
     git_hooks: str | None = None
+    # The compliance plan of an adopted repo, in order.
+    steps: tuple["Step", ...] = ()
 
     def book(self) -> RecipeBook:
         return RecipeBook(self.recipes)
@@ -692,7 +741,7 @@ def _decision(raw: object, i: int) -> Decision:
     )
 
 
-_ADOPTION_KEYS = ("baselines", "survey", "git_hooks")
+_ADOPTION_KEYS = ("baselines", "survey", "git_hooks", "steps")
 GIT_HOOKS = ("alpha", "chain")
 
 
@@ -773,6 +822,132 @@ def _adoption(
             raise fail(where, f"{found} is listed twice", "Remove one")
         out.append(found)
     return tuple(out)
+
+
+def _condition(
+    raw: object, where: str, comps: tuple[Component, ...] | None, book: RecipeBook
+) -> Condition:
+    d = obj(raw, where)
+    kinds = [k for k in d if k in CONDITIONS]
+    extra = [k for k in d if k not in CONDITIONS and k != "dir"]
+    if len(kinds) != 1 or extra:
+        raise fail(
+            where,
+            "must name exactly one condition",
+            f"Use one of {', '.join(CONDITIONS)}, e.g. "
+            '{"run": "mise run check:component:api"}',
+        )
+    kind = kinds[0]
+    if kind == "commit_hook":
+        if d[kind] is not True:
+            raise fail(f"{where}.commit_hook", "must be true", "Write true")
+        return Condition(kind, "")
+    value = string(d, kind, where)
+    if "dir" in d and kind != "run":
+        raise fail(f"{where}.dir", "only goes with run", "Remove it")
+    folder = string(d, "dir", where) if "dir" in d else "."
+    if kind == "recipe" and comps is not None:
+        name, _, field_ = value.partition(".")
+        comp = next((c for c in comps if c.name == name), None)
+        if comp is None:
+            raise fail(
+                f"{where}.recipe",
+                f"no component named {name!r}",
+                f"Use <component>.<field> with one of: "
+                f"{', '.join(c.name for c in comps)}",
+            )
+        group, _, step = field_.partition(".")
+        known = field_ == "coverage" or (
+            group == "commands" and step in book.get(comp.stack).commands
+        )
+        if not known:
+            raise fail(
+                f"{where}.recipe",
+                f"{field_!r} isn't a recipe field alpha can check",
+                "Use commands.<step> (e.g. commands.typecheck) or coverage",
+            )
+    return Condition(kind, value, folder)
+
+
+def _steps(
+    raw: object, comps: tuple[Component, ...] | None, book: RecipeBook
+) -> tuple[Step, ...]:
+    d = obj(raw, "adoption")
+    steps: list[Step] = []
+    for i, entry in enumerate(as_list(d.get("steps", []), "adoption.steps")):
+        where = f"adoption.steps[{i}]"
+        e = obj(entry, where)
+        for key in e:
+            if key not in _STEP_KEYS:
+                raise fail(
+                    f"{where}.{key}",
+                    "unknown key",
+                    f"Use only: {', '.join(sorted(_STEP_KEYS))}",
+                )
+        sid = string(e, "id", where)
+        if not NAME.fullmatch(sid):
+            raise fail(
+                f"{where}.id",
+                f"{sid!r} isn't a lowercase id with hyphens",
+                'Write e.g. "p2-typecheck-api"',
+            )
+        if any(s.id == sid for s in steps):
+            raise fail(f"{where}.id", f"{sid} is used twice", "Rename one")
+        known = {s.id for s in steps}
+        depends = strings(e, "depends_on", where) if "depends_on" in e else ()
+        for dep in depends:
+            if dep not in known:
+                raise fail(
+                    f"{where}.depends_on",
+                    f"{dep!r} isn't a step listed before this one",
+                    "List a step after the steps it depends on",
+                )
+        component = string(e, "component", where) if "component" in e else None
+        if component is not None and comps is not None:
+            if component not in {c.name for c in comps}:
+                raise fail(
+                    f"{where}.component",
+                    f"no component named {component!r}",
+                    f"Use one of: {', '.join(c.name for c in comps)}",
+                )
+        acceptance = tuple(
+            _condition(c, f"{where}.acceptance[{j}]", comps, book)
+            for j, c in enumerate(
+                as_list(get(e, "acceptance", where), f"{where}.acceptance")
+            )
+        )
+        if not acceptance:
+            raise fail(
+                f"{where}.acceptance",
+                "is empty",
+                "Name what proves the step done, e.g. a command that must pass",
+            )
+        status = choice(e, "status", where, STEP_STATUSES)
+        decision: int | None = None
+        if "decision" in e:
+            decision = pos_int(e, "decision", where)
+        if status == "dropped" and decision is None:
+            raise fail(
+                f"{where}.decision",
+                "is missing for a dropped step",
+                "Drop it with alpha adopt drop, which records the decision",
+            )
+        steps.append(
+            Step(
+                id=sid,
+                phase=choice(e, "phase", where, PHASES),
+                title=string(e, "title", where),
+                why=string(e, "why", where),
+                component=component,
+                principles=strings(e, "principles", where) if "principles" in e else (),
+                depends_on=depends,
+                acceptance=acceptance,
+                status=status,
+                branch=string(e, "branch", where) if "branch" in e else None,
+                decision=decision,
+            )
+        )
+    return tuple(steps)
 
 
 def generated_components(applied: Mapping[str, Any]) -> set[str]:
@@ -1008,6 +1183,7 @@ def parse_answers(
         drafted,
         baselines,
         _git_hooks(top.get("adoption", {})),
+        _steps(top.get("adoption", {}), comps_or_none, RecipeBook(drafted)),
     )
 
 
