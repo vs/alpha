@@ -1,6 +1,6 @@
 [project]
 name = "alpha-kit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Interview-driven skeletons for new projects, with principles agents must follow"
 license = "MIT"
 requires-python = ">=3.11"
