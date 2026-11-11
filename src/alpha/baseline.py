@@ -1,8 +1,11 @@
 """How a check's findings read, so a baseline can count them (spec §8b)."""
 
 import importlib.util
+import os
 import posixpath
 import re
+import subprocess
+import tomllib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -252,3 +255,200 @@ def findings(
     except module.Unreadable as e:
         raise ValueError(str(e)) from None
     return cast("list[tuple[str, str, str]]", found)
+
+
+# --- a project's baselines: show, capture, tighten ---
+
+
+class BaselineError(Exception):
+    """A baseline command that can't go on; the message says what to do."""
+
+
+def baseline_file(target: Path, check: str) -> Path:
+    return target / BASELINE_DIR / (check.replace(":", ".") + ".json")
+
+
+def baselined(target: Path) -> list[str]:
+    """The ids docs/principles.toml lists under [[baselines]], in order."""
+    path = target / "docs" / "principles.toml"
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        raise BaselineError(
+            f"{path} can't be read ({e}). Run this in a project alpha generated or "
+            "adopted, or restore the file with git checkout docs/principles.toml."
+        ) from None
+    entries = cast("list[object]", data.get("baselines", []))
+    return [
+        str(cast("dict[str, object]", e)["id"])
+        for e in entries
+        if isinstance(e, dict) and "id" in e
+    ]
+
+
+def _known(target: Path, check: str) -> list[str]:
+    ids = baselined(target)
+    if check not in ids:
+        raise BaselineError(
+            f"{check!r} isn't baselined in {target}/docs/principles.toml "
+            f"(baselined: {', '.join(ids) or 'none'}). Add it to adoption.baselines "
+            "in the answers and run alpha update, or use one of those ids."
+        )
+    return ids
+
+
+def counts(target: Path, check: str) -> dict[str, dict[str, int]] | None:
+    """The check's baseline, or None when it isn't captured."""
+    path = baseline_file(target, check)
+    if not path.is_file():
+        return None
+    try:
+        return cast("dict[str, dict[str, int]]", ratchet().read_baseline(path))
+    except (OSError, ValueError) as e:
+        rel = path.relative_to(target).as_posix()
+        raise BaselineError(
+            f"{rel} can't be read ({e}). Restore it: git checkout {rel}"
+        ) from None
+
+
+def show(target: Path) -> list[dict[str, Any]]:
+    """Per check: its id, whether it's captured, its total, files and rules."""
+    out: list[dict[str, Any]] = []
+    for check in baselined(target):
+        found = counts(target, check)
+        rules: dict[str, int] = {}
+        for per in (found or {}).values():
+            for rule, n in per.items():
+                rules[rule] = rules.get(rule, 0) + n
+        out.append(
+            {
+                "check": check,
+                "captured": found is not None,
+                "total": sum(rules.values()),
+                "files": len(found or {}),
+                "rules": dict(sorted(rules.items(), key=lambda kv: (-kv[1], kv[0]))),
+            }
+        )
+    return out
+
+
+def describe(rows: list[dict[str, Any]], target: Path) -> str:
+    if not rows:
+        return "No baselines: every check fails on any finding."
+    lines: list[str] = []
+    for row in rows:
+        if not row["captured"]:
+            lines.append(
+                f"{row['check']}: not captured. Run alpha baseline capture {target} "
+                f"--check {row['check']}"
+            )
+            continue
+        top = ", ".join(f"{r} {n}" for r, n in list(row["rules"].items())[:5])
+        lines.append(
+            f"{row['check']}: {row['total']} findings in {row['files']} files"
+            + (f" ({top})" if top else "")
+        )
+    return "\n".join(lines)
+
+
+def _run_ratchet(
+    target: Path, *args: str, frozen: bool = False
+) -> subprocess.CompletedProcess[str]:
+    script = target / RATCHET_SCRIPT
+    if not script.is_file():
+        raise BaselineError(
+            f"{script} is missing. Restore it with git checkout {RATCHET_SCRIPT}."
+        )
+    env = {k: v for k, v in os.environ.items() if k != "CI"}
+    if frozen:
+        env["CI"] = "true"
+    return subprocess.run(
+        ["python3", str(script), *args],
+        cwd=target,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _names(record: Path, check: str) -> bool:
+    try:
+        text = record.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    lines = [line.strip() for line in text.splitlines()]
+    return "Status: accepted" in lines and f"`{check}`" in text
+
+
+def _decision(target: Path, number: str, check: str) -> Path:
+    folder = target / "docs" / "decisions"
+    found = sorted(folder.glob(f"{int(number):04d}-*.md")) if number.isdigit() else []
+    if not found:
+        raise BaselineError(
+            f"No decision record {number} in docs/decisions/. Record the decision "
+            "first (the project's /decision skill), then pass its number."
+        )
+    if not _names(found[0], check):
+        rel = found[0].relative_to(target).as_posix()
+        raise BaselineError(
+            f"{rel} doesn't accept a larger {check} baseline: it needs "
+            f"`Status: accepted` and the check id in backticks (`{check}`), with "
+            "why the new findings stay."
+        )
+    return found[0]
+
+
+def capture(target: Path, check: str, decision: str | None = None) -> str:
+    """Record the check's findings as its baseline. A baseline that already
+    exists may only grow with an accepted decision naming the check."""
+    _known(target, check)
+    before = counts(target, check)
+    path = baseline_file(target, check)
+    old = path.read_bytes() if path.is_file() else None
+    done = _run_ratchet(target, check, "--capture")
+    if done.returncode != 0:
+        raise BaselineError(done.stderr.strip() or done.stdout.strip())
+    now = counts(target, check) or {}
+    grown, _ = ratchet().compare(now, before or {})
+    if before is not None and grown:
+        if decision is None:
+            assert old is not None
+            path.write_bytes(old)
+            lines = [f"  {f} {r}: {n} now, {b} in the baseline" for f, r, n, b in grown]
+            raise BaselineError(
+                f"Capturing {check} would grow its baseline:\n"
+                + "\n".join(lines)
+                + "\nFix those findings, or record why they stay in a decision "
+                f"naming `{check}` and rerun with --decision <number>."
+            )
+        try:
+            _decision(target, decision, check)
+        except BaselineError:
+            assert old is not None
+            path.write_bytes(old)
+            raise
+    return done.stdout.strip()
+
+
+def capture_missing(target: Path) -> list[str]:
+    """Capture every listed check that has no baseline yet."""
+    return [
+        capture(target, check)
+        for check in baselined(target)
+        if not baseline_file(target, check).is_file()
+    ]
+
+
+def tighten(target: Path) -> tuple[list[str], list[str]]:
+    """Run every baselined check locally: (tightened files, failures)."""
+    changed: list[str] = []
+    problems: list[str] = []
+    for check in baselined(target):
+        path = baseline_file(target, check)
+        old = path.read_bytes() if path.is_file() else None
+        done = _run_ratchet(target, check)
+        if done.returncode != 0:
+            problems.append(done.stderr.strip() or done.stdout.strip())
+        elif path.is_file() and path.read_bytes() != old:
+            changed.append(path.relative_to(target).as_posix())
+    return changed, problems

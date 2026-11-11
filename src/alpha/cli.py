@@ -6,7 +6,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from alpha import VERSION, answers, defaults, recipe_cli, registry, toml_write
+from alpha import VERSION, answers, baseline, defaults, recipe_cli, registry, toml_write
 from alpha.generate import (
     PRINCIPLES_TOML,
     PROJECT_JSON,
@@ -73,6 +73,24 @@ def build_parser() -> argparse.ArgumentParser:
     rshow = regsub.add_parser("show", help="one tool's rationale, limits and pin")
     rshow.add_argument("id", help="a tool id from `alpha registry list`")
     regsub.add_parser("stale", help="tools not reviewed in the last 180 days")
+    b = sub.add_parser("baseline", help="an adopted project's baselines (spec §8b)")
+    bsub = b.add_subparsers(dest="baseline_command", required=True)
+    bshow = bsub.add_parser("show", help="the findings each baseline holds")
+    bshow.add_argument("target", type=Path, help="the project")
+    bshow.add_argument("--json", action="store_true", help="machine-readable output")
+    bcap = bsub.add_parser("capture", help="record a check's findings as its baseline")
+    bcap.add_argument("target", type=Path, help="the project")
+    which = bcap.add_mutually_exclusive_group(required=True)
+    which.add_argument("--check", help="the check id, e.g. typecheck:api")
+    which.add_argument(
+        "--all", action="store_true", help="every listed check not yet captured"
+    )
+    bcap.add_argument(
+        "--decision",
+        help="the accepted decision record that lets an existing baseline grow",
+    )
+    btight = bsub.add_parser("tighten", help="lower each baseline to what's left")
+    btight.add_argument("target", type=Path, help="the project")
     gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
     boot = sub.add_parser(
@@ -85,6 +103,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="bootstrap only this component (repeatable); the repository checks "
         "still run",
+    )
+    boot.add_argument(
+        "--capture-baselines",
+        action="store_true",
+        help="record today's findings as each missing baseline (adopted projects)",
     )
     cs = sub.add_parser("commit-skeleton", help="commit the skeleton in groups")
     cs.add_argument("target", type=Path, help="a generated project")
@@ -221,6 +244,36 @@ def _registry(args: argparse.Namespace) -> int:
     return 0
 
 
+def _baseline(args: argparse.Namespace) -> int:
+    target: Path = args.target
+    try:
+        if args.baseline_command == "show":
+            rows = baseline.show(target)
+            if args.json:
+                print(json.dumps(rows, indent=2))
+            else:
+                print(baseline.describe(rows, target))
+            return 0
+        if args.baseline_command == "capture":
+            if args.all:
+                lines = baseline.capture_missing(target)
+                print("\n".join(lines) or "Every baselined check is captured.")
+            else:
+                print(baseline.capture(target, args.check, args.decision))
+            return 0
+        changed, problems = baseline.tighten(target)
+    except baseline.BaselineError as e:
+        print(e, file=sys.stderr)
+        return 1
+    for path in changed:
+        print(f"tightened: {path} (commit it)")
+    if not changed and not problems:
+        print("Every baseline already matches its findings.")
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    return 1 if problems else 0
+
+
 def _describe_tool(t: registry.Tool) -> str:
     lines = [
         f"{t.id}: {t.name} (https://github.com/{t.repo})",
@@ -246,9 +299,9 @@ def _generate(target: Path) -> None:
     print(f'Next: "alpha bootstrap {target}".')
 
 
-def _bootstrap(target: Path, only: list[str]) -> None:
+def _bootstrap(target: Path, only: list[str], capture: bool) -> None:
     principles = load_project_principles(target)
-    bootstrap(target, principles, only)
+    bootstrap(target, principles, only, capture)
     names = ", ".join(only or [c["name"] for c in principles["components"]])
     print(f"Bootstrapped {names}: toolchains installed, tests green.")
 
@@ -304,7 +357,7 @@ def _project(args: argparse.Namespace) -> int:
         if generating:
             _generate(target)
         elif args.command == "bootstrap":
-            _bootstrap(target, args.component)
+            _bootstrap(target, args.component, args.capture_baselines)
         elif args.command == "update":
             _update(target, args.dry_run)
         elif args.command == "commit-update":
@@ -358,6 +411,8 @@ def main(argv: list[str] | None = None) -> int:
         return _recipe(args)
     if args.command == "registry":
         return _registry(args)
+    if args.command == "baseline":
+        return _baseline(args)
     if args.command in (
         "generate",
         "bootstrap",
