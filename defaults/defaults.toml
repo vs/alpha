@@ -426,3 +426,21 @@ rationale = "One shared checklist for done keeps completion from being a matter 
 applies = ["always"]
 checked_by = ["reviewer", "hook:stop_checks"]
 core = true
+
+# The principles each kind of adoption-plan step serves (spec §5b): a check
+# step by its name (lint, typecheck, test, structure), a repository check by
+# its id, plus format, coverage and chain (alpha's commit check in the repo's
+# hook manager).
+[adopt.principles]
+format = ["lean-structure", "clean-history"]
+lint = ["no-dead-code", "never-weaken-checks"]
+typecheck = ["strict-types"]
+test = ["tests-first-class"]
+structure = ["lean-structure"]
+coverage = ["tests-first-class"]
+chain = ["clean-history"]
+typos = ["docs-with-code"]
+markdown = ["docs-with-code"]
+links = ["docs-with-code"]
+actions = ["build-hosting-upfront"]
+agent-config = ["evidence-before-done"]

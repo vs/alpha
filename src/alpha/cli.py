@@ -89,6 +89,11 @@ def build_parser() -> argparse.ArgumentParser:
     asurvey.add_argument(
         "--save", action="store_true", help="also store it as adoption.survey"
     )
+    agaps = adsub.add_parser("gaps", help="the plan steps the answers call for")
+    agaps.add_argument("target", type=Path, help="the repository's root")
+    agaps.add_argument(
+        "--save", action="store_true", help="add the new ones to adoption.steps"
+    )
     apply_cmd = adsub.add_parser(
         "apply", help="install alpha's files onto the repo, on a branch"
     )
@@ -286,12 +291,30 @@ def _adopt_apply(target: Path, dry_run: bool, source: defaults.Source) -> None:
             print(f"{c.path}: merge by hand; proposal: {PROPOSALS}/{c.path}")
 
 
+def _adopt_gaps(target: Path, save: bool, source: defaults.Source) -> None:
+    found = adopt.gaps(
+        answers.load_answers(target / PROJECT_JSON), defaults.load_defaults(source)
+    )
+    print(json.dumps(found, indent=2))
+    if save:
+        saved = adopt.saved_adoption(target)
+        before = list(saved.get("steps", []))
+        steps = adopt.merge_steps(before, found)
+        answers.write_answers(
+            target, json.dumps({"adoption": {**saved, "steps": steps}})
+        )
+        print(f"Added {len(steps) - len(before)} steps to adoption.steps.")
+
+
 def _adopt(args: argparse.Namespace) -> int:
     target: Path = args.target
     try:
         source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
         if args.adopt_command == "apply":
             _adopt_apply(target, args.dry_run, source)
+            return 0
+        if args.adopt_command == "gaps":
+            _adopt_gaps(target, args.save, source)
             return 0
         result = adopt.survey(target, source)
         if args.save:

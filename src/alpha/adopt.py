@@ -10,7 +10,13 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha import VERSION
-from alpha.answers import PROJECT_JSON, AnswersError, answers_snapshot, parse_answers
+from alpha.answers import (
+    PROJECT_JSON,
+    Answers,
+    AnswersError,
+    answers_snapshot,
+    parse_answers,
+)
 from alpha.defaults import Source, load_defaults, load_survey
 from alpha.generate import copied_files, render_project, source_info, write_json
 from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group
@@ -409,3 +415,138 @@ def apply_adoption(target: Path, adoption: AdoptionPlan) -> list[str]:
             f"must call {CHAINED_COMMIT_MSG} (CONTRIBUTING.md says so too)."
         )
     return notes
+
+
+# --- the compliance plan (spec §5b, step 6) ---
+
+_CHECK_STEPS = ("lint", "typecheck", "test")
+_TITLES = {
+    "lint": "Add a linter",
+    "typecheck": "Add a type checker",
+    "test": "Add a test runner",
+}
+
+
+def _principles_for(defaults: dict[str, Any], kind: str) -> list[str]:
+    table = cast(dict[str, list[str]], defaults.get("adopt", {}).get("principles", {}))
+    return list(table.get(kind, []))
+
+
+def _gap(
+    sid: str,
+    phase: str,
+    title: str,
+    why: str,
+    principles: list[str],
+    acceptance: list[dict[str, Any]],
+    component: str | None = None,
+    depends_on: list[str] | None = None,
+) -> dict[str, Any]:
+    step: dict[str, Any] = {"id": sid, "phase": phase, "title": title, "why": why}
+    if component is not None:
+        step["component"] = component
+    step["principles"] = principles
+    if depends_on:
+        step["depends_on"] = depends_on
+    step["acceptance"] = acceptance
+    step["status"] = "pending"
+    return step
+
+
+def gaps(a: Answers, defaults: dict[str, Any]) -> list[dict[str, Any]]:
+    """The mechanical steps the answers call for, in phase order (spec §5b)."""
+    found: list[dict[str, Any]] = []
+    if a.git_hooks == "chain":
+        found.append(
+            _gap(
+                "p0-chain-commit-hook",
+                "P0",
+                "Run alpha's commit check from the repo's hook manager",
+                "The repo's own hook manager runs git's hooks, so the commit "
+                "convention binds nobody until its commit-msg hook calls "
+                f"`{CHAINED_COMMIT_MSG}`.",
+                _principles_for(defaults, "chain"),
+                [{"commit_hook": True}],
+            )
+        )
+    threshold = (
+        a.testing.diff_coverage
+        if a.testing is not None and a.testing.diff_coverage is not None
+        else int(defaults.get("testing", {}).get("diff_coverage", 0))
+    )
+    book = a.book()
+    formatted: set[str] = set()
+    for c in a.components:
+        recipe = book.get(c.stack)
+        if not recipe.adopted:
+            continue
+        check = {"run": f"mise run check:component:{c.name}"}
+        if not recipe.commands.get("format_check"):
+            formatted.add(c.name)
+            found.append(
+                _gap(
+                    f"p1-format-{c.name}",
+                    "P1",
+                    f"Format {c.name} in one commit",
+                    f"{c.name}'s code isn't formatted yet, so its format check is "
+                    "off. Format it in a commit of its own, list that commit in "
+                    ".git-blame-ignore-revs, and turn the check on in its recipe.",
+                    _principles_for(defaults, "format"),
+                    [{"recipe": f"{c.name}.commands.format_check"}, check],
+                    c.name,
+                )
+            )
+        for step in _CHECK_STEPS:
+            if not recipe.commands.get(step):
+                found.append(
+                    _gap(
+                        f"p2-{step}-{c.name}",
+                        "P2",
+                        f"{_TITLES[step]} for {c.name}",
+                        f"Nothing runs a {step} check on {c.name}. Add the tool, "
+                        "set it in the recipe, and baseline its legacy findings.",
+                        _principles_for(defaults, step),
+                        [{"recipe": f"{c.name}.commands.{step}"}, check],
+                        c.name,
+                    )
+                )
+        if not recipe.coverage and threshold > 0:
+            found.append(
+                _gap(
+                    f"p2-coverage-{c.name}",
+                    "P2",
+                    f"Measure coverage of {c.name}'s changed lines",
+                    f"Pull requests must cover {threshold}% of the lines they "
+                    f"change, but {c.name}'s recipe has no coverage command.",
+                    _principles_for(defaults, "coverage"),
+                    [{"recipe": f"{c.name}.coverage"}],
+                    c.name,
+                )
+            )
+    for check in a.baselines:
+        kind, _, name = check.partition(":")
+        component = name or None
+        first = f"p1-format-{name}" if name in formatted else None
+        found.append(
+            _gap(
+                f"p5-baseline-{check.replace(':', '-')}",
+                "P5",
+                f"Clear the {check} baseline",
+                f"Legacy {check} findings are baselined (alpha baseline show). Fix "
+                f"them, risk paths first, then remove {check} from "
+                "adoption.baselines so the check runs plain again.",
+                _principles_for(defaults, kind if name else check),
+                [{"no_baseline": check}],
+                component,
+                [first] if first else None,
+            )
+        )
+    return sorted(found, key=lambda s: s["phase"])  # stable: keeps list order
+
+
+def merge_steps(
+    existing: list[dict[str, Any]], found: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """`existing` as it is, then each found step it doesn't have yet."""
+    have = {str(s.get("id")) for s in existing}
+    return [*existing, *(s for s in found if s["id"] not in have)]
