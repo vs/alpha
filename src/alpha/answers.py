@@ -666,7 +666,7 @@ def _decision(raw: object, i: int) -> Decision:
     )
 
 
-_ADOPTION_KEYS = ("baselines",)
+_ADOPTION_KEYS = ("baselines", "survey")
 
 
 def _baseline_id(
@@ -731,6 +731,7 @@ def _adoption(
                 "unknown key",
                 f"Remove it; allowed keys are {', '.join(_ADOPTION_KEYS)}",
             )
+    obj(d.get("survey", {}), "adoption.survey")  # alpha adopt survey writes it
     checks = as_list(d.get("baselines", []), "adoption.baselines")
     out: list[str] = []
     for i, check in enumerate(checks):

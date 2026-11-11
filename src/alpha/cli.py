@@ -6,7 +6,16 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from alpha import VERSION, answers, baseline, defaults, recipe_cli, registry, toml_write
+from alpha import (
+    VERSION,
+    adopt,
+    answers,
+    baseline,
+    defaults,
+    recipe_cli,
+    registry,
+    toml_write,
+)
 from alpha.generate import (
     PRINCIPLES_TOML,
     PROJECT_JSON,
@@ -73,6 +82,13 @@ def build_parser() -> argparse.ArgumentParser:
     rshow = regsub.add_parser("show", help="one tool's rationale, limits and pin")
     rshow.add_argument("id", help="a tool id from `alpha registry list`")
     regsub.add_parser("stale", help="tools not reviewed in the last 180 days")
+    ad = sub.add_parser("adopt", help="bring an existing repo under alpha (spec §5b)")
+    adsub = ad.add_subparsers(dest="adopt_command", required=True)
+    asurvey = adsub.add_parser("survey", help="what the repo already has, as JSON")
+    asurvey.add_argument("target", type=Path, help="the repository's root")
+    asurvey.add_argument(
+        "--save", action="store_true", help="also store it as adoption.survey"
+    )
     b = sub.add_parser("baseline", help="an adopted project's baselines (spec §8b)")
     bsub = b.add_subparsers(dest="baseline_command", required=True)
     bshow = bsub.add_parser("show", help="the findings each baseline holds")
@@ -241,6 +257,24 @@ def _registry(args: argparse.Namespace) -> int:
     for t in tools:
         stacks = ",".join(t.stacks) or "all"
         print(f"{t.id}\t{t.category}\t{t.last_reviewed}\t{stacks}")
+    return 0
+
+
+def _adopt(args: argparse.Namespace) -> int:
+    target: Path = args.target
+    try:
+        source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+        result = adopt.survey(target, source)
+        if args.save:
+            saved = {**adopt.saved_adoption(target), "survey": result}
+            answers.write_answers(target, json.dumps({"adoption": saved}))
+    except (adopt.AdoptError, answers.AnswersError) as e:
+        print(e, file=sys.stderr)
+        return 1
+    except defaults.DefaultsError as e:
+        print(e, file=sys.stderr)
+        return 3
+    print(json.dumps(result, indent=2))
     return 0
 
 
@@ -413,6 +447,8 @@ def main(argv: list[str] | None = None) -> int:
         return _registry(args)
     if args.command == "baseline":
         return _baseline(args)
+    if args.command == "adopt":
+        return _adopt(args)
     if args.command in (
         "generate",
         "bootstrap",
