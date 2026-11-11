@@ -239,6 +239,18 @@ def write_baseline(path: Path, check: str, counts: Counts) -> None:
     path.write_text(text + "\n", encoding="utf-8")
 
 
+def project_root(here: Path) -> Path | None:
+    """The checkout holding `here`; before `git init` (a fresh skeleton's
+    bootstrap), the nearest folder with docs/principles.toml."""
+    found = _common.checkout_of(here)
+    if found is not None:
+        return found
+    for folder in (here, *here.parents):
+        if (folder / _common.PRINCIPLES).is_file():
+            return folder
+    return None
+
+
 def _frozen() -> bool:
     return os.environ.get("CI", "").lower() not in ("", "0", "false")
 
@@ -291,12 +303,12 @@ def _unjudged(command: str, done: subprocess.CompletedProcess[str], why: str) ->
 def main() -> None:
     _common.check_python(2)  # a check that can't run must fail, not skip
     check, file_arg, capture = _usage()
-    root = _common.checkout_of(Path.cwd().resolve())
+    root = project_root(Path.cwd().resolve())
     if root is None:
         _fail(
             2,
             f"ratchet.py: {Path.cwd()} isn't in an alpha project (no "
-            "docs/principles.toml next to a .git). Run it inside the project.",
+            "docs/principles.toml here or above). Run it inside the project.",
         )
     principles = _common.load_principles(root, fail_code=2) or {}
     entry = _entry(principles, check)

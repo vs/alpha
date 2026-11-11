@@ -11,6 +11,14 @@
 - A new repo check, `baselines` (`diff_checks.py baselines`), fails a pull request where a count grows unless the PR adds an accepted decision record naming the check.
 - `alpha baseline show|capture|tighten` manages the files.
 
+**As built (2026-11-11):** tasks 1-8 are done. Where the build differs from the steps below:
+- A baseline reads findings with a line `pattern` or, for tools whose text wraps or groups by file (pyright, lychee), a `json` reader. That's `items` (a dotted path, where `*` walks a list or object), `file` and `rule` (field paths, or `@N` for a walked key) and `where`. In the registry it's a `[tools.<id>.pin.baseline]` table, not flat keys.
+- Rules have the machine's root path stripped (lychee's URLs name absolute files), so a laptop and CI count the same rule.
+- `alpha bootstrap --capture-baselines` records each missing baseline after the component's setup step (or after `mise install`, for repository checks) and before its check runs. Without the flag, a missing baseline stops bootstrap before any slow step. Capture needs the toolchain, so it can't come first.
+- The ratchet finds its project by the nearest `docs/principles.toml` when there's no `.git` yet: a fresh skeleton's bootstrap runs its checks before `git init`.
+- The `baselines` PR check accepts an added record only when it names the check id in backticks and says `Status: accepted`.
+- The tests live in `tests/checks/test_ratchet.py`, `tests/test_baselines_render.py`, `tests/hooks/test_baselined_hooks.py`, `tests/test_baseline.py` and `tests/test_baseline_slow.py`. The slow test covers the web+API scenario, and the fast render test covers a component at the root.
+
 **Tech Stack:** Python ≥ 3.11 for the kit; the copied scripts use the stdlib only and parse on Python 3.9. pytest, ruff, pyright.
 
 **Spec:** `docs/superpowers/specs/2026-10-19-project-kit-design.md` §8b, §5b (A2). Plan series: adoption 1 of 6 (then survey and adopted recipes, rendering onto an existing repo, the plan model, skills, evals).

@@ -270,3 +270,11 @@ def test_unknown_id_names_known(tmp_path: Path):
     root = _project(tmp_path, [_entry("")])
     done = _run(root, "typos")
     assert done.returncode == 2 and "baselined: lint:api" in done.stderr
+
+
+def test_runs_before_git_init(tmp_path: Path):
+    root = _project(tmp_path, [_entry("a.py:1: E1 x\n")])
+    (root / ".git").rmdir()
+    _set_baseline(root, {"api/a.py": {"E1": 1}})
+    done = _run(root, "lint:api")
+    assert done.returncode == 0, done.stderr
