@@ -272,6 +272,9 @@ class Answers:
     # Checks that run through the ratchet (spec §8b): `<step>:<component>` or
     # a repository check id. Only an adopted project has any.
     baselines: tuple[str, ...] = ()
+    # Who runs git's hooks in an adopted repo: alpha ("alpha"), or the repo's
+    # own hook manager, which calls alpha's commit-msg check ("chain").
+    git_hooks: str | None = None
 
     def book(self) -> RecipeBook:
         return RecipeBook(self.recipes)
@@ -744,6 +747,11 @@ def _baseline_id(
     return check
 
 
+def _git_hooks(raw: object) -> str | None:
+    d = obj(raw, "adoption")
+    return choice(d, "git_hooks", "adoption", GIT_HOOKS) if "git_hooks" in d else None
+
+
 def _adoption(
     raw: object, comps: tuple[Component, ...] | None, book: RecipeBook
 ) -> tuple[str, ...]:
@@ -756,8 +764,6 @@ def _adoption(
                 f"Remove it; allowed keys are {', '.join(_ADOPTION_KEYS)}",
             )
     obj(d.get("survey", {}), "adoption.survey")  # alpha adopt survey writes it
-    if "git_hooks" in d:
-        choice(d, "git_hooks", "adoption", GIT_HOOKS)
     checks = as_list(d.get("baselines", []), "adoption.baselines")
     out: list[str] = []
     for i, check in enumerate(checks):
@@ -1001,6 +1007,7 @@ def parse_answers(
         decisions,
         drafted,
         baselines,
+        _git_hooks(top.get("adoption", {})),
     )
 
 

@@ -348,24 +348,28 @@ def _check_row(c: RepoCheck) -> str:
     return row(c.id, what, runs)
 
 
+CHAINED_COMMIT_MSG = 'sh .claude/alpha/githooks/commit-msg "$1"'
+
+
 def _contributing(
     a: Answers, principles: dict[str, Any], checks: list[RepoCheck]
 ) -> str:
     assert a.git is not None
     git = principles["git"]
     branching = _BRANCHING.get(a.git.branching, f"Branching model: {a.git.branching}.")
-    lines = [
-        "# Contributing",
-        "",
-        "## One-time setup",
-        "",
-        "```sh",
-        "git config core.hooksPath .claude/alpha/githooks",
-        "```",
-        "",
-        "Then set up each component:",
-        "",
-    ]
+    lines = ["# Contributing", "", "## One-time setup", ""]
+    if git.get("hooks") == "chain":
+        lines += [
+            "The project's own git hook manager runs the commit check. Its "
+            "commit-msg hook must call:",
+            "",
+            "```sh",
+            CHAINED_COMMIT_MSG,
+            "```",
+        ]
+    else:
+        lines += ["```sh", "git config core.hooksPath .claude/alpha/githooks", "```"]
+    lines += ["", "Then set up each component:", ""]
     lines += [
         f"- `{c['name']}`: `cd {c['path']} && {c['commands']['setup']}`"
         for c in principles["components"]

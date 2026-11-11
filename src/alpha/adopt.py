@@ -13,11 +13,12 @@ from alpha import VERSION
 from alpha.answers import PROJECT_JSON, AnswersError, answers_snapshot, parse_answers
 from alpha.defaults import Source, load_defaults, load_survey
 from alpha.generate import copied_files, render_project, source_info, write_json
-from alpha.gitops import UPDATE_STATE, commit_group
+from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group
 from alpha.merge import Change, classify, merge_json, union_lines
 from alpha.recipes import RecipeBook, matches
 from alpha.records import record_paths, taken_numbers
 from alpha.registry import load_registry
+from alpha.render.docs import CHAINED_COMMIT_MSG
 from alpha.update import UpdatePlan, apply_update
 from alpha.validate import area_of
 
@@ -393,4 +394,18 @@ def apply_adoption(target: Path, adoption: AdoptionPlan) -> list[str]:
     state_path = target / UPDATE_STATE
     state = json.loads(state_path.read_text(encoding="utf-8"))
     write_json(state_path, {**state, "kind": "adopt"})
-    return [f"On branch {branch}.", *adoption.notes]
+    notes = [f"On branch {branch}.", *adoption.notes]
+    adopting = cast(dict[str, Any], adoption.update.answers["adoption"])
+    if adopting.get("git_hooks") == "alpha":
+        done = _git(target, "config", "core.hooksPath", HOOKS_PATH)
+        if done.returncode != 0:
+            raise AdoptError(
+                f"git couldn't set core.hooksPath: {done.stderr.strip()}. Run git "
+                f"config core.hooksPath {HOOKS_PATH} yourself."
+            )
+    else:
+        notes.append(
+            "Your hook manager stays in charge of git's hooks: its commit-msg hook "
+            f"must call {CHAINED_COMMIT_MSG} (CONTRIBUTING.md says so too)."
+        )
+    return notes

@@ -137,3 +137,32 @@ def test_apply_writes_a_manifest_update_can_use(repo: Path):
 def test_copied_hook_stays_executable(repo: Path):
     apply_adoption(repo, _plan(repo))
     assert os.access(repo / ".claude/alpha/githooks/commit-msg", os.X_OK)
+
+
+def test_alpha_takes_the_hooks_path(repo: Path):
+    apply_adoption(repo, _plan(repo))
+    assert git(repo, "config", "core.hooksPath") == ".claude/alpha/githooks"
+    contributing = (repo / "CONTRIBUTING.md").read_text()
+    assert "git config core.hooksPath .claude/alpha/githooks" in contributing
+
+
+def test_chain_leaves_git_hooks_alone(repo: Path):
+    adoption_answers(repo, git_hooks="chain")
+    git(repo, "config", "core.hooksPath", ".husky")
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nexit 0\n")
+    notes = apply_adoption(repo, _plan(repo))
+    assert git(repo, "config", "core.hooksPath") == ".husky"
+    assert hook.read_text() == "#!/bin/sh\nexit 0\n"
+    assert any('sh .claude/alpha/githooks/commit-msg "$1"' in n for n in notes)
+    contributing = (repo / "CONTRIBUTING.md").read_text()
+    assert 'sh .claude/alpha/githooks/commit-msg "$1"' in contributing
+    assert "git config core.hooksPath" not in contributing
+    principles = (repo / "docs/principles.toml").read_text()
+    assert 'hooks = "chain"' in principles
+
+
+def test_git_hooks_answer_validated(repo: Path):
+    adoption_answers(repo, git_hooks="husky")
+    with pytest.raises(AdoptError, match=r"adoption.git_hooks"):
+        _plan(repo)

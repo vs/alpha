@@ -267,6 +267,14 @@ def build_principles(
 
     docs_map = _docs_map(a.documentation)
     protected += a.security.extra_protected
+    git_section: dict[str, Any] = {
+        "convention": a.git.convention,
+        "types": list(defaults["git"]["types"]),
+        "scopes": list(a.git.scopes),
+        "branching": a.git.branching,
+    }
+    if a.git_hooks == "chain":  # the repo's hook manager calls alpha's check
+        git_section["hooks"] = "chain"
     out: dict[str, Any] = {
         "schema": 1,
         "kit_version": kit_version,
@@ -276,12 +284,7 @@ def build_principles(
             "paths": _dedupe(protected),
             "extra": list(a.security.extra_protected),
         },
-        "git": {
-            "convention": a.git.convention,
-            "types": list(defaults["git"]["types"]),
-            "scopes": list(a.git.scopes),
-            "branching": a.git.branching,
-        },
+        "git": git_section,
         "docs_map": docs_map,
         "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
         "testing": {"diff_coverage": _diff_coverage(a, defaults)},
