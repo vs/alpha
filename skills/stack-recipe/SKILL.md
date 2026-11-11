@@ -1,6 +1,6 @@
 ---
 name: stack-recipe
-description: Draft and prove a recipe for a stack alpha's kit has no recipe for (e.g. Rust, Go, Swift, Kotlin) in the alpha interview - the commands, files and CI setup a component on that stack needs - so it can be generated. Use only inside an alpha project interview (/alpha:new-project) or when the user asks to set up a stack the kit lacks.
+description: Draft and prove a recipe for a stack alpha's kit has no recipe for (e.g. Rust, Go, Swift, Kotlin) in the alpha interview - the commands, files and CI setup a component on that stack needs - so it can be generated. Use only inside an alpha project interview (/alpha:new-project), inside /alpha:adopt to adopt a repo's own tools, or when the user asks to set up a stack the kit lacks.
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -11,7 +11,8 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 You need `<target>` (the folder the interview is setting up) and `<stack>` (the stack's name, lowercase with hyphens, e.g. `rust`, `go`, `swift`). The answers live in `<target>/.claude/alpha/project.json`.
 
 - No project.json: tell the user to start with `/alpha:new-project`, and stop.
-- `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe list` names the stack: the kit already has a recipe; use it, and stop.
+- `alpha:adopt` sent you for a component of an existing repo: draft an adopted recipe as "Adopting a repo's tools" below says, whether or not the kit has the stack.
+- Otherwise, `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe list` names the stack: the kit already has a recipe; use it, and stop.
 
 ## Purpose
 
@@ -60,6 +61,16 @@ Leave out `proven`: a drafted recipe is always less proven, and alpha marks it s
    `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"recipes": {"<stack>": {…}}}'`
 5. **Check** it: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe check <target> <stack>` prints `ok`, or the field to fix. Fix, save, check again.
 6. **Try** it: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <stack>` writes the skeleton files in a scratch folder and runs the bootstrap and every check. It prints `ok: <stack> recipe proven`, or the failing command with its output. Fix the recipe, then show the user what changed (a new or changed command, especially one that downloads or installs something) and wait for their yes before trying again; ask too when the fix is a choice, e.g. dropping a check. Save and try again until it's proven. Any later edit needs another try; generating refuses a recipe that wasn't proven in its current form.
+
+## Adopting a repo's tools
+
+For `alpha:adopt`, the recipe runs the tools the repo already uses, on its real code (spec §5b):
+
+- Name it `<component>-<stack>` (e.g. `api-python`), set `"adopted": true`, and set it as the component's `stack`. When the repo's tools are the kit's (`recipe list`), add `"extends": "<kit stack>"` and give only what differs: it takes the kit's commands, globs, CI setup, rules and readers.
+- Facts come from the repo: its manifests and lockfile, its CI workflow and task runner (`Makefile`, `package.json` scripts) for the commands it already runs, and its real test layout for `test_globs` (e.g. `spec/**`, `**/__tests__/**`). Use those commands as they are.
+- `bootstrap` stays `[]` and `templates` `{}`: adopting installs nothing. A check the repo lacks stays `""`, and so does `test` when it has no tests; the adoption plan adds them later. Set `format_check` to `""` when today's code isn't formatted.
+- For every check that fails on today's code, add `[baseline.<step>]` (see above) so its findings can be baselined.
+- `recipe try` proves it on a throwaway worktree of the repo's HEAD: `setup` must pass, a failing check only when its reader reads the findings, and it lists them as `<step>: N findings` to baseline. Tell `alpha:adopt` which ones, as `<step>:<component>`.
 
 ## Done
 
