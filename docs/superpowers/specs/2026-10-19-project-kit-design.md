@@ -279,6 +279,19 @@ both), and any parameters.
   what's dead there: unused code, redundant checks, stubs. A new internal API
   replaces the old one in the same change: every caller migrated, the old one
   deleted, no compatibility layer.
+- ★ **Smallest complete change** (from ponytail, MIT, as the next three).
+  Take the first option that fully works: skip what nobody asked for, reuse
+  the codebase, then the standard library or platform, then an installed
+  dependency, then one line, and only then new code. No dependency for a few
+  lines, no unrequested abstraction, option or config.
+- ★ **Scope before writing.** List every place a change must reach (callers,
+  tests, fixtures, config, exports) and what it could break for users, then
+  finish all of it.
+- ★ **Fix bugs at the root.** Find every caller and fix the cause once, in the
+  shared code. Moved or merged code keeps its validation and error handling.
+- ★ **Lean structure.** Merge near-copies that must change together; split by
+  job, never by line count; between equal-size options, the one correct on
+  edge cases.
 - ★ **Never block on the human.** Don't stop to ask about reversible work.
   When a requirement is ambiguous, make the reasonable choice, record it in
   the decision log, and say what you chose. Ask first only when the choice

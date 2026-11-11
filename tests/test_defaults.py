@@ -71,7 +71,7 @@ def test_catalog_has_all_core_principles():
         "clean-history",
         "definition-of-done",
     } <= ids
-    assert len(ids) == 31
+    assert len(ids) == 35
     assert d["review"]["risk_paths"][:5] == [
         "**/migrations/**",
         "**/*.proto",
@@ -100,6 +100,20 @@ def test_subtract_first_replaces_internal_apis_in_one_change():
     assert "dead" in statement
     assert "compatibility layer" in statement
     assert principle(d, "subtract-first")["applies"] == ["always"]
+
+
+def test_ponytail_code_writing_principles_are_core():
+    d = load_defaults(Source(ROOT, True))
+    texts = {
+        "smallest-change": ("standard library", "No new dependency for a few lines"),
+        "scope-first": ("callers, tests, fixtures, config, exports",),
+        "fix-at-the-root": ("every caller", "keeps its error handling and validation"),
+        "lean-structure": ("split by job, never by line count", "edge cases"),
+    }
+    for pid, fragments in texts.items():
+        p = principle(d, pid)
+        assert p["core"] is True and p["applies"] == ["always"], pid
+        assert all(f in p["statement"] for f in fragments), pid
 
 
 def test_branching_defaults_to_feature_branches():

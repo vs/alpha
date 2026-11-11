@@ -374,6 +374,42 @@ checked_by = ["reviewer"]
 core = true
 
 [[principles]]
+id = "smallest-change"
+title = "Smallest complete change"
+statement = "Take the first option that fully works: skip what nobody asked for, then reuse what the codebase has, then the standard library or platform, then an installed dependency, then one line a reader gets at a glance, and only then new code. No new dependency for a few lines, and no abstraction, wrapper, option, config or \"for later\" code nobody asked for; keep the structure the codebase already has."
+rationale = "Every line written must be read, tested and fixed later, so the smallest change that fully works is the cheapest to own."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "scope-first"
+title = "Scope before writing"
+statement = "Before changing code, list every place the change must reach (callers, tests, fixtures, config, exports) and what it could break for users (data lost or exposed, callers that stop working), then finish every part of it. Features nobody asked for aren't scope."
+rationale = "A change that misses a caller or a fixture breaks later, far from the edit."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "fix-at-the-root"
+title = "Fix bugs at the root"
+statement = "Before a bug fix, find every caller of the function it touches and fix the root cause once, in the shared code, not in one caller. Code that is moved or merged keeps its error handling and validation."
+rationale = "A fix in one caller leaves the others broken, and a move that drops validation is a new bug."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
+id = "lean-structure"
+title = "Lean structure"
+statement = "Near-copies that must change together are merged into one. A function is split by job, never by line count, and never into helpers that only make it shorter. Between options of equal size, the one that is correct on edge cases wins."
+rationale = "Copies drift apart when only one changes, and a split by size adds layers between a question and its answer."
+applies = ["always"]
+checked_by = ["reviewer"]
+core = true
+
+[[principles]]
 id = "never-block-on-the-human"
 title = "Never block on the human"
 statement = "Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, record it in the decision log, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people."
