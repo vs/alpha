@@ -206,7 +206,12 @@ def tightened(now: Counts, before: Counts, only_file: str | None = None) -> Coun
 
 
 def read_baseline(path: Path) -> Counts:
-    data: object = json.loads(path.read_text(encoding="utf-8"))
+    return parse_baseline(path.read_text(encoding="utf-8"))
+
+
+def parse_baseline(text: str) -> Counts:
+    """A baseline file's counts; ValueError names what's wrong."""
+    data: object = json.loads(text)
     raw = (
         cast("dict[str, object]", data).get("counts")
         if isinstance(data, dict)

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import shutil
 import stat
@@ -238,3 +239,81 @@ def test_glob_matcher_matches_the_hooks():
     for g in globs:
         for p in paths:
             assert ours.matches(p, g) == hooks.matches(p, g), (g, p)
+
+
+# --- baselines: they only shrink ---
+
+BASELINE = ".claude/alpha/baselines/typecheck.api.json"
+RECORD = "# 0020. Keep two type errors\n\nDate: 2026-11-11\nStatus: {status}\n\n" + (
+    "## Context\n\nThe `typecheck:api` baseline grows by one: a stub is wrong.\n"
+)
+
+
+def _baseline(repo: Path, counts: dict[str, dict[str, int]]) -> None:
+    path = repo / BASELINE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"check": "typecheck:api", "counts": counts}))
+
+
+@pytest.fixture
+def baselined(repo: Path) -> Path:
+    git(repo, "checkout", "-q", "main")
+    _baseline(repo, {"api/a.py": {"E1": 2}})
+    commit(repo)
+    git(repo, "checkout", "-q", "-B", "feature")
+    return repo
+
+
+@pytest.mark.parametrize(
+    "counts",
+    [
+        {"api/a.py": {"E1": 3}},  # a count rises
+        {"api/a.py": {"E1": 2, "E2": 1}},  # a new rule
+        {"api/a.py": {"E1": 2}, "api/b.py": {"E1": 1}},  # a new file
+        {"api/b.py": {"E1": 2}},  # the findings move to another file
+    ],
+)
+def test_growth_needs_a_decision(baselined: Path, counts: dict[str, dict[str, int]]):
+    _baseline(baselined, counts)
+    commit(baselined)
+    result = run(baselined, "baselines")
+    assert result.returncode == 1
+    assert "baselines only shrink" in result.stdout
+    assert "names `typecheck:api`" in result.stdout
+
+
+def test_an_accepted_record_naming_the_check_lets_it_grow(baselined: Path):
+    _baseline(baselined, {"api/a.py": {"E1": 3}})
+    (baselined / "docs" / "decisions").mkdir()
+    record = baselined / "docs" / "decisions" / "0020-keep-two-type-errors.md"
+    record.write_text(RECORD.format(status="proposed"))
+    commit(baselined)
+    assert run(baselined, "baselines").returncode == 1
+    record.write_text(RECORD.format(status="accepted"))
+    commit(baselined)
+    result = run(baselined, "baselines")
+    assert result.returncode == 0, result.stdout
+    assert "accepted by a decision" in result.stdout
+
+
+def test_new_baseline_file_needs_a_decision(repo: Path):
+    _baseline(repo, {"api/a.py": {"E1": 1}})
+    commit(repo)
+    assert run(repo, "baselines").returncode == 1
+
+
+def test_shrink_passes(baselined: Path):
+    _baseline(baselined, {"api/a.py": {"E1": 1}})
+    commit(baselined)
+    assert run(baselined, "baselines").returncode == 0
+
+
+def test_deleted_baseline_passes(baselined: Path):
+    (baselined / BASELINE).unlink()
+    commit(baselined)
+    assert run(baselined, "baselines").returncode == 0
+
+
+def test_baselines_without_base_skip(repo: Path):
+    result = run(repo, "baselines", base=None)
+    assert result.returncode == 0 and "skipped" in result.stdout

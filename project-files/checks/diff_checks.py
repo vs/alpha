@@ -1,6 +1,6 @@
 """Checks on a pull request's diff against its base (run in CI by mise).
 
-Usage, from the repo root: diff_checks.py immutable-migrations|squawk
+Usage, from the repo root: diff_checks.py immutable-migrations|squawk|baselines
 Stdlib only. ALPHA_BASE is the base ref (empty outside pull requests) and
 PR_BODY the pull request description.
 """
@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any, cast
 
 APPROVAL = "alpha: migration edit approved"
+BASELINES = ".claude/alpha/baselines"
+DECISIONS = "docs/decisions/"
 
 
 def _match_parts(path: list[str], pat: list[str]) -> bool:
@@ -119,10 +121,84 @@ def squawk() -> int:
     return subprocess.run(["squawk", *files]).returncode
 
 
+def _ratchet() -> Any:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import ratchet  # the same reading of a baseline file as the checks
+
+    return ratchet
+
+
+def _counts_at(base: str, path: str) -> dict[str, dict[str, int]]:
+    shown = git("show", f"{base}:{path}")
+    return _ratchet().parse_baseline(shown.stdout) if shown.returncode == 0 else {}
+
+
+def _accepting(base: str) -> list[tuple[str, str]]:
+    """(path, text) of each accepted decision record the pull request adds."""
+    out: list[tuple[str, str]] = []
+    for status, path in changes(base):
+        if status != "A" or not path.startswith(DECISIONS) or not path.endswith(".md"):
+            continue
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        lines = [ln.strip() for ln in text.splitlines()]
+        if "Status: accepted" in lines:
+            out.append((path, text))
+    return out
+
+
+def baselines() -> int:
+    base = resolve_base("baselines")
+    if base is None:
+        return 0
+    ratchet = _ratchet()
+    folder = Path(BASELINES)
+    paths = {p.as_posix() for p in folder.glob("*.json")}
+    listed = git("ls-tree", "--name-only", f"{base}", f"{BASELINES}/")
+    paths |= {p for p in listed.stdout.splitlines() if p.endswith(".json")}
+    records = _accepting(base)
+    failed = False
+    for path in sorted(paths):
+        now_path = Path(path)
+        try:
+            now: dict[str, dict[str, int]] = (
+                ratchet.read_baseline(now_path) if now_path.is_file() else {}
+            )
+            before = _counts_at(base, path)
+        except ValueError as e:
+            print(f"alpha: {path} can't be read ({e}). Restore it from {base}.")
+            failed = True
+            continue
+        grown, _ = ratchet.compare(now, before)
+        if not grown:
+            continue
+        check = now_path.stem.replace(".", ":")
+        named = f"`{check}`"
+        if any(named in text for _, text in records):
+            print(f"alpha: {path} grows, accepted by a decision naming {named}.")
+            continue
+        failed = True
+        print(f"alpha: {path} grows against {base}; baselines only shrink:")
+        for file, rule, n, b in grown:
+            print(f"  {file} {rule}: {n} findings, {b} before")
+        print(
+            f"  Fix the new findings, or, if they're right to keep, add a decision "
+            f"record under {DECISIONS} (Status: accepted) that names {named} and "
+            "says why, in this pull request."
+        )
+    return 1 if failed else 0
+
+
 def main(argv: list[str]) -> int:
-    checks = {"immutable-migrations": immutable_migrations, "squawk": squawk}
+    checks = {
+        "immutable-migrations": immutable_migrations,
+        "squawk": squawk,
+        "baselines": baselines,
+    }
     if len(argv) != 2 or argv[1] not in checks:
-        print(f"usage: {Path(argv[0]).name} immutable-migrations|squawk")
+        print(f"usage: {Path(argv[0]).name} {'|'.join(checks)}")
         return 2
     try:
         return checks[argv[1]]()
