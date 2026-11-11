@@ -1,5 +1,6 @@
 """How a check's findings read, so a baseline can count them (spec §8b)."""
 
+import functools
 import importlib.util
 import os
 import posixpath
@@ -235,6 +236,7 @@ def baseline_from_data(
 RATCHET = Path(__file__).resolve().parents[2] / "project-files/checks/ratchet.py"
 
 
+@functools.cache
 def ratchet() -> ModuleType:
     """The ratchet projects get, so the kit reads findings the same way."""
     spec = importlib.util.spec_from_file_location("alpha_ratchet", RATCHET)

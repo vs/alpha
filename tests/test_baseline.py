@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from helpers import PLUGIN_ROOT, git, run_cli, shell_recipe
 
+from alpha.baseline import ratchet
 from alpha.generate import GenerateError, bootstrap
 from alpha.principles import render_principles
 
@@ -201,3 +202,19 @@ def test_capture_needs_a_decision_new_to_the_branch(tmp_path: Path, git_env: Non
         "baseline", "capture", str(root), "--check", CHECK, "--decision", "7"
     )
     assert done.returncode == 1 and "already named `lint:api`" in done.stderr
+
+
+def test_bootstrap_runs_a_just_captured_check_once(tmp_path: Path):
+    root = _project(tmp_path, [_component("true")])
+    _with_recipe(root)
+    data = _principles(root)
+    data["baselines"][0]["command"] = (
+        "echo run >> ../runs.log; python3 ../bin/fake.py src"
+    )
+    (root / "docs" / "principles.toml").write_text(render_principles(data))
+    bootstrap(root, data, capture_baselines=True)
+    assert (root / "runs.log").read_text().splitlines() == ["run"]
+
+
+def test_the_ratchet_module_is_loaded_once():
+    assert ratchet() is ratchet()

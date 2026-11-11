@@ -492,10 +492,14 @@ def bootstrap(
             *check_commands(c["commands"]),
         ]
         own = [m for m in uncaptured if m.partition(":")[2] == c["name"]]
+        captured: set[str] = set()
         for step, command in steps:
             if own and step not in ("bootstrap", "setup"):
                 _capture(target, own)  # the toolchain is installed by now
+                captured |= {m.partition(":")[0] for m in own}
                 own = []
+            if step in captured:
+                continue  # just captured from this very run: it holds
             _run(c["name"], command, cwd, fix)
         _capture(target, own)
     if repo_checks:
