@@ -1,7 +1,9 @@
+import json
+
 import pytest
 
 from alpha.generate import GenerateError
-from alpha.merge import Change, classify, merge3
+from alpha.merge import Change, classify, merge3, merge_json, union_lines
 
 BASE = "one\ntwo\nthree\nfour\nfive\nsix\n"
 
@@ -90,3 +92,66 @@ def test_classify_no_change_cases() -> None:
     assert classify("f", "x\n", "x\n", "edited\n") is None
     assert classify("f", "x\n", "x\n", None) is None
     assert classify("f", "x\n", None, None) is None
+
+
+def test_union_lines_keeps_the_repo_and_adds_the_rest() -> None:
+    disk = "node_modules/\n.env\n# local\nbuild/"
+    merged = union_lines(disk, ".env\n.venv/\n\n.claude/alpha/state/\n")
+    assert merged == (
+        "node_modules/\n.env\n# local\nbuild/\n"
+        "\n# alpha\n.venv/\n.claude/alpha/state/\n"
+    )
+    assert merged.startswith(disk)
+
+
+def test_union_lines_nothing_missing_is_unchanged() -> None:
+    assert union_lines("a\nb\n", "b\n  a\n") == "a\nb\n"
+    assert union_lines("", "a\n") == "# alpha\na\n"
+
+
+SETTINGS_REPO = {
+    "permissions": {"allow": ["Bash(npm test:*)"], "defaultMode": "acceptEdits"},
+    "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "mine"}]}]},
+    "env": {"FOO": "1"},
+}
+SETTINGS_ALPHA = {
+    "permissions": {
+        "allow": ["Bash(uv run:*)", "Bash(npm test:*)"],
+        "deny": ["Bash(git push --force:*)"],
+        "defaultMode": "default",
+    },
+    "hooks": {
+        "Stop": [{"hooks": [{"type": "command", "command": "alpha stop"}]}],
+        "SessionStart": [{"hooks": [{"type": "command", "command": "alpha start"}]}],
+    },
+}
+
+
+def test_merge_json_unions_lists_and_objects() -> None:
+    result = merge_json(json.dumps(SETTINGS_REPO), json.dumps(SETTINGS_ALPHA))
+    assert result is not None
+    merged = json.loads(result[0])
+    assert merged["permissions"]["allow"] == ["Bash(npm test:*)", "Bash(uv run:*)"]
+    assert merged["permissions"]["deny"] == ["Bash(git push --force:*)"]
+    assert [e["hooks"][0]["command"] for e in merged["hooks"]["Stop"]] == [
+        "mine",
+        "alpha stop",
+    ]
+    assert "SessionStart" in merged["hooks"] and merged["env"] == {"FOO": "1"}
+    again = merge_json(result[0], json.dumps(SETTINGS_ALPHA))
+    assert again is not None and json.loads(again[0]) == merged  # no duplicates
+
+
+def test_merge_json_keeps_repo_scalars_with_a_note() -> None:
+    result = merge_json(json.dumps(SETTINGS_REPO), json.dumps(SETTINGS_ALPHA))
+    assert result is not None
+    text, notes = result
+    assert json.loads(text)["permissions"]["defaultMode"] == "acceptEdits"
+    assert notes == [
+        'permissions.defaultMode: kept yours ("acceptEdits"), alpha\'s is "default"'
+    ]
+
+
+def test_merge_json_invalid_repo_file() -> None:
+    assert merge_json("{nope", "{}") is None
+    assert merge_json("[1]", "{}") is None

@@ -1,8 +1,9 @@
+import json
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from alpha.generate import GenerateError
 
@@ -69,3 +70,55 @@ def classify(
         return Change(path, "change", after)
     text, conflicted = merge3(before, disk, after)
     return Change(path, "conflict" if conflicted else "merge", text)
+
+
+def union_lines(disk: str, alpha: str, header: str = "# alpha") -> str:
+    """`disk` as it is, then alpha's lines it lacks under `header`: for a file
+    of independent lines, such as .gitignore."""
+    have = {line.strip() for line in disk.splitlines()}
+    missing = [
+        line for line in alpha.splitlines() if line.strip() and line.strip() not in have
+    ]
+    if not missing:
+        return disk
+    lead = disk if not disk or disk.endswith("\n") else disk + "\n"
+    gap = "\n" if lead else ""
+    return f"{lead}{gap}{header}\n" + "\n".join(missing) + "\n"
+
+
+def _union(disk: object, alpha: object, where: str, notes: list[str]) -> object:
+    if isinstance(disk, dict) and isinstance(alpha, dict):
+        mine = cast("dict[str, object]", disk)
+        theirs = cast("dict[str, object]", alpha)
+        out = dict(mine)
+        for key, value in theirs.items():
+            here = f"{where}.{key}" if where else key
+            out[key] = _union(mine[key], value, here, notes) if key in mine else value
+        return out
+    if isinstance(disk, list) and isinstance(alpha, list):
+        mine_list = list(cast("list[object]", disk))
+        seen = [json.dumps(x, sort_keys=True) for x in mine_list]
+        for item in cast("list[object]", alpha):
+            if json.dumps(item, sort_keys=True) not in seen:
+                mine_list.append(item)
+        return mine_list
+    if disk != alpha:
+        notes.append(
+            f"{where}: kept yours ({json.dumps(disk)}), alpha's is {json.dumps(alpha)}"
+        )
+    return cast(object, disk)
+
+
+def merge_json(disk: str, alpha: str) -> tuple[str, list[str]] | None:
+    """The repo's JSON object with alpha's added: objects merge key by key,
+    lists gain alpha's missing items, and a value both set stays the repo's,
+    with a note. None when the repo's file isn't a JSON object."""
+    try:
+        mine: object = json.loads(disk)
+    except ValueError:
+        return None
+    if not isinstance(mine, dict):
+        return None
+    notes: list[str] = []
+    merged = _union(cast("dict[str, object]", mine), json.loads(alpha), "", notes)
+    return json.dumps(merged, indent=2) + "\n", notes
