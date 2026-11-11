@@ -1,9 +1,11 @@
 import copy
+import json
 import re
 from pathlib import Path
 from typing import Any
 
 import yaml
+from helpers import proven, shell_recipe
 
 from alpha.answers import load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -286,9 +288,14 @@ def test_no_coverage_steps_when_zero():
         assert "fetch-depth" not in steps[0]["with"]
 
 
-def test_drafted_recipe_without_coverage():
+def test_drafted_recipe_without_coverage(tmp_path: Path):
     scenario = Path(__file__).parents[1] / "evals" / "scenarios" / "rust-cli.json"
-    answers = load_answers(scenario)
+    data = json.loads(scenario.read_text())
+    data["components"][0]["stack"] = "shell"
+    data["recipes"] = {"shell": proven(shell_recipe())}
+    path = tmp_path / "project.json"
+    path.write_text(json.dumps(data))
+    answers = load_answers(path)
     principles = build_principles(
         load_defaults(Source(PLUGIN_ROOT, True)), answers, "0.1.0"
     )

@@ -180,7 +180,7 @@
       "title": "One Rust CLI",
       "context": "A single command-line tool, distributed as a binary.",
       "decision": "One Rust component at the repository root.",
-      "consequences": "Rust's toolchain is the only one to maintain; its recipe is drafted for this project."
+      "consequences": "Rust's toolchain is the only one to maintain, on the kit's Rust recipe."
     },
     {
       "area": "architecture",
@@ -287,66 +287,5 @@
       "decision": "Batched review at 200 lines or 5 files.",
       "consequences": "Agents stop for review past either limit."
     }
-  ],
-  "recipes": {
-    "rust": {
-      "bootstrap": [],
-      "commands": {
-        "setup": "cargo fetch",
-        "test": "cargo test",
-        "lint": "cargo clippy --all-targets -- -D warnings",
-        "format": "cargo fmt",
-        "format_check": "cargo fmt --check",
-        "typecheck": "cargo check --all-targets",
-        "format_file": "rustfmt --edition 2024 {file}",
-        "lint_file": ""
-      },
-      "lockfiles": [
-        "Cargo.lock"
-      ],
-      "manifests": [
-        "Cargo.toml"
-      ],
-      "source_globs": [
-        "**/*.rs"
-      ],
-      "test_globs": [
-        "tests/**/*.rs"
-      ],
-      "exclude_globs": [
-        "**/target/**",
-        "**/.*/**"
-      ],
-      "ignores": [
-        "target/"
-      ],
-      "allow": [
-        "Bash(cargo fetch:*)",
-        "Bash(cargo test:*)",
-        "Bash(cargo fmt:*)",
-        "Bash(cargo clippy:*)",
-        "Bash(cargo check:*)",
-        "Bash(cargo add:*)"
-      ],
-      "why": {},
-      "ci": {
-        "steps": [
-          {
-            "uses": "actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30",
-            "with": {
-              "components": "rustfmt, clippy"
-            },
-            "version": "v2.0.1"
-          }
-        ],
-        "env": {}
-      },
-      "dependabot": "cargo",
-      "templates": {
-        "Cargo.toml": "[package]\nname = \"$slug-$name\"\nversion = \"0.1.0\"\nedition = \"2024\"\npublish = false\n\n[dependencies]\n\n[lints.rust]\nunsafe_code = \"forbid\"\n",
-        "tests/setup.rs": "//! Checks that the Rust toolchain builds and runs this project's tests.\n\n#[test]\nfn toolchain_runs_tests() {\n    assert_eq!(2 + 2, 4);\n}\n"
-      },
-      "proven_hash": "4241c82598f4dd3d9bfc3d7b39c612d0f9e846f55a2683406f6762b8c2b617d0"
-    }
-  }
+  ]
 }

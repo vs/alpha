@@ -10,7 +10,6 @@ import pytest
 import yaml
 from helpers import TODAY, git, place_answers
 
-from alpha import cli
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import bootstrap, generate, project_book
@@ -107,19 +106,6 @@ def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env):
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
-
-
-@pytest.mark.slow
-@NEEDS_CARGO
-def test_rust_recipe_is_proven_by_try(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-):
-    answers = place_answers(tmp_path, "rust-cli")
-    data = json.loads(answers.read_text())
-    del data["recipes"]["rust"]["proven_hash"]
-    answers.write_text(json.dumps(data))
-    assert cli.main(["recipe", "try", str(tmp_path), "rust"]) == 0
-    assert capsys.readouterr().out.strip() == "ok: rust recipe proven"
 
 
 def mise_run(cwd: Path, task: str) -> subprocess.CompletedProcess[str]:
@@ -365,4 +351,107 @@ def test_diff_cover_catches_untested_typescript_line(
     assert _sh(coverage, web).returncode == 0
     done = _sh(diff, web, diff_env)
     assert done.returncode == 0, done.stdout + done.stderr
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+
+@pytest.mark.slow
+@NEEDS_CARGO
+def test_rust_checks_fail_on_their_violations(
+    tmp_path: Path, generate_scenario, git_env
+):
+    generate_scenario(tmp_path, "rust-cli")
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    commit_skeleton(tmp_path, principles, [])
+    (cli,) = principles["components"]
+    commands = cli["commands"]
+    cwd = tmp_path / cli["path"]
+    saved = {f: f.read_bytes() for f in (cwd / "Cargo.toml", cwd / "Cargo.lock")}
+
+    def fails(step: str) -> str:
+        done = _sh(commands[step], cwd)
+        output = done.stdout + done.stderr
+        assert done.returncode != 0, f"{step}: {output}"
+        return output
+
+    bad = cwd / "tests/bad.rs"
+    bad.write_text("#[test]\nfn  t( ) {}\n")
+    fails("format_check")
+    assert bad.read_text() == "#[test]\nfn  t( ) {}\n"
+    bad.unlink()
+
+    (cwd / "src").mkdir()
+    (cwd / "src/lib.rs").write_text(
+        '//! x\n\n#[must_use]\npub fn n() -> u8 {\n    "1".parse().unwrap()\n}\n'
+    )
+    assert "clippy::unwrap_used" in fails("lint")
+    (cwd / "src/lib.rs").unlink()
+    (cwd / "src").rmdir()
+
+    assert _sh("cargo add itoa@1", cwd).returncode == 0
+    assert "itoa" in fails("structure")
+    for f, data in saved.items():
+        f.write_bytes(data)
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+
+@pytest.mark.slow
+@NEEDS_CARGO
+def test_diff_cover_catches_untested_rust_line(
+    tmp_path: Path, generate_scenario, git_env
+):
+    generate_scenario(tmp_path, "rust-cli")
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    commit_skeleton(tmp_path, principles, [])
+    git(tmp_path, "branch", "-M", "main")
+    git(tmp_path, "switch", "-c", "feature")
+
+    workflow = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
+    steps = {s.get("name"): s for s in workflow["jobs"]["cli"]["steps"]}
+    coverage = steps["test with coverage"]["run"]
+    diff = (
+        steps["diff coverage"]["run"]
+        .replace("pipx run", "uvx")
+        .replace("origin/${BASE_REF}", "${BASE_REF}")
+    )
+    diff_env = {**os.environ, "BASE_REF": "main"}
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/lib.rs").write_text("//! Tidy.\n\npub mod double;\n")
+    (tmp_path / "src/double.rs").write_text(
+        "//! Doubling.\n\n/// Twice `n`.\n#[must_use]\n"
+        "pub fn double(n: u32) -> u32 {\n    n * 2\n}\n"
+    )
+    git(tmp_path, "add", "src")
+    git(tmp_path, "commit", "-m", "feat(cli): Add double", "--no-verify")
+
+    done = _sh(coverage, tmp_path)
+    assert done.returncode == 0, done.stdout + done.stderr
+    report = (tmp_path / "coverage.xml").read_text()
+    assert 'filename="src/double.rs"' in report
+    assert "setup.rs" not in report
+    done = _sh(diff, tmp_path, diff_env)
+    output = done.stdout + done.stderr
+    assert done.returncode != 0, output
+    assert "double.rs" in output, output
+
+    with (tmp_path / "src/double.rs").open("a") as f:
+        f.write("\n#[cfg(test)]\nmod tests;\n")
+    (tmp_path / "src/double").mkdir()
+    (tmp_path / "src/double/tests.rs").write_text(
+        "use super::double;\n\n"
+        "#[test]\nfn doubles() {\n    assert_eq!(double(2), 4);\n}\n"
+    )
+    git(tmp_path, "add", "src")
+    git(tmp_path, "commit", "-m", "test(cli): Cover double", "--no-verify")
+    assert _sh(coverage, tmp_path).returncode == 0
+    report = (tmp_path / "coverage.xml").read_text()
+    assert "tests.rs" not in report  # test modules aren't code to cover
+    done = _sh(diff, tmp_path, diff_env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    for step in ("format_check", "lint", "test"):
+        command = principles["components"][0]["commands"][step]
+        done = _sh(command, tmp_path)
+        assert done.returncode == 0, f"{step}: {done.stdout}{done.stderr}"
     assert git(tmp_path, "status", "--porcelain") == ""

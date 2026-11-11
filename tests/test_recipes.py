@@ -80,13 +80,47 @@ def test_typescript_component_files():
     assert "!**/*.md" in biome["files"]["includes"]
 
 
+def test_rust_component_files():
+    component = _component("rust", "cli", "cli", "cli")
+    files = render_component(component, "pico")
+    assert set(files) == {
+        "cli/Cargo.toml",
+        "cli/clippy.toml",
+        "cli/rust-toolchain.toml",
+        "cli/tests/setup.rs",
+    }
+    cargo = tomllib.loads(files["cli/Cargo.toml"])
+    assert cargo["package"]["name"] == "pico-cli"
+    assert cargo["package"]["edition"] == "2024"
+    assert cargo["lints"]["rust"]["unsafe_code"] == "forbid"
+    assert cargo["lints"]["clippy"]["pedantic"] == {"level": "warn", "priority": -1}
+    toolchain = tomllib.loads(files["cli/rust-toolchain.toml"])["toolchain"]
+    # cargo-llvm-cov needs llvm-tools, and the CI step installs this file's.
+    assert {"rustfmt", "clippy", "llvm-tools-preview"} <= set(toolchain["components"])
+    # The setup test reads the manifest it checks at compile time.
+    assert 'include_str!("../Cargo.toml")' in files["cli/tests/setup.rs"]
+
+
+def test_rust_tools_match_between_bootstrap_and_ci():
+    recipe = load_recipe("rust")
+    installed = {
+        word
+        for command in recipe.bootstrap
+        if command.startswith("cargo install")
+        for word in command.split()
+        if "@" in word
+    }
+    (step,) = [s for s in recipe.ci.steps if "install-action" in s["uses"]]
+    assert installed == set(step["with"]["tool"].split(","))
+
+
 def test_single_layout_path_dot():
     files = render_component(py_component(path="."), "pico")
     assert set(files) == {"pyproject.toml", "tests/test_setup.py", ".python-version"}
 
 
 def test_command_keys_complete():
-    for s in ("python", "typescript"):
+    for s in ("python", "rust", "typescript"):
         assert set(load_recipe(s).commands) == {
             "setup",
             "test",
@@ -101,7 +135,7 @@ def test_command_keys_complete():
 
 
 def test_unknown_stack_says_how_to_fix():
-    with pytest.raises(RecipeError, match="Use one of: python, typescript"):
+    with pytest.raises(RecipeError, match="Use one of: python, rust, typescript"):
         load_recipe("cobol")
 
 
@@ -131,7 +165,7 @@ def test_drafted_recipe_without_structure_valid():
     assert "structure" not in dict(check_commands(recipe.commands))
 
 
-@pytest.mark.parametrize("stack", ["python", "typescript"])
+@pytest.mark.parametrize("stack", ["python", "rust", "typescript"])
 def test_every_recipe_has_every_check_step_and_pinned_ci_actions(stack: str):
     recipe = load_recipe(stack)
     assert [step for step, _ in check_commands(recipe.commands)] == list(CHECK_STEPS)
@@ -148,7 +182,7 @@ def test_recipes_name_no_stack_outside_recipes():
         f"{path.relative_to(src)}:{n}"
         for path in sorted(src.rglob("*.py"))
         for n, line in enumerate(path.read_text().splitlines(), 1)
-        if re.search(r"[\"'](python|typescript)[\"']", line)
+        if re.search(r"[\"'](python|rust|typescript)[\"']", line)
     ]
     assert found == []
 
@@ -171,7 +205,7 @@ DELETE = object()
 
 
 def test_kit_recipes_are_proven_and_carry_their_templates():
-    for stack in ("python", "typescript"):
+    for stack in ("python", "rust", "typescript"):
         recipe = load_recipe(stack)
         assert recipe.proven is True
         assert any(path.startswith("tests/") for path in recipe.templates)
@@ -202,6 +236,12 @@ def test_kit_recipes_carry_stack_rules():
         "top-level-imports",
         "unknown-at-boundaries",
         "pnpm-for-dependencies",
+    ]
+    assert [r.id for r in load_recipe("rust").rules] == [
+        "cargo-for-dependencies",
+        "typed-boundaries",
+        "errors-with-context",
+        "tests-beside-code",
     ]
 
 
@@ -339,7 +379,7 @@ def test_allow_rules_are_narrow_and_name_the_recipes_tools(rule: str):
 
 
 def test_kit_allow_rules_pass_the_same_check():
-    for stack in ("python", "typescript"):
+    for stack in ("python", "rust", "typescript"):
         assert load_recipe(stack).allow
 
 
@@ -505,6 +545,7 @@ def test_kit_recipes_detect():
         book.get("python").detect
     )
     assert {"package.json", "tsconfig.json"} <= set(book.get("typescript").detect)
+    assert book.get("rust").detect == ("Cargo.toml",)
 
 
 @pytest.mark.parametrize("marker", ["src/pyproject.toml", "*.toml"])
