@@ -119,7 +119,7 @@ def remove_component(data: dict[str, Any], name: str) -> None:
 
 
 def test_refuses_a_folder_alpha_did_not_generate(tmp_path: Path):
-    with pytest.raises(GenerateError, match="out of scope"):
+    with pytest.raises(GenerateError, match="run /alpha:adopt in it"):
         plan(tmp_path)
 
 

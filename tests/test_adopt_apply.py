@@ -12,7 +12,7 @@ from alpha.adopt import AdoptError, AdoptionPlan, apply_adoption, plan_adoption
 from alpha.defaults import Source
 from alpha.generate import GenerateError, load_project_principles
 from alpha.gitops import PROPOSALS, commit_update
-from alpha.update import plan_update
+from alpha.update import apply_update, describe, plan_update
 
 SOURCE = Source(PLUGIN_ROOT, True)
 TODAY = date(2026, 11, 11)
@@ -208,3 +208,38 @@ def test_commit_adoption_groups(repo: Path):
         "pyproject.toml",
     }
     assert git(repo, "status", "--porcelain") == ""
+
+
+def _adopted(repo: Path) -> None:
+    plan = _plan(repo)
+    apply_adoption(repo, plan)
+    _resolve(repo, plan)
+    commit_update(repo, load_project_principles(repo), [])
+
+
+def test_update_after_adoption(repo: Path):
+    _adopted(repo)
+    assert describe(plan_update(repo, SOURCE, TODAY), repo) == (
+        "alpha update: nothing to change"
+    )
+    path = repo / ".claude/alpha/project.json"
+    data = json.loads(path.read_text())
+    data["releases"]["changelog"] = (
+        "file" if data["releases"]["changelog"] != "file" else "none"
+    )
+    path.write_text(json.dumps(data, indent=2))
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "chore: Change the changelog")
+    plan = plan_update(repo, SOURCE, TODAY)
+    kinds = {c.path: c.kind for c in plan.changes}
+    assert "conflict" not in kinds.values(), kinds
+    if "README.md" in kinds:
+        apply_update(repo, plan)
+        readme = (repo / "README.md").read_text()
+        assert EXISTING["README.md"].strip() in readme  # the repo's lines stay
+
+
+def test_update_refusal_points_to_adopt(tmp_path: Path, git_env: None):
+    root = existing_repo(tmp_path / "plain")
+    with pytest.raises(GenerateError, match="/alpha:adopt"):
+        plan_update(root, SOURCE, TODAY)
