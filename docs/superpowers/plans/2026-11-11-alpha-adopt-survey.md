@@ -22,6 +22,11 @@
   - A failing check passes the proof only when its baseline reader reads findings. Those findings are what plan 3 will baseline, and the proof prints their counts.
   - A failing `format_check` fails the proof, with the advice to leave it `""` until the formatting step (P1).
 
+**As built (2026-11-11):** tasks 1-5 are done. Where the build differs from the steps below:
+- A failing step's own command isn't machine-readable, so the proof runs that step's baseline reader command and counts what it reads. A reader that reads nothing while its step fails fails the proof.
+- An adopted recipe that extends a kit one doesn't take the kit's `bootstrap`, `why`, templates or coverage. Each of these installs or writes something into the repo, or needs a plugin the repo may not have.
+- The slow test's mypy `--strict` also counts the test's `comparison-overlap`. Its legacy findings are two errors in two files.
+
 **Tech Stack:** Python ≥ 3.11 for the kit (stdlib, git). pytest, ruff, pyright.
 
 **Spec:** §5b (A1, the flow's step 1), §8b.
