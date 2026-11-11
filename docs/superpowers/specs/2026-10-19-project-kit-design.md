@@ -50,11 +50,11 @@ user's consent each time.
 **Non-goals (v1)**
 - No app code, not even a hello-world. The skeleton is configuration, docs,
   test wiring, and enforcement only.
-- No existing projects. v1 runs only on empty folders. Bringing existing
-  code up to the principles is a later, separate set of skills.
-  **Exception (user decision):** area skills may be called directly on a
-  project *the kit generated* to extend it (see §5a). They never touch app
-  code.
+- No existing projects in `new-project`. It runs only on empty folders.
+  **Exceptions (user decisions):** area skills may be called directly on a
+  project *the kit generated* to extend it (see §5a); they never touch app
+  code. And `adopt` (2026-11-11) brings an existing repo under the kit with
+  a compliance plan whose steps Claude carries out one by one (see §5b).
 - No infrastructure provisioning. Hosting is decided and documented, and
   CI is configured, but cloud resources are not created.
 
@@ -80,6 +80,7 @@ A Claude Code plugin, developed in this repo and installed from GitHub
 | Part | What it is |
 |---|---|
 | `new-project` skill | User-invoked entry point. Runs the interview across all areas, then generates the skeleton. Resumable. |
+| `adopt` skill | User-invoked entry point for an existing repo. Surveys it, runs the interview with the repo's practice as the recommendations, installs the enforcement with baselines for legacy debt, and writes a compliance plan it then carries out step by step (§5b). Resumable. |
 | `grilling` skill | Shared interview primitive used by `new-project` and every area skill (design tree, rounds, recommended answers; see §4). |
 | Area skills | One per area in §5. Each owns its questions, its principles, and the files it writes. Callable by `new-project` and directly. |
 | Stack recipes | Per-stack data and templates: test runner, linter/formatter, type checker, commands, permission lists, and stack rules. Full for Python and TypeScript, generic fallback for others. |
@@ -188,8 +189,93 @@ switch on an area that didn't apply before, or revisit an area's decisions.
 - Record a decision record for the change, and commit per the convention.
 - Never create or modify app code. Wiring a new component's test runner and
   configs is in scope; writing its code is not.
-- On a folder the kit didn't generate, refuse and explain that existing
-  projects are out of scope for v1.
+- On a folder the kit didn't generate or adopt, refuse and point to `adopt`
+  (§5b).
+
+## 5b. Adopting an existing project
+
+User decision (2026-11-11): `/alpha:adopt [folder]` brings a repo the kit
+didn't generate under the kit. The result is the same enforced project a
+generated one gets, plus a **compliance plan** that brings the existing code
+up to the principles over time. The plan may rework components.
+
+**Decisions (user):**
+
+- **A1 Keep tools that meet the principle.** When the repo already uses a
+  tool that can enforce a principle (mypy strict, ESLint, jest, poetry), the
+  kit keeps it: Claude drafts a project-local **adopted recipe** from the
+  repo's real commands and proves it on a throwaway worktree of the repo.
+  Moving to the kit's own tool is an optional plan step, never forced.
+- **A2 Baseline and ratchet.** Today's violations are recorded as a
+  baseline; the checks fail only on new ones, and the baseline only shrinks
+  (§8b). Legacy debt never blocks normal work, and never grows unnoticed.
+- **A3 Claude carries out the plan, one step at a time.** The plan is
+  committed. Each run of `/alpha:adopt` in an adopted project picks the next
+  ready step and does it on its own branch, under the project's own hooks
+  and reviewer. A step is done only when its acceptance command passes.
+  The kit's CLI still writes only the kit's files; rework of app code is
+  ordinary work by Claude.
+
+**The flow.** Each step shows its result before the next one writes
+anything.
+
+1. **Survey (facts, no questions).** Components (from the manifests a
+   recipe's `[detect]` table names), stacks, the tools in use and how strict
+   they are, the commands that already run (CI, task runners, scripts),
+   docs and decision records already there, license, CI provider, git hook
+   managers, migration folders, test layout, and how many recent commits
+   follow the convention. The survey is kept in the interview state.
+2. **Interview: all areas, in §4's order.** Recommendations come from the
+   survey where the repo's practice meets the principle, and from the kit
+   defaults otherwise. Nothing the repo already answers is asked. Wherever
+   the repo falls short of an active principle, a **gap** is recorded.
+3. **Assessment.** The audit's lenses (§9, on-demand reports), run per
+   active principle over the whole repo, find gaps no tool reports: the
+   error format, validation at the edges, contracts, config from the
+   environment, timeouts, logs, acceptance checks with no test.
+4. **Preview.** Before anything is written: the kit files to add, the
+   files to merge (with diffs and conflicts), the baselines to capture
+   (counts per check, component and rule), and the plan's steps. The user
+   confirms.
+5. **Install, on branch `alpha/adopt`.** The kit's files are merged in with
+   the three-way merge of §5a. The "before" side is empty, so a file the
+   repo already has is merged by hand, keeping the user's side. `.gitignore`
+   and `.claude/settings.json` are merged mechanically, the existing LICENSE
+   is kept, and component templates are never written over an existing
+   manifest. New decision records are numbered after any already in
+   `docs/decisions/`. Then the baselines are captured, the components are
+   bootstrapped green under them, and the result is committed in the
+   convention's groups. The user opens the pull request.
+6. **The plan.** `docs/adoption.md` (rendered from the interview state)
+   lists the steps by phase. Each step names the principles it serves, why
+   it's needed, an acceptance command, and the steps it depends on.
+
+| Phase | What its steps do |
+|---|---|
+| P0 Urgent | Secrets found in the repo: rotate them. Only the user marks these done. |
+| P1 Normalize | One formatting commit per component, listed in `.git-blame-ignore-revs`; lockfiles and pins. |
+| P2 Close tool gaps | Add a missing type checker, test runner or coverage; tighten configs to the principle's strictness, each with its own baseline. |
+| P3 Optional migrations | Move a component to the kit's tool. Offered, not recommended by default. |
+| P4 Rework | Fix the assessment's gaps: contracts, error format, config from the environment, timeouts, logs, migrations. |
+| P5 Burn-down | Bring each baseline to zero per component and rule, risk paths first. The last step removes the baseline. |
+| P6 Traceability | Link the product brief's acceptance checks to tests. |
+
+A step may be **dropped** only with a decision record that says why. That
+is a loosening, so it needs the user's agreement (§4).
+
+**Git hooks.** When the repo already has a hook manager or a
+`core.hooksPath`, the kit doesn't take the hooks path over: its
+`commit-msg` check chains to the existing hooks instead. The convention
+binds only new commits; existing history is never rewritten.
+
+**Refusals.** Each refusal says what to do next: the folder isn't a git
+repository; the working tree has uncommitted changes; the kit already
+generated or adopted the folder (use `extend`).
+
+After adoption, the project is a kit project like any other: `extend` and
+`alpha update` work on it, and §11 still holds. Adoption opts a project into
+the kit's gates as they are on the day it's adopted; later kit changes don't
+reach it.
 
 ## 6. The principles catalog
 
@@ -428,9 +514,10 @@ Decisions:
   add contracts once packages exist. TypeScript gets dependency-cruiser with
   rules that need no app code (no cycles, no production import of a dev
   dependency).
-- **D6 Kept as alpha's picks:** pyright, Biome, Dependabot, alpha's regex
-  secret check at Stop, and new-projects-only scope. Using alpha on existing
-  repos is not covered.
+- **D6 Kept as alpha's picks:** pyright, Biome, Dependabot, and alpha's
+  regex secret check at Stop, for new projects. An adopted repo keeps the
+  tools that meet the principle (§5b, A1), and its legacy findings are
+  baselined (§8b).
 - **D7 Links.** lychee runs `--offline` on pull requests and at Stop; the
   online check runs on the schedule only, so PRs don't flake.
 - **D8 Toolchain freshness.** The scheduled workflow fails when `mise outdated`
@@ -481,6 +568,51 @@ The registry (`registry/` in the kit) has one entry per repo-check tool. An
 entry holds the tool's pinned version and `pin.command`, the command that
 runs it. The generated `mise.toml`, CI and the Stop hook all read the same
 entries, so a command is written once.
+
+## 8b. Baselines and the ratchet
+
+For an adopted project (§5b, A2). A generated project has no baselines, and
+its files don't change.
+
+- **What a baseline holds.** One file per check under
+  `.claude/alpha/baselines/<check-id>.json`. It counts findings per file and
+  rule, not per line, so moving code doesn't break it, and it works the same
+  for every tool.
+- **How a finding is read.** Each check that can be baselined names, as
+  data, a command with machine-readable output and a pattern: a regular
+  expression with named groups `file` and `rule`. The kit's recipes and the
+  registry carry these for their tools; an adopted recipe carries them for
+  the repo's tools, and proving the recipe proves that the pattern reads
+  the output.
+- **The ratchet.** `ratchet.py <check-id> -- <command>` (copied under
+  `.claude/alpha/checks/`) runs the check:
+  - a file and rule counted above the baseline fails, and the message names
+    each new finding;
+  - a failing tool whose output doesn't parse fails, saying the output
+    can't be read (fail closed);
+  - counts below the baseline tighten it in place, locally (Stop, the edit
+    hooks, bootstrap); CI runs it frozen, where a baseline that could
+    shrink fails with the command to tighten and commit it.
+- **Only baselined checks are wrapped.** The principles file, `mise.toml`
+  and CI run a check through the ratchet only while the interview state
+  lists a baseline for it. When a burn-down step clears one, `alpha update`
+  renders the plain command again.
+- **Only shrinking.** Baselines are protected paths. A baseline grows only
+  through `alpha baseline capture --check <id> --decision <NNNN>`, which
+  needs an accepted decision record naming the check and why, as loosening
+  a principle does (§6). Claude can't run it without one.
+- **The edit hooks.** The post-edit lint runs over the whole edited file, so
+  for a baselined check it goes through the ratchet too: legacy findings
+  already in the file don't block an edit, new ones do.
+- **Not ratcheted:**
+  - the format check, which plan step P1 fixes once;
+  - secrets, where a real one is a P0 step and a false positive goes into
+    `.betterleaksignore`;
+  - known vulnerabilities, which use `osv-scanner.toml` exceptions with a
+    reason and a review date (the `review-dates` check).
+
+`alpha baseline show` prints the counts per check, component and rule, and
+`docs/adoption.md` shows the same numbers.
 
 ## 9. The principles reviewer
 
@@ -642,7 +774,6 @@ The kit follows its own principles:
 
 ## 15. Later (not v1)
 
-- Skills that bring existing codebases up to the principles.
 - Re-syncing a project with newer kit defaults.
-- Opting an existing project into newer kit gates (see §8a, D4).
-- alpha on existing repos (see §8a, D6).
+- Opting a kit project into newer kit gates (see §8a, D4). Adoption (§5b)
+  covers repos the kit never touched, not older kit projects.
