@@ -23,6 +23,13 @@ Afterwards the repo is an alpha project like any other: `alpha update` and `/alp
   The answers' `adoption.git_hooks` decides whether alpha takes `core.hooksPath` (`"alpha"`) or leaves an existing hook manager in charge (`"chain"`). With `"chain"`, the plan model (plan 4) adds a step that wires alpha's `commit-msg` check into that manager. The session-start hook accepts either.
 - Bootstrap runs with `--capture-baselines` (plan 1). Nothing in this plan edits app code, manifests or lockfiles.
 
+**As built (2026-11-11):** tasks 1-6 are done. Where the build differs from the steps below:
+- The `adoption.git_hooks` answer landed in Task 2, because `apply` needs it. Task 3 added what it does.
+- `.claude/settings.json` is merged as JSON, so its values are kept but its layout is rewritten.
+- `commit-update` commits `.claude/alpha/baselines/` with the chore group on every update, not only an adoption. Tightened baselines are alpha's writes too.
+- The slow test found that an adopted component at the repo root ran its tools over alpha's own `.claude/`. ruff counted 35 findings in alpha's hooks, and deptry failed on them. A generated project excludes that folder in the kit's `pyproject.toml` template, which an adopted repo never gets. Kit recipes now carry an `[adopt]` table of command variants that exclude it (`--extend-exclude .claude` for ruff and deptry), and an extending adopted recipe uses those. pyright and pytest skip dot-folders already. The TypeScript recipe has no `[adopt]` table yet: Biome in an adopted repo would see `.claude/`, which isn't verified.
+- The slow test resolves each conflict hunk as the repo's side, then alpha's. A plain concatenation would have left conflict markers in README.
+
 **Tech Stack:** Python ≥ 3.11, git (`merge-file`, `worktree`, `switch`). Hooks: stdlib, parse on 3.9.
 
 **Spec:** §5b, the flow's step 5, the git hooks paragraph and the refusals; §5a (the merge model); §8b.

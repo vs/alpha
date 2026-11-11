@@ -213,7 +213,7 @@ def existing_repo(target: Path, files: dict[str, str] | None = None) -> Path:
     """A committed repo alpha didn't make, on main."""
     target.mkdir(parents=True, exist_ok=True)
     git(target, "init", "-q", "-b", "main")
-    for rel, text in (files or EXISTING).items():
+    for rel, text in (EXISTING if files is None else files).items():
         path = target / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
