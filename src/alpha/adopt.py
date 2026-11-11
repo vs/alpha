@@ -11,12 +11,18 @@ from typing import Any, cast
 
 from alpha import VERSION
 from alpha.answers import (
+    PHASES,
     PROJECT_JSON,
     Answers,
     AnswersError,
+    Condition,
+    Step,
     answers_snapshot,
+    load_answers,
     parse_answers,
+    write_answers,
 )
+from alpha.baseline import accepts, find_record
 from alpha.defaults import Source, load_defaults, load_survey
 from alpha.generate import copied_files, render_project, source_info, write_json
 from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group
@@ -550,3 +556,190 @@ def merge_steps(
     """`existing` as it is, then each found step it doesn't have yet."""
     have = {str(s.get("id")) for s in existing}
     return [*existing, *(s for s in found if s["id"] not in have)]
+
+
+RUN_TIMEOUT = 600  # seconds, as the ratchet's
+_FINISHED = ("done", "dropped")
+
+
+def _ordered(steps: tuple[Step, ...]) -> list[Step]:
+    return sorted(steps, key=lambda s: PHASES.index(s.phase))  # stable
+
+
+def next_step(a: Answers) -> tuple[Step | None, str]:
+    """The next ready step, or None and why none is. A step depends only on
+    steps listed before it, so while any is unfinished, one is ready."""
+    finished = {s.id for s in a.steps if s.status in _FINISHED}
+    for s in _ordered(a.steps):
+        if s.id not in finished and set(s.depends_on) <= finished:
+            return s, ""
+    if not a.steps:
+        return None, "The plan has no steps: run alpha adopt gaps --save first."
+    return None, "Every step of the adoption plan is done or dropped."
+
+
+def describe_condition(c: Condition) -> str:
+    if c.kind == "run":
+        where = "" if c.dir == "." else f" (in {c.dir})"
+        return f"`{c.value}` passes{where}"
+    if c.kind == "recipe":
+        return f"the recipe sets {c.value}"
+    if c.kind == "no_baseline":
+        return f"{c.value} is no longer baselined (not in adoption.baselines)"
+    if c.kind == "commit_hook":
+        return "git's commit-msg hook runs alpha's commit check"
+    return f"the user confirms: {c.value}"
+
+
+def describe_step(s: Step) -> str:
+    lines = [f"{s.id} ({s.phase}): {s.title}", f"Why: {s.why}", "Done when:"]
+    lines += [f"  - {describe_condition(c)}" for c in s.acceptance]
+    lines.append(f"Branch: {s.branch or 'alpha/' + s.id}")
+    return "\n".join(lines)
+
+
+def _hook_runs_alpha(target: Path, a: Answers) -> bool:
+    if a.git_hooks != "chain":
+        return _out(target, "config", "core.hooksPath") == HOOKS_PATH
+    hooks = Path(_out(target, "rev-parse", "--git-path", "hooks") or ".git/hooks")
+    hook = (hooks if hooks.is_absolute() else target / hooks) / "commit-msg"
+    try:
+        return f"{HOOKS_PATH}/commit-msg" in hook.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def _problem(c: Condition, target: Path, a: Answers, confirmed: bool) -> str | None:
+    """Why the condition doesn't hold, or None when it does."""
+    if c.kind == "run":
+        try:
+            done = subprocess.run(
+                c.value,
+                shell=True,
+                cwd=target / c.dir,
+                capture_output=True,
+                text=True,
+                timeout=RUN_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            return f"`{c.value}` took longer than {RUN_TIMEOUT}s"
+        except OSError as e:
+            return f"`{c.value}` can't run in {c.dir} ({e})"
+        if done.returncode == 0:
+            return None
+        tail = "\n".join((done.stdout + done.stderr).strip().splitlines()[-20:])
+        return f"`{c.value}` failed (exit {done.returncode}):\n{tail}"
+    if c.kind == "recipe":
+        name, _, field_ = c.value.partition(".")
+        comp = next((x for x in a.components if x.name == name), None)
+        if comp is None:
+            return f"there's no component {name}"
+        recipe = a.book().get(comp.stack)
+        group, _, step = field_.partition(".")
+        if field_ == "coverage":
+            value = recipe.coverage
+        else:
+            value = recipe.commands.get(step, "") if group == "commands" else ""
+        return None if value else f"{comp.stack}'s {field_} is still empty"
+    if c.kind == "no_baseline":
+        return (
+            f"{c.value} is still in adoption.baselines"
+            if c.value in a.baselines
+            else None
+        )
+    if c.kind == "commit_hook":
+        if _hook_runs_alpha(target, a):
+            return None
+        return (
+            "git's commit-msg hook doesn't run alpha's commit check yet: add "
+            f"`{CHAINED_COMMIT_MSG}` to it"
+        )
+    if confirmed:
+        return None
+    return (
+        f"needs the user's confirmation that {c.value}. Ask them, then rerun with "
+        "--confirmed-by-user"
+    )
+
+
+def _load_steps(target: Path) -> tuple[Answers, dict[str, Any], list[dict[str, Any]]]:
+    try:
+        a = load_answers(target / PROJECT_JSON)
+    except AnswersError as e:
+        raise AdoptError(f"Fix {PROJECT_JSON}: {e}") from None
+    saved = saved_adoption(target)
+    return (
+        a,
+        saved,
+        [dict(s) for s in cast(list[dict[str, Any]], saved.get("steps", []))],
+    )
+
+
+def _step(a: Answers, sid: str) -> Step:
+    found = next((s for s in a.steps if s.id == sid), None)
+    if found is None:
+        ids = ", ".join(s.id for s in a.steps) or "none"
+        raise AdoptError(f"No step {sid!r} in adoption.steps (steps: {ids}).")
+    return found
+
+
+def _save_step(
+    target: Path,
+    saved: dict[str, Any],
+    raw: list[dict[str, Any]],
+    sid: str,
+    **fields: Any,
+) -> None:
+    for entry in raw:
+        if entry.get("id") == sid:
+            entry.update(fields)
+    write_answers(target, json.dumps({"adoption": {**saved, "steps": raw}}))
+
+
+def start(target: Path, sid: str) -> Step:
+    a, saved, raw = _load_steps(target)
+    s = _step(a, sid)
+    if s.status in _FINISHED:
+        raise AdoptError(f"{sid} is already {s.status}.")
+    branch = s.branch or f"alpha/{sid}"
+    _save_step(target, saved, raw, sid, status="in_progress", branch=branch)
+    return _step(_load_steps(target)[0], sid)
+
+
+def done(target: Path, sid: str, confirmed: bool = False) -> list[str]:
+    """Check every condition; mark the step done only when all hold. Raises
+    AdoptError listing the ones that don't."""
+    a, saved, raw = _load_steps(target)
+    s = _step(a, sid)
+    report: list[str] = []
+    failed = False
+    for c in s.acceptance:
+        problem = _problem(c, target, a, confirmed)
+        failed = failed or problem is not None
+        mark = "ok  " if problem is None else "FAIL"
+        report.append(f"{mark} {describe_condition(c)}")
+        if problem is not None:
+            report.append(f"     {problem}")
+    if failed:
+        raise AdoptError(f"{sid} isn't done yet:\n" + "\n".join(report))
+    _save_step(target, saved, raw, sid, status="done")
+    return report
+
+
+def drop(target: Path, sid: str, decision: str) -> None:
+    a, saved, raw = _load_steps(target)
+    _step(a, sid)
+    record = find_record(target, decision)
+    if record is None:
+        raise AdoptError(
+            f"No decision record {decision} in docs/decisions/. Dropping a step "
+            "loosens the plan, so record why with the user first (the project's "
+            "/decision skill), then pass its number."
+        )
+    if not accepts(record, sid):
+        rel = record.relative_to(target).as_posix()
+        raise AdoptError(
+            f"{rel} doesn't drop {sid}: it needs `Status: accepted` and the step id "
+            f"in backticks (`{sid}`), with why the step isn't needed."
+        )
+    _save_step(target, saved, raw, sid, status="dropped", decision=int(decision))

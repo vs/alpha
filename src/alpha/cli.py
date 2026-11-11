@@ -94,6 +94,23 @@ def build_parser() -> argparse.ArgumentParser:
     agaps.add_argument(
         "--save", action="store_true", help="add the new ones to adoption.steps"
     )
+    anext = adsub.add_parser("next", help="the next ready step of the adoption plan")
+    anext.add_argument("target", type=Path, help="the adopted repo")
+    astart = adsub.add_parser("start", help="mark a step in progress")
+    astart.add_argument("target", type=Path, help="the adopted repo")
+    astart.add_argument("step", help="the step id")
+    adone = adsub.add_parser("done", help="check a step's acceptance; mark it done")
+    adone.add_argument("target", type=Path, help="the adopted repo")
+    adone.add_argument("step", help="the step id")
+    adone.add_argument(
+        "--confirmed-by-user",
+        action="store_true",
+        help="the user confirmed the step's confirm conditions",
+    )
+    adrop = adsub.add_parser("drop", help="drop a step, with an accepted decision")
+    adrop.add_argument("target", type=Path, help="the adopted repo")
+    adrop.add_argument("step", help="the step id")
+    adrop.add_argument("--decision", required=True, help="the decision record's number")
     apply_cmd = adsub.add_parser(
         "apply", help="install alpha's files onto the repo, on a branch"
     )
@@ -306,6 +323,25 @@ def _adopt_gaps(target: Path, save: bool, source: defaults.Source) -> None:
         print(f"Added {len(steps) - len(before)} steps to adoption.steps.")
 
 
+_RECORD = "Then run alpha update and alpha commit-update so docs/adoption.md shows it."
+
+
+def _adopt_step(args: argparse.Namespace) -> str:
+    target: Path = args.target
+    if args.adopt_command == "next":
+        a = answers.load_answers(target / PROJECT_JSON)
+        found, why = adopt.next_step(a)
+        return f"Next: {adopt.describe_step(found)}" if found else why
+    if args.adopt_command == "start":
+        started = adopt.start(target, args.step)
+        return f"{started.id} is in progress on {started.branch}. {_RECORD}"
+    if args.adopt_command == "done":
+        report = adopt.done(target, args.step, args.confirmed_by_user)
+        return "\n".join([*report, f"{args.step} is done. {_RECORD}"])
+    adopt.drop(target, args.step, args.decision)
+    return f"{args.step} is dropped (decision {args.decision}). {_RECORD}"
+
+
 def _adopt(args: argparse.Namespace) -> int:
     target: Path = args.target
     try:
@@ -315,6 +351,9 @@ def _adopt(args: argparse.Namespace) -> int:
             return 0
         if args.adopt_command == "gaps":
             _adopt_gaps(target, args.save, source)
+            return 0
+        if args.adopt_command in ("next", "start", "done", "drop"):
+            print(_adopt_step(args))
             return 0
         result = adopt.survey(target, source)
         if args.save:

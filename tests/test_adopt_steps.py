@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import PLUGIN_ROOT, adoption_answers, proven, run_cli
+from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, proven, run_cli
 
-from alpha.adopt import gaps, merge_steps
+from alpha import adopt
+from alpha.adopt import AdoptError, done, drop, gaps, merge_steps, next_step
 from alpha.answers import AnswersError, load_answers
 from alpha.defaults import Source, load_defaults
 
@@ -173,3 +174,127 @@ def test_gaps_cli_prints_and_saves(tmp_path: Path):
     assert saved["baselines"] == ["typos"] and len(saved["steps"]) == 2
     again = run_cli("adopt", "gaps", str(tmp_path), "--save")
     assert "Added 0 steps" in again.stdout
+
+
+# --- next, start, done, drop ---
+
+
+def plan_repo(tmp_path: Path, steps: list[dict[str, Any]], **adoption: Any) -> Path:
+    root = existing_repo(tmp_path / "repo")
+    adoption_answers(root, steps=steps, **adoption)
+    return root
+
+
+def statuses(root: Path) -> dict[str, str]:
+    saved = json.loads((root / PROJECT).read_text())["adoption"]["steps"]
+    return {s["id"]: s["status"] for s in saved}
+
+
+def ok(sid: str, phase: str = "P2", **fields: Any) -> dict[str, Any]:
+    return step(sid, phase=phase, acceptance=[{"run": "true"}], **fields)
+
+
+def test_next_follows_phase_order_and_dependencies(tmp_path: Path, git_env: None):
+    root = plan_repo(
+        tmp_path,
+        [
+            ok("p5-later", "P5"),
+            ok("p1-first", "P1", status="done"),
+            ok("p2-needs-first", depends_on=["p1-first"]),
+        ],
+    )
+    found, _ = next_step(load_answers(root / PROJECT))
+    assert found is not None and found.id == "p2-needs-first"
+    done = run_cli("adopt", "next", str(root))
+    assert done.stdout.startswith("Next: p2-needs-first (P2)")
+    assert (
+        "`true` passes" in done.stdout and "Branch: alpha/p2-needs-first" in done.stdout
+    )
+
+
+def test_next_when_all_done_or_empty(tmp_path: Path, git_env: None):
+    root = plan_repo(
+        tmp_path,
+        [ok("p1-a", "P1", status="dropped", decision=3), ok("p2-b", status="done")],
+    )
+    _, why = next_step(load_answers(root / PROJECT))
+    assert why == "Every step of the adoption plan is done or dropped."
+    root = plan_repo(tmp_path / "empty", [])
+    _, why = next_step(load_answers(root / PROJECT))
+    assert "alpha adopt gaps --save" in why
+
+
+def test_done_needs_every_condition(
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
+):
+    conditions = [
+        {"run": "true"},
+        {"run": "sh -c 'echo broken; exit 3'"},
+        {"run": "no-such-tool --check"},
+        {"recipe": "ml.coverage"},
+        {"no_baseline": "typos"},
+        {"commit_hook": True},
+    ]
+    root = plan_repo(
+        tmp_path, [step(acceptance=conditions)], baselines=["typos"], git_hooks="chain"
+    )
+    with pytest.raises(AdoptError) as e:
+        done(root, "p2-lint-ml")
+    report = str(e.value)
+    assert "ok   `true` passes" in report
+    assert "exit 3" in report and "broken" in report
+    assert "no-such-tool" in report and "exit 127" in report
+    assert "ml-python's coverage is still empty" in report
+    assert "typos is still in adoption.baselines" in report
+    assert "doesn't run alpha's commit check" in report
+    assert statuses(root) == {"p2-lint-ml": "pending"}
+    monkeypatch.setattr(adopt, "RUN_TIMEOUT", 0.2)
+    root = plan_repo(tmp_path / "slow", [step(acceptance=[{"run": "sleep 2"}])])
+    with pytest.raises(AdoptError, match="took longer than"):
+        done(root, "p2-lint-ml")
+
+
+def test_done_marks_a_step_whose_acceptance_holds(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, [ok("p2-a")])
+    result = run_cli("adopt", "done", str(root), "p2-a")
+    assert result.returncode == 0, result.stderr
+    assert "p2-a is done" in result.stdout and "alpha update" in result.stdout
+    assert statuses(root) == {"p2-a": "done"}
+
+
+def test_done_confirm_needs_the_flag(tmp_path: Path, git_env: None):
+    root = plan_repo(
+        tmp_path, [step(acceptance=[{"confirm": "every error says how to fix it"}])]
+    )
+    with pytest.raises(AdoptError, match="--confirmed-by-user"):
+        done(root, "p2-lint-ml")
+    done(root, "p2-lint-ml", confirmed=True)
+    assert statuses(root) == {"p2-lint-ml": "done"}
+
+
+def test_drop_needs_an_accepted_record_naming_the_step(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, [ok("p2-a")])
+    with pytest.raises(AdoptError, match="No decision record 7"):
+        drop(root, "p2-a", "7")
+    record = root / "docs/decisions/0007-drop-a.md"
+    record.write_text("# 0007. Drop a\n\nStatus: accepted\n\nNot needed.\n")
+    with pytest.raises(AdoptError, match="`p2-a`"):
+        drop(root, "p2-a", "7")
+    record.write_text("# 0007. Drop a\n\nStatus: accepted\n\n`p2-a` isn't needed.\n")
+    drop(root, "p2-a", "7")
+    saved = json.loads((root / PROJECT).read_text())["adoption"]["steps"][0]
+    assert saved["status"] == "dropped" and saved["decision"] == 7
+
+
+def test_start_sets_in_progress_and_branch(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, [ok("p2-a")])
+    result = run_cli("adopt", "start", str(root), "p2-a")
+    assert "p2-a is in progress on alpha/p2-a" in result.stdout
+    saved = json.loads((root / PROJECT).read_text())["adoption"]["steps"][0]
+    assert saved["status"] == "in_progress" and saved["branch"] == "alpha/p2-a"
+
+
+def test_unknown_step_lists_the_ids(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, [ok("p2-a")])
+    result = run_cli("adopt", "done", str(root), "p9")
+    assert result.returncode == 1 and "steps: p2-a" in result.stderr

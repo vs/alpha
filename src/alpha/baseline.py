@@ -371,31 +371,39 @@ def _run_ratchet(
     )
 
 
-def _names(record: Path, check: str) -> bool:
+def find_record(target: Path, number: str) -> Path | None:
+    """docs/decisions/<number>-*.md, if there is one."""
+    if not number.isdigit():
+        return None
+    found = sorted((target / "docs" / "decisions").glob(f"{int(number):04d}-*.md"))
+    return found[0] if found else None
+
+
+def accepts(record: Path, token: str) -> bool:
+    """Whether the record is accepted and names `token` in backticks."""
     try:
         text = record.read_text(encoding="utf-8")
     except OSError:
         return False
     lines = [line.strip() for line in text.splitlines()]
-    return "Status: accepted" in lines and f"`{check}`" in text
+    return "Status: accepted" in lines and f"`{token}`" in text
 
 
 def _decision(target: Path, number: str, check: str) -> Path:
-    folder = target / "docs" / "decisions"
-    found = sorted(folder.glob(f"{int(number):04d}-*.md")) if number.isdigit() else []
-    if not found:
+    record = find_record(target, number)
+    if record is None:
         raise BaselineError(
             f"No decision record {number} in docs/decisions/. Record the decision "
             "first (the project's /decision skill), then pass its number."
         )
-    if not _names(found[0], check):
-        rel = found[0].relative_to(target).as_posix()
+    if not accepts(record, check):
+        rel = record.relative_to(target).as_posix()
         raise BaselineError(
             f"{rel} doesn't accept a larger {check} baseline: it needs "
             f"`Status: accepted` and the check id in backticks (`{check}`), with "
             "why the new findings stay."
         )
-    return found[0]
+    return record
 
 
 def capture(target: Path, check: str, decision: str | None = None) -> str:
