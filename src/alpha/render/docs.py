@@ -58,6 +58,8 @@ _COMMUNICATION = (
     "Define jargon you can't avoid.",
     "- Explain a non-trivial problem or design as the problem, a concrete example "
     "or short trace, then the solution and why it's needed.",
+    "- When you report finished work, end with one or two lines: what you skipped "
+    "or didn't check, and any risk the user must know.",
 )
 _CHECK_RULES = (
     "- When you add a code generator, add a `generate` task to `mise.toml` and to "
