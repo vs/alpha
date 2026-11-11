@@ -44,18 +44,23 @@ Format a round like so:
 <!-- The template's long lines are literal text Claude copies. -->
 
 ```text
-❓ **Q1** - **<question title>**: <question body, might be multiple paragraphs, including multiple choices>
+**Q1. <question title>.** <the question, in one or two sentences>
+Options: <choice> / <choice> / <choice>
+Recommended: <your recommended answer>, <a few words on why, only if it isn't obvious>
 
-➡️ <your recommended answer>
-
----
-
-❓ **Q2** - **<question title>**: <question body, might be multiple paragraphs, including multiple choices>
-
-➡️ <your recommended answer>
+**Q2. <question title>.** <the question>
+Recommended: <your recommended answer>
 ```
 
 <!-- rumdl-enable MD013 -->
+
+Keep a round compact and plain:
+
+- No emoji, no horizontal rules, no headings or tables inside a round.
+- One blank line between questions and none inside a question.
+- Add the `Options:` line only when the question has a fixed set of choices, and give each choice in a few words.
+- Leave out background the user didn't ask for. If they ask why, explain then.
+- At most one line before the first question (the area it's about), and nothing after the last one.
 
 Word each question so "yes" accepts your recommended answer. Number questions across the whole interview (Q1, Q2, … keep counting in later rounds).
 

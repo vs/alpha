@@ -200,6 +200,19 @@ def test_grilling_credits_its_source_with_the_full_license():
     assert 'THE SOFTWARE IS PROVIDED "AS IS"' in credit.group(1)
 
 
+EMOJI = re.compile("[\U0001f000-\U0001faff☀-➿⬀-⯿️]")
+
+
+def test_grilling_rounds_are_compact_plain_text():
+    rounds = _section("grilling", "Rounds")
+    template = re.search(r"```text\n(.*?)```", rounds, re.S)
+    assert template
+    assert not EMOJI.search(rounds)
+    assert "---" not in template.group(1)
+    assert "\n\n\n" not in template.group(1)
+    assert "Recommended:" in template.group(1)
+
+
 def test_grilling_override_protocol_reads_the_exit_codes():
     text = _text("grilling")
     assert "Make this the default for future projects too?" in text

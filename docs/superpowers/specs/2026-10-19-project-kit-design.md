@@ -98,7 +98,10 @@ Modeled on `mattpocock/skills` → `grilling`:
 - Decisions form a **design tree**. The **frontier** is every decision whose
   prerequisites are settled. Each round asks the whole frontier, numbered, each
   question with a **recommended answer** worded so "yes" accepts it.
-  Recommendations come from the kit defaults.
+  Recommendations come from the kit defaults. A round is compact plain text
+  (user decision, 2026-11-11): a bold numbered title and the question, an
+  optional `Options:` line, a `Recommended:` line, and no emoji, rules or
+  background the user didn't ask for.
 - **Facts are the kit's job, decisions are the user's.** Never ask what can be
   looked up (installed tool versions, whether `gh` is authenticated, the latest
   stable version of a framework).
