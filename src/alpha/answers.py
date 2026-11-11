@@ -273,6 +273,19 @@ class Condition:
     dir: str = "."
 
 
+def describe_condition(c: Condition) -> str:
+    if c.kind == "run":
+        where = "" if c.dir == "." else f" (in {c.dir})"
+        return f"`{c.value}` passes{where}"
+    if c.kind == "recipe":
+        return f"the recipe sets {c.value}"
+    if c.kind == "no_baseline":
+        return f"{c.value} is no longer baselined (not in adoption.baselines)"
+    if c.kind == "commit_hook":
+        return "git's commit-msg hook runs alpha's commit check"
+    return f"the user confirms: {c.value}"
+
+
 @dataclass(frozen=True)
 class Step:
     """A step of an adopted repo's compliance plan (spec §5b, step 6)."""

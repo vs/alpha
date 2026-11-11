@@ -1,6 +1,8 @@
 """The compliance plan of an adopted repo (spec §5b, step 6)."""
 
 import json
+import subprocess
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -8,9 +10,22 @@ import pytest
 from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, proven, run_cli
 
 from alpha import adopt
-from alpha.adopt import AdoptError, done, drop, gaps, merge_steps, next_step
+from alpha.adopt import (
+    AdoptError,
+    apply_adoption,
+    done,
+    drop,
+    gaps,
+    merge_steps,
+    next_step,
+    plan_adoption,
+)
 from alpha.answers import AnswersError, load_answers
 from alpha.defaults import Source, load_defaults
+from alpha.generate import load_project_principles, render_project
+from alpha.gitops import PROPOSALS, commit_update
+from alpha.registry import default_registry
+from alpha.update import apply_update, plan_update
 
 PROJECT = ".claude/alpha/project.json"
 
@@ -298,3 +313,92 @@ def test_unknown_step_lists_the_ids(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, [ok("p2-a")])
     result = run_cli("adopt", "done", str(root), "p9")
     assert result.returncode == 1 and "steps: p2-a" in result.stderr
+
+
+# --- docs/adoption.md ---
+
+SOURCE = Source(PLUGIN_ROOT, True)
+TODAY = date(2026, 11, 11)
+PLAN_STEPS = [
+    step("p1-format-ml", phase="P1", status="done", title="Format ml in one commit"),
+    step("p2-lint-ml", depends_on=["p1-format-ml"], status="in_progress"),
+    step(
+        "p4-errors",
+        phase="P4",
+        status="dropped",
+        decision=12,
+        title="Say how to fix each error",
+        acceptance=[{"confirm": "every CLI error says how to fix it"}],
+    ),
+]
+
+
+def rendered(root: Path) -> dict[str, str]:
+    a = load_answers(root / PROJECT)
+    return render_project(root, a, DEFAULTS, 2026, TODAY).texts
+
+
+def test_adoption_doc_lists_steps_by_phase(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, PLAN_STEPS)
+    doc = rendered(root)["docs/adoption.md"]
+    assert doc.startswith("# Adoption plan\n")
+    assert "| P1 Normalize | 1 | 1 |" in doc and "| P4 Rework | 1 | 1 |" in doc
+    assert doc.index("## P1 Normalize") < doc.index("## P2 Close tool gaps")
+    assert "| `p2-lint-ml` | ml | in progress |" in doc
+    assert "After `p1-format-ml`." in doc and "Dropped by decision 0012." in doc
+    assert "- the recipe sets ml.commands.lint" in doc
+    assert "- the user confirms: every CLI error says how to fix it" in doc
+
+
+def test_no_adoption_doc_without_steps(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, [])
+    texts = rendered(root)
+    assert "docs/adoption.md" not in texts
+    assert "Adoption plan" not in texts["CLAUDE.md"]
+
+
+def test_claude_md_points_to_the_plan(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, PLAN_STEPS)
+    assert "- [Adoption plan](docs/adoption.md)" in rendered(root)["CLAUDE.md"]
+
+
+def test_update_refreshes_the_doc(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, [ok("p2-a"), ok("p2-b")])
+    plan = plan_adoption(root, PLUGIN_ROOT, SOURCE, TODAY)
+    apply_adoption(root, plan)
+    for c in plan.update.changes:
+        if c.kind == "conflict":
+            (root / c.path).write_text((root / PROPOSALS / c.path).read_text())
+    commit_update(root, load_project_principles(root), [])
+    done(root, "p2-a")
+    update = plan_update(root, SOURCE, TODAY)
+    assert [c.path for c in update.changes] == ["docs/adoption.md"]
+    apply_update(root, update)
+    assert "| `p2-a` | ml | done |" in (root / "docs/adoption.md").read_text()
+
+
+@pytest.mark.slow
+def test_adoption_doc_passes_rumdl(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, PLAN_STEPS)
+    texts = rendered(root)
+    for rel in (
+        "docs/adoption.md",
+        "docs/principles.toml",
+        ".rumdl.toml",
+        "_typos.toml",
+    ):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(texts[rel])
+    registry = default_registry()
+    for tool in ("rumdl", "typos", "lychee"):
+        pin = registry.tool(tool).pin
+        assert pin is not None
+        command = f"mise x {pin.mise}@{pin.version} -- {pin.command}"
+        if tool != "lychee":
+            command += " docs/adoption.md"
+        else:
+            command = command.replace(" .", " docs/adoption.md")
+        done_ = subprocess.run(
+            command, shell=True, cwd=root, capture_output=True, text=True
+        )
+        assert done_.returncode == 0, f"{tool}: {done_.stdout}{done_.stderr}"

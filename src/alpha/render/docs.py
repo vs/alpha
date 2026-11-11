@@ -310,6 +310,11 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     lines.append("- [Releases](docs/releases.md)")
     if area_docs.changelog(a) is not None:
         lines.append("- [Changelog](CHANGELOG.md)")
+    if area_docs.adoption_doc(a) is not None:
+        lines.append(
+            "- [Adoption plan](docs/adoption.md): the steps that bring this repo's "
+            "code up to the principles; `/alpha:adopt` resumes it"
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -542,6 +547,7 @@ def render_docs(
         "docs/data.md": area_docs.data_doc(a, principles),
         "docs/performance.md": area_docs.performance_doc(a),
         "CHANGELOG.md": area_docs.changelog(a),
+        "docs/adoption.md": area_docs.adoption_doc(a),
     }
     out.update({path: text for path, text in optional.items() if text is not None})
     observability = area_docs.observability_doc(a)

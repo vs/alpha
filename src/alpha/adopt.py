@@ -18,6 +18,7 @@ from alpha.answers import (
     Condition,
     Step,
     answers_snapshot,
+    describe_condition,
     load_answers,
     parse_answers,
     write_answers,
@@ -576,19 +577,6 @@ def next_step(a: Answers) -> tuple[Step | None, str]:
     if not a.steps:
         return None, "The plan has no steps: run alpha adopt gaps --save first."
     return None, "Every step of the adoption plan is done or dropped."
-
-
-def describe_condition(c: Condition) -> str:
-    if c.kind == "run":
-        where = "" if c.dir == "." else f" (in {c.dir})"
-        return f"`{c.value}` passes{where}"
-    if c.kind == "recipe":
-        return f"the recipe sets {c.value}"
-    if c.kind == "no_baseline":
-        return f"{c.value} is no longer baselined (not in adoption.baselines)"
-    if c.kind == "commit_hook":
-        return "git's commit-msg hook runs alpha's commit check"
-    return f"the user confirms: {c.value}"
 
 
 def describe_step(s: Step) -> str:

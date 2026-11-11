@@ -21,6 +21,11 @@
 
   `--save` adds only the steps that aren't there yet, and never touches an existing one.
 
+**As built (2026-11-11):** tasks 1-4 are done. Where the build differs from the steps below:
+- `next` never reports a blocked plan. A step depends only on steps listed before it, so while any step is unfinished, the first unfinished one in list order has no open dependency. So `test_next_says_what_blocks` became `test_next_when_all_done_or_empty`.
+- `describe_condition` lives in `answers.py`, next to `Condition`, so the docs renderer can use it without importing `adopt`, which would be an import cycle.
+- `find_record` and `accepts` in `baseline.py` serve both `baseline capture --decision` and `adopt drop`.
+
 **Tech Stack:** Python ≥ 3.11. pytest, ruff, pyright.
 
 **Spec:** §5b (A3; the flow's step 6, the phase table, and dropping a step).

@@ -1,6 +1,6 @@
 from typing import Any
 
-from alpha.answers import Answers
+from alpha.answers import Answers, describe_condition
 from alpha.render.markdown import row
 
 _ERROR_FORMATS = {
@@ -340,3 +340,64 @@ def performance_doc(a: Answers) -> str | None:
             "",
         ]
     return "\n".join(lines[:-1]) + "\n"
+
+
+PHASE_NAMES = {
+    "P0": "Urgent",
+    "P1": "Normalize",
+    "P2": "Close tool gaps",
+    "P3": "Optional migrations",
+    "P4": "Rework",
+    "P5": "Burn-down",
+    "P6": "Traceability",
+}
+
+
+def adoption_doc(a: Answers) -> str | None:
+    """The compliance plan of an adopted repo (spec §5b, step 6)."""
+    if not a.steps:
+        return None
+    lines = [
+        "# Adoption plan",
+        "",
+        "alpha adopted this repo. These steps bring its code up to the "
+        "principles in [principles.toml](principles.toml), phase by phase. Run "
+        "`/alpha:adopt` to pick up the next one: each step gets a branch of its "
+        "own, and it's done only when everything under its *Done when* holds.",
+        "",
+        "## Progress",
+        "",
+        row("Phase", "Done", "Steps"),
+        row("---", "---", "---"),
+    ]
+    phases = [p for p in PHASE_NAMES if any(s.phase == p for s in a.steps)]
+    for phase in phases:
+        steps = [s for s in a.steps if s.phase == phase]
+        finished = sum(s.status in ("done", "dropped") for s in steps)
+        lines.append(
+            row(f"{phase} {PHASE_NAMES[phase]}", str(finished), str(len(steps)))
+        )
+    for phase in phases:
+        lines += ["", f"## {phase} {PHASE_NAMES[phase]}", ""]
+        lines += [row("Step", "Component", "Status"), row("---", "---", "---")]
+        steps = [s for s in a.steps if s.phase == phase]
+        lines += [
+            row(f"`{s.id}`", s.component or "-", s.status.replace("_", " "))
+            for s in steps
+        ]
+        for s in steps:
+            lines += ["", f"### `{s.id}`: {s.title}", "", s.why]
+            facts: list[str] = []
+            if s.principles:
+                facts.append(
+                    "Serves " + ", ".join(f"`{p}`" for p in s.principles) + "."
+                )
+            if s.depends_on:
+                facts.append("After " + ", ".join(f"`{d}`" for d in s.depends_on) + ".")
+            if s.status == "dropped" and s.decision is not None:
+                facts.append(f"Dropped by decision {s.decision:04d}.")
+            if facts:
+                lines += ["", " ".join(facts)]
+            lines += ["", "Done when:", ""]
+            lines += [f"- {describe_condition(c)}" for c in s.acceptance]
+    return "\n".join(lines) + "\n"
