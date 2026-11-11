@@ -1,0 +1,54 @@
+
+ RUN  v5.1.0 /ROOT
+
+ ❯ tests/bad.test.ts (2 tests | 2 failed) 4ms
+   ❯ group (1)
+     × fails 3ms
+   × top fails 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/bad.test.ts > group > fails
+AssertionError: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ tests/bad.test.ts:4:15
+      2| describe("group", () => {
+      3|   test("fails", () => {
+      4|     expect(1).toBe(2);
+       |               ^
+      5|   });
+      6| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/bad.test.ts > top fails
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/bad.test.ts:8:16
+      6| });
+      7| test("top fails", () => {
+      8|   expect(true).toBe(false);
+       |                ^
+      9| });
+     10|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at 00:00:00
+   Duration 1ms
+

@@ -310,6 +310,11 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     lines.append("- [Releases](docs/releases.md)")
     if area_docs.changelog(a) is not None:
         lines.append("- [Changelog](CHANGELOG.md)")
+    if area_docs.adoption_doc(a) is not None:
+        lines.append(
+            "- [Adoption plan](docs/adoption.md): the steps that bring this repo's "
+            "code up to the principles; `/alpha:adopt` resumes it"
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -348,24 +353,28 @@ def _check_row(c: RepoCheck) -> str:
     return row(c.id, what, runs)
 
 
+CHAINED_COMMIT_MSG = 'sh .claude/alpha/githooks/commit-msg "$1"'
+
+
 def _contributing(
     a: Answers, principles: dict[str, Any], checks: list[RepoCheck]
 ) -> str:
     assert a.git is not None
     git = principles["git"]
     branching = _BRANCHING.get(a.git.branching, f"Branching model: {a.git.branching}.")
-    lines = [
-        "# Contributing",
-        "",
-        "## One-time setup",
-        "",
-        "```sh",
-        "git config core.hooksPath .claude/alpha/githooks",
-        "```",
-        "",
-        "Then set up each component:",
-        "",
-    ]
+    lines = ["# Contributing", "", "## One-time setup", ""]
+    if git.get("hooks") == "chain":
+        lines += [
+            "The project's own git hook manager runs the commit check. Its "
+            "commit-msg hook must call:",
+            "",
+            "```sh",
+            CHAINED_COMMIT_MSG,
+            "```",
+        ]
+    else:
+        lines += ["```sh", "git config core.hooksPath .claude/alpha/githooks", "```"]
+    lines += ["", "Then set up each component:", ""]
     lines += [
         f"- `{c['name']}`: `cd {c['path']} && {c['commands']['setup']}`"
         for c in principles["components"]
@@ -538,6 +547,7 @@ def render_docs(
         "docs/data.md": area_docs.data_doc(a, principles),
         "docs/performance.md": area_docs.performance_doc(a),
         "CHANGELOG.md": area_docs.changelog(a),
+        "docs/adoption.md": area_docs.adoption_doc(a),
     }
     out.update({path: text for path, text in optional.items() if text is not None})
     observability = area_docs.observability_doc(a)

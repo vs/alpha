@@ -32,7 +32,14 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "git-history": ("git", ("git",)),
     "agent-workflow": ("agent_workflow", ("agent_workflow",)),
 }
-ALL_SKILLS = ["grilling", *AREA_SKILLS, "stack-recipe", "new-project", "extend"]
+ALL_SKILLS = [
+    "grilling",
+    *AREA_SKILLS,
+    "stack-recipe",
+    "new-project",
+    "extend",
+    "adopt",
+]
 CLI_SKILLS = ALL_SKILLS
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 AREA_SECTIONS = [
@@ -540,7 +547,42 @@ def test_extend_explains_kit_changes_in_conflicts():
 
 
 def test_extend_refuses_projects_alpha_did_not_generate():
-    assert "out of scope" in _text("extend")
+    text = _text("extend")
+    assert "alpha didn't generate or adopt this folder" in text
+    assert "`/alpha:adopt` brings an existing repo in" in text
+
+
+ADOPT_BULLET = (
+    "- project.json has an `adoption` key and no `manifest`: `alpha:adopt` is "
+    "bringing an existing repo in. Go on as it says; its rules win over this "
+    "skill's, and don't point to `/alpha:new-project` afterwards."
+)
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_skills_hand_adoptions_back(skill: str):
+    assert ADOPT_BULLET in _text(skill)
+    assert "/alpha:adopt" in _frontmatter(skill)["description"]
+
+
+def test_new_project_and_extend_point_to_adopt():
+    assert "run `/alpha:adopt <target>`" in _text("new-project")
+    assert "an adoption is under way. Point to `/alpha:adopt`" in _text("extend")
+
+
+def test_stack_recipe_covers_adopted_recipes():
+    text = _text("stack-recipe")
+    section = text.split("## Adopting a repo's tools", 1)[1].split("## Done")[0]
+    for needed in (
+        '"adopted": true',
+        '"extends"',
+        "`bootstrap` stays `[]`",
+        '`format_check` to `""`',
+        "[baseline.<step>]",
+        "recipe try",
+        "<step>:<component>",
+    ):
+        assert needed in section, needed
 
 
 @pytest.mark.parametrize("skill", AREA_SKILLS)
@@ -666,3 +708,47 @@ def test_stack_recipe_reads_registry():
     assert "not from the registry" in facts
     assert "Spell `<stack>` as the registry" in facts
     assert "ships with the toolchain" not in facts
+
+
+def test_adopt_invokes_the_areas_in_order():
+    text = _text("adopt").split("## 4. Interview", 1)[1].split("## 5.", 1)[0]
+    order = [text.index(f"`alpha:{skill}`") for skill in AREA_SKILLS]
+    assert order == sorted(order)
+
+
+def test_adopt_installs_in_order():
+    calls = [" ".join(c.split()[:2]) for c in _calls("adopt")]
+    order = ["adopt survey", "adopt gaps", "adopt apply", "bootstrap <target>"]
+    order += ["commit-update <target>"]
+    found = [next(i for i, c in enumerate(calls) if c == step) for step in order]
+    assert found == sorted(found), calls
+    text = _text("adopt")
+    assert text.index("adopt apply <target> --dry-run") < text.index(
+        "adopt apply <target>`."
+    )
+    assert "--capture-baselines" in text
+
+
+def test_adopt_marks_steps_only_through_the_cli():
+    plan = _text("adopt").split("## 9. The plan", 1)[1]
+    for command in ("adopt next", "adopt start", "adopt done", "adopt drop"):
+        assert f"{CLI} {command}" in plan, command
+    assert '"status"' not in plan and "adoption.steps" not in plan
+    assert "Never set a step's status any other way" in plan
+
+
+def test_adopt_updates_before_checking_a_changed_step():
+    plan = _text("adopt").split("## 9. The plan", 1)[1]
+    assert plan.index(f"{CLI} update <target>") < plan.index(f"{CLI} adopt done")
+    assert "new Claude Code session" in _text("adopt").split("## 8. Report", 1)[1]
+
+
+def test_adopt_is_user_invoked():
+    assert _frontmatter("adopt").get("disable-model-invocation") == "true"
+
+
+def test_adopt_uses_the_adoption_cli():
+    calls = {" ".join(c.split()[:2]) for c in _calls("adopt")}
+    needed = {"adopt survey", "adopt gaps", "adopt apply", "adopt next", "adopt start"}
+    needed |= {"adopt done", "adopt drop", "baseline show", "baseline tighten"}
+    assert needed <= {" ".join(c.split()[:2]) for c in calls} | calls

@@ -6,7 +6,16 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from alpha import VERSION, answers, defaults, recipe_cli, registry, toml_write
+from alpha import (
+    VERSION,
+    adopt,
+    answers,
+    baseline,
+    defaults,
+    recipe_cli,
+    registry,
+    toml_write,
+)
 from alpha.generate import (
     PRINCIPLES_TOML,
     PROJECT_JSON,
@@ -73,6 +82,60 @@ def build_parser() -> argparse.ArgumentParser:
     rshow = regsub.add_parser("show", help="one tool's rationale, limits and pin")
     rshow.add_argument("id", help="a tool id from `alpha registry list`")
     regsub.add_parser("stale", help="tools not reviewed in the last 180 days")
+    ad = sub.add_parser("adopt", help="bring an existing repo under alpha (spec §5b)")
+    adsub = ad.add_subparsers(dest="adopt_command", required=True)
+    asurvey = adsub.add_parser("survey", help="what the repo already has, as JSON")
+    asurvey.add_argument("target", type=Path, help="the repository's root")
+    asurvey.add_argument(
+        "--save", action="store_true", help="also store it as adoption.survey"
+    )
+    agaps = adsub.add_parser("gaps", help="the plan steps the answers call for")
+    agaps.add_argument("target", type=Path, help="the repository's root")
+    agaps.add_argument(
+        "--save", action="store_true", help="add the new ones to adoption.steps"
+    )
+    anext = adsub.add_parser("next", help="the next ready step of the adoption plan")
+    anext.add_argument("target", type=Path, help="the adopted repo")
+    astart = adsub.add_parser("start", help="mark a step in progress")
+    astart.add_argument("target", type=Path, help="the adopted repo")
+    astart.add_argument("step", help="the step id")
+    adone = adsub.add_parser("done", help="check a step's acceptance; mark it done")
+    adone.add_argument("target", type=Path, help="the adopted repo")
+    adone.add_argument("step", help="the step id")
+    adone.add_argument(
+        "--confirmed-by-user",
+        action="store_true",
+        help="the user confirmed the step's confirm conditions",
+    )
+    adrop = adsub.add_parser("drop", help="drop a step, with an accepted decision")
+    adrop.add_argument("target", type=Path, help="the adopted repo")
+    adrop.add_argument("step", help="the step id")
+    adrop.add_argument("--decision", required=True, help="the decision record's number")
+    apply_cmd = adsub.add_parser(
+        "apply", help="install alpha's files onto the repo, on a branch"
+    )
+    apply_cmd.add_argument("target", type=Path, help="the repository's root")
+    apply_cmd.add_argument(
+        "--dry-run", action="store_true", help="show the changes, write nothing"
+    )
+    b = sub.add_parser("baseline", help="an adopted project's baselines (spec §8b)")
+    bsub = b.add_subparsers(dest="baseline_command", required=True)
+    bshow = bsub.add_parser("show", help="the findings each baseline holds")
+    bshow.add_argument("target", type=Path, help="the project")
+    bshow.add_argument("--json", action="store_true", help="machine-readable output")
+    bcap = bsub.add_parser("capture", help="record a check's findings as its baseline")
+    bcap.add_argument("target", type=Path, help="the project")
+    which = bcap.add_mutually_exclusive_group(required=True)
+    which.add_argument("--check", help="the check id, e.g. typecheck:api")
+    which.add_argument(
+        "--all", action="store_true", help="every listed check not yet captured"
+    )
+    bcap.add_argument(
+        "--decision",
+        help="the accepted decision record that lets an existing baseline grow",
+    )
+    btight = bsub.add_parser("tighten", help="lower each baseline to what's left")
+    btight.add_argument("target", type=Path, help="the project")
     gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
     gen.add_argument("target", type=Path, help="folder holding the interview answers")
     boot = sub.add_parser(
@@ -85,6 +148,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="bootstrap only this component (repeatable); the repository checks "
         "still run",
+    )
+    boot.add_argument(
+        "--capture-baselines",
+        action="store_true",
+        help="record today's findings as each missing baseline (adopted projects)",
     )
     cs = sub.add_parser("commit-skeleton", help="commit the skeleton in groups")
     cs.add_argument("target", type=Path, help="a generated project")
@@ -177,7 +245,8 @@ def _recipe(args: argparse.Namespace) -> int:
             saved = recipe_cli.save_recipe(args.target, args.stack, source)
             print(f"saved: {args.stack} recipe in {saved}; new projects can use it")
             return 0
-        problem = recipe_cli.try_recipe(args.target, args.stack)
+        report: list[str] = []
+        problem = recipe_cli.try_recipe(args.target, args.stack, report)
     except defaults.DefaultsError as e:
         print(e, file=sys.stderr)
         return 3
@@ -194,7 +263,10 @@ def _recipe(args: argparse.Namespace) -> int:
     if problem:
         print(problem, file=sys.stderr)
         return 1
-    print(f"ok: {args.stack} recipe proven")
+    where = f" {report[0]}" if report else ""
+    print(f"ok: {args.stack} recipe proven{where}")
+    for line in report[1:]:
+        print(f"  {line} (to baseline)")
     return 0
 
 
@@ -219,6 +291,112 @@ def _registry(args: argparse.Namespace) -> int:
         stacks = ",".join(t.stacks) or "all"
         print(f"{t.id}\t{t.category}\t{t.last_reviewed}\t{stacks}")
     return 0
+
+
+def _adopt_apply(target: Path, dry_run: bool, source: defaults.Source) -> None:
+    plan = adopt.plan_adoption(target, PLUGIN_ROOT, source, date.today())
+    print(describe(plan.update, target))
+    for note in plan.notes:
+        print(f"  {note}")
+    if dry_run:
+        print(plan_diff(plan.update, target), end="")
+        return
+    for note in adopt.apply_adoption(target, plan):
+        print(note)
+    for c in plan.update.changes:
+        if c.kind == "conflict":
+            print(f"{c.path}: merge by hand; proposal: {PROPOSALS}/{c.path}")
+
+
+def _adopt_gaps(target: Path, save: bool, source: defaults.Source) -> None:
+    found = adopt.gaps(
+        answers.load_answers(target / PROJECT_JSON), defaults.load_defaults(source)
+    )
+    print(json.dumps(found, indent=2))
+    if save:
+        saved = adopt.saved_adoption(target)
+        before = list(saved.get("steps", []))
+        steps = adopt.merge_steps(before, found)
+        answers.write_answers(
+            target, json.dumps({"adoption": {**saved, "steps": steps}})
+        )
+        print(f"Added {len(steps) - len(before)} steps to adoption.steps.")
+
+
+_RECORD = "Then run alpha update and alpha commit-update so docs/adoption.md shows it."
+
+
+def _adopt_step(args: argparse.Namespace) -> str:
+    target: Path = args.target
+    if args.adopt_command == "next":
+        a = answers.load_answers(target / PROJECT_JSON)
+        found, why = adopt.next_step(a)
+        return f"Next: {adopt.describe_step(found)}" if found else why
+    if args.adopt_command == "start":
+        started = adopt.start(target, args.step)
+        return f"{started.id} is in progress on {started.branch}. {_RECORD}"
+    if args.adopt_command == "done":
+        report = adopt.done(target, args.step, args.confirmed_by_user)
+        return "\n".join([*report, f"{args.step} is done. {_RECORD}"])
+    adopt.drop(target, args.step, args.decision)
+    return f"{args.step} is dropped (decision {args.decision}). {_RECORD}"
+
+
+def _adopt(args: argparse.Namespace) -> int:
+    target: Path = args.target
+    try:
+        source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+        if args.adopt_command == "apply":
+            _adopt_apply(target, args.dry_run, source)
+            return 0
+        if args.adopt_command == "gaps":
+            _adopt_gaps(target, args.save, source)
+            return 0
+        if args.adopt_command in ("next", "start", "done", "drop"):
+            print(_adopt_step(args))
+            return 0
+        result = adopt.survey(target, source)
+        if args.save:
+            saved = {**adopt.saved_adoption(target), "survey": result}
+            answers.write_answers(target, json.dumps({"adoption": saved}))
+    except (adopt.AdoptError, answers.AnswersError, GenerateError) as e:
+        print(e, file=sys.stderr)
+        return 1
+    except defaults.DefaultsError as e:
+        print(e, file=sys.stderr)
+        return 3
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def _baseline(args: argparse.Namespace) -> int:
+    target: Path = args.target
+    try:
+        if args.baseline_command == "show":
+            rows = baseline.show(target)
+            if args.json:
+                print(json.dumps(rows, indent=2))
+            else:
+                print(baseline.describe(rows, target))
+            return 0
+        if args.baseline_command == "capture":
+            if args.all:
+                lines = baseline.capture_missing(target)
+                print("\n".join(lines) or "Every baselined check is captured.")
+            else:
+                print(baseline.capture(target, args.check, args.decision))
+            return 0
+        changed, problems = baseline.tighten(target)
+    except baseline.BaselineError as e:
+        print(e, file=sys.stderr)
+        return 1
+    for path in changed:
+        print(f"tightened: {path} (commit it)")
+    if not changed and not problems:
+        print("Every baseline already matches its findings.")
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    return 1 if problems else 0
 
 
 def _describe_tool(t: registry.Tool) -> str:
@@ -246,9 +424,9 @@ def _generate(target: Path) -> None:
     print(f'Next: "alpha bootstrap {target}".')
 
 
-def _bootstrap(target: Path, only: list[str]) -> None:
+def _bootstrap(target: Path, only: list[str], capture: bool) -> None:
     principles = load_project_principles(target)
-    bootstrap(target, principles, only)
+    bootstrap(target, principles, only, capture)
     names = ", ".join(only or [c["name"] for c in principles["components"]])
     print(f"Bootstrapped {names}: toolchains installed, tests green.")
 
@@ -304,7 +482,7 @@ def _project(args: argparse.Namespace) -> int:
         if generating:
             _generate(target)
         elif args.command == "bootstrap":
-            _bootstrap(target, args.component)
+            _bootstrap(target, args.component, args.capture_baselines)
         elif args.command == "update":
             _update(target, args.dry_run)
         elif args.command == "commit-update":
@@ -358,6 +536,10 @@ def main(argv: list[str] | None = None) -> int:
         return _recipe(args)
     if args.command == "registry":
         return _registry(args)
+    if args.command == "baseline":
+        return _baseline(args)
+    if args.command == "adopt":
+        return _adopt(args)
     if args.command in (
         "generate",
         "bootstrap",

@@ -16,8 +16,9 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 
 `<target>` is the folder the hand-off names, if one was given (`/alpha:new-project` passes its own); otherwise the current working directory. A folder in `$ARGUMENTS` is the target, not the change.
 
-- No `<target>/.claude/alpha/project.json`: say alpha only changes projects it generated, and that existing projects are out of scope for v1. Stop.
-- project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`. Stop.
+- No `<target>/.claude/alpha/project.json`: alpha didn't generate or adopt this folder. Say that `/alpha:adopt` brings an existing repo in, and stop.
+- project.json has `adoption` but no `manifest`: an adoption is under way. Point to `/alpha:adopt`, and stop.
+- Otherwise, project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`. Stop.
 - Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` first. If it lists changes, an earlier change was never applied: show them and ask whether to apply them now; on yes, go to step 4 (show and confirm), then step 5; on no, stop.
 - If it refuses because an update is waiting to be committed ("Merge any proposals in .claude/alpha/state/update/, run commit-update"), that update is already applied. Tell the user, merge any proposals as step 5 says, then run step 7's commit-update. Don't rerun update first; then go on to step 2 for the new request.
 

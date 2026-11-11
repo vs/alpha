@@ -19,6 +19,8 @@ from alpha.answers import (
     drafted_recipes,
     load_answers,
 )
+from alpha.baseline import BaselineError, baseline_file
+from alpha.baseline import capture as capture_baseline
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
 from alpha.recipes import RecipeBook, check_commands, render_component
@@ -85,7 +87,8 @@ def _tooling_excludes(principles: dict[str, Any], book: RecipeBook) -> list[str]
     return [*_ignored(principles, book), *locks]
 
 
-def _copies(plugin_root: Path) -> dict[str, Path]:
+def copied_files(plugin_root: Path) -> dict[str, Path]:
+    """The files every project gets as they are: hooks, checks, skills, agents."""
     files = plugin_root / "project-files"
     out = {
         f".claude/alpha/hooks/{p.name}": p
@@ -122,6 +125,15 @@ def _source_commit(source: Source) -> str | None:
     except OSError:
         return None
     return done.stdout.strip() if done.returncode == 0 else None
+
+
+def source_info(source: Source) -> dict[str, Any]:
+    """Where the kit defaults came from, for the manifest."""
+    return {
+        "path": _display_path(source.path),
+        "live": source.checkout,
+        "commit": _source_commit(source),
+    }
 
 
 @dataclass(frozen=True)
@@ -242,7 +254,7 @@ def generate(
         registry=load_registry(source),
     )
     texts = rendered.texts
-    copies = _copies(plugin_root)
+    copies = copied_files(plugin_root)
     for rel, name in rendered.component_of.items():
         if rel in copies:
             raise _collision(a, name, rel)
@@ -261,11 +273,7 @@ def generate(
     data["manifest"] = {
         "kit_version": VERSION,
         "generated_at": today.isoformat(),
-        "defaults": {
-            "path": _display_path(source.path),
-            "live": source.checkout,
-            "commit": _source_commit(source),
-        },
+        "defaults": source_info(source),
         "files": file_hashes(target, generated),
         "applied": answers_snapshot(data),
         "records": records.to_json(),
@@ -368,7 +376,21 @@ def _mise_tools(target: Path) -> list[str]:
     return list(cast(dict[str, object], tools)) if isinstance(tools, dict) else []
 
 
-def _repo_checks(target: Path) -> None:
+def _capture(target: Path, checks: Sequence[str]) -> None:
+    """Record today's findings as the baselines of `checks`, once their tools
+    are installed and before their checks run."""
+    for check in checks:
+        print(f"alpha: baseline: capture {check}", file=sys.stderr, flush=True)
+        try:
+            print(capture_baseline(target, check), file=sys.stderr, flush=True)
+        except BaselineError as e:
+            raise GenerateError(
+                f"Capturing the {check} baseline failed:\n{e}\nFix that, then "
+                f'rerun "alpha bootstrap {target} --capture-baselines".'
+            ) from None
+
+
+def _repo_checks(target: Path, capture: Sequence[str] = ()) -> None:
     """Install the repository checks' tools and run the ones CI runs on a PR."""
     _require_mise(target)
     if not (target / ".git").exists():
@@ -409,6 +431,7 @@ def _repo_checks(target: Path) -> None:
             f'Check your network, or run "{install}" in {target} to see which '
             f"tool failed, then {rerun}",
         )
+    _capture(target, capture)
     _run(
         label,
         "mise run --continue-on-error ci",  # report every failing check
@@ -419,8 +442,13 @@ def _repo_checks(target: Path) -> None:
 
 
 def bootstrap(
-    target: Path, principles: dict[str, Any], only: Sequence[str] = ()
+    target: Path,
+    principles: dict[str, Any],
+    only: Sequence[str] = (),
+    capture_baselines: bool = False,
 ) -> None:
+    """`capture_baselines`: record each listed baseline that's missing, once
+    its tools are installed (spec §8b); otherwise a missing one stops here."""
     fix = (
         "Fix the failing step (is the component's toolchain installed?) and rerun "
         f'"alpha bootstrap {target}"'
@@ -432,6 +460,17 @@ def bootstrap(
                 f"No component named {name} in {PRINCIPLES_TOML} "
                 f"(components: {', '.join(known)})."
             )
+    uncaptured = [
+        str(e["id"])
+        for e in principles.get("baselines", [])
+        if not baseline_file(target, str(e["id"])).is_file()
+    ]
+    if uncaptured and not capture_baselines:
+        raise GenerateError(
+            f"No baseline for {', '.join(uncaptured)}, so those checks can't tell "
+            "legacy findings from new ones. To record today's findings as the "
+            f'baselines, rerun "alpha bootstrap {target} --capture-baselines".'
+        )
     repo_checks = (target / MISE).is_file()
     if repo_checks:
         _require_mise(target)  # before the components' slow steps
@@ -448,12 +487,21 @@ def bootstrap(
         missing = [s for s in ("setup", "test") if s not in c["commands"]]
         if missing:
             raise KeyError(missing[0])
-        commands = [
-            *book.get(c["stack"]).bootstrap,
-            *(command for _, command in check_commands(c["commands"])),
+        steps = [
+            *(("bootstrap", command) for command in book.get(c["stack"]).bootstrap),
+            *check_commands(c["commands"]),
         ]
-        for command in commands:
+        own = [m for m in uncaptured if m.partition(":")[2] == c["name"]]
+        captured: set[str] = set()
+        for step, command in steps:
+            if own and step not in ("bootstrap", "setup"):
+                _capture(target, own)  # the toolchain is installed by now
+                captured |= {m.partition(":")[0] for m in own}
+                own = []
+            if step in captured:
+                continue  # just captured from this very run: it holds
             _run(c["name"], command, cwd, fix)
+        _capture(target, own)
     if repo_checks:
-        _repo_checks(target)
+        _repo_checks(target, [m for m in uncaptured if ":" not in m])
     refresh_manifest(target)

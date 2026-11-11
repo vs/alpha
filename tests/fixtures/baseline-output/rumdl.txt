@@ -1,0 +1,8 @@
+docs/guide.md:3:25: [MD059] Link text should be descriptive
+docs/guide.md:3:32: [MD057] Relative link 'missing.md' does not exist
+docs/guide.md:5:1: [MD012] Multiple consecutive blank lines between content [*]
+docs/guide.md:6:1: [MD022] Expected 1 blank line below heading [*]
+.claude/skills/x/SKILL.md:1:1: [MD041] First line in file should be a level 1 heading
+
+Issues: Found 5 issues in 2/3 files (8ms)
+Run `rumdl fmt` to automatically fix 2 of the 5 issues

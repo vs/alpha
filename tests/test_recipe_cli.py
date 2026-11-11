@@ -338,3 +338,51 @@ def test_try_fails_when_commands_create_source_files(
     assert "created source files (src/app.sh)" in err
     assert "no app code" in err
     assert "proven_hash" not in recipes_of(target)["shell"]
+
+
+def _baselined(command: str) -> dict[str, Any]:
+    recipe = shell_recipe()
+    recipe["commands"]["lint"] = "true"
+    recipe["baseline"] = {
+        "lint": {"command": command, "pattern": r"^(?P<file>\S+):\d+: (?P<rule>E\d+)"}
+    }
+    return recipe
+
+
+def test_try_proves_a_baseline_reader(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    target = project(tmp_path, _baselined("echo 'All clean, 0 findings'"))
+    assert cli.main(["recipe", "try", str(target), "shell"]) == 0
+
+
+def test_try_refuses_a_baseline_that_reads_findings_on_the_skeleton(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    target = project(tmp_path, _baselined("echo 'summary.txt:0: E0 found 0'"))
+    assert cli.main(["recipe", "try", str(target), "shell"]) == 1
+    err = capsys.readouterr().err
+    assert "reads findings on the clean skeleton" in err and "summary.txt:0" in err
+    assert "proven_hash" not in recipes_of(target)["shell"]
+
+
+def test_try_refuses_a_failing_baseline_command(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    target = project(tmp_path, _baselined("sh -c 'echo crashed; exit 4'"))
+    assert cli.main(["recipe", "try", str(target), "shell"]) == 1
+    err = capsys.readouterr().err
+    assert "failed (exit 4) on the clean skeleton" in err and "crashed" in err
+
+
+def test_try_refuses_unreadable_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    recipe = _baselined("echo nope")
+    recipe["baseline"]["lint"] = {
+        "command": "echo nope",
+        "json": {"items": "diagnostics.*", "file": "file"},
+    }
+    target = project(tmp_path, recipe)
+    assert cli.main(["recipe", "try", str(target), "shell"]) == 1
+    assert "isn't JSON" in capsys.readouterr().err

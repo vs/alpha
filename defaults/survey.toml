@@ -1,0 +1,34 @@
+# What `alpha adopt survey` looks for in an existing repo (spec §5b): facts,
+# not opinions. Globs are relative to the repo root and matched against its
+# tracked files only, so ignored folders never count. Components are found by
+# each recipe's [detect] markers, not here.
+
+# CI configuration, of any provider.
+ci = [
+  ".github/workflows/*.yml",
+  ".github/workflows/*.yaml",
+  ".gitlab-ci.yml",
+  ".circleci/config.yml",
+  "Jenkinsfile",
+  "azure-pipelines.yml",
+  "bitbucket-pipelines.yml",
+]
+# Docs the project already has, which alpha's docs merge with.
+docs = ["README*", "CONTRIBUTING*", "CHANGELOG*", "CLAUDE.md", "AGENTS.md", "docs/**/*.md"]
+# Decision records kept in the usual places.
+decisions = [
+  "docs/decisions/*.md",
+  "docs/adr/*.md",
+  "docs/adrs/*.md",
+  "adr/*.md",
+  "docs/architecture/decisions/*.md",
+]
+# Schema migrations.
+migrations = ["**/migrations/**", "**/alembic/versions/**", "**/db/migrate/**"]
+# Where the commands that already run are written down.
+task_runners = ["Makefile", "justfile", "Taskfile.yml", "mise.toml", "**/package.json"]
+# Git hook managers: alpha chains its commit-msg check to them.
+hook_managers = [".husky/**", ".pre-commit-config.yaml", "lefthook.yml", ".lefthook.yml"]
+license = ["LICENSE*", "COPYING*"]
+# Example environment files: where config from the environment is documented.
+env_examples = ["**/.env.example", "**/.env.sample"]

@@ -38,6 +38,20 @@ and TypeScript components, and [mise](https://mise.jdx.dev/) to install and run
 the repository checks. A component's own toolchain (Rust, say) must be
 installed too.
 
+## Bring an existing repo in
+
+```text
+/alpha:adopt ~/code/old-service
+```
+
+alpha surveys the repo and interviews you with what it already does as the
+recommendations. Then it installs the same enforcement on a branch,
+`alpha/adopt`, keeping the repo's own tools where they meet the principles.
+Today's lint, type, test and docs findings are baselined, so only new ones
+fail, and a baseline only shrinks. What's left is a compliance plan in
+`docs/adoption.md`: run `/alpha:adopt` again to work through it one step at a
+time, each step done only when its check passes.
+
 ## Change it later
 
 ```text

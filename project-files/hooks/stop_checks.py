@@ -21,6 +21,7 @@ MAX_SCAN_BYTES = 1_000_000
 SNIFF_BYTES = 8192
 DEPENDENCY_LOG = "docs/dependencies.md"
 HASH_CONTENT_BYTES = 1_000_000
+BASELINE_DIR = _common.BASELINE_DIR
 SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -264,6 +265,8 @@ def command_problems(
         return []
     files = tree_hash(root, comp)
     key = None if files is None else json.dumps([files, steps], sort_keys=True)
+    if key is not None and principles.get("baselines"):
+        key = json.dumps([key, baselines_hash(root, principles)])
     cache_path = _common.state_path(root, "stop-cache.json")
     cache = read_json(cache_path)
     hit: object = cache.get(name)
@@ -329,6 +332,17 @@ MISSING_MISE = (
 )
 
 
+def baselines_hash(root: Path, principles: dict[str, Any]) -> str:
+    """The baselines and their [[baselines]] entries: a baselined check's
+    verdict changes with them even when no checked file does."""
+    folder = root / BASELINE_DIR
+    files = sorted(
+        p.relative_to(root).as_posix() for p in folder.glob("*.json") if p.is_file()
+    )
+    entries = json.dumps(principles.get("baselines", []), sort_keys=True)
+    return json.dumps([files_hash(root, files), entries])
+
+
 def files_hash(root: Path, files: list[str]) -> str:
     """Hash of the given files' paths and contents."""
     digest = hashlib.sha256()
@@ -372,6 +386,8 @@ def repo_check_problems(
         if not hit:
             continue
         key = json.dumps([files_hash(root, hit), command])
+        if principles.get("baselines"):
+            key = json.dumps([key, baselines_hash(root, principles)])
         name = f"repo:{check_id}"
         cached: object = cache.get(name)
         if isinstance(cached, dict):

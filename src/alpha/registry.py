@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
 
+from alpha.baseline import Baseline, baseline_from_data
 from alpha.defaults import Source, locate_source
 from alpha.validate import AnswersError, fail, get, join, obj, pos_int, string, strings
 
@@ -31,6 +32,8 @@ class Pin:
     version: str
     command: str  # the check as a project runs it from its root
     fails_with: int  # the exit code on a violation
+    # How its findings read, for a baseline (spec §8b), when they can.
+    baseline: Baseline | None = None
 
 
 @dataclass(frozen=True)
@@ -113,6 +116,11 @@ def _pin(value: object, where: str) -> Pin:
         version=string(d, "version", where),
         command=string(d, "command", where),
         fails_with=pos_int(d, "fails_with", where),
+        baseline=(
+            None
+            if d.get("baseline") is None
+            else baseline_from_data(d["baseline"], join(where, "baseline"), fail)
+        ),
     )
 
 

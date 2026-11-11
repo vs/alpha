@@ -22,6 +22,7 @@ from types import ModuleType
 from typing import Any, NoReturn, cast
 
 STATE_DIR = ".claude/alpha/state"
+BASELINE_DIR = ".claude/alpha/baselines"  # spec §8b; only shrinks
 PRINCIPLES = "docs/principles.toml"
 NOT_FOUND = 127
 TAIL_LINES = 60
@@ -542,6 +543,13 @@ def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
         f"{rel} is protected (`{glob}` in docs/principles.toml), so Claude can't "
         "edit it."
     )
+    if rel.startswith(f"{BASELINE_DIR}/"):
+        return (
+            f"{head} Baselines shrink by themselves: running the check tightens "
+            "the file when findings are fixed, and you commit it. To keep a new "
+            "finding, record why in a decision naming the check, then run alpha "
+            "baseline capture <project> --check <id> --decision <number>."
+        )
     protected = principles.get("protected", {})
     if glob in [str(g) for g in protected.get("extra", [])]:
         return f"{head} Ask the user to change it by hand."

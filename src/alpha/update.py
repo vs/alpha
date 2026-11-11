@@ -120,9 +120,8 @@ def _load(target: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     path = target / PROJECT_JSON
     if not path.is_file():
         raise GenerateError(
-            f"{target} has no alpha answers, so alpha didn't generate it. alpha "
-            "changes only projects it generated; bringing an existing project in "
-            "is out of scope for this version."
+            f"{target} has no alpha answers, so alpha didn't generate or adopt "
+            "it. To bring an existing repo under alpha, run /alpha:adopt in it."
         )
     try:
         data: object = json.loads(path.read_text(encoding="utf-8"))

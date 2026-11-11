@@ -9,6 +9,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 from alpha import core_areas
+from alpha.baseline import (
+    BASELINE_STEPS,
+    NOT_BASELINED,
+    REPO_BASELINED,
+    REPO_NOT_BASELINED,
+)
 from alpha.core_areas import (
     Accessibility,
     Architecture,
@@ -22,7 +28,13 @@ from alpha.core_areas import (
     Testing,
     Ui,
 )
-from alpha.recipes import Recipe, RecipeBook, recipe_from_data, recipe_hash
+from alpha.recipes import (
+    Recipe,
+    RecipeBook,
+    adopted_data,
+    recipe_from_data,
+    recipe_hash,
+)
 from alpha.render.ci import REPO_JOB
 from alpha.validate import (
     NAME,
@@ -122,6 +134,7 @@ _TOP_KEYS = frozenset(
         "decisions",
         "recipes",
         "manifest",
+        "adoption",
     }
 )
 
@@ -230,6 +243,66 @@ class Decision:
     consequences: str
 
 
+PHASES = ("P0", "P1", "P2", "P3", "P4", "P5", "P6")
+STEP_STATUSES = ("pending", "in_progress", "done", "dropped")
+CONDITIONS = ("run", "recipe", "no_baseline", "commit_hook", "confirm")
+_STEP_KEYS = frozenset(
+    {
+        "id",
+        "phase",
+        "title",
+        "why",
+        "component",
+        "principles",
+        "depends_on",
+        "acceptance",
+        "status",
+        "branch",
+        "decision",
+    }
+)
+
+
+@dataclass(frozen=True)
+class Condition:
+    """One part of a step's acceptance (spec §5b): `kind` is one of
+    CONDITIONS; `value` is its command, recipe field, check id or text."""
+
+    kind: str
+    value: str
+    dir: str = "."
+
+
+def describe_condition(c: Condition) -> str:
+    if c.kind == "run":
+        where = "" if c.dir == "." else f" (in {c.dir})"
+        return f"`{c.value}` passes{where}"
+    if c.kind == "recipe":
+        return f"the recipe sets {c.value}"
+    if c.kind == "no_baseline":
+        return f"{c.value} is no longer baselined (not in adoption.baselines)"
+    if c.kind == "commit_hook":
+        return "git's commit-msg hook runs alpha's commit check"
+    return f"the user confirms: {c.value}"
+
+
+@dataclass(frozen=True)
+class Step:
+    """A step of an adopted repo's compliance plan (spec §5b, step 6)."""
+
+    id: str
+    phase: str
+    title: str
+    why: str
+    component: str | None
+    principles: tuple[str, ...]
+    depends_on: tuple[str, ...]
+    acceptance: tuple[Condition, ...]
+    status: str
+    branch: str | None
+    decision: int | None
+
+
 @dataclass(frozen=True)
 class Answers:
     schema: int
@@ -256,6 +329,17 @@ class Answers:
     overrides: tuple[Override, ...]
     decisions: tuple[Decision, ...]
     recipes: dict[str, Recipe]
+    # Checks that run through the ratchet (spec §8b): `<step>:<component>` or
+    # a repository check id. Only an adopted project has any.
+    baselines: tuple[str, ...] = ()
+    # Who runs git's hooks in an adopted repo: alpha ("alpha"), or the repo's
+    # own hook manager, which calls alpha's commit-msg check ("chain").
+    git_hooks: str | None = None
+    # The repo's hook-manager files the survey found, where a chained commit-msg
+    # hook calls alpha's check.
+    hook_files: tuple[str, ...] = ()
+    # The compliance plan of an adopted repo, in order.
+    steps: tuple["Step", ...] = ()
 
     def book(self) -> RecipeBook:
         return RecipeBook(self.recipes)
@@ -274,6 +358,14 @@ def drafted_recipes(
                 f"{stack!r} isn't a valid stack name",
                 "Use lowercase letters, digits and hyphens, e.g. rust",
             )
+        fields = obj(data, where)
+        if stack in kit and fields.get("adopted") is True:
+            raise fail(
+                where,
+                f"an adopted recipe can't take the kit's {stack!r} name",
+                f'Name it after the component, e.g. "api-{stack}", and set that '
+                "as the component's stack",
+            )
         if stack in kit and generated:
             continue
         if stack in kit:
@@ -282,15 +374,24 @@ def drafted_recipes(
                 f"the kit already has a {stack} recipe",
                 "Remove this one; the kit's recipe is used",
             )
-        fields = obj(data, where)
         if "proven" in fields:
             raise fail(
                 f"{where}.proven",
                 "is set, but a drafted recipe is always less proven than the kit's",
                 'Remove "proven"; alpha marks drafted recipes itself',
             )
+        resolved: Mapping[str, Any] = fields
+        base = fields.get("extends")
+        if base is not None and fields.get("adopted") is True:
+            if not isinstance(base, str) or base not in kit:
+                raise fail(
+                    f"{where}.extends",
+                    f"{base!r} isn't a kit recipe",
+                    f"Use one of: {', '.join(sorted(kit))}, or leave extends out",
+                )
+            resolved = adopted_data(fields, RecipeBook().data(base))
         drafted[stack] = recipe_from_data(
-            stack, fields, where, None, generated=generated
+            stack, resolved, where, None, generated=generated
         )
         if require_proven and fields.get("proven_hash") != recipe_hash(fields):
             raise fail(
@@ -656,6 +757,229 @@ def _decision(raw: object, i: int) -> Decision:
     )
 
 
+_ADOPTION_KEYS = ("baselines", "survey", "git_hooks", "steps")
+GIT_HOOKS = ("alpha", "chain")
+
+
+def _baseline_id(
+    check: object, where: str, comps: tuple[Component, ...] | None, book: RecipeBook
+) -> str:
+    if not isinstance(check, str) or not check:
+        raise fail(where, "must be a check id", 'Write e.g. "typecheck:api" or "typos"')
+    step, sep, name = check.partition(":")
+    if not sep:
+        if check in REPO_NOT_BASELINED:
+            raise fail(
+                where,
+                f"{check} can't be baselined: {REPO_NOT_BASELINED[check]}",
+                "Remove it",
+            )
+        if check not in REPO_BASELINED:
+            raise fail(
+                where,
+                f"{check!r} isn't a check a baseline can hold",
+                "Use <step>:<component> (steps: "
+                f"{', '.join(BASELINE_STEPS)}) or one of: {', '.join(REPO_BASELINED)}",
+            )
+        return check
+    if step in NOT_BASELINED:
+        raise fail(
+            where, f"{step} can't be baselined: {NOT_BASELINED[step]}", "Remove it"
+        )
+    if step not in BASELINE_STEPS:
+        raise fail(
+            where,
+            f"{step!r} isn't a step a baseline can hold",
+            f"Use one of: {', '.join(BASELINE_STEPS)}",
+        )
+    if comps is None:
+        return check
+    comp = next((c for c in comps if c.name == name), None)
+    if comp is None:
+        raise fail(
+            where,
+            f"no component named {name!r}",
+            f"Use one of: {', '.join(c.name for c in comps)}",
+        )
+    if step not in book.get(comp.stack).baselines:
+        raise fail(
+            where,
+            f"the {comp.stack} recipe has no [baseline.{step}], so alpha can't read "
+            f"its {step} findings",
+            f"Add [baseline.{step}] to the recipe (the stack-recipe skill), or remove "
+            "this entry",
+        )
+    return check
+
+
+def _hook_files(raw: object) -> tuple[str, ...]:
+    survey: object = obj(raw, "adoption").get("survey", {})
+    git: object = (
+        cast(dict[str, Any], survey).get("git", {}) if isinstance(survey, dict) else {}
+    )
+    found: object = (
+        cast(dict[str, Any], git).get("hook_managers", [])
+        if isinstance(git, dict)
+        else []
+    )
+    items = cast(list[object], found) if isinstance(found, list) else []
+    return tuple(str(f) for f in items if isinstance(f, str))
+
+
+def _git_hooks(raw: object) -> str | None:
+    d = obj(raw, "adoption")
+    return choice(d, "git_hooks", "adoption", GIT_HOOKS) if "git_hooks" in d else None
+
+
+def _adoption(
+    raw: object, comps: tuple[Component, ...] | None, book: RecipeBook
+) -> tuple[str, ...]:
+    d = obj(raw, "adoption")
+    for key in d:
+        if key not in _ADOPTION_KEYS:
+            raise fail(
+                f"adoption.{key}",
+                "unknown key",
+                f"Remove it; allowed keys are {', '.join(_ADOPTION_KEYS)}",
+            )
+    obj(d.get("survey", {}), "adoption.survey")  # alpha adopt survey writes it
+    checks = as_list(d.get("baselines", []), "adoption.baselines")
+    out: list[str] = []
+    for i, check in enumerate(checks):
+        where = f"adoption.baselines[{i}]"
+        found = _baseline_id(check, where, comps, book)
+        if found in out:
+            raise fail(where, f"{found} is listed twice", "Remove one")
+        out.append(found)
+    return tuple(out)
+
+
+def _condition(
+    raw: object, where: str, comps: tuple[Component, ...] | None, book: RecipeBook
+) -> Condition:
+    d = obj(raw, where)
+    kinds = [k for k in d if k in CONDITIONS]
+    extra = [k for k in d if k not in CONDITIONS and k != "dir"]
+    if len(kinds) != 1 or extra:
+        raise fail(
+            where,
+            "must name exactly one condition",
+            f"Use one of {', '.join(CONDITIONS)}, e.g. "
+            '{"run": "mise run check:component:api"}',
+        )
+    kind = kinds[0]
+    if kind == "commit_hook":
+        if d[kind] is not True:
+            raise fail(f"{where}.commit_hook", "must be true", "Write true")
+        return Condition(kind, "")
+    value = string(d, kind, where)
+    if "dir" in d and kind != "run":
+        raise fail(f"{where}.dir", "only goes with run", "Remove it")
+    folder = string(d, "dir", where) if "dir" in d else "."
+    if kind == "recipe" and comps is not None:
+        name, _, field_ = value.partition(".")
+        comp = next((c for c in comps if c.name == name), None)
+        if comp is None:
+            raise fail(
+                f"{where}.recipe",
+                f"no component named {name!r}",
+                f"Use <component>.<field> with one of: "
+                f"{', '.join(c.name for c in comps)}",
+            )
+        group, _, step = field_.partition(".")
+        known = field_ == "coverage" or (
+            group == "commands" and step in book.get(comp.stack).commands
+        )
+        if not known:
+            raise fail(
+                f"{where}.recipe",
+                f"{field_!r} isn't a recipe field alpha can check",
+                "Use commands.<step> (e.g. commands.typecheck) or coverage",
+            )
+    return Condition(kind, value, folder)
+
+
+def _steps(
+    raw: object, comps: tuple[Component, ...] | None, book: RecipeBook
+) -> tuple[Step, ...]:
+    d = obj(raw, "adoption")
+    steps: list[Step] = []
+    for i, entry in enumerate(as_list(d.get("steps", []), "adoption.steps")):
+        where = f"adoption.steps[{i}]"
+        e = obj(entry, where)
+        for key in e:
+            if key not in _STEP_KEYS:
+                raise fail(
+                    f"{where}.{key}",
+                    "unknown key",
+                    f"Use only: {', '.join(sorted(_STEP_KEYS))}",
+                )
+        sid = string(e, "id", where)
+        if not NAME.fullmatch(sid):
+            raise fail(
+                f"{where}.id",
+                f"{sid!r} isn't a lowercase id with hyphens",
+                'Write e.g. "p2-typecheck-api"',
+            )
+        if any(s.id == sid for s in steps):
+            raise fail(f"{where}.id", f"{sid} is used twice", "Rename one")
+        known = {s.id for s in steps}
+        depends = strings(e, "depends_on", where) if "depends_on" in e else ()
+        for dep in depends:
+            if dep not in known:
+                raise fail(
+                    f"{where}.depends_on",
+                    f"{dep!r} isn't a step listed before this one",
+                    "List a step after the steps it depends on",
+                )
+        component = string(e, "component", where) if "component" in e else None
+        if component is not None and comps is not None:
+            if component not in {c.name for c in comps}:
+                raise fail(
+                    f"{where}.component",
+                    f"no component named {component!r}",
+                    f"Use one of: {', '.join(c.name for c in comps)}",
+                )
+        acceptance = tuple(
+            _condition(c, f"{where}.acceptance[{j}]", comps, book)
+            for j, c in enumerate(
+                as_list(get(e, "acceptance", where), f"{where}.acceptance")
+            )
+        )
+        if not acceptance:
+            raise fail(
+                f"{where}.acceptance",
+                "is empty",
+                "Name what proves the step done, e.g. a command that must pass",
+            )
+        status = choice(e, "status", where, STEP_STATUSES)
+        decision: int | None = None
+        if "decision" in e:
+            decision = pos_int(e, "decision", where)
+        if status == "dropped" and decision is None:
+            raise fail(
+                f"{where}.decision",
+                "is missing for a dropped step",
+                "Drop it with alpha adopt drop, which records the decision",
+            )
+        steps.append(
+            Step(
+                id=sid,
+                phase=choice(e, "phase", where, PHASES),
+                title=string(e, "title", where),
+                why=string(e, "why", where),
+                component=component,
+                principles=strings(e, "principles", where) if "principles" in e else (),
+                depends_on=depends,
+                acceptance=acceptance,
+                status=status,
+                branch=string(e, "branch", where) if "branch" in e else None,
+                decision=decision,
+            )
+        )
+    return tuple(steps)
+
+
 def generated_components(applied: Mapping[str, Any]) -> set[str]:
 
     def entries(key: str) -> list[Mapping[str, object]]:
@@ -852,6 +1176,7 @@ def parse_answers(
         _decision(x, i)
         for i, x in enumerate(as_list(top.get("decisions", []), "decisions"))
     )
+    baselines = _adoption(top.get("adoption", {}), comps_or_none, RecipeBook(drafted))
     have = {d.area for d in decisions}
     for area in AREAS:
         if areas[area] == "done" and area not in have:
@@ -886,6 +1211,10 @@ def parse_answers(
         overrides,
         decisions,
         drafted,
+        baselines,
+        _git_hooks(top.get("adoption", {})),
+        _hook_files(top.get("adoption", {})),
+        _steps(top.get("adoption", {}), comps_or_none, RecipeBook(drafted)),
     )
 
 

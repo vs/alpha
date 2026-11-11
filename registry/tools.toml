@@ -17,6 +17,10 @@ version = "2.5.0"
 command = "jactionlint"
 fails_with = 1
 
+[tools.jactionlint.pin.baseline]
+command = "jactionlint"
+pattern = '^(?P<file>[^:\s]+):\d+:\d+: .*\[(?P<rule>[a-z0-9-]+)\]$'
+
 [tools.plumber]
 name = "Plumber"
 repo = "getplumber/plumber"
@@ -103,6 +107,10 @@ version = "0.24.2"
 command = "lychee --offline --no-progress ."
 fails_with = 2
 
+[tools.lychee.pin.baseline]
+command = "lychee --offline --no-progress --format json ."
+json = { items = "error_map.*.*", file = "@0", rule = "url" }
+
 [tools.typos]
 name = "typos"
 repo = "crate-ci/typos"
@@ -116,6 +124,10 @@ mise = "typos"
 version = "1.52.0"
 command = "typos"
 fails_with = 2
+
+[tools.typos.pin.baseline]
+command = "typos --format brief"
+pattern = '^(?P<file>[^:\s]+):\d+:\d+: error: `(?P<rule>[^`]+)`'
 
 [tools.mise]
 name = "mise"
@@ -335,6 +347,10 @@ version = "0.61.0"
 command = "agnix --strict"
 fails_with = 1
 
+[tools.agnix.pin.baseline]
+command = "agnix --strict --format github"
+pattern = '^::(?:error|warning) file=(?P<file>[^,]*),.*?title=(?P<rule>[^:,]+)::'
+
 [tools.govulncheck]
 name = "govulncheck"
 repo = "golang/vuln"
@@ -456,6 +472,10 @@ mise = "rumdl"
 version = "0.3.2"
 command = "rumdl check ."
 fails_with = 1
+
+[tools.rumdl.pin.baseline]
+command = "rumdl check ."
+pattern = '^(?P<file>[^:\s]+):\d+:\d+: \[(?P<rule>MD\d+)\]'
 
 [tools.oasdiff]
 name = "oasdiff"

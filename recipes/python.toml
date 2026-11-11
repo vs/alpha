@@ -12,6 +12,10 @@ test_globs = ["tests/**/*.py", "**/test_*.py", "**/*_test.py", "**/conftest.py"]
 exclude_globs = ["**/.*/**", "**/__pycache__/**", "**/build/**", "**/dist/**"]
 allow = ["Bash(uv run:*)", "Bash(uv sync:*)", "Bash(uv add:*)"]
 
+# The files whose folder `alpha adopt survey` lists as a candidate component.
+[detect]
+markers = ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"]
+
 [commands]
 setup = "uv sync"
 test = "uv run pytest"
@@ -22,6 +26,43 @@ typecheck = "uv run pyright"
 structure = "uv run deptry ."
 format_file = "uv run ruff format {file}"
 lint_file = "uv run ruff check {file}"
+
+# How each check's findings read, for an adopted project's baselines (spec
+# §8b). Matched against output recorded from the pinned tools; see
+# tests/fixtures/baseline-output/.
+[baseline.lint]
+command = "uv run ruff check --output-format concise"
+pattern = '^(?P<file>[^:\s]+):\d+:\d+: (?P<rule>[A-Za-z][A-Za-z0-9-]*)[: ]'
+file_command = "uv run ruff check --output-format concise {file}"
+
+# Pyright's text output wraps long messages onto the next line, rule included.
+[baseline.typecheck]
+command = "uv run pyright --outputjson"
+json = { items = "generalDiagnostics.*", file = "file", rule = "rule", where = { severity = "error" } }
+
+[baseline.structure]
+command = "uv run deptry ."
+pattern = '^(?P<file>[^:\s]+)(?::\d+:\d+)?: (?P<rule>DEP\d+) '
+
+[baseline.test]
+command = "uv run pytest -rfE"
+pattern = '^(?:FAILED|ERROR) (?P<file>[^:\s]+)(?:::(?P<rule>\S+))?'
+
+# An adopted repo keeps its own tool configs, which don't exclude alpha's
+# folder the way this recipe's pyproject.toml does. These commands replace the
+# ones above in an adopted recipe that extends this one (pyright and pytest
+# skip dot-folders already).
+[adopt.commands]
+lint = "uv run ruff check --extend-exclude .claude"
+format = "uv run ruff format --extend-exclude .claude"
+format_check = "uv run ruff format --check --extend-exclude .claude"
+structure = "uv run deptry . --extend-exclude .claude"
+
+[adopt.baseline.lint]
+command = "uv run ruff check --output-format concise --extend-exclude .claude"
+
+[adopt.baseline.structure]
+command = "uv run deptry . --extend-exclude .claude"
 
 [files]
 "pyproject.toml" = "pyproject.toml.tmpl"

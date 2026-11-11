@@ -1,9 +1,11 @@
 from typing import Any, cast
 
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
+from alpha.baseline import BASELINE_GLOB, ratchet_command
+from alpha.recipes import RecipeBook
 from alpha.records import Records, record_paths
 from alpha.registry import Registry, default_registry
-from alpha.repo_checks import principles_entries, repo_checks
+from alpha.repo_checks import RepoCheck, principles_entries, repo_checks
 from alpha.toml_write import dumps
 from alpha.validate import prefixed
 
@@ -265,6 +267,16 @@ def build_principles(
 
     docs_map = _docs_map(a.documentation)
     protected += a.security.extra_protected
+    git_section: dict[str, Any] = {
+        "convention": a.git.convention,
+        "types": list(defaults["git"]["types"]),
+        "scopes": list(a.git.scopes),
+        "branching": a.git.branching,
+    }
+    if a.git_hooks == "chain":  # the repo's hook manager calls alpha's check
+        git_section["hooks"] = "chain"
+        if a.hook_files:
+            git_section["hook_files"] = list(a.hook_files)
     out: dict[str, Any] = {
         "schema": 1,
         "kit_version": kit_version,
@@ -274,12 +286,7 @@ def build_principles(
             "paths": _dedupe(protected),
             "extra": list(a.security.extra_protected),
         },
-        "git": {
-            "convention": a.git.convention,
-            "types": list(defaults["git"]["types"]),
-            "scopes": list(a.git.scopes),
-            "branching": a.git.branching,
-        },
+        "git": git_section,
         "docs_map": docs_map,
         "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
         "testing": {"diff_coverage": _diff_coverage(a, defaults)},
@@ -287,8 +294,63 @@ def build_principles(
         "principles": principles,
     }
     pins = registry or default_registry()
-    out["repo_checks"] = principles_entries(repo_checks(a, out, pins))
+    checks = repo_checks(a, out, pins)
+    out["repo_checks"] = principles_entries(checks)
+    if a.baselines:
+        out["baselines"] = _baselines(a, out, book, checks, pins)
     return out
+
+
+def _baselines(
+    a: Answers,
+    out: dict[str, Any],
+    book: RecipeBook,
+    checks: list[RepoCheck],
+    registry: Registry,
+) -> list[dict[str, Any]]:
+    """The [[baselines]] entries the ratchet reads, with each baselined check's
+    commands pointed at it (spec §8b)."""
+    out["protected"]["paths"] = _dedupe([*out["protected"]["paths"], BASELINE_GLOB])
+    out["review"]["risk_paths"] = _dedupe([*out["review"]["risk_paths"], BASELINE_GLOB])
+    by_name = {c["name"]: c for c in out["components"]}
+    stacks = {c.name: c.stack for c in a.components}
+    repo = {c.id: c for c in checks}
+    entries: list[dict[str, Any]] = []
+    for i, check in enumerate(a.baselines):
+        where = f"adoption.baselines[{i}]"
+        step, _, name = check.partition(":")
+        if name:
+            comp = by_name[name]
+            baseline = book.get(stacks[name]).baselines[step]
+            commands = comp["commands"]
+            commands[step] = ratchet_command(check, comp["path"])
+            if step == "lint" and commands.get("lint_file"):
+                commands["lint_file"] = (
+                    ratchet_command(check, comp["path"]) + " --file {file}"
+                )
+            entry = {"id": check, "dir": comp["path"], **baseline.to_data()}
+            coverage = book.get(stacks[name]).coverage
+            if step == "test" and coverage:
+                # CI runs the tests with coverage on a pull request instead.
+                entry["coverage_command"] = coverage
+            entries.append(entry)
+            continue
+        found = repo.get(check)
+        if found is None:
+            raise AnswersError(
+                f"{where}: the project has no {check} check (its answers don't "
+                "switch it on). Remove it.",
+                where,
+            )
+        pin = registry.tool(found.tool).pin if found.tool else None
+        if pin is None or pin.baseline is None:
+            raise AnswersError(
+                f"{where}: the registry doesn't say how {check}'s findings read "
+                "(no pin.baseline), so it can't be baselined. Remove it.",
+                where,
+            )
+        entries.append({"id": check, "dir": ".", **pin.baseline.to_data()})
+    return entries
 
 
 def render_principles(data: dict[str, Any]) -> str:

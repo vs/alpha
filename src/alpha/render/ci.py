@@ -1,6 +1,7 @@
 import re
 from typing import Any, cast
 
+from alpha.baseline import ratchet_command
 from alpha.recipes import RecipeBook, check_commands
 from alpha.registry import Registry, default_registry
 from alpha.repo_checks import TOOLCHAIN
@@ -93,7 +94,7 @@ def _job(
             {
                 "name": "test with coverage",
                 "if": _PULL_REQUEST,
-                "run": recipe.coverage,
+                "run": _coverage_run(component, principles, recipe.coverage),
             },
             {
                 "name": "diff coverage",
@@ -112,6 +113,18 @@ def _job(
     steps.append(dict(_TREE_STEP))
     job["steps"] = steps
     return job
+
+
+def _coverage_run(
+    component: dict[str, Any], principles: dict[str, Any], coverage: str
+) -> str:
+    """The coverage run, through the ratchet when the tests are baselined, so
+    the legacy failures the baseline holds don't fail every pull request."""
+    check = f"test:{component['name']}"
+    baselined = {str(e.get("id")) for e in principles.get("baselines", [])}
+    if check not in baselined:
+        return coverage
+    return ratchet_command(check, component["path"]) + " --coverage"
 
 
 def _checkout(registry: Registry, *, full_history: bool) -> dict[str, object]:

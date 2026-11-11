@@ -183,7 +183,13 @@ def test_rel_to_root_resolves_symlinks(tmp_path: Path):
     assert _common.rel_to_root(real, str(link / "src" / "a.py")) == "src/a.py"
 
 
-@pytest.mark.parametrize("hook", sorted(HOOKS.glob("*.py")), ids=lambda p: p.name)
+# ratchet.py runs from the hooks (Stop, post-edit), so it holds to their rule.
+RATCHET = HOOKS.parent / "checks" / "ratchet.py"
+
+
+@pytest.mark.parametrize(
+    "hook", [*sorted(HOOKS.glob("*.py")), RATCHET], ids=lambda p: p.name
+)
 def test_hooks_parse_and_import_on_python_3_9(hook: Path):
     tree = ast.parse(hook.read_text(), str(hook), feature_version=(3, 9))
     assert union_annotations(tree) == [], f"{hook}: needs lazy annotations"
@@ -203,6 +209,17 @@ def test_other_hooks_are_silent_no_ops_on_old_python(
     assert result.returncode == 0
     assert result.stdout == ""
     assert "alpha needs Python 3.11+ (found 3.9)" in result.stderr
+
+
+def test_ratchet_fails_on_old_python(project: Project):
+    done = subprocess.run(
+        [*OLD_PYTHON, str(RATCHET), "lint:api"],
+        cwd=project.root,
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 2  # a check that can't run fails, never skips
+    assert "alpha needs Python 3.11+ (found 3.9)" in done.stderr
 
 
 def principles_with(**entries: dict[str, Any]) -> dict[str, Any]:

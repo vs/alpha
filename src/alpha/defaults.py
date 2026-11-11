@@ -83,6 +83,29 @@ def _load_toml(path: Path, restore: str) -> dict[str, Any]:
         ) from None
 
 
+SURVEY = "defaults/survey.toml"
+
+
+def load_survey(source: Source) -> dict[str, list[str]]:
+    """The globs `alpha adopt survey` looks for, by kind (spec §5b): from the
+    checkout when it has them, otherwise the plugin's."""
+    path = source.path / SURVEY
+    if not path.is_file():
+        path = Path(__file__).resolve().parents[2] / SURVEY
+    data = _load_toml(path, "reinstall the alpha plugin")
+    out: dict[str, list[str]] = {}
+    for key, value in data.items():
+        if not isinstance(value, list) or not all(
+            isinstance(g, str) for g in cast(list[object], value)
+        ):
+            raise DefaultsError(
+                f"{path}: {key} must be a list of globs. Fix it, or reinstall the "
+                "alpha plugin."
+            )
+        out[key] = cast(list[str], value)
+    return out
+
+
 def load_defaults(source: Source) -> dict[str, Any]:
     restore = (
         f'restore it with "git -C {source.path} checkout {_DEFAULTS}"'

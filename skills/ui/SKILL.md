@@ -1,6 +1,6 @@
 ---
 name: ui
-description: Settle a new project's visual system in the alpha interview - for each component with a UI, its component library, design tokens, icons, typography, theming and visual regression checks. Skipped when no component has a UI. Use only inside an alpha project interview (/alpha:new-project) or alpha:extend or when the user asks to revisit the UI of a project alpha is setting up.
+description: Settle a new project's visual system in the alpha interview - for each component with a UI, its component library, design tokens, icons, typography, theming and visual regression checks. Skipped when no component has a UI. Use only inside an alpha project interview (/alpha:new-project) or alpha:extend or /alpha:adopt or when the user asks to revisit the UI of a project alpha is setting up.
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -12,6 +12,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 - No project.json: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
 - project.json has a `manifest` key: the project is already generated. If the `alpha:extend` skill sent you here, go on as it says. Otherwise invoke `alpha:extend` with the Skill tool and follow it; it brings you back here.
+- project.json has an `adoption` key and no `manifest`: `alpha:adopt` is bringing an existing repo in. Go on as it says; its rules win over this skill's, and don't point to `/alpha:new-project` afterwards.
 - `areas.testing` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
 - Otherwise go on. When the user called this skill directly, use the current answers as the recommendations, and when you finish, tell them to run `/alpha:new-project` to continue.
 

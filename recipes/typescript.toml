@@ -36,6 +36,11 @@ allow = [
   "Bash(pnpm add:*)",
 ]
 
+# The files whose folder `alpha adopt survey` lists as a candidate component.
+# A JavaScript-only package is found too; the interview decides what it is.
+[detect]
+markers = ["package.json", "tsconfig.json"]
+
 [commands]
 setup = "pnpm install"
 test = "pnpm vitest run"
@@ -46,6 +51,23 @@ typecheck = "pnpm tsc --noEmit"
 structure = "pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs ."
 format_file = "pnpm biome format --write {file}"
 lint_file = "pnpm biome lint --error-on-warnings {file}"
+
+# How each check's findings read, for an adopted project's baselines (spec
+# §8b). Matched against output recorded from the pinned tools; see
+# tests/fixtures/baseline-output/.
+[baseline.lint]
+command = "pnpm biome lint --error-on-warnings --reporter=github ."
+pattern = '^::(?:error|warning) title=(?P<rule>[^,]+),file=(?P<file>[^,]+),'
+file_command = "pnpm biome lint --error-on-warnings --reporter=github {file}"
+
+# A config error names no file, so the file is optional.
+[baseline.typecheck]
+command = "pnpm tsc --noEmit --pretty false"
+pattern = '^(?:(?P<file>[^(\s][^(]*)\(\d+,\d+\): )?error (?P<rule>TS\d+):'
+
+[baseline.test]
+command = "pnpm vitest run"
+pattern = '^ FAIL  (?P<file>\S+)(?: > (?P<rule>.+))?$'
 
 [files]
 "package.json" = "package.json.tmpl"

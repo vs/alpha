@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
@@ -59,6 +60,46 @@ def old_python_warning(problem: str) -> None:
     )
 
 
+CHAINED = 'sh .claude/alpha/githooks/commit-msg "$1"'
+
+
+def _lenient_principles(root: Path) -> dict[str, Any]:
+    """The principles file, or {} when it doesn't load: principles_problem
+    reports that, and this check must not stop the hook first."""
+    import tomllib  # lazy: absent on 3.9, and the version check has passed
+
+    try:
+        with (root / _common.PRINCIPLES).open("rb") as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def hook_problem(root: Path, principles: dict[str, Any]) -> str | None:
+    """Whether alpha's commit check runs: through core.hooksPath, or, when the
+    project's own hook manager is in charge, from its commit-msg hook."""
+    if principles.get("git", {}).get("hooks") != "chain":
+        if git_out(root, "config", "core.hooksPath") == HOOKS_PATH:
+            return None
+        return f"commit hook not active. Run: git config core.hooksPath {HOOKS_PATH}"
+    hooks = Path(git_out(root, "rev-parse", "--git-path", "hooks") or ".git/hooks")
+    hook = (hooks if hooks.is_absolute() else root / hooks) / "commit-msg"
+    # Git's own hook file, then the hook manager's (husky's .husky/commit-msg,
+    # .pre-commit-config.yaml, lefthook.yml), whose launcher git runs.
+    managers = [root / str(f) for f in principles.get("git", {}).get("hook_files", [])]
+    for path in [hook, *managers]:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if f"{HOOKS_PATH}/commit-msg" in text:
+            return None
+    return (
+        f"commit check not chained: the commit-msg hook git runs ({hook}) doesn't "
+        f"call alpha's. Add this line to your hook manager's commit-msg hook: {CHAINED}"
+    )
+
+
 def main() -> None:
     inp = _common.read_input()
     root = _common.project_root(inp)
@@ -71,10 +112,9 @@ def main() -> None:
         sys.exit(0)
     warnings: list[str] = []
     if (root / HOOKS_PATH / "commit-msg").is_file():
-        if git_out(root, "config", "core.hooksPath") != HOOKS_PATH:
-            warnings.append(
-                f"commit hook not active. Run: git config core.hooksPath {HOOKS_PATH}"
-            )
+        problem = hook_problem(root, _lenient_principles(root))
+        if problem:
+            warnings.append(problem)
     problem = principles_problem(principles)
     if problem:
         warnings.append(problem)

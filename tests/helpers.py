@@ -1,5 +1,6 @@
 import ast
 import copy
+import json
 import os
 import shutil
 import subprocess
@@ -186,3 +187,50 @@ def proven(recipe: dict[str, Any]) -> dict[str, Any]:
     from alpha.recipes import recipe_hash
 
     return {**recipe, "proven_hash": recipe_hash(recipe)}
+
+
+# --- an existing repo to adopt (spec §5b) ---
+
+EXISTING: dict[str, str] = {
+    "pyproject.toml": '[project]\nname = "legacy"\nversion = "1.0"\n',
+    "src/legacy/__init__.py": "",
+    "src/legacy/core.py": "def double(x):\n    return x * 2\n",
+    "tests/test_core.py": "from legacy.core import double\n\n\n"
+    "def test_double():\n    assert double(2) == 4\n",
+    "README.md": "# Legacy\n\nOur service. Run it with `make run`.\n",
+    "LICENSE": "Copyright the legacy authors. All rights reserved.\n",
+    ".gitignore": "__pycache__/\n.venv/\n*.log\n",
+    ".github/workflows/ci.yml": "on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n"
+    "    steps:\n      - run: make test\n",
+    ".claude/settings.json": (
+        '{\n  "permissions": {"allow": ["Bash(make test:*)"]}\n}\n'
+    ),
+    "docs/decisions/0001-use-postgres.md": "# 0001. Use Postgres\n\nStatus: accepted\n",
+}
+
+
+def existing_repo(target: Path, files: dict[str, str] | None = None) -> Path:
+    """A committed repo alpha didn't make, on main."""
+    target.mkdir(parents=True, exist_ok=True)
+    git(target, "init", "-q", "-b", "main")
+    for rel, text in (EXISTING if files is None else files).items():
+        path = target / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    git(target, "add", "-A")
+    git(target, "commit", "-q", "-m", "feat: Start the legacy service")
+    return target
+
+
+def adoption_answers(target: Path, **adoption: Any) -> dict[str, Any]:
+    """The ML scenario's answers, fitted to `existing_repo`: its one component
+    runs an adopted recipe, and the repo's LICENSE is kept."""
+    data: dict[str, Any] = json.loads((SCENARIOS / "python-ml-single.json").read_text())
+    data["components"][0]["stack"] = "ml-python"
+    data["identity"]["license_file"] = "LICENSE"
+    data["recipes"] = {"ml-python": proven({"adopted": True, "extends": "python"})}
+    data["adoption"] = {"git_hooks": "alpha", **adoption}
+    path = target / ".claude" / "alpha" / "project.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2))
+    return data

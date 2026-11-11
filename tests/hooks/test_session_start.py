@@ -174,3 +174,50 @@ def test_startup_clears_subagent_records_left_behind(project: Project) -> None:
     assert (state / "agent-a1.json").exists()
     project.run_hook("session_start.py", {"source": "startup"})
     assert not list(state.glob("agent-*"))
+
+
+def _chained(project: Project) -> None:
+    data = project.principles()
+    data["git"]["hooks"] = "chain"
+    project.write_principles(data)
+    install_shim(project)
+    project.git("config", "core.hooksPath", ".husky")
+
+
+def test_session_start_accepts_a_chained_hook(project: Project) -> None:
+    _chained(project)
+    project.write(
+        ".husky/commit-msg",
+        'npx lint-staged\nsh .claude/alpha/githooks/commit-msg "$1"\n',
+    )
+    text = context(start(project).stdout)
+    assert "commit check not chained" not in text and "core.hooksPath" not in text
+
+
+def test_session_start_warns_when_the_chain_is_missing(project: Project) -> None:
+    _chained(project)
+    project.write(".husky/commit-msg", "npx lint-staged\n")
+    text = context(start(project).stdout)
+    assert "commit check not chained" in text
+    assert 'sh .claude/alpha/githooks/commit-msg "$1"' in text
+
+
+def test_chain_through_git_hooks_folder(project: Project) -> None:
+    _chained(project)
+    project.git("config", "--unset", "core.hooksPath")
+    project.write(
+        ".git/hooks/commit-msg",
+        '#!/bin/sh\nsh .claude/alpha/githooks/commit-msg "$1"\n',
+    )
+    assert "not chained" not in context(start(project).stdout)
+
+
+def test_chain_through_a_hook_managers_own_file(project: Project) -> None:
+    _chained(project)
+    data = project.principles()
+    data["git"]["hook_files"] = [".husky/commit-msg"]
+    project.write_principles(data)
+    project.git("config", "core.hooksPath", ".husky/_")
+    project.write(".husky/_/commit-msg", '#!/bin/sh\nexec sh .husky/commit-msg "$@"\n')
+    project.write(".husky/commit-msg", 'sh .claude/alpha/githooks/commit-msg "$1"\n')
+    assert "not chained" not in context(start(project).stdout)

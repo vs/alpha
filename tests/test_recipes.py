@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import shell_recipe
+from helpers import proven, shell_recipe
 
 from alpha.answers import AnswersError, Component, Traits, drafted_recipes
 from alpha.cli import PLUGIN_ROOT
@@ -19,6 +19,7 @@ from alpha.recipes import (
     check_commands,
     load_recipe,
     recipe_from_data,
+    recipe_hash,
     render_component,
     render_template,
 )
@@ -415,3 +416,100 @@ def test_kit_recipe_with_a_tag_is_refused(
     monkeypatch.setattr("alpha.recipes.kit_dirs", lambda: [kit])
     with pytest.raises(RecipeError, match=r"ci\.steps\[0\].*full commit SHA"):
         RecipeBook().get("python")
+
+
+def _with_baseline(baseline: dict[str, Any], **commands: str) -> dict[str, Any]:
+    raw = shell_recipe()
+    raw["commands"].update(commands)
+    raw["baseline"] = baseline
+    return raw
+
+
+LINE = r"^(?P<file>[^:]+):\d+: (?P<rule>\w+)"
+
+
+def test_baseline_pattern_needs_file_and_rule_groups():
+    raw = _with_baseline(
+        {"lint": {"command": "lint -q", "pattern": r"^(?P<file>\S+)"}}, lint="lint"
+    )
+    with pytest.raises(RecipeError, match=r"baseline\.lint\.pattern.*\(\?P<rule>"):
+        recipe_from_data("sh", raw, "recipe", None)
+    raw["baseline"]["lint"]["pattern"] = "("
+    with pytest.raises(RecipeError, match="isn't a valid regular expression"):
+        recipe_from_data("sh", raw, "recipe", None)
+
+
+def test_baseline_needs_one_reader():
+    both = {"command": "x", "pattern": LINE, "json": {"items": "*", "file": "f"}}
+    for entry in ({"command": "x"}, both):
+        raw = _with_baseline({"lint": entry}, lint="lint")
+        with pytest.raises(RecipeError, match="exactly one of `pattern` and `json`"):
+            recipe_from_data("sh", raw, "recipe", None)
+
+
+def test_baseline_step_must_exist():
+    entry = {"command": "tc --json", "pattern": LINE}
+    with pytest.raises(RecipeError, match=r"commands\.typecheck is empty"):
+        recipe_from_data("sh", _with_baseline({"typecheck": entry}), "recipe", None)
+    raw = _with_baseline({"format_check": entry}, format_check="fmt --check")
+    with pytest.raises(RecipeError, match="formatting is fixed once"):
+        recipe_from_data("sh", raw, "recipe", None)
+    with pytest.raises(RecipeError, match="Use one of: lint, typecheck"):
+        recipe_from_data("sh", _with_baseline({"deploy": entry}), "recipe", None)
+
+
+def test_lint_file_command_needs_file_slot():
+    entry = {"command": "lint -q", "pattern": LINE}
+    raw = _with_baseline({"lint": entry}, lint="lint", lint_file="lint {file}")
+    with pytest.raises(RecipeError, match=r"baseline\.lint\.file_command.*missing"):
+        recipe_from_data("sh", raw, "recipe", None)
+    entry["file_command"] = "lint -q"
+    with pytest.raises(RecipeError, match="doesn't say where the file goes"):
+        recipe_from_data("sh", raw, "recipe", None)
+    entry["file_command"] = "lint -q {file}"
+    recipe = recipe_from_data("sh", raw, "recipe", None)
+    assert recipe.baselines["lint"].file_command == "lint -q {file}"
+
+
+def test_json_reader_names_a_walked_key():
+    entry = {"command": "x", "json": {"items": "map.*", "file": "@1"}}
+    with pytest.raises(RecipeError, match="doesn't name one of the 1 `\\*` steps"):
+        recipe_from_data("sh", _with_baseline({"lint": entry}, lint="l"), "r", None)
+
+
+def test_kit_recipes_have_baselines():
+    book = RecipeBook()
+    assert set(book.get("python").baselines) == {
+        "lint",
+        "typecheck",
+        "structure",
+        "test",
+    }
+    assert set(book.get("typescript").baselines) == {"lint", "typecheck", "test"}
+    for stack in ("python", "typescript"):
+        assert "{file}" in book.get(stack).baselines["lint"].file_command
+
+
+def test_drafted_recipe_carries_its_baseline():
+    raw = _with_baseline({"lint": {"command": "lint -q", "pattern": LINE}}, lint="l")
+    recipe = drafted_recipes({"sh": proven(raw)})["sh"]
+    assert recipe.baselines["lint"].pattern == LINE
+    changed = copy.deepcopy(raw)
+    changed["baseline"]["lint"]["pattern"] = LINE + "x"
+    assert recipe_hash(changed) != recipe_hash(raw)
+
+
+def test_kit_recipes_detect():
+    book = RecipeBook()
+    assert {"pyproject.toml", "setup.py", "requirements.txt"} <= set(
+        book.get("python").detect
+    )
+    assert {"package.json", "tsconfig.json"} <= set(book.get("typescript").detect)
+
+
+@pytest.mark.parametrize("marker", ["src/pyproject.toml", "*.toml"])
+def test_detect_must_be_file_names(marker: str):
+    raw = shell_recipe()
+    raw["detect"] = {"markers": [marker]}
+    with pytest.raises(RecipeError, match=r"detect\.markers\[0\].*plain file name"):
+        recipe_from_data("sh", raw, "recipe", None)

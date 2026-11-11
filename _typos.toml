@@ -5,12 +5,16 @@ extend-exclude = [
   ".superpowers/",      # git-ignored session scratch
   ".claude/worktrees/", # other sessions' checkouts
   ".venv/",
+  # Real tool output on seeded violations (typos among them), for the
+  # baseline readers' tests.
+  "tests/fixtures/baseline-output/",
 ]
 
 [default.extend-words]
 # Deliberate misspellings and fragments in test data and generated text: the
 # tests seed them to prove typos (or the recipe checks) catch them.
 teh = "teh"
+recieve = "recieve"
 comands = "comands"
 # `ser` is the example word in the generated _typos.toml header.
 ser = "ser"
