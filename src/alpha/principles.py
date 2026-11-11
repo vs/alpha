@@ -159,6 +159,8 @@ def build_principles(
     review["mode"] = a.agent_workflow.review_mode
     review["max_lines"] = a.agent_workflow.max_lines
     review["max_files"] = a.agent_workflow.max_files
+    if a.performance is not None and a.performance.expected_load:
+        review["expected_load"] = a.performance.expected_load
     review["risk_paths"] = _dedupe(
         [
             *defaults["review"]["risk_paths"],

@@ -90,11 +90,13 @@ Tell the user, briefly:
   - Claude can't skip git hooks, push with a plain `--force`, or rewrite main; it may rebase its own branch and push it with `--force-with-lease`.
   - Claude can't edit protected files (secrets, lockfiles, and any extra protected paths), and can't skip a test, add an ignore comment or loosen strictness until a decision record names the file and says why.
   - Every file Claude edits is formatted and linted right away.
-  - Claude can't finish while it has added a secret, changed source without changing tests, changed a mapped path without its docs, added a dependency without a recorded reason, or left the type checks or tests failing.
+  - Claude can't finish while it has added a secret, changed source without changing tests (or saying why a trivial change needs none), changed a mapped path without its docs, added a dependency without a recorded reason, or left the type checks or tests failing.
   - Claude can't edit a migration that existed before the session: migrations are append-only, so a fix is a new migration (when a component stores data).
   - CI runs every component's checks on each push to main and each pull request (when the user chose CI). Tell the user the workflow runs once they push the repository to GitHub.
   - Dependabot opens update pull requests on the chosen schedule (when chosen), also once the repository is on GitHub.
   - Claude can't push to main or merge a pull request with unreviewed changes or open review findings, and can't finish with open findings (in batched mode, also not with unreviewed changes past the thresholds). Claude may accept a finding it disproves, recorded in the decision log; a finding on a risk path needs your "accept".
   - Each session starts with a warning if the project setup is broken.
+  - Every `shortcut:` comment names when to upgrade it (the `shortcuts` repository check).
+- **Reports on request:** `/review-change` (a change), `/audit` (the whole repo) and `/debt` (the deliberate shortcuts); each changes no code.
 - **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved to the kit.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building.

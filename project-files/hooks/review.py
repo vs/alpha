@@ -425,7 +425,12 @@ def brief(root: Path) -> str:
     stats = _numstat(root, reviewed, current)
     files = [path for _, path in stats]
     records, _warnings = _common.decision_index(root)
-    lines = [f"Tree: {current}", f"Reviewed: {reviewed}", "", "## Principles", ""]
+    load = str(principles.get("review", {}).get("expected_load", "")) or (
+        "not recorded: infer it from the README and deploy config, and say "
+        "which load you assumed"
+    )
+    lines = [f"Tree: {current}", f"Reviewed: {reviewed}", f"Expected load: {load}"]
+    lines += ["", "## Principles", ""]
     touched = _touched(principles, files)
     lines += [
         _principle_line(p, touched) for p in _relevant_principles(principles, files)

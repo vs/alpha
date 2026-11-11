@@ -144,3 +144,14 @@ def test_a_conflicting_outside_change_stays_debt(project: Project) -> None:
     prompt(project)
     debt = review.debt(project.root, project.principles())
     assert debt["files"] == ["api/migrations/0001.sql"]
+
+
+def test_brief_names_the_expected_load(project: Project) -> None:
+    started(project)
+    line = review.brief(project.root).splitlines()[2]
+    assert line.startswith("Expected load: not recorded: infer it from the README")
+    data = project.principles()
+    data["review"]["expected_load"] = "one person running it on a laptop"
+    project.write_principles(data)
+    line = review.brief(project.root).splitlines()[2]
+    assert line == "Expected load: one person running it on a laptop"

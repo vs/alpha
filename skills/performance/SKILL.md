@@ -17,10 +17,11 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-A budget that is written down and checked stops slow regressions from piling up ("Performance budgets"). The principle applies only to components that get budgets here, so a component without one carries no ceremony. Projects with budgets get `docs/performance.md`, and the reviewer holds each component to its budgets.
+A budget that is written down and checked stops slow regressions from piling up ("Performance budgets"). The principle applies only to components that get budgets here, so a component without one carries no ceremony. Projects with budgets or an expected load get `docs/performance.md`; the reviewer holds each component to its budgets and judges scale against the expected load.
 
 ## Fields this area settles
 
+- `performance.expected_load` - in plain words, the load the product must hold, e.g. `"one person running it on a laptop"`, `"about 50 concurrent users, 10 requests a second at peak"`.
 - `performance.components[].name` - one entry per component, by name.
 - `performance.components[].budgets[].metric` - what is measured, e.g. `"p95 response time"`, `"JavaScript bundle"`, `"startup"`.
 - `performance.components[].budgets[].limit` - the limit, with its unit, e.g. `"300 ms"`, `"200 KB gzipped"`.
@@ -34,6 +35,7 @@ A component's `budgets` may be `[]`: no budgets, so the principle stays off for 
 
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round covering every component:
 
+- **Expected load** - draft it from identity (who uses it and how) and the build area (what is deployed), e.g. "one person running a script" for a local tool. Explain in one line: reviews judge scale against it (a race or a query per item matters only when the load reaches it), and a `shortcut:` comment names the load past which it stops holding.
 - **Budgets** - draft each component's from `defaults.performance.budgets[kind]` (each entry reads `"<metric> < <limit>"`), then adjust them to the requirements from identity (e.g. a requirement about slow connections tightens the bundle; a batch job may need none). Say which come from the defaults.
 - **Measured by** - for each budget, recommend a tool that fits the component's stack and the CI from the build area; look it up, never assume.
 - Offer "no budgets" for a component where nothing is worth measuring yet, and say what it means: the principle stays off for it.
@@ -50,7 +52,7 @@ Each top-level key you send replaces that key in project.json; the others stay a
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `performance` set to `"in_progress"`.
-3. When the user confirms the area, save the `performance` object `{"components": [{"name", "budgets": [{"metric", "limit", "measured_by"}]}]}`, with one entry per component. Keep the exact field names.
+3. When the user confirms the area, save the `performance` object `{"expected_load", "components": [{"name", "budgets": [{"metric", "limit", "measured_by"}]}]}`, with one entry per component. Keep the exact field names.
 4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "performance"`:
    `{"area": "performance", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the budgets (e.g. "Response time and bundle budgets"); `context` is the requirement that motivates them; `decision` gives each component's budgets and how they're measured; `consequences` says that breaking a budget needs a fix or a decision record, plus any defaults wish from the override protocol.
 5. In the same call, save `areas` with `performance` set to `"done"`.

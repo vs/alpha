@@ -219,6 +219,10 @@ def test_copies_hook_scripts_tools_and_executable_githook(
     assert (
         skill.read_text() == (ROOT / "project-files/skills/commit/SKILL.md").read_text()
     )
+    for name in ("debt", "review-change", "audit"):
+        assert (tmp_path / f".claude/skills/{name}/SKILL.md").read_text() == (
+            ROOT / f"project-files/skills/{name}/SKILL.md"
+        ).read_text()
     agent = tmp_path / ".claude/agents/committer.md"
     assert agent.read_text() == (ROOT / "project-files/agents/committer.md").read_text()
 

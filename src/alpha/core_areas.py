@@ -172,6 +172,7 @@ class PerfPlan:
 @dataclass(frozen=True)
 class Performance:
     components: tuple[PerfPlan, ...]
+    expected_load: str | None = None
 
 
 @dataclass(frozen=True)
@@ -626,4 +627,5 @@ def performance(raw: object, comps: "Sequence[Component] | None") -> Performance
         entries.append(PerfPlan(string(eo, "name", ew), tuple(budgets)))
     if comps is not None:
         per_component(entries, comps, f"{w}.components", ("budgets:[]",))
-    return Performance(tuple(entries))
+    load = string(d, "expected_load", w) if "expected_load" in d else None
+    return Performance(tuple(entries), load)

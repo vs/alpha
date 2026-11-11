@@ -315,16 +315,28 @@ def performance_doc(a: Answers) -> str | None:
         for c in a.performance.components
         for b in c.budgets
     ]
-    if not rows:
+    load = a.performance.expected_load
+    if not rows and not load:
         return None
-    lines = [
-        "# Performance",
-        "",
-        "| Component | Metric | Budget | Measured by |",
-        "|---|---|---|---|",
-        *rows,
-        "",
-        "A change that breaks a budget is fixed, or the budget is changed by a "
-        "decision record.",
-    ]
-    return "\n".join(lines) + "\n"
+    lines = ["# Performance", ""]
+    if rows:
+        lines += [
+            "| Component | Metric | Budget | Measured by |",
+            "|---|---|---|---|",
+            *rows,
+            "",
+            "A change that breaks a budget is fixed, or the budget is changed by a "
+            "decision record.",
+            "",
+        ]
+    if load:
+        lines += [
+            "## Expected load",
+            "",
+            load,
+            "",
+            "Reviews judge scale against this load, and a `shortcut:` comment "
+            "names the load past which its shortcut stops holding.",
+            "",
+        ]
+    return "\n".join(lines[:-1]) + "\n"

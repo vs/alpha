@@ -487,6 +487,26 @@ finding it disproves; the next review reads that disproof and reports it
 again if it doesn't hold. A finding on a risk path is accepted only by the
 user.
 
+**Beyond the project's rules** (from ponytail's review, MIT). The reviewer
+also looks, in order of importance, for bugs, security holes and data loss,
+what breaks at the project's expected load (`performance.expected_load`,
+asked in the interview and printed in the brief), risky logic without a test,
+real slowness, and code that shouldn't exist. A finding names the principle it
+breaks, or else its lens (`lens:bug`, `lens:risk`, `lens:scale`,
+`lens:speed`, `lens:lean`). Every finding needs a concrete case (this input
+leads to this wrong result), and proposes the smallest fix, preferring one
+that deletes code. A `shortcut: <the limit>, <when to upgrade>` comment is a
+decision, not a finding, until the expected load crosses its limit.
+
+**Tests.** The Stop hook flags source changed without a test change. For a
+trivial change (a rename, a constant, wiring), Claude records why with
+`review.py untested "<why>" <path>`; the note holds while the file's content
+stays the same, and the reviewer checks each one.
+
+**On-demand reports.** Generated projects also get `/review-change` (a
+change), `/audit` (the whole repo) and `/debt` (the `shortcut:` ledger), each
+adapted from ponytail and changing no code. They don't gate anything.
+
 **When it runs: "review debt".** The project records the last reviewed
 commit. Everything after it (plus uncommitted work) is unreviewed. When an
 agent signals done, a cheap script decides whether the reviewer runs:

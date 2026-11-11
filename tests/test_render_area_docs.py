@@ -298,6 +298,31 @@ def test_performance_doc_lists_every_budget(tmp_path: Path):
     )
 
 
+def with_load(data: dict[str, Any]) -> None:
+    data["performance"]["expected_load"] = "about 50 concurrent users at peak"
+
+
+def no_budgets(data: dict[str, Any]) -> None:
+    with_load(data)
+    for c in data["performance"]["components"]:
+        c["budgets"] = []
+
+
+def test_performance_doc_records_the_expected_load(tmp_path: Path):
+    a = load(tmp_path, mutate=with_load)
+    doc = render(a)["docs/performance.md"]
+    assert doc.index("| api | p95 response time") < doc.index("## Expected load")
+    assert "## Expected load\n\nabout 50 concurrent users at peak\n" in doc
+    principles = build_principles(D, a, "0.1.0")
+    assert principles["review"]["expected_load"] == "about 50 concurrent users at peak"
+
+
+def test_an_expected_load_alone_still_gets_a_performance_doc(tmp_path: Path):
+    doc = render(load(tmp_path, mutate=no_budgets))["docs/performance.md"]
+    assert doc.startswith("# Performance\n\n## Expected load\n")
+    assert "| Component |" not in doc
+
+
 def test_claude_md_links_the_new_docs(tmp_path: Path):
     claude = render(load(tmp_path))["CLAUDE.md"]
     for link in (

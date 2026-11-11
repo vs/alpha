@@ -160,6 +160,31 @@ def test_cli_calls_are_pre_approved(skill: str):
     assert _frontmatter(skill).get("allowed-tools") == ALLOWED_CLI
 
 
+@pytest.mark.parametrize(
+    ("path", "source"),
+    [
+        ("project-files/skills/debt/SKILL.md", "ponytail-debt"),
+        ("project-files/skills/review-change/SKILL.md", "ponytail-review"),
+        ("project-files/skills/audit/SKILL.md", "ponytail-audit"),
+        ("project-files/agents/principles-reviewer.md", "ponytail-review"),
+    ],
+)
+def test_ponytail_adaptations_credit_it_with_the_full_license(path: str, source: str):
+    text = (PLUGIN_ROOT / path).read_text()
+    credit = re.search(r"<!--(.*?)-->", text, re.S)
+    assert credit and f"`{source}` skill" in credit.group(1)
+    assert "Copyright (c) 2026 DietrichGebert" in credit.group(1)
+    assert 'THE SOFTWARE IS PROVIDED "AS IS"' in credit.group(1)
+
+
+def test_the_reviewer_needs_a_concrete_case_and_names_a_lens():
+    text = (PLUGIN_ROOT / "project-files/agents/principles-reviewer.md").read_text()
+    assert "No case, no finding." in text
+    for lens in ("lens:bug", "lens:risk", "lens:scale", "lens:speed", "lens:lean"):
+        assert lens in text
+    assert "prefer one that deletes code" in text
+
+
 def test_grilling_credits_its_source_with_the_full_license():
     text = _text("grilling")
     credit = re.search(r"<!--(.*?)-->", text, re.S)
