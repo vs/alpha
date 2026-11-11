@@ -28,7 +28,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
 import _common  # noqa: E402
 
 BASELINES = ".claude/alpha/baselines"
-TIMEOUT = 600
 TAIL_LINES = 40
 SHOWN = 20
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -251,6 +250,26 @@ def project_root(here: Path) -> Path | None:
     return None
 
 
+NOT_FOUND = 127  # the shell's exit code for a command it can't find
+
+
+def _first_word(command: str) -> str:
+    words = [w for w in command.split() if "=" not in w]
+    return words[0] if words else command
+
+
+def _setup_hint(principles: dict[str, Any], folder: str) -> str:
+    for entry in cast("list[object]", principles.get("components", [])):
+        if not isinstance(entry, dict):
+            continue
+        comp = cast("dict[str, Any]", entry)
+        if comp.get("path") == folder:
+            setup = cast("dict[str, Any]", comp.get("commands", {})).get("setup")
+            if setup:
+                return f"Run the component's setup first: {setup}"
+    return "Install it, or run the component's setup command first."
+
+
 def _frozen() -> bool:
     return os.environ.get("CI", "").lower() not in ("", "0", "false")
 
@@ -274,13 +293,14 @@ def _fail(code: int, message: str) -> NoReturn:
     sys.exit(code)
 
 
-USAGE = "Usage: ratchet.py <check-id> [--file <path>] [--capture]"
+USAGE = "Usage: ratchet.py <check-id> [--file <path> | --coverage] [--capture]"
 
 
-def _usage() -> tuple[str, str | None, bool]:
+def _usage() -> tuple[str, str | None, bool, bool]:
     args = sys.argv[1:]
     capture = "--capture" in args
-    args = [a for a in args if a != "--capture"]
+    coverage = "--coverage" in args
+    args = [a for a in args if a not in ("--capture", "--coverage")]
     file: str | None = None
     if "--file" in args:
         i = args.index("--file")
@@ -288,9 +308,9 @@ def _usage() -> tuple[str, str | None, bool]:
             _fail(2, f"ratchet.py: --file needs a path. {USAGE}")
         file = args[i + 1]
         del args[i : i + 2]
-    if len(args) != 1:
+    if len(args) != 1 or (coverage and file is not None):
         _fail(2, USAGE)
-    return args[0], file, capture
+    return args[0], file, capture, coverage
 
 
 def _unjudged(command: str, done: subprocess.CompletedProcess[str], why: str) -> str:
@@ -302,7 +322,7 @@ def _unjudged(command: str, done: subprocess.CompletedProcess[str], why: str) ->
 
 def main() -> None:
     _common.check_python(2)  # a check that can't run must fail, not skip
-    check, file_arg, capture = _usage()
+    check, file_arg, capture, coverage = _usage()
     root = project_root(Path.cwd().resolve())
     if root is None:
         _fail(
@@ -322,6 +342,15 @@ def main() -> None:
     folder = str(entry.get("dir", "."))
     cwd = root if folder in ("", ".") else root / folder
     command = str(entry["command"])
+    if coverage:
+        # CI runs the tests with coverage on a pull request instead of plain.
+        command = str(entry.get("coverage_command", ""))
+        if not command:
+            _fail(
+                2,
+                f"ratchet.py: {check} has no coverage_command. Run it without "
+                "--coverage.",
+            )
     only_file: str | None = None
     if file_arg is not None:
         template = str(entry.get("file_command", ""))
@@ -349,25 +378,18 @@ def main() -> None:
             before = read_baseline(path)
         except (OSError, ValueError) as e:
             _fail(2, f"{rel} can't be read ({e}). Restore it: git checkout {rel}")
-    try:
-        done = subprocess.run(
-            command,
-            shell=True,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        _fail(
-            2,
-            f'"{command}" took longer than {TIMEOUT}s in {cwd}. Run it there by '
-            "hand to see why.",
-        )
+    # No time limit here: the hooks and CI bound how long a check may run.
+    done = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
     try:
         findings = parse(entry, done.stdout, done.stderr, root, cwd)
     except Unreadable as e:
         _fail(2, _unjudged(command, done, f"printed output that can't be read ({e})"))
+    if done.returncode == NOT_FOUND and not findings:
+        _fail(
+            2,
+            f"\"{command}\" couldn't run: {_first_word(command)} isn't "
+            f"installed (exit {NOT_FOUND}). {_setup_hint(principles, folder)}",
+        )
     if done.returncode != 0 and not findings:
         _fail(
             2,

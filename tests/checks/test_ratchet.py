@@ -3,6 +3,7 @@ import json
 import shlex
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -278,3 +279,33 @@ def test_runs_before_git_init(tmp_path: Path):
     _set_baseline(root, {"api/a.py": {"E1": 1}})
     done = _run(root, "lint:api")
     assert done.returncode == 0, done.stderr
+
+
+def test_coverage_runs_the_coverage_command(tmp_path: Path):
+    entry = _entry(
+        "a.py:1: E1 x\n", coverage_command="printf 'a.py:1: E1 cov\\n'; exit 1"
+    )
+    root = _project(tmp_path, [entry])
+    _set_baseline(root, {"api/a.py": {"E1": 1}})
+    done = _run(root, "lint:api", "--coverage")
+    assert done.returncode == 0, done.stderr
+    root = _project(tmp_path / "plain", [_entry("")])
+    _set_baseline(root, {})
+    done = _run(root, "lint:api", "--coverage")
+    assert done.returncode == 2 and "no coverage_command" in done.stderr
+
+
+def test_a_missing_tool_says_to_run_setup(tmp_path: Path):
+    entry = _entry("", command="no-such-linter --check")
+    entry["command"] = "no-such-linter --check"
+    root = _project(tmp_path, [entry])
+    data = tomllib.loads((root / "docs/principles.toml").read_text())
+    data["components"] = [
+        {"name": "api", "path": "api", "commands": {"setup": "uv sync"}}
+    ]
+    (root / "docs/principles.toml").write_text(dumps(data))
+    _set_baseline(root, {})
+    done = _run(root, "lint:api")
+    assert done.returncode == 2
+    assert "isn't installed (exit 127)" in done.stderr
+    assert "Run the component's setup first: uv sync" in done.stderr

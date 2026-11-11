@@ -559,7 +559,6 @@ def merge_steps(
     return [*existing, *(s for s in found if s["id"] not in have)]
 
 
-RUN_TIMEOUT = 600  # seconds, as the ratchet's
 _FINISHED = ("done", "dropped")
 
 
@@ -600,17 +599,12 @@ def _hook_runs_alpha(target: Path, a: Answers) -> bool:
 def _problem(c: Condition, target: Path, a: Answers, confirmed: bool) -> str | None:
     """Why the condition doesn't hold, or None when it does."""
     if c.kind == "run":
+        # No time limit: a legacy suite may take a long while, and the user
+        # sees it running.
         try:
             done = subprocess.run(
-                c.value,
-                shell=True,
-                cwd=target / c.dir,
-                capture_output=True,
-                text=True,
-                timeout=RUN_TIMEOUT,
+                c.value, shell=True, cwd=target / c.dir, capture_output=True, text=True
             )
-        except subprocess.TimeoutExpired:
-            return f"`{c.value}` took longer than {RUN_TIMEOUT}s"
         except OSError as e:
             return f"`{c.value}` can't run in {c.dir} ({e})"
         if done.returncode == 0:

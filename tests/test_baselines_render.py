@@ -150,3 +150,20 @@ def test_a_check_the_project_lacks_is_refused(tmp_path: Path):
     data["adoption"] = {"baselines": ["actions"]}
     with pytest.raises(AnswersError, match="the project has no actions check"):
         _texts(tmp_path, data)
+
+
+def test_baselined_tests_run_coverage_through_the_ratchet(tmp_path: Path):
+    texts = _baselined(tmp_path, "web-ts-plus-python-api", ["test:api"])
+    principles = tomllib.loads(texts[PRINCIPLES_TOML])
+    [entry] = principles["baselines"]
+    assert entry["coverage_command"].startswith("uv run pytest --cov")
+    steps = yaml.safe_load(texts[WORKFLOW])["jobs"]["api"]["steps"]
+    by_name = {s.get("name"): s for s in steps}
+    assert by_name["test with coverage"]["run"] == (
+        "python3 ../.claude/alpha/checks/ratchet.py test:api --coverage"
+    )
+    web = {
+        s.get("name"): s
+        for s in yaml.safe_load(texts[WORKFLOW])["jobs"]["web"]["steps"]
+    }
+    assert not web["test with coverage"]["run"].startswith("python3")  # not baselined

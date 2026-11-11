@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, proven, run_cli
 
-from alpha import adopt
 from alpha.adopt import (
     AdoptError,
     apply_adoption,
@@ -239,9 +238,7 @@ def test_next_when_all_done_or_empty(tmp_path: Path, git_env: None):
     assert "alpha adopt gaps --save" in why
 
 
-def test_done_needs_every_condition(
-    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
-):
+def test_done_needs_every_condition(tmp_path: Path, git_env: None):
     conditions = [
         {"run": "true"},
         {"run": "sh -c 'echo broken; exit 3'"},
@@ -263,10 +260,6 @@ def test_done_needs_every_condition(
     assert "typos is still in adoption.baselines" in report
     assert "doesn't run alpha's commit check" in report
     assert statuses(root) == {"p2-lint-ml": "pending"}
-    monkeypatch.setattr(adopt, "RUN_TIMEOUT", 0.2)
-    root = plan_repo(tmp_path / "slow", [step(acceptance=[{"run": "sleep 2"}])])
-    with pytest.raises(AdoptError, match="took longer than"):
-        done(root, "p2-lint-ml")
 
 
 def test_done_marks_a_step_whose_acceptance_holds(tmp_path: Path, git_env: None):

@@ -326,7 +326,12 @@ def _baselines(
                 commands["lint_file"] = (
                     ratchet_command(check, comp["path"]) + " --file {file}"
                 )
-            entries.append({"id": check, "dir": comp["path"], **baseline.to_data()})
+            entry = {"id": check, "dir": comp["path"], **baseline.to_data()}
+            coverage = book.get(stacks[name]).coverage
+            if step == "test" and coverage:
+                # CI runs the tests with coverage on a pull request instead.
+                entry["coverage_command"] = coverage
+            entries.append(entry)
             continue
         found = repo.get(check)
         if found is None:
