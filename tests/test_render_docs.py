@@ -111,6 +111,14 @@ def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
     assert first.startswith("# 0001. Product identity")
     for heading in ("Status: accepted", "## Context", "## Decision", "## Consequences"):
         assert heading in first
+    assert "Status: accepted\nKind: product\n" in first
+    kinds = {
+        path: "Kind: product" in text
+        for path, text in out.items()
+        if path.startswith("docs/decisions/") and "Principle:" not in text
+    }
+    assert any(kinds.values()) and not all(kinds.values())
+    assert all(("Kind: technical" in out[p]) != product for p, product in kinds.items())
     override = out[override_record(fixture, "observability")]
     assert "Principle: observability (loosen, scope component:api)" in override
     assert "single-process prototype" in override
@@ -295,7 +303,9 @@ WORKING_RULES = [
     "at the start of each session) and the principle's parameters in "
     "docs/principles.toml. Follow them.",
     "- A change that contradicts an accepted decision needs a new decision that "
-    "supersedes it. Ask the user first, then record it with the decision skill.",
+    "supersedes it, recorded with the decision skill. A `Kind: technical` record "
+    "you may supersede yourself, giving the reason; ask the user first for a "
+    "`Kind: product` record or one that changes a principle.",
     "- When a requirement is ambiguous, make the reasonable choice, record it "
     "with the decision skill and say what you chose; don't stop to ask about "
     "reversible work. Ask first only about product direction or what can't be "

@@ -28,7 +28,9 @@ _WORKING_RULES = (
     "at the start of each session) and the principle's parameters in "
     "docs/principles.toml. Follow them.",
     "- A change that contradicts an accepted decision needs a new decision that "
-    "supersedes it. Ask the user first, then record it with the decision skill.",
+    "supersedes it, recorded with the decision skill. A `Kind: technical` record "
+    "you may supersede yourself, giving the reason; ask the user first for a "
+    "`Kind: product` record or one that changes a principle.",
     "- When a requirement is ambiguous, make the reasonable choice, record it "
     "with the decision skill and say what you chose; don't stop to ask about "
     "reversible work. Ask first only about product direction or what can't be "
@@ -47,6 +49,7 @@ _WORKING_RULES = (
     "as a stranger would.",
     "- At the end of a planned piece of work, run the principles-reviewer agent.",
 )
+PRODUCT_AREAS = frozenset({"identity", "ui", "accessibility"})
 _COMMUNICATION = (
     "- Answer a question before making edits or running commands for it.",
     "- When responding to feedback or a review, say first whether you agree, "
@@ -548,8 +551,15 @@ def render_docs(
             f"User-facing documentation for {_identity(a).name} lives here.\n"
         )
     for d, path in zip(a.decisions, records.decisions, strict=True):
+        kind = "product" if d.area in PRODUCT_AREAS else "technical"
         out[path] = _decision(
-            record_number(path), d.title, today, d.context, d.decision, d.consequences
+            record_number(path),
+            d.title,
+            today,
+            d.context,
+            d.decision,
+            d.consequences,
+            f"Kind: {kind}",
         )
     for o, path in zip(a.overrides, records.overrides, strict=True):
         out[path] = _decision(

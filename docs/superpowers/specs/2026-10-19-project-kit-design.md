@@ -104,7 +104,11 @@ Modeled on `mattpocock/skills` → `grilling`:
   `docs/decisions/` (ADR-style), not reconstructed at the end. My call on
   granularity, to avoid 100+ files: **one record per area** summarizing its
   decisions, plus **a separate record for each override** of a kit default
-  and for each decision made later in the project's life.
+  and for each decision made later in the project's life. Each record says
+  its `Kind`: `product` (identity, UI, accessibility: what the product does
+  and for whom) or `technical` (the rest). Claude may supersede a technical
+  record with a recorded reason; a product record, or one that changes a
+  principle, needs the user's agreement, which the reviewer checks.
 - **Done** means the frontier is empty and the user confirms shared
   understanding. Only then are files generated.
 - **Resumable:** interview state is persisted in the target folder, so

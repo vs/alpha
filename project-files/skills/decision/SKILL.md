@@ -38,6 +38,7 @@ Status: accepted
 
 Extra header lines go right under `Status:`, one per line:
 
+- `Kind: product` when the record settles what the product does or for whom: its users, scope, acceptance checks, UI or accessibility. `Kind: technical` for everything else: stack, libraries, structure, tooling, thresholds.
 - `Supersedes: NNNN` when this record replaces an earlier one.
 - `Principle: <id> (<loosen|drop|tighten>, scope <project|component:name>)` when it changes a principle.
 - `Accepts: F-xxxxxx` for each review finding that stands: one the user accepted, or one you disproved. A disproof says in `## Decision` why the finding is wrong, concretely enough for the next review to check; a finding on a risk path needs the user's "accept F-xxxxxx" first.
@@ -48,7 +49,7 @@ When the user decided, use their own words. When you made the choice, say so in 
 
 When the new record replaces an earlier one, add `Supersedes: NNNN` to the new record, and change the earlier record's `Status: accepted` line to `Status: superseded by NNNN`. That status line is the only edit ever made to an old record; its text stays as it was, so the history reads true.
 
-Never supersede a decision without the user's agreement.
+Supersede a `Kind: technical` record yourself when the change needs it: say in `## Context` why the old decision no longer holds, and tell the user what you replaced. A `Kind: product` record, a record with a `Principle:` line, or one with no `Kind:` line needs the user's agreement first; quote it in `## Context`.
 
 ## 4. Changing a principle
 
