@@ -2,12 +2,13 @@
 
 import json
 import subprocess
+import tomllib
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, proven, run_cli
+from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, git, proven, run_cli
 
 from alpha.adopt import (
     AdoptError,
@@ -395,3 +396,49 @@ def test_adoption_doc_passes_rumdl(tmp_path: Path, git_env: None):
             command, shell=True, cwd=root, capture_output=True, text=True
         )
         assert done_.returncode == 0, f"{tool}: {done_.stdout}{done_.stderr}"
+
+
+def _husky(root: Path, line: str) -> None:
+    """husky v9's layout: git runs .husky/_/commit-msg, a launcher, which runs
+    the user's .husky/commit-msg."""
+    for folder, name in (
+        ("githooks", "commit-msg"),
+        ("hooks", "commit_msg.py"),
+        ("hooks", "_common.py"),
+    ):
+        src = PLUGIN_ROOT / "project-files" / folder / name
+        dest = root / ".claude" / "alpha" / folder / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(src.read_bytes())
+        dest.chmod(0o755)
+    launcher = root / ".husky" / "_" / "commit-msg"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text('#!/bin/sh\nexec sh .husky/commit-msg "$@"\n')
+    launcher.chmod(0o755)
+    (root / ".husky" / "commit-msg").write_text(f"echo checking the message\n{line}\n")
+    git(root, "config", "core.hooksPath", ".husky/_")
+
+
+def test_commit_hook_runs_through_a_hook_manager(tmp_path: Path, git_env: None):
+    root = plan_repo(
+        tmp_path, [step(acceptance=[{"commit_hook": True}])], git_hooks="chain"
+    )
+    _husky(root, 'sh .claude/alpha/githooks/commit-msg "$1"')
+    done(root, "p2-lint-ml")
+    assert statuses(root) == {"p2-lint-ml": "done"}
+
+
+def test_commit_hook_missing_from_the_hook_manager(tmp_path: Path, git_env: None):
+    root = plan_repo(
+        tmp_path, [step(acceptance=[{"commit_hook": True}])], git_hooks="chain"
+    )
+    _husky(root, "exit 0")
+    with pytest.raises(AdoptError, match="doesn't run alpha's commit check"):
+        done(root, "p2-lint-ml")
+
+
+def test_survey_hook_files_reach_the_principles(tmp_path: Path, git_env: None):
+    survey = {"git": {"hook_managers": [".husky/commit-msg"]}}
+    root = plan_repo(tmp_path, [], git_hooks="chain", survey=survey)
+    principles = tomllib.loads(rendered(root)["docs/principles.toml"])
+    assert principles["git"]["hook_files"] == [".husky/commit-msg"]

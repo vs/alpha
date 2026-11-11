@@ -335,6 +335,9 @@ class Answers:
     # Who runs git's hooks in an adopted repo: alpha ("alpha"), or the repo's
     # own hook manager, which calls alpha's commit-msg check ("chain").
     git_hooks: str | None = None
+    # The repo's hook-manager files the survey found, where a chained commit-msg
+    # hook calls alpha's check.
+    hook_files: tuple[str, ...] = ()
     # The compliance plan of an adopted repo, in order.
     steps: tuple["Step", ...] = ()
 
@@ -809,6 +812,20 @@ def _baseline_id(
     return check
 
 
+def _hook_files(raw: object) -> tuple[str, ...]:
+    survey: object = obj(raw, "adoption").get("survey", {})
+    git: object = (
+        cast(dict[str, Any], survey).get("git", {}) if isinstance(survey, dict) else {}
+    )
+    found: object = (
+        cast(dict[str, Any], git).get("hook_managers", [])
+        if isinstance(git, dict)
+        else []
+    )
+    items = cast(list[object], found) if isinstance(found, list) else []
+    return tuple(str(f) for f in items if isinstance(f, str))
+
+
 def _git_hooks(raw: object) -> str | None:
     d = obj(raw, "adoption")
     return choice(d, "git_hooks", "adoption", GIT_HOOKS) if "git_hooks" in d else None
@@ -1196,6 +1213,7 @@ def parse_answers(
         drafted,
         baselines,
         _git_hooks(top.get("adoption", {})),
+        _hook_files(top.get("adoption", {})),
         _steps(top.get("adoption", {}), comps_or_none, RecipeBook(drafted)),
     )
 

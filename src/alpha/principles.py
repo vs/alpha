@@ -275,6 +275,8 @@ def build_principles(
     }
     if a.git_hooks == "chain":  # the repo's hook manager calls alpha's check
         git_section["hooks"] = "chain"
+        if a.hook_files:
+            git_section["hook_files"] = list(a.hook_files)
     out: dict[str, Any] = {
         "schema": 1,
         "kit_version": kit_version,

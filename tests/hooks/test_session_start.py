@@ -210,3 +210,14 @@ def test_chain_through_git_hooks_folder(project: Project) -> None:
         '#!/bin/sh\nsh .claude/alpha/githooks/commit-msg "$1"\n',
     )
     assert "not chained" not in context(start(project).stdout)
+
+
+def test_chain_through_a_hook_managers_own_file(project: Project) -> None:
+    _chained(project)
+    data = project.principles()
+    data["git"]["hook_files"] = [".husky/commit-msg"]
+    project.write_principles(data)
+    project.git("config", "core.hooksPath", ".husky/_")
+    project.write(".husky/_/commit-msg", '#!/bin/sh\nexec sh .husky/commit-msg "$@"\n')
+    project.write(".husky/commit-msg", 'sh .claude/alpha/githooks/commit-msg "$1"\n')
+    assert "not chained" not in context(start(project).stdout)

@@ -1,9 +1,11 @@
 """Adopting an existing repo (spec §5b): the survey of what's already there."""
 
 import json
+import os
 import posixpath
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -636,15 +638,38 @@ def describe_step(s: Step) -> str:
     return "\n".join(lines)
 
 
+HOOK_PROBE = "alpha hook probe"  # a header alpha's commit check rejects
+
+
 def _hook_runs_alpha(target: Path, a: Answers) -> bool:
+    """Whether git's commit-msg hook runs alpha's check. With a hook manager in
+    charge, its file is often a generated launcher, so run it with a message
+    alpha rejects and look for alpha's rejection."""
     if a.git_hooks != "chain":
         return _out(target, "config", "core.hooksPath") == HOOKS_PATH
     hooks = Path(_out(target, "rev-parse", "--git-path", "hooks") or ".git/hooks")
     hook = (hooks if hooks.is_absolute() else target / hooks) / "commit-msg"
-    try:
-        return f"{HOOKS_PATH}/commit-msg" in hook.read_text(encoding="utf-8")
-    except OSError:
+    if not hook.is_file():
         return False
+    with tempfile.TemporaryDirectory(prefix="alpha-hook-") as scratch:
+        message = Path(scratch) / "COMMIT_EDITMSG"
+        message.write_text(f"{HOOK_PROBE}\n", encoding="utf-8")
+        runner = [str(hook)] if os.access(hook, os.X_OK) else ["sh", str(hook)]
+        try:
+            done = subprocess.run(
+                [*runner, str(message)],
+                cwd=target,
+                capture_output=True,
+                text=True,
+                timeout=HOOK_TIMEOUT,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+    said = done.stdout + done.stderr
+    return done.returncode != 0 and f'the header "{HOOK_PROBE}"' in said
+
+
+HOOK_TIMEOUT = 120  # seconds: a commit-msg hook that runs longer is stuck
 
 
 def _problem(c: Condition, target: Path, a: Answers, confirmed: bool) -> str | None:

@@ -82,18 +82,18 @@ def hook_problem(root: Path, principles: dict[str, Any]) -> str | None:
         if git_out(root, "config", "core.hooksPath") == HOOKS_PATH:
             return None
         return f"commit hook not active. Run: git config core.hooksPath {HOOKS_PATH}"
-    hooks = git_out(root, "rev-parse", "--git-path", "hooks") or ".git/hooks"
-    hook = (
-        (root / hooks / "commit-msg")
-        if not Path(hooks).is_absolute()
-        else Path(hooks) / "commit-msg"
-    )
-    try:
-        text = hook.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        text = ""
-    if f"{HOOKS_PATH}/commit-msg" in text:
-        return None
+    hooks = Path(git_out(root, "rev-parse", "--git-path", "hooks") or ".git/hooks")
+    hook = (hooks if hooks.is_absolute() else root / hooks) / "commit-msg"
+    # Git's own hook file, then the hook manager's (husky's .husky/commit-msg,
+    # .pre-commit-config.yaml, lefthook.yml), whose launcher git runs.
+    managers = [root / str(f) for f in principles.get("git", {}).get("hook_files", [])]
+    for path in [hook, *managers]:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if f"{HOOKS_PATH}/commit-msg" in text:
+            return None
     return (
         f"commit check not chained: the commit-msg hook git runs ({hook}) doesn't "
         f"call alpha's. Add this line to your hook manager's commit-msg hook: {CHAINED}"
