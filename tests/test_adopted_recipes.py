@@ -59,7 +59,11 @@ def test_adopted_test_may_be_empty():
 def test_extends_fills_from_the_kit():
     recipe = load(adopted())
     kit = RecipeBook().get("python")
-    assert recipe.commands == kit.commands
+    # The kit's [adopt] variants keep alpha's own folder out of the checks.
+    assert recipe.commands == {**kit.commands, **KIT["adopt"]["commands"]}
+    assert recipe.commands["lint"].endswith("--extend-exclude .claude")
+    assert recipe.baselines["lint"].command.endswith("--extend-exclude .claude")
+    assert recipe.baselines["lint"].file_command == kit.baselines["lint"].file_command
     assert recipe.rules == kit.rules and recipe.ignores == kit.ignores
     assert recipe.lockfiles == kit.lockfiles and recipe.ci == kit.ci
     assert set(recipe.baselines) == set(kit.baselines)
@@ -71,7 +75,7 @@ def test_extends_fills_from_the_kit():
 def test_extends_drops_readers_of_changed_steps():
     recipe = load(adopted(commands={"typecheck": "uv run mypy ."}))
     assert recipe.commands["typecheck"] == "uv run mypy ."
-    assert recipe.commands["lint"] == KIT["commands"]["lint"]
+    assert recipe.commands["lint"] == KIT["adopt"]["commands"]["lint"]
     assert "typecheck" not in recipe.baselines and "lint" in recipe.baselines
     own = {
         "command": "uv run mypy .",

@@ -97,6 +97,7 @@ _RECIPE_KEYS = frozenset(
         "detect",
         "adopted",
         "extends",
+        "adopt",
     }
 )
 _STEP_KEYS = frozenset({"uses", "version", "with", "name", "id", "env"})
@@ -569,13 +570,20 @@ def adopted_data(entry: Mapping[str, Any], kit: Mapping[str, Any]) -> dict[str, 
     `file_command`."""
     merged: dict[str, Any] = {k: kit[k] for k in _INHERITED if k in kit}
     merged.update({"bootstrap": [], "why": {}, "templates": {}})
-    kit_commands = cast("dict[str, str]", kit.get("commands", {}))
+    # The kit's [adopt] variants: commands that keep alpha's own folder out
+    # of a repo whose tool configs don't exclude it.
+    adopt = cast("dict[str, Any]", kit.get("adopt", {}))
+    kit_commands = {
+        **cast("dict[str, str]", kit.get("commands", {})),
+        **cast("dict[str, str]", adopt.get("commands", {})),
+    }
     commands = {**kit_commands, **cast("dict[str, str]", entry.get("commands", {}))}
+    variants = cast("dict[str, dict[str, Any]]", adopt.get("baseline", {}))
     readers: dict[str, Any] = {}
     for step, reader in cast("dict[str, Any]", kit.get("baseline", {})).items():
         if commands.get(step) != kit_commands.get(step):
             continue
-        reader = dict(cast("dict[str, Any]", reader))
+        reader = {**cast("dict[str, Any]", reader), **variants.get(step, {})}
         if step == "lint" and commands.get("lint_file") != kit_commands.get(
             "lint_file"
         ):

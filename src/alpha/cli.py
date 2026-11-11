@@ -89,11 +89,11 @@ def build_parser() -> argparse.ArgumentParser:
     asurvey.add_argument(
         "--save", action="store_true", help="also store it as adoption.survey"
     )
-    aapply = adsub.add_parser(
+    apply_cmd = adsub.add_parser(
         "apply", help="install alpha's files onto the repo, on a branch"
     )
-    aapply.add_argument("target", type=Path, help="the repository's root")
-    aapply.add_argument(
+    apply_cmd.add_argument("target", type=Path, help="the repository's root")
+    apply_cmd.add_argument(
         "--dry-run", action="store_true", help="show the changes, write nothing"
     )
     b = sub.add_parser("baseline", help="an adopted project's baselines (spec §8b)")

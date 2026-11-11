@@ -48,6 +48,22 @@ pattern = '^(?P<file>[^:\s]+)(?::\d+:\d+)?: (?P<rule>DEP\d+) '
 command = "uv run pytest -rfE"
 pattern = '^(?:FAILED|ERROR) (?P<file>[^:\s]+)(?:::(?P<rule>\S+))?'
 
+# An adopted repo keeps its own tool configs, which don't exclude alpha's
+# folder the way this recipe's pyproject.toml does. These commands replace the
+# ones above in an adopted recipe that extends this one (pyright and pytest
+# skip dot-folders already).
+[adopt.commands]
+lint = "uv run ruff check --extend-exclude .claude"
+format = "uv run ruff format --extend-exclude .claude"
+format_check = "uv run ruff format --check --extend-exclude .claude"
+structure = "uv run deptry . --extend-exclude .claude"
+
+[adopt.baseline.lint]
+command = "uv run ruff check --output-format concise --extend-exclude .claude"
+
+[adopt.baseline.structure]
+command = "uv run deptry . --extend-exclude .claude"
+
 [files]
 "pyproject.toml" = "pyproject.toml.tmpl"
 "tests/test_setup.py" = "test_setup.py.tmpl"
