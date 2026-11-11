@@ -1,7 +1,9 @@
+import json
 import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -19,7 +21,9 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 def test_version_via_shim():
     out = run("version")
     assert out.returncode == 0
-    assert out.stdout.strip() == "0.1.0"
+    plugin = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    assert out.stdout.strip() == plugin["version"] == project["version"]
 
 
 def test_unknown_command_explains_usage():
