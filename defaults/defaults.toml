@@ -1,7 +1,7 @@
 schema = 1
 
 [review]
-mode = "batched"
+mode = "at-merge"
 max_lines = 200
 max_files = 5
 exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]

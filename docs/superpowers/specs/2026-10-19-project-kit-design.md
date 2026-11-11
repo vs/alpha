@@ -510,7 +510,10 @@ principles file and can be overridden by the user: in the interview, by
 calling the agent-workflow area skill later, or by editing the file
 directly. There is also a **review mode** setting:
 
-- `batched` (default): the three triggers above.
+- `at-merge` (default, 2026-11-11, for pstack, which verifies a finished
+  change once): only the checkpoint before main. Stop never asks for a
+  review, but open findings still block it.
+- `batched`: the three triggers above.
 - `every-task`: the reviewer runs every time an agent signals done, whatever
   the size.
 

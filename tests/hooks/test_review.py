@@ -144,6 +144,25 @@ def test_every_task_triggers_on_any_change(project: Project) -> None:
     assert review.review_due(project.principles(), debt) == "review mode is every-task"
 
 
+def test_at_merge_waits_for_the_merge_even_on_risky_paths(project: Project) -> None:
+    base(project)
+    data = project.principles()
+    data["review"]["mode"] = "at-merge"
+    project.write_principles(data)
+    commit_all(project, "chore: At merge")
+    state = review.load_state(project.root)
+    state["reviewed_tree"] = tree_of(project, "HEAD")
+    review.save_state(project.root, state)
+    project.write("api/migrations/0001.sql", "create table t (id int);\n")
+    for i in range(6):
+        project.write(f"api/src/m{i}.py", "x = 1\n" * 50)
+    debt = review.debt(project.root, project.principles())
+    assert debt["risky"] and debt["counted_files"] >= 5
+    assert review.review_due(project.principles(), debt) is None
+    blocker = review.merge_blocker(project.root, project.principles())
+    assert blocker is not None and blocker.startswith("Nothing reaches main unreviewed")
+
+
 def test_unreadable_state_is_treated_as_fresh(project: Project) -> None:
     base(project)
     path = project.root / ".claude/alpha/state/review.json"

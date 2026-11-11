@@ -94,7 +94,7 @@ Tell the user, briefly:
   - Claude can't edit a migration that existed before the session: migrations are append-only, so a fix is a new migration (when a component stores data).
   - CI runs every component's checks on each push to main and each pull request (when the user chose CI). Tell the user the workflow runs once they push the repository to GitHub.
   - Dependabot opens update pull requests on the chosen schedule (when chosen), also once the repository is on GitHub.
-  - Claude can't finish, push to main, or merge a pull request with unreviewed changes past the thresholds or open review findings. Claude may accept a finding it disproves, recorded in the decision log; a finding on a risk path needs your "accept".
+  - Claude can't push to main or merge a pull request with unreviewed changes or open review findings, and can't finish with open findings (in batched mode, also not with unreviewed changes past the thresholds). Claude may accept a finding it disproves, recorded in the decision log; a finding on a risk path needs your "accept".
   - Each session starts with a warning if the project setup is broken.
 - **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved to the kit.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building.

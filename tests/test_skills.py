@@ -376,14 +376,14 @@ def test_new_project_no_longer_lists_the_core_areas_as_missing():
 def test_agent_workflow_says_the_reviewer_is_real():
     purpose = _section("agent-workflow", "Purpose")
     assert "arrives in a later version" not in purpose
-    assert "principles-reviewer" in purpose and "before any push" in purpose
+    assert "principles-reviewer" in purpose and "before work reaches main" in purpose
 
 
 def test_new_project_reports_the_reviewer():
     report = _section("new-project", "7. Final report")
     assert (
-        "Claude can't finish, push to main, or merge a pull request with unreviewed "
-        "changes past the thresholds or open review findings." in report
+        "Claude can't push to main or merge a pull request with unreviewed changes "
+        "or open review findings, and can't finish with open findings" in report
     )
     assert 'a finding on a risk path needs your "accept".' in report
     assert "Not covered yet" not in report

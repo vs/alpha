@@ -257,6 +257,8 @@ def review_due(principles: dict[str, Any], debt: dict[str, Any]) -> str | None:
     if not debt["files"]:
         return None
     review: dict[str, Any] = principles.get("review", {})
+    if review.get("mode") == "at-merge":
+        return None
     if review.get("mode") == "every-task":
         return "review mode is every-task"
     if debt["risky"]:

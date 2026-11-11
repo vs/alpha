@@ -85,7 +85,7 @@ ARTIFACTS: tuple[str, ...] = (
 _STATUSES = ("done", "in_progress", "pending")
 _LAYOUTS = ("monorepo", "single")
 _CHANGES = ("tighten", "loosen", "drop")
-_REVIEW_MODES = ("batched", "every-task")
+_REVIEW_MODES = ("at-merge", "batched", "every-task")
 _SCOPE = re.compile(r"[a-z0-9-]+")
 _TRAITS = (
     "has_ui",

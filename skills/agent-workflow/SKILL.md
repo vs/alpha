@@ -17,13 +17,13 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Decide when the agents' changes get a judgment-based review against the project's principles: after every task, or in batches once a change grows past a size threshold or touches a risky path. The cheap mechanical checks (hooks on every edit, stop and commit) are always on and need no answers here.
+Decide when the agents' changes get a judgment-based review against the project's principles: once, before they reach main; in batches once a change grows past a size threshold or touches a risky path; or after every task. The cheap mechanical checks (hooks on every edit, stop and commit) are always on and need no answers here.
 
-The project gets a principles-reviewer agent that reads these settings from the principles file. It runs when the unreviewed changes cross the thresholds or touch a risky path (or after every task, in every-task mode), and before any push. Its findings stop Claude from finishing until they're fixed or the user accepts them, and an accepted finding is recorded in the decision log.
+The project gets a principles-reviewer agent that reads these settings from the principles file. It runs before work reaches main (a push to main, or merging a pull request) in every mode; in batched mode also when the unreviewed changes cross the thresholds or touch a risky path, and in every-task mode after every task. Its findings stop Claude from finishing until they're fixed or accepted (Claude may accept one it disproves, except on a risk path, where only the user does), and every acceptance is recorded in the decision log.
 
 ## Fields this area settles
 
-- `agent_workflow.review_mode` - `"batched"` or `"every-task"`.
+- `agent_workflow.review_mode` - `"at-merge"`, `"batched"` or `"every-task"`.
 - `agent_workflow.max_lines` - a whole number above 0.
 - `agent_workflow.max_files` - a whole number above 0.
 - `agent_workflow.extra_risk_paths` - a list of globs, often empty.
@@ -36,7 +36,7 @@ Run these with the `alpha:grilling` skill (invoke it with the Skill tool and fol
 
 Round 1:
 
-- **Review mode** - recommend `defaults.review.mode`. Explain each in one line: `batched` reviews once the pending changes cross a threshold or touch a risky path; `every-task` reviews after every finished task (slower, but nothing slips through).
+- **Review mode** - recommend `defaults.review.mode`. Explain each in one line: `at-merge` reviews once, when the work is ready to reach main (fits workflows like pstack that verify the finished change once); `batched` also reviews during the work, once the pending changes cross a threshold or touch a risky path; `every-task` reviews after every finished task (slowest, but nothing waits until the end).
 - **Extra risk paths** - show the kit's risk paths from `defaults.review.risk_paths` (changes there always trigger a review) and recommend adding none. Explain in one line: add globs for files where a mistake is costly, e.g. `api/billing/**`. Use `**` for any depth; write each alternative as its own glob, no `{a,b}` braces.
 
 Round 2 (only when the mode is `batched`):
@@ -44,7 +44,7 @@ Round 2 (only when the mode is `batched`):
 - **Max lines** - recommend `defaults.review.max_lines`. Explain in one line: a review starts once this many lines have changed since the last one (tests and docs, `defaults.review.exclude`, don't count).
 - **Max files** - recommend `defaults.review.max_files`. Explain in one line: a review starts once this many files have changed, even when each change is small.
 
-With `every-task`, still record `max_lines` and `max_files` at the defaults without asking, so switching back to `batched` later needs no new decision.
+With `at-merge` or `every-task`, still record `max_lines` and `max_files` at the defaults without asking, so switching to `batched` later needs no new decision.
 
 When an answer differs from a default, follow the grilling skill's override protocol (keys `review.mode`, `review.max_lines`, `review.max_files`; extra risk paths are per project, so they're recorded in the decision without asking).
 
