@@ -216,7 +216,8 @@ def _recipe(args: argparse.Namespace) -> int:
             saved = recipe_cli.save_recipe(args.target, args.stack, source)
             print(f"saved: {args.stack} recipe in {saved}; new projects can use it")
             return 0
-        problem = recipe_cli.try_recipe(args.target, args.stack)
+        report: list[str] = []
+        problem = recipe_cli.try_recipe(args.target, args.stack, report)
     except defaults.DefaultsError as e:
         print(e, file=sys.stderr)
         return 3
@@ -233,7 +234,10 @@ def _recipe(args: argparse.Namespace) -> int:
     if problem:
         print(problem, file=sys.stderr)
         return 1
-    print(f"ok: {args.stack} recipe proven")
+    where = f" {report[0]}" if report else ""
+    print(f"ok: {args.stack} recipe proven{where}")
+    for line in report[1:]:
+        print(f"  {line} (to baseline)")
     return 0
 
 

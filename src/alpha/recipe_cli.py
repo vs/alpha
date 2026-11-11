@@ -161,9 +161,184 @@ def _baseline_problem(
     return None
 
 
-def try_recipe(target: Path, stack: str) -> str | None:
+def _run_split(command: str, cwd: Path) -> tuple[int, str, str] | None:
+    """Like _run, with stdout and stderr apart (a JSON reader needs stdout)."""
+    print(f"alpha: try: {command}", file=sys.stderr, flush=True)
+    proc = subprocess.Popen(
+        command,
+        shell=True,
+        cwd=cwd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        out, err = proc.communicate(timeout=_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        return None
+    return proc.returncode, out, err
+
+
+def _users(target: Path, stack: str) -> list[str]:
+    """The folders of the components project.json gives the stack."""
+    try:
+        data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    comps: object = (
+        cast(dict[str, Any], data).get("components") if isinstance(data, dict) else None
+    )
+    paths: list[str] = []
+    for entry in cast(list[object], comps) if isinstance(comps, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        c = cast(dict[str, object], entry)
+        if c.get("stack") == stack and isinstance(c.get("path"), str):
+            paths.append(str(c["path"]))
+    return paths
+
+
+def _git_out(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(target), *args], capture_output=True, text=True
+    )
+
+
+def _timed_out(command: str, step: str, again: str) -> str:
+    return (
+        f'"{command}" took longer than {_TIMEOUT_SECONDS:g}s, so alpha stopped it. '
+        f"If it waits for input, make the recipe's {step} command run without "
+        f"asking; otherwise find out why it's slow, fix it, and {again}"
+    )
+
+
+def _prove_step(
+    recipe: Recipe, step: str, command: str, cwd: Path, tree: Path, again: str
+) -> tuple[str | None, str | None]:
+    """(problem, report) for one check of an adopted recipe on the repo."""
+    ran = _run_split(command, cwd)
+    if ran is None:
+        return _timed_out(command, step, again), None
+    code, out, err = ran
+    if code == 0:
+        return None, None
+    tail = "\n".join((out + err).splitlines()[-_TAIL_LINES:])
+    if code == _NOT_FOUND:
+        tool = _missing_tool(command, out + err)
+        return (
+            f'{tool} wasn\'t found running "{command}". Install it, or fix the '
+            f"recipe's {step} command, then {again}",
+            None,
+        )
+    if step == "format_check":
+        return (
+            f"\"{command}\" fails: today's code isn't formatted. Set "
+            'commands.format_check to "" for now: the adoption plan formats each '
+            f"component in a commit of its own and turns it back on. Then {again}",
+            None,
+        )
+    reader = recipe.baselines.get(step)
+    if reader is None:
+        return (
+            f'"{command}" fails on today\'s code (exit {code}). Last lines:\n'
+            f"{tail}\nAdd [baseline.{step}] (a command with machine-readable "
+            "output and a pattern for each finding's file and rule) so its legacy "
+            f"findings can be baselined, or fix them first; then {again}",
+            None,
+        )
+    read = _run_split(reader.command, cwd)
+    if read is None:
+        return _timed_out(reader.command, f"baseline.{step}", again), None
+    _, rout, rerr = read
+    rtail = "\n".join((rout + rerr).splitlines()[-_TAIL_LINES:])
+    try:
+        found = findings(reader, rout, rerr, tree, cwd)
+    except ValueError as e:
+        return (
+            f'"{reader.command}" printed output its baseline.{step} reader can\'t '
+            f"read ({e}). Last lines:\n{rtail}\nFix the recipe's "
+            f"baseline.{step}, then {again}",
+            None,
+        )
+    if not found:
+        return (
+            f'"{command}" fails, but baseline.{step} ("{reader.command}") reads no '
+            f"findings in its output, so they couldn't be baselined. Last lines:\n"
+            f"{rtail}\nFix the reader's pattern against this output, then {again}",
+            None,
+        )
+    files = len({f for f, _, _ in found})
+    return None, f"{step}: {len(found)} findings in {files} files"
+
+
+def _try_adopted(
+    target: Path, stack: str, recipe: Recipe, report: list[str]
+) -> str | None:
+    """Prove an adopted recipe on a worktree of the repo's HEAD (spec §5b)."""
+    again = f'run "alpha recipe try {target} {stack}" again.'
+    paths = _users(target, stack)
+    if not paths:
+        return (
+            f"No component uses the {stack} recipe yet, so alpha doesn't know where "
+            "to prove it. Save the components (with this stack) first, then " + again
+        )
+    head = _git_out(target, "rev-parse", "--short", "HEAD")
+    if head.returncode != 0:
+        return (
+            f"{target} has no commit to prove the recipe on "
+            f"({head.stderr.strip()}). Commit the code, then " + again
+        )
+    with tempfile.TemporaryDirectory(prefix="alpha-try-") as scratch:
+        tree = Path(scratch) / "repo"
+        added = _git_out(
+            target, "worktree", "add", "--detach", "--quiet", str(tree), "HEAD"
+        )
+        if added.returncode != 0:
+            return (
+                f"git couldn't make a worktree of {target} to prove the recipe on "
+                f"({added.stderr.strip()}). Fix that, then " + again
+            )
+        try:
+            for path in paths:
+                cwd = tree if path == "." else tree / path
+                for step, command in check_commands(recipe.commands):
+                    if step == "setup":
+                        ran = _run(command, cwd)
+                        if ran is None:
+                            return _timed_out(command, step, again)
+                        if ran[0] != 0:
+                            tail = "\n".join(ran[1].splitlines()[-_TAIL_LINES:])
+                            return (
+                                f'"{command}" failed in {path} (exit {ran[0]}). Last '
+                                f"lines:\n{tail}\nFix the recipe's setup command, "
+                                "then " + again
+                            )
+                        continue
+                    problem, line = _prove_step(recipe, step, command, cwd, tree, again)
+                    if problem:
+                        return f"{path}: {problem}"
+                    if line:
+                        report.append(f"{path}: {line}")
+        finally:
+            _git_out(target, "worktree", "remove", "--force", str(tree))
+            _git_out(target, "worktree", "prune")
+    report.insert(0, f"on {', '.join(paths)} at {head.stdout.strip()}")
+    return None
+
+
+def try_recipe(target: Path, stack: str, report: list[str] | None = None) -> str | None:
+    """Prove a drafted recipe; `report` collects what an adopted one found."""
     data = check(target, stack)
     recipe = drafted_recipes({stack: data})[stack]
+    if recipe.adopted:
+        problem = _try_adopted(target, stack, recipe, [] if report is None else report)
+        if problem is None:
+            _save_proof(target, stack, data)
+        return problem
     with tempfile.TemporaryDirectory(prefix="alpha-try-") as scratch:
         root = Path(scratch)
         for rel, text in recipe.templates.items():
@@ -210,10 +385,14 @@ def try_recipe(target: Path, stack: str) -> str | None:
                 f'(e.g. an init command), save it, and run "alpha recipe try {target} '
                 f'{stack}" again.'
             )
+    _save_proof(target, stack, data)
+    return None
+
+
+def _save_proof(target: Path, stack: str, data: dict[str, Any]) -> None:
     drafted = _drafted(target)
     drafted[stack] = {**data, "proven_hash": recipe_hash(data)}
     write_answers(target, json.dumps({"recipes": drafted}))
-    return None
 
 
 def _template_name(rel: str) -> str:
