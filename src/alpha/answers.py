@@ -28,7 +28,13 @@ from alpha.core_areas import (
     Testing,
     Ui,
 )
-from alpha.recipes import Recipe, RecipeBook, recipe_from_data, recipe_hash
+from alpha.recipes import (
+    Recipe,
+    RecipeBook,
+    adopted_data,
+    recipe_from_data,
+    recipe_hash,
+)
 from alpha.render.ci import REPO_JOB
 from alpha.validate import (
     NAME,
@@ -284,6 +290,14 @@ def drafted_recipes(
                 f"{stack!r} isn't a valid stack name",
                 "Use lowercase letters, digits and hyphens, e.g. rust",
             )
+        fields = obj(data, where)
+        if stack in kit and fields.get("adopted") is True:
+            raise fail(
+                where,
+                f"an adopted recipe can't take the kit's {stack!r} name",
+                f'Name it after the component, e.g. "api-{stack}", and set that '
+                "as the component's stack",
+            )
         if stack in kit and generated:
             continue
         if stack in kit:
@@ -292,15 +306,24 @@ def drafted_recipes(
                 f"the kit already has a {stack} recipe",
                 "Remove this one; the kit's recipe is used",
             )
-        fields = obj(data, where)
         if "proven" in fields:
             raise fail(
                 f"{where}.proven",
                 "is set, but a drafted recipe is always less proven than the kit's",
                 'Remove "proven"; alpha marks drafted recipes itself',
             )
+        resolved: Mapping[str, Any] = fields
+        base = fields.get("extends")
+        if base is not None and fields.get("adopted") is True:
+            if not isinstance(base, str) or base not in kit:
+                raise fail(
+                    f"{where}.extends",
+                    f"{base!r} isn't a kit recipe",
+                    f"Use one of: {', '.join(sorted(kit))}, or leave extends out",
+                )
+            resolved = adopted_data(fields, RecipeBook().data(base))
         drafted[stack] = recipe_from_data(
-            stack, fields, where, None, generated=generated
+            stack, resolved, where, None, generated=generated
         )
         if require_proven and fields.get("proven_hash") != recipe_hash(fields):
             raise fail(

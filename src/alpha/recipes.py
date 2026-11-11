@@ -61,6 +61,9 @@ class Recipe:
     baselines: Mapping[str, Baseline] = field(default_factory=lambda: {})
     # File names whose folder the adoption survey lists as a candidate.
     detect: tuple[str, ...] = ()
+    # Runs an existing repo's own tools (spec §5b, A1): no templates or
+    # bootstrap of its own, proven on the repo's code.
+    adopted: bool = False
 
 
 class RecipeError(AnswersError):
@@ -92,6 +95,8 @@ _RECIPE_KEYS = frozenset(
         "coverage_report",
         "baseline",
         "detect",
+        "adopted",
+        "extends",
     }
 )
 _STEP_KEYS = frozenset({"uses", "version", "with", "name", "id", "env"})
@@ -316,7 +321,24 @@ def recipe_from_data(
             raise _fail(f"{where}.{key}", "is missing", f'Add "{key}"')
         return data[key]
 
+    adopted = data.get("adopted", False)
+    if not isinstance(adopted, bool):
+        raise _fail(f"{where}.adopted", "must be true or false", "Use true or false")
+    if "extends" in data and not adopted:
+        raise _fail(
+            f"{where}.extends",
+            "is set on a recipe that isn't adopted",
+            'Only an adopted recipe extends a kit one: add "adopted": true, or '
+            "remove extends",
+        )
     bootstrap = _texts(get("bootstrap"), f"{where}.bootstrap")
+    if adopted and bootstrap:
+        raise _fail(
+            f"{where}.bootstrap",
+            "must be empty in an adopted recipe: adopting a repo doesn't install "
+            "tools into it",
+            "Remove the commands; adding a missing tool is a step of the adoption plan",
+        )
     raw = get("commands")
     if not isinstance(raw, dict):
         raise _fail(
@@ -337,6 +359,9 @@ def recipe_from_data(
             raise _fail(here, "must be text", "Write the shell command")
         _one_line(value, here)
         if key in ("setup", "test") and not value.strip():
+            if key == "test" and adopted:
+                commands[key] = value  # a repo without tests: a plan step adds them
+                continue
             raise _fail(
                 here, "is empty", "Every stack needs a setup and a test command"
             )
@@ -455,8 +480,11 @@ def recipe_from_data(
             for rel, name in names.items()
         }
     else:
-        templates = _mapping(get("templates"), f"{where}.templates")
-    if not templates:
+        templates = _mapping(
+            data.get("templates", {}) if adopted else get("templates"),
+            f"{where}.templates",
+        )
+    if not templates and not adopted:
         raise _fail(
             f"{where}.templates", "is empty", "Give the manifest and a setup test"
         )
@@ -474,7 +502,7 @@ def recipe_from_data(
                 "alpha or its CI",
                 "Leave it out; alpha writes those files itself",
             )
-    if not any(matches(rel, lists["test_globs"]) for rel in templates):
+    if not adopted and not any(matches(rel, lists["test_globs"]) for rel in templates):
         raise _fail(
             f"{where}.templates",
             "has no setup test (no template matches test_globs)",
@@ -513,7 +541,52 @@ def recipe_from_data(
         coverage_report=coverage_report,
         baselines=_baselines(data.get("baseline", {}), f"{where}.baseline", commands),
         detect=_detect(data.get("detect", {}), f"{where}.detect"),
+        adopted=adopted,
     )
+
+
+# What an adopted recipe takes from the kit recipe it extends: not what
+# installs or writes into the repo (bootstrap and its reasons, templates) nor
+# coverage, which needs a plugin the repo may not have.
+_INHERITED = (
+    "lockfiles",
+    "manifests",
+    "source_globs",
+    "test_globs",
+    "exclude_globs",
+    "ignores",
+    "allow",
+    "ci",
+    "dependabot",
+    "rules",
+)
+
+
+def adopted_data(entry: Mapping[str, Any], kit: Mapping[str, Any]) -> dict[str, Any]:
+    """An adopted recipe's entry over the kit recipe it extends (spec §5b, A1).
+    A step whose command the entry changes drops the kit's baseline reader for
+    it, which reads the kit's tool; so does `lint_file` for the reader's
+    `file_command`."""
+    merged: dict[str, Any] = {k: kit[k] for k in _INHERITED if k in kit}
+    merged.update({"bootstrap": [], "why": {}, "templates": {}})
+    kit_commands = cast("dict[str, str]", kit.get("commands", {}))
+    commands = {**kit_commands, **cast("dict[str, str]", entry.get("commands", {}))}
+    readers: dict[str, Any] = {}
+    for step, reader in cast("dict[str, Any]", kit.get("baseline", {})).items():
+        if commands.get(step) != kit_commands.get(step):
+            continue
+        reader = dict(cast("dict[str, Any]", reader))
+        if step == "lint" and commands.get("lint_file") != kit_commands.get(
+            "lint_file"
+        ):
+            reader.pop("file_command", None)
+        readers[step] = reader
+    readers.update(cast("dict[str, Any]", entry.get("baseline", {})))
+    merged.update({k: v for k, v in entry.items() if k not in ("commands", "baseline")})
+    merged["commands"] = commands
+    if readers:
+        merged["baseline"] = readers
+    return merged
 
 
 def kit_dirs() -> list[Path]:
@@ -540,6 +613,23 @@ class RecipeBook:
 
     def kit_stacks(self) -> list[str]:
         return sorted({p.stem for d in kit_dirs() for p in d.glob("*.toml")})
+
+    def data(self, stack: str) -> dict[str, Any]:
+        """A kit recipe's TOML as written, for an adopted recipe to extend."""
+        for folder in kit_dirs():
+            path = folder / f"{stack}.toml"
+            if path.is_file():
+                try:
+                    return tomllib.loads(path.read_text())
+                except (tomllib.TOMLDecodeError, OSError) as e:
+                    raise RecipeError(
+                        f"{path}: can't be read ({e}). Fix it, then retry."
+                    ) from None
+        raise RecipeError(
+            f'No kit recipe "{stack}" to extend. Use one of: '
+            f"{', '.join(self.kit_stacks())}, or leave out extends and write the "
+            "whole recipe."
+        )
 
     def get(self, stack: str) -> Recipe:
         for folder in kit_dirs():
