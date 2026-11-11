@@ -127,6 +127,7 @@ def test_gitignore_prefixes_component_paths(tmp_path: Path, generate_scenario):
     assert (tmp_path / ".gitignore").read_text() == (
         ".claude/alpha/state/\n"
         ".claude/settings.local.json\n"
+        ".claude/worktrees/\n"
         ".DS_Store\n"
         ".claude/alpha/hooks/__pycache__/\n"
         ".env\n"
@@ -150,6 +151,7 @@ def test_gitignore_for_root_component(tmp_path: Path, generate_scenario):
     assert (tmp_path / ".gitignore").read_text() == (
         ".claude/alpha/state/\n"
         ".claude/settings.local.json\n"
+        ".claude/worktrees/\n"
         ".DS_Store\n"
         ".claude/alpha/hooks/__pycache__/\n"
         ".env\n"

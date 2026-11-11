@@ -485,6 +485,14 @@ agent signals done, a cheap script decides whether the reviewer runs:
    pushed and its pull request opened before the review, so CI runs
    alongside it.
 
+**Worktrees.** The hooks act on the checkout the work happens in: the
+edited file's, or the working directory's (following `cd` and `git -C`), not
+only the folder the session started in. So each git worktree has its own
+checks and review state. Review starts where the branch leaves main, not at
+its pushed commit, since a feature branch can be pushed before review; a
+rebase onto main, or a merge of main, carries the review along. `gh pr merge`
+is checked in the worktree that has the pull request's branch.
+
 **Who it binds (user decision):** review-before-main and the git guardrails
 (no `--no-verify`, no plain force-push, no rewriting main, nothing that
 sweeps up or discards unnamed changes) are enforced

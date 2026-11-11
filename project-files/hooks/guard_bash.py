@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import glob as globlib
+import json
 import posixpath
 import re
 import shlex
@@ -274,16 +275,32 @@ def on_main_remote(root: Path) -> list[str]:
     return [r for r in remotes if r and r.split("/", 1)[-1] in main]
 
 
-def check_command(command: str, root: Path, depth: int = 0) -> None:
+def git_folder(segment: list[str]) -> str | None:
+    for i, arg in enumerate(segment[1:-1], start=1):
+        if not arg.startswith("-"):
+            return None
+        if arg == "-C":
+            return segment[i + 1]
+    return None
+
+
+def check_command(
+    command: str, root: Path, depth: int = 0, here: Path | None = None
+) -> None:
     segments = split_segments(command)
     if segments is None:
         return
+    here = here or root
     for segment in segments:
         segment = strip_prefix(segment)
+        if segment[:1] == ["cd"] and len(segment) > 1 and segment[1] != "-":
+            here = here / Path(segment[1]).expanduser()
         script = shell_script(segment)
         if script is not None and depth < MAX_DEPTH:
-            check_command(script, root, depth + 1)
-        check_segment(segment, root)
+            check_command(script, root, depth + 1, here)
+        folder = git_folder(segment) if segment[:1] == ["git"] else None
+        target = here / folder if folder else here
+        check_segment(segment, _common.checkout_of(target.resolve()) or root)
 
 
 REDIRECTS = (">>", ">|", ">")  # longest first; "&>" is "&" glued to ">"
@@ -457,6 +474,82 @@ def check_review(root: Path) -> None:
         _common.block(reason)
 
 
+MERGE_VALUE_FLAGS = {
+    "-t",
+    "--subject",
+    "-b",
+    "--body",
+    "-F",
+    "--body-file",
+    "--match-head-commit",
+    "-A",
+    "--author-email",
+}
+
+
+def merge_target(words: list[str]) -> str | None:
+    skip = False
+    for word in words:
+        if skip:
+            skip = False
+        elif word in MERGE_VALUE_FLAGS:
+            skip = True
+        elif not word.startswith("-"):
+            return word
+    return None
+
+
+def pr_branch(root: Path, target: str | None) -> str | None:
+    if target is None:
+        return current_branch(root) or None
+    if not (target.lstrip("#").isdigit() or "://" in target):
+        return target
+    try:
+        proc = subprocess.run(
+            ["gh", "pr", "view", target.lstrip("#"), "--json", "headRefName"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        branch = json.loads(proc.stdout).get("headRefName")
+    except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
+        return None
+    return branch if proc.returncode == 0 and isinstance(branch, str) else None
+
+
+def checkout_with(root: Path, branch: str) -> Path | None:
+    path: Path | None = None
+    for line in (
+        git_output(root, "worktree", "list", "--porcelain") or ""
+    ).splitlines():
+        if line.startswith("worktree "):
+            path = Path(line.removeprefix("worktree "))
+        elif line == f"branch refs/heads/{branch}" and path is not None:
+            return path
+    return None
+
+
+def check_merge(root: Path, words: list[str]) -> None:
+    target = merge_target(words)
+    branch = pr_branch(root, target)
+    if branch is None:
+        _common.block(
+            f"alpha can't tell which branch `gh pr merge {target or ''}` merges, so "
+            "it can't check its review. Run it from the checkout that has the "
+            "branch, naming the branch: gh pr merge <branch>."
+        )
+    checkout = checkout_with(root, branch)
+    if checkout is None:
+        _common.block(
+            f"Nothing reaches main unreviewed, and no checkout here has {branch}. "
+            f"Check it out (git worktree add <folder> {branch}), run the "
+            "principles-reviewer agent there, then merge."
+        )
+    check_review(checkout)
+
+
 def gh_command(segment: list[str]) -> list[str] | None:
     if not segment or posixpath.basename(segment[0]) != "gh":
         return None
@@ -536,7 +629,7 @@ def check_shared_work(
 def check_segment(segment: list[str], root: Path) -> None:
     gh = gh_command(segment)
     if gh is not None and gh[:2] == ["pr", "merge"]:
-        check_review(root)
+        check_merge(root, gh[2:])
     invocation = git_invocation(segment)
     if invocation is None:
         return
@@ -653,7 +746,7 @@ def main() -> None:
     cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else root
     if inp.get("agent_type") == REVIEWER:
         check_read_only(command, cwd)
-    check_command(command, root)
+    check_command(command, root, here=cwd)
     check_writes(command, root, cwd, principles)
     sys.exit(0)
 

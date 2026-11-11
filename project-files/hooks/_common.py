@@ -22,6 +22,7 @@ from types import ModuleType
 from typing import Any, NoReturn, cast
 
 STATE_DIR = ".claude/alpha/state"
+PRINCIPLES = "docs/principles.toml"
 NOT_FOUND = 127
 TAIL_LINES = 60
 
@@ -149,14 +150,24 @@ def read_input() -> dict[str, Any]:
     return data  # pyright: ignore[reportUnknownVariableType]
 
 
-def project_root(inp: dict[str, Any]) -> Path:
+def checkout_of(path: Path) -> Path | None:
+    """The alpha project checkout (the main one or a worktree) holding path."""
+    for folder in (path, *path.parents):
+        if (folder / ".git").exists():
+            return folder if (folder / PRINCIPLES).is_file() else None
+    return None
+
+
+def project_root(inp: dict[str, Any], path: str | None = None) -> Path:
     env = os.environ.get("CLAUDE_PROJECT_DIR")
-    if env:
-        return Path(env)
     cwd = inp.get("cwd")
-    if isinstance(cwd, str) and cwd:
-        return Path(cwd)
-    return Path.cwd()
+    here = Path(cwd) if isinstance(cwd, str) and cwd else Path(env or Path.cwd())
+    starts = [here / path] if path else []
+    for start in [*starts, here]:
+        found = checkout_of(start.resolve())
+        if found is not None:
+            return found
+    return Path(env) if env else here
 
 
 def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:

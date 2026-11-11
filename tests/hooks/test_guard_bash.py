@@ -425,9 +425,7 @@ def committed(project: Project) -> None:
         "git push",
         "git push --dry-run origin main",
         "git push origin topic:main",
-        "gh pr merge 12",
         "gh pr merge --squash --auto",
-        "gh -R owner/repo pr merge 12",
         "gh --repo=owner/repo pr merge",
     ],
 )

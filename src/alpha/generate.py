@@ -63,6 +63,7 @@ def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
     lines = [
         ".claude/alpha/state/",
         ".claude/settings.local.json",
+        ".claude/worktrees/",
         ".DS_Store",
         ".claude/alpha/hooks/__pycache__/",
         ".env",

@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 import _common  # noqa: E402
 
 TOOLS = {"Edit", "Write", "MultiEdit"}
-PRINCIPLES = "docs/principles.toml"
 WEAKENING: list[tuple[str, re.Pattern[str]]] = (
     [
         (label, re.compile(re.escape(label)))
@@ -90,10 +89,6 @@ def ask(reason: str) -> NoReturn:
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
-    root = _common.project_root(inp)
-    principles = _common.load_principles(root)
-    if principles is None:
-        sys.exit(0)
     tool = inp.get("tool_name")
     tool_input: object = inp.get("tool_input")
     if tool not in TOOLS or not isinstance(tool_input, dict):
@@ -102,16 +97,20 @@ def main() -> None:
     file_path = args.get("file_path")
     if not isinstance(file_path, str) or not file_path:
         sys.exit(0)
+    root = _common.project_root(inp, file_path)
+    principles = _common.load_principles(root)
+    if principles is None:
+        sys.exit(0)
     rel = _common.rel_to_root(root, file_path)
     if rel is None:
         sys.exit(0)
     glob = _common.protected_glob(rel, principles)
     if glob is not None:
         _common.block(_common.protected_message(rel, glob, principles))
-    if rel == PRINCIPLES:
+    if rel == _common.PRINCIPLES:
         ask(
-            f"{PRINCIPLES} is the project's single source of truth: every alpha "
-            "check reads its principles, commands, globs and protected paths. "
+            f"{_common.PRINCIPLES} is the project's single source of truth: every "
+            "alpha check reads its principles, commands, globs and protected paths. "
             "Approve only if the user asked for this change."
         )
     comp = _common.component_for(rel, principles)

@@ -134,29 +134,56 @@ def save_state(root: Path, state: dict[str, Any]) -> None:
         raise
 
 
-def _start_tree(root: Path) -> str:
-    upstream = _git(root, "merge-base", "HEAD", "@{upstream}")
-    rev = f"{upstream.strip()}^{{tree}}" if upstream else "HEAD^{tree}"
-    tree = _git(root, "rev-parse", "--verify", "-q", rev)
-    return tree.strip() if tree else EMPTY_TREE
+MAIN_REFS = (
+    "refs/remotes/origin/HEAD",
+    "refs/remotes/origin/main",
+    "refs/remotes/origin/master",
+    "refs/heads/main",
+    "refs/heads/master",
+)
+
+
+def _base(root: Path) -> str | None:
+    """Where this checkout's own work leaves main. A pushed feature branch isn't
+    reviewed work, so the branch's upstream doesn't count."""
+    for ref in MAIN_REFS:
+        if _git(root, "rev-parse", "--verify", "-q", ref):
+            out = _git(root, "merge-base", "HEAD", ref)
+            if out:
+                return out.strip()
+    head = _git(root, "rev-parse", "--verify", "-q", "HEAD")
+    return head.strip() if head else None
+
+
+def _tree(root: Path, commit: str | None) -> str:
+    out = _git(root, "rev-parse", "--verify", "-q", f"{commit}^{{tree}}")
+    return out.strip() if commit and out else EMPTY_TREE
 
 
 def ensure_state(root: Path) -> dict[str, Any]:
     state = load_state(root)
+    base = _base(root)
     if not isinstance(state.get("reviewed_tree"), str):
-        start = _start_tree(root)
         fresh: dict[str, Any] = {
-            "reviewed_tree": start,
+            "reviewed_tree": _tree(root, base),
             "findings": [],
             "reviewed_for": "",
+            "base": base,
         }
         if state.get("unreadable"):
             fresh["notice"] = (
                 "alpha: the review state was unreadable, so review restarted from "
-                "the last pushed commit (or HEAD)."
+                "where this branch leaves main."
             )
         save_state(root, fresh)
-        state = fresh
+        return fresh
+    if base and isinstance(state.get("base"), str) and state["base"] != base:
+        _carry(root, state, _tree(root, state["base"]), _tree(root, base))
+        state["base"] = base
+        save_state(root, state)
+    elif base and "base" not in state:
+        state["base"] = base
+        save_state(root, state)
     return state
 
 
@@ -419,7 +446,7 @@ def brief(root: Path) -> str:
 
 def main() -> None:
     _common.check_python()
-    root = _common.project_root({})
+    root = _common.project_root({"cwd": os.getcwd()})
     args = sys.argv[1:]
     valid = args in (["brief"], ["snapshot"]) or (
         len(args) == 3 and args[0] == "absorb"

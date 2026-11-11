@@ -21,10 +21,6 @@ def run_command(command: str, cwd: Path) -> tuple[int, str]:
 def main() -> None:
     _common.check_python()
     inp = _common.read_input()
-    root = _common.project_root(inp)
-    principles = _common.load_principles(root)
-    if principles is None:
-        sys.exit(0)
     tool = inp.get("tool_name")
     tool_input: object = inp.get("tool_input")
     if tool not in TOOLS or not isinstance(tool_input, dict):
@@ -32,6 +28,10 @@ def main() -> None:
     args: dict[str, Any] = tool_input  # pyright: ignore[reportUnknownVariableType]
     file_path = args.get("file_path")
     if not isinstance(file_path, str) or not file_path:
+        sys.exit(0)
+    root = _common.project_root(inp, file_path)
+    principles = _common.load_principles(root)
+    if principles is None:
         sys.exit(0)
     rel = _common.rel_to_root(root, file_path)
     if rel is None:
