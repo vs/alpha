@@ -549,6 +549,7 @@ where CI runs it: `pr`, `schedule`, or `both`.
 | agent-config | agnix | strict lint of `.` | `CLAUDE.md`, `.claude/**` | yes | pr | always |
 | migrations | none | `python3 .claude/alpha/checks/diff_checks.py immutable-migrations` | none | no | pr | `data.migration_paths` non-empty |
 | squawk | squawk | `python3 .claude/alpha/checks/diff_checks.py squawk` | none | no | pr | `data.squawk_paths` non-empty (PostgreSQL with SQL migrations) |
+| baselines | none | `python3 .claude/alpha/checks/diff_checks.py baselines` | none | no | pr | `adoption.baselines` non-empty (§8b) |
 | review-dates | none | `python3 .claude/alpha/checks/review_dates.py` | none | no | both | always |
 | toolchain | none | `mise outdated --no-global --bump --json \| python3 -c "…"`: prints the outdated tools and, if any, the `mise upgrade --bump --no-global` fix, then exits 1 | none | no | schedule (own step) | always |
 
@@ -597,10 +598,14 @@ its files don't change.
   and CI run a check through the ratchet only while the interview state
   lists a baseline for it. When a burn-down step clears one, `alpha update`
   renders the plain command again.
-- **Only shrinking.** Baselines are protected paths. A baseline grows only
-  through `alpha baseline capture --check <id> --decision <NNNN>`, which
-  needs an accepted decision record naming the check and why, as loosening
-  a principle does (§6). Claude can't run it without one.
+- **Only shrinking.** Baselines are protected paths, so Claude can't edit
+  them, and risk paths, so the reviewer sees every change to them. A
+  baseline grows only through `alpha baseline capture --check <id>
+  --decision <NNNN>`, with an accepted decision record naming the check and
+  why, as loosening a principle needs (§6). The gate is the pull request: the
+  `baselines` check fails when a count rises against the base, unless the
+  pull request adds an accepted decision record that names the check. A
+  command guard can't tell a capture from a hand-written file; the diff can.
 - **The edit hooks.** The post-edit lint runs over the whole edited file, so
   for a baselined check it goes through the ratchet too: legacy findings
   already in the file don't block an edit, new ones do.
