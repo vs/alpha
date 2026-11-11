@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from alpha.answers import PROJECT_JSON
+from alpha.baseline import BASELINE_DIR
 from alpha.generate import GenerateError, digest
 from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
 from alpha.render.tooling import BETTERLEAKS, LYCHEE, MISE, RUMDL, TYPOS
@@ -20,6 +21,10 @@ _DOCS = [
 ]
 _TOOLING = [MISE, TYPOS, RUMDL, LYCHEE, BETTERLEAKS]
 _TOOLING_SUBJECT = "build: Pin the repository's check tools"
+_DOCS_SUBJECT = "docs: Add product brief, principles and decisions"
+_CLAUDE_SUBJECT = "chore: Add Claude Code settings and guardrails"
+_CI_SUBJECT = "ci: Run every component's checks in CI"
+_DEPENDABOT_SUBJECT = "ci: Schedule dependency updates"
 _CLAUDE = ["CLAUDE.md", ".claude"]
 UPDATE_STATE = ".claude/alpha/state/update.json"
 PROPOSALS = ".claude/alpha/state/update"
@@ -103,8 +108,8 @@ def commit_skeleton(
     _check(target, "config", "core.hooksPath", HOOKS_PATH)
     _check_identity(target)
     groups = [
-        ("docs: Add product brief, principles and decisions", _DOCS),
-        ("chore: Add Claude Code settings and guardrails", _CLAUDE),
+        (_DOCS_SUBJECT, _DOCS),
+        (_CLAUDE_SUBJECT, _CLAUDE),
         (_TOOLING_SUBJECT, _TOOLING),
     ]
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
@@ -113,10 +118,8 @@ def commit_skeleton(
         if c["path"] == ".":
             paths.append(f":(exclude){_CI}")
         groups.append((_build_subject(c, scopes), paths))
-    groups.append(
-        ("ci: Run every component's checks in CI", [WORKFLOW, SCHEDULED, JACTIONLINT])
-    )
-    groups.append(("ci: Schedule dependency updates", [DEPENDABOT]))
+    groups.append((_CI_SUBJECT, [WORKFLOW, SCHEDULED, JACTIONLINT]))
+    groups.append((_DEPENDABOT_SUBJECT, [DEPENDABOT]))
 
     return _commit_groups(target, groups, trailers, "commit-skeleton")
 
@@ -189,11 +192,19 @@ def commit_update(
         return sorted(p for p, g in by_group.items() if g == group)
 
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
+    adopting = state.get("kind") == "adopt"
+    # Captured or tightened baselines are alpha's writes too (spec §8b).
+    baselines = [BASELINE_DIR] if (target / BASELINE_DIR).is_dir() else []
     groups: list[tuple[str, list[str]]] = [
-        ("docs: Update docs and decision records", paths_of("docs")),
         (
-            "chore: Update Claude Code rules and settings",
-            [*paths_of("chore"), PROJECT_JSON],
+            _DOCS_SUBJECT if adopting else "docs: Update docs and decision records",
+            paths_of("docs"),
+        ),
+        (
+            _CLAUDE_SUBJECT
+            if adopting
+            else "chore: Update Claude Code rules and settings",
+            [*paths_of("chore"), *baselines, PROJECT_JSON],
         ),
         (_TOOLING_SUBJECT, paths_of("tooling")),
     ]
@@ -213,8 +224,13 @@ def commit_update(
                 (_update_subject(c["name"], scopes), paths_of(f"build:{c['name']}"))
             )
     groups += [
-        ("ci: Update the CI checks", paths_of("ci")),
-        ("ci: Update the dependency update schedule", paths_of("dependabot")),
+        (_CI_SUBJECT if adopting else "ci: Update the CI checks", paths_of("ci")),
+        (
+            _DEPENDABOT_SUBJECT
+            if adopting
+            else "ci: Update the dependency update schedule",
+            paths_of("dependabot"),
+        ),
     ]
     hashes = _commit_groups(
         target, [g for g in groups if g[1]], trailers, "commit-update"

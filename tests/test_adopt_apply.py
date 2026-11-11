@@ -10,8 +10,8 @@ from helpers import EXISTING, PLUGIN_ROOT, adoption_answers, existing_repo, git,
 
 from alpha.adopt import AdoptError, AdoptionPlan, apply_adoption, plan_adoption
 from alpha.defaults import Source
-from alpha.generate import GenerateError
-from alpha.gitops import PROPOSALS
+from alpha.generate import GenerateError, load_project_principles
+from alpha.gitops import PROPOSALS, commit_update
 from alpha.update import plan_update
 
 SOURCE = Source(PLUGIN_ROOT, True)
@@ -166,3 +166,45 @@ def test_git_hooks_answer_validated(repo: Path):
     adoption_answers(repo, git_hooks="husky")
     with pytest.raises(AdoptError, match=r"adoption.git_hooks"):
         _plan(repo)
+
+
+def _resolve(root: Path, plan: AdoptionPlan) -> None:
+    """A stand-in for Claude's hand merge: the repo's file, then alpha's."""
+    for c in plan.update.changes:
+        if c.kind == "conflict":
+            rendered = (root / PROPOSALS / c.path).read_text()
+            (root / c.path).write_text(EXISTING[c.path] + "\n" + rendered)
+
+
+def test_commit_adoption_groups(repo: Path):
+    plan = _plan(repo)
+    apply_adoption(repo, plan)
+    _resolve(repo, plan)
+    baseline = repo / ".claude/alpha/baselines/typos.json"
+    baseline.parent.mkdir(parents=True)
+    baseline.write_text('{"check": "typos", "counts": {}}\n')
+    start = git(repo, "rev-parse", "HEAD")
+    hashes, _ = commit_update(
+        repo, load_project_principles(repo), ["Co-Authored-By: T <t@example.com>"]
+    )
+    subjects = git(repo, "log", "--format=%s", f"{start}..HEAD").splitlines()
+    assert list(reversed(subjects)) == [
+        "docs: Add product brief, principles and decisions",
+        "chore: Add Claude Code settings and guardrails",
+        "build: Pin the repository's check tools",
+        "ci: Run every component's checks in CI",
+        "ci: Schedule dependency updates",  # the scenario chose Dependabot
+    ]
+    assert len(hashes) == 5
+    body = git(repo, "log", "-1", "--format=%B")
+    assert body.rstrip().endswith("Co-Authored-By: T <t@example.com>")
+    chore = git(repo, "show", "--name-only", "--format=", hashes[1]).splitlines()
+    assert ".claude/alpha/baselines/typos.json" in chore
+    assert ".claude/alpha/project.json" in chore
+    touched = git(repo, "diff", "--name-only", start, "HEAD").splitlines()
+    assert not set(touched) & {
+        "src/legacy/core.py",
+        "tests/test_core.py",
+        "pyproject.toml",
+    }
+    assert git(repo, "status", "--porcelain") == ""
