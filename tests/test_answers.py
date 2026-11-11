@@ -154,7 +154,7 @@ def test_a_stack_without_a_recipe_says_how_to_get_one(tmp_path: Path):
     with pytest.raises(
         AnswersError,
         match=r'components\[0\]\.stack: "go" has no recipe.*stack-recipe skill.*'
-        r"python, typescript",
+        r"python, rust, typescript",
     ):
         check(tmp_path, d)
 

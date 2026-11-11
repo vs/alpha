@@ -1,6 +1,6 @@
 ---
 name: stack-recipe
-description: Draft and prove a recipe for a stack alpha's kit has no recipe for (e.g. Rust, Go, Swift, Kotlin) in the alpha interview - the commands, files and CI setup a component on that stack needs - so it can be generated. Use only inside an alpha project interview (/alpha:new-project), inside /alpha:adopt to adopt a repo's own tools, or when the user asks to set up a stack the kit lacks.
+description: Draft and prove a recipe for a stack alpha's kit has no recipe for (e.g. Go, Swift, Kotlin, Elixir) in the alpha interview - the commands, files and CI setup a component on that stack needs - so it can be generated. Use only inside an alpha project interview (/alpha:new-project), inside /alpha:adopt to adopt a repo's own tools, or when the user asks to set up a stack the kit lacks.
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Before you start
 
-You need `<target>` (the folder the interview is setting up) and `<stack>` (the stack's name, lowercase with hyphens, e.g. `rust`, `go`, `swift`). The answers live in `<target>/.claude/alpha/project.json`.
+You need `<target>` (the folder the interview is setting up) and `<stack>` (the stack's name, lowercase with hyphens, e.g. `go`, `swift`, `kotlin`). The answers live in `<target>/.claude/alpha/project.json`.
 
 - No project.json: tell the user to start with `/alpha:new-project`, and stop.
 - `alpha:adopt` sent you for a component of an existing repo: draft an adopted recipe as "Adopting a repo's tools" below says, whether or not the kit has the stack.
@@ -25,14 +25,14 @@ One JSON object, saved under `recipes.<stack>` in project.json. Paths and globs 
 - `bootstrap` - commands that install the dev tools into a fresh skeleton (often `[]` when the toolchain brings them).
 - `commands` - one shell command each for `setup` (install dependencies), `format_check` (fails on unformatted files without changing them), `lint`, `typecheck` (type check or compile check), `test`, plus `format` (rewrites files), `format_file` and `lint_file` (one file, with `{file}` where the path goes). `setup` and `test` can't be empty; use `""` for a step the stack really doesn't have. An optional `structure` step runs between `typecheck` and `test`: unused or undeclared dependencies, dead exports and import cycles. Leave the key out when the stack has no such tool; it then counts as `""` and is skipped.
 - `coverage`, `coverage_report` - optional, and only together: a command that runs the tests and writes a coverage report in Cobertura or another XML format diff-cover reads, and the report's path in the component (e.g. `"coverage.xml"`). Pull requests then run `coverage` instead of `test` and must cover `testing.diff_coverage`% of the lines they change. Add the coverage plugin to `bootstrap` and the report to `ignores`, or CI's "tree unchanged" step fails. Leave both out when the stack has no easy coverage tool; the component then gets only `test`.
-- `manifests`, `lockfiles` - e.g. `["Cargo.toml"]`, `["Cargo.lock"]`.
+- `manifests`, `lockfiles` - e.g. `["go.mod"]`, `["go.sum"]`.
 - `source_globs`, `test_globs`, `exclude_globs` - which files are code, which are tests, which are build output or vendored.
 - `ignores` - `.gitignore` entries (e.g. `"target/"`).
-- `allow` - Claude Code permission rules for the stack's commands, each `Bash(<tool> <args>:*)` for a tool the recipe's own commands use (e.g. `"Bash(cargo test:*)"`); nothing broader.
+- `allow` - Claude Code permission rules for the stack's commands, each `Bash(<tool> <args>:*)` for a tool the recipe's own commands use (e.g. `"Bash(go test:*)"`); nothing broader.
 - `why` - dev tool → reason, for the dependency log (`{}` when none are added).
 - `templates` - file path → content: the manifest with strict settings, and **one setup test that checks the toolchain itself** (it must match `test_globs`). No source files and no app code. `$name` and `$slug` are always replaced (the component and the project), with no escape, so don't name a shell variable that; any other `$` stays as written. Templates are text only: binary files (a Gradle wrapper jar, say) must come from `bootstrap`. Nothing under `.git/`, `.claude/` or `.github/`, and no file alpha writes itself (`CLAUDE.md`, `README.md`, `.gitignore`, `docs/`).
 - `ci` - `{"steps": [...], "env": {...}}`: GitHub Actions steps that install the toolchain, each with a `uses` pinned to the commit SHA of the latest release tag (`git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag>`; for an annotated tag, the peeled `^{}` line), with the tag in `version`, and no `run` steps; `${dir}` in a value is the component's folder plus `/`. CI runs `setup` and the checks, never `bootstrap`, so a tool `bootstrap` installs globally (a linter, say) must instead be a project dependency, come from a CI step, or ship with the toolchain.
-- `dependabot` - the Dependabot ecosystem name (e.g. `cargo`, `gomod`, `gradle`, `nuget`, `swift`), or `""` if it has none.
+- `dependabot` - the Dependabot ecosystem name (e.g. `gomod`, `gradle`, `nuget`, `swift`, `mix`), or `""` if it has none.
 - `baseline` - optional, for a project with legacy findings to baseline: per step (`lint`, `typecheck`, `structure`, `test`), how its findings read, as `{"command": "<the check with machine-readable output>", "pattern": "<regex with (?P<file>…) and (?P<rule>…) groups, matched per line>"}`, or `"json": {"items": "<path, * walks a list or object>", "file": "<field, or @0 for the key the first * walked>", "rule": "<field>", "where": {"<field>": "<value>"}}` instead of `pattern` for JSON output. `lint` also needs `file_command`, the same for one file with `{file}`. Write the pattern against the tool's real output, never a guess. `recipe try` runs each command on the clean skeleton, and fails when it reads findings there or fails without readable output.
 - `rules` - optional: rules for code on this stack that no tool in the recipe checks, each `{"id": "<lowercase-with-hyphens>", "rule": "<one line>"}`. They go into the project's CLAUDE.md and the principles reviewer checks them. Write code names in backticks.
 

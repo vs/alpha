@@ -387,6 +387,15 @@ rationale = "finds unused dependencies in Cargo.toml quickly and without compili
 limitations = "Text-based search, so it can report false positives and misses macro-generated uses; ignore them in Cargo.toml metadata. Not a replacement for cargo-deny, which covers advisories and licences."
 last_reviewed = 2026-10-23
 
+[tools.cargo-llvm-cov]
+name = "cargo-llvm-cov"
+repo = "taiki-e/cargo-llvm-cov"
+category = "Rust"
+stacks = ["rust"]
+rationale = "source-based coverage from LLVM for `cargo test`, with a Cobertura report (`--cobertura`) that diff-cover reads; test files (`tests/`, `tests.rs`) stay out of the report."
+limitations = "alpha's pick that DQG doesn't list (DQG covers tests only through diff-cover). Needs the `llvm-tools-preview` toolchain component; without it, it asks to install it and waits on a terminal. A file outside the module tree isn't compiled, so it is missing from the report rather than uncovered. Verified in alpha: 0.9.1 on Rust 1.99.1, 2026-11-11."
+last_reviewed = 2026-11-11
+
 [tools.cargo-deny]
 name = "cargo-deny"
 repo = "EmbarkStudios/cargo-deny"

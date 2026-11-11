@@ -3,6 +3,7 @@
 [![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-D97757?logo=claude&logoColor=white)](https://code.claude.com/docs/en/plugins)
 [![Python recipe](https://img.shields.io/badge/recipe-Python-3776AB?logo=python&logoColor=white)](recipes/python.toml)
 [![TypeScript recipe](https://img.shields.io/badge/recipe-TypeScript-3178C6?logo=typescript&logoColor=white)](recipes/typescript.toml)
+[![Rust recipe](https://img.shields.io/badge/recipe-Rust-B7410E?logo=rust&logoColor=white)](recipes/rust.toml)
 [![Any stack](https://img.shields.io/badge/recipe-any_stack-555)](skills/stack-recipe/SKILL.md)
 
 alpha interviews you about a new project, then writes what agents build on:
@@ -34,9 +35,9 @@ claude plugin install alpha@alpha
 ## Needs
 
 [uv](https://docs.astral.sh/uv/) and [pnpm](https://pnpm.io/) for the Python
-and TypeScript components, and [mise](https://mise.jdx.dev/) to install and run
-the repository checks. A component's own toolchain (Rust, say) must be
-installed too.
+and TypeScript components, [rustup](https://rustup.rs/) for Rust ones, and
+[mise](https://mise.jdx.dev/) to install and run the repository checks. A
+component on another stack (Go, say) needs its own toolchain installed too.
 
 ## Bring an existing repo in
 

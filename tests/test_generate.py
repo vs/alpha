@@ -626,10 +626,10 @@ def assert_explained(out: subprocess.CompletedProcess[str], *needles: str) -> No
 
 def test_cli_bootstrap_explains_unknown_stack(tmp_path: Path, generate_scenario):
     generate_scenario(tmp_path, "python-ml-single")
-    edit_principles(tmp_path, lambda d: d["components"][0].update(stack="rust"))
+    edit_principles(tmp_path, lambda d: d["components"][0].update(stack="cobol"))
     out = run_cli("bootstrap", str(tmp_path))
     assert_explained(
-        out, 'No recipe for stack "rust"', "Use one of: python, typescript"
+        out, 'No recipe for stack "cobol"', "Use one of: python, rust, typescript"
     )
 
 

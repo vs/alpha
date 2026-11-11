@@ -48,7 +48,8 @@ ROOT_ENTRIES = {
     "python-ml-single": STANDARD_ROOT
     | {"pyproject.toml", "tests", ".python-version", ".github"},
     "web-ts-plus-python-api": STANDARD_ROOT | {"api", "web", ".github", "CHANGELOG.md"},
-    "rust-cli": STANDARD_ROOT | {"Cargo.toml", "tests", ".github"},
+    "rust-cli": STANDARD_ROOT
+    | {"Cargo.toml", "clippy.toml", "rust-toolchain.toml", "tests", ".github"},
 }
 SCENARIOS = ["python-ml-single", "web-ts-plus-python-api", "rust-cli"]
 TRAILER = "Co-Authored-By: T <t@t>"
