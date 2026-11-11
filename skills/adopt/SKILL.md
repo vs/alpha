@@ -67,7 +67,7 @@ In order; if a step fails, show its message, fix the cause with the user, and re
 
 ## 8. Report
 
-Tell the user: the commits on `alpha/adopt`; what is enforced now (as `/alpha:new-project` step 7, plus: only new findings fail; baselines shrink as findings are fixed and never grow without a decision); the baselines (`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline show <target>`); the plan's phases with step counts (`docs/adoption.md`); what wasn't checked. Pushing and opening the pull request are theirs to do, or ask whether you should. Next: run `/alpha:adopt` again to start the first step.
+Tell the user: the commits on `alpha/adopt`; what is enforced now (as `/alpha:new-project` step 7, plus: only new findings fail; baselines shrink as findings are fixed and never grow without a decision); the baselines (`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline show <target>`); the plan's phases with step counts (`docs/adoption.md`); what wasn't checked. Pushing and opening the pull request are theirs to do, or ask whether you should. Next: alpha's hooks and settings load only when a session starts, so this session still runs without them. Start a new Claude Code session in `<target>` (with the same plugin flags), and run `/alpha:adopt` there to begin the first step.
 
 ## 9. The plan
 
@@ -75,9 +75,9 @@ One step per run, unless the user asks for more.
 
 1. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt next <target>` names the step, why, what proves it done, and its branch. Tell the user in two lines.
 2. Branch: `git switch -c <branch>` from the default branch, or from `alpha/adopt` while that isn't merged. Then `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt start <target> <id>`.
-3. Do the work under the project's hooks and rules, in commits per the convention. Write the tests a step's acceptance names. Change a recipe through `/alpha:extend` and re-prove it with `recipe try`; a fixed baselined finding tightens its baseline (`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline tighten <target>`), and a cleared baseline leaves `adoption.baselines` through `/alpha:extend`.
-4. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt done <target> <id>` must pass; add `--confirmed-by-user` only after the user confirmed each `confirm` condition. Never set a step's status any other way.
-5. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`, then `commit-update` as in step 7, so `docs/adoption.md` shows it.
+3. Do the work under the project's hooks and rules, in commits per the convention. Write the tests a step's acceptance names. A fixed baselined finding tightens its baseline when its check runs (or run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline tighten <target>`); commit the baseline file with the fix.
+4. When the step changes the answers, save them before checking it: a recipe change (a new tool, a check turned on) means sending `recipes` whole with `answers write` and proving it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <recipe>`; an emptied baseline means sending `adoption` whole without that id in `baselines` and `git rm` its file; a new tool with legacy findings means adding its check id there. Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>` (it rewrites the commands, CI and principles to match), `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline capture <target> --all` for a newly listed check, and `commit-update` as in step 7.
+5. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt done <target> <id>` must pass; add `--confirmed-by-user` only after the user confirmed each `confirm` condition. Never set a step's status any other way. Then `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>` and `commit-update` again, so `docs/adoption.md` shows it.
 6. A step that turns out wrong or not worth it: record why with the user through the project's `/decision` skill (naming the step id in backticks), then `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt drop <target> <id> --decision <number>`.
 
 Report what changed, the commits, and the next step.

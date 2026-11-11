@@ -733,8 +733,14 @@ def test_adopt_marks_steps_only_through_the_cli():
     plan = _text("adopt").split("## 9. The plan", 1)[1]
     for command in ("adopt next", "adopt start", "adopt done", "adopt drop"):
         assert f"{CLI} {command}" in plan, command
-    assert "answers write" not in plan
+    assert '"status"' not in plan and "adoption.steps" not in plan
     assert "Never set a step's status any other way" in plan
+
+
+def test_adopt_updates_before_checking_a_changed_step():
+    plan = _text("adopt").split("## 9. The plan", 1)[1]
+    assert plan.index(f"{CLI} update <target>") < plan.index(f"{CLI} adopt done")
+    assert "new Claude Code session" in _text("adopt").split("## 8. Report", 1)[1]
 
 
 def test_adopt_is_user_invoked():
