@@ -133,7 +133,7 @@ core = true
 [[principles]]
 id = "tests-first-class"
 title = "Tests are as important as the core"
-statement = "Test design and writing get the same effort and intensity as the logic. Tests trace back to acceptance checks."
+statement = "Test design and writing get the same effort and intensity as the logic. Tests trace back to acceptance checks. Risky logic (a branch, a parser, money, security, data writes, a bug fix) gets a test that fails when it breaks: one good test, not coverage. A trivial change (a rename, a constant, wiring) may go without one, with the reason recorded."
 rationale = "Untrusted tests make every change risky; tying them to acceptance checks keeps them meaningful."
 applies = ["always"]
 checked_by = ["reviewer", "hook:stop_checks"]

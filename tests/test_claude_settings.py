@@ -23,6 +23,8 @@ def entries(event: str) -> list[dict[str, Any]]:
 def test_allow_covers_the_mise_checks():
     # CLAUDE.md tells Claude to run `mise run check`.
     assert "Bash(mise run:*)" in SETTINGS["permissions"]["allow"]
+    # agnix flags a wildcarded interpreter, and auto mode drops it anyway.
+    assert not any("python3" in rule for rule in SETTINGS["permissions"]["allow"])
 
 
 def test_allow_covers_both_stacks_and_git_sorted():

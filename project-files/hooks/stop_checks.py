@@ -502,16 +502,20 @@ def find_problems(
             components.append(comp)
         by_comp.setdefault(key, []).append(rel)
 
+    noted = review.untested_notes(root)
     for comp in components:
         name = str(comp.get("name"))
         if not _common.principle_applies(principles, "tests-first-class", name):
             continue
         files = by_comp[name]
-        src = [f for f in files if _common.is_source(f, comp)]
+        src = [f for f in files if _common.is_source(f, comp) and f not in noted]
         if src and not any(_common.is_test(f, comp) for f in files):
             problems.append(
                 f"{comp.get('name')}: source changed ({', '.join(src)}) but no tests "
-                "changed. Principle tests-first-class: add or update tests."
+                "changed. Principle tests-first-class: add or update tests. If a "
+                "file needs none (a rename, a constant, wiring), say why: python3 "
+                '.claude/alpha/hooks/review.py untested "<why>" <path> ...; the '
+                "principles-reviewer checks the reason."
             )
 
     if DEPENDENCY_LOG not in changed:

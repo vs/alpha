@@ -2,9 +2,12 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from typing import Any
 
-from .conftest import STUB, Project
+import pytest
+
+from .conftest import HOOKS, STUB, Project
 
 FAIL = "python3 -c \"import sys; print('boom'); sys.exit(1)\""
 PAYLOAD: dict[str, Any] = {"hook_event_name": "Stop", "stop_hook_active": False}
@@ -80,6 +83,53 @@ def test_source_without_tests_blocks(project: Project) -> None:
     text = reason(run(project))
     assert "api: source changed (api/src/app.py) but no tests changed." in text
     assert "Principle tests-first-class: add or update tests." in text
+
+
+def untested(project: Project, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(HOOKS / "review.py"), "untested", *args],
+        cwd=project.root,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(project.root)},
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_a_noted_trivial_change_needs_no_test_until_it_changes(
+    project: Project,
+) -> None:
+    import review
+
+    commit_all(project)
+    project.write("api/src/app.py", "x = 1\n")
+    assert "If a file needs none (a rename, a constant, wiring)" in reason(run(project))
+    done = untested(project, "renames a constant only", "api/src/app.py")
+    assert done.returncode == 0, done.stderr
+    assert done.stdout == "noted: the principles-reviewer checks the reason\n"
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    assert (
+        "## Source changes Claude says need no test (check each reason)\n\n"
+        "- api/src/app.py: renames a constant only" in review.brief(project.root)
+    )
+    project.write("api/src/app.py", "x = 2\n")
+    assert "api: source changed (api/src/app.py)" in reason(run(project))
+
+
+@pytest.mark.parametrize(
+    ("args", "says"),
+    [
+        (["trivial", "api/src/app.py"], "give the reason in a few words"),
+        (["renames it only", "/elsewhere/app.py"], "isn't in this project"),
+    ],
+)
+def test_an_untested_note_needs_a_reason_and_a_project_file(
+    project: Project, args: list[str], says: str
+) -> None:
+    commit_all(project)
+    done = untested(project, *args)
+    assert done.returncode == 1
+    assert says in done.stderr
 
 
 def test_tests_matched_per_component(project: Project) -> None:

@@ -277,9 +277,53 @@ def review_due(principles: dict[str, Any], debt: dict[str, Any]) -> str | None:
 DIFF_LINES = 1500
 USAGE = (
     "Run it as: python3 .claude/alpha/hooks/review.py brief (or snapshot, or "
-    "absorb <before-tree> <after-tree>), from the root of an alpha project "
-    "(one with docs/principles.toml)."
+    'absorb <before-tree> <after-tree>, or untested "<why>" <path> ...), from '
+    "the root of an alpha project (one with docs/principles.toml)."
 )
+
+
+def _blob(root: Path, rel: str) -> str:
+    out = _git(root, "hash-object", "--", rel) if (root / rel).is_file() else None
+    return out.strip() if out else "deleted"
+
+
+def note_untested(root: Path, reason: str, paths: list[str]) -> list[str]:
+    """Record why these source changes need no test; returns the paths that
+    aren't in the project."""
+    rels = [_common.rel_to_root(root, str(Path.cwd() / p)) for p in paths]
+    outside = [p for p, rel in zip(paths, rels, strict=True) if rel is None]
+    if outside:
+        return outside
+    state = ensure_state(root)
+    kept = [
+        n
+        for n in state.get("untested", [])
+        if n["path"] not in rels and _blob(root, n["path"]) == n["blob"]
+    ]
+    kept += [
+        {"path": rel, "reason": reason, "blob": _blob(root, rel)}
+        for rel in rels
+        if rel is not None
+    ]
+    state["untested"] = kept
+    save_state(root, state)
+    return []
+
+
+def untested_notes(root: Path) -> dict[str, str]:
+    """Paths noted as needing no test, while their content is still the noted one."""
+    notes: object = load_state(root).get("untested", [])
+    if not isinstance(notes, list):
+        return {}
+    found: dict[str, str] = {}
+    for n in cast("list[object]", notes):
+        if isinstance(n, dict):
+            note = cast("dict[str, Any]", n)
+            path, reason = note.get("path"), note.get("reason")
+            if isinstance(path, str) and isinstance(reason, str):
+                if _blob(root, path) == note.get("blob"):
+                    found[path] = reason
+    return found
 
 
 def _relevant_principles(
@@ -428,6 +472,14 @@ def brief(root: Path) -> str:
             f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
             for f in findings
         ]
+    untested = untested_notes(root)
+    if untested:
+        lines += [
+            "",
+            "## Source changes Claude says need no test (check each reason)",
+            "",
+        ]
+        lines += [f"- {path}: {reason}" for path, reason in sorted(untested.items())]
     lines += ["", "## Changed files", ""]
     lines += [f"{count}\t{path}" for count, path in stats]
     lockfiles = {
@@ -450,14 +502,33 @@ def main() -> None:
     _common.check_python()
     root = _common.project_root({"cwd": os.getcwd()})
     args = sys.argv[1:]
-    valid = args in (["brief"], ["snapshot"]) or (
-        len(args) == 3 and args[0] == "absorb"
+    valid = (
+        args in (["brief"], ["snapshot"])
+        or (len(args) == 3 and args[0] == "absorb")
+        or (len(args) >= 3 and args[0] == "untested")
     )
     if not valid or not (root / "docs" / "principles.toml").is_file():
         print(USAGE, file=sys.stderr)
         sys.exit(1)
     try:
-        if args[0] == "brief":
+        if args[0] == "untested":
+            if len(args[1].split()) < 2:
+                print(
+                    'review.py: give the reason in a few words, e.g. "renames '
+                    'the field only", before the paths.',
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            outside = note_untested(root, args[1], args[2:])
+            if outside:
+                print(
+                    f"review.py: {', '.join(outside)} isn't in this project; name "
+                    "files from its root.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            print("noted: the principles-reviewer checks the reason")
+        elif args[0] == "brief":
             print(brief(root), end="")
         elif args[0] == "snapshot":
             print(snapshot(root))
