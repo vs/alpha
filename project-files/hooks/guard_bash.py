@@ -296,13 +296,16 @@ def git_folder(segment: list[str]) -> str | None:
 
 
 def check_command(
-    command: str, root: Path, depth: int = 0, here: Path | None = None
+    command: str,
+    root: Path,
+    depth: int = 0,
+    here: Path | None = None,
+    hooks_env: bool = False,
 ) -> None:
     segments = split_segments(command)
     if segments is None:
         return
     here = here or root
-    hooks_env = False
     for raw in segments:
         segment = strip_prefix(raw)
         hooks_env = hooks_env or sets_hooks_path_env(raw, segment)
@@ -310,7 +313,7 @@ def check_command(
             here = here / Path(segment[1]).expanduser()
         script = shell_script(segment)
         if script is not None and depth < MAX_DEPTH:
-            check_command(script, root, depth + 1, here)
+            check_command(script, root, depth + 1, here, hooks_env)
         folder = git_folder(segment) if segment[:1] == ["git"] else None
         target = here / folder if folder else here
         check_segment(segment, _common.checkout_of(target.resolve()) or root, hooks_env)

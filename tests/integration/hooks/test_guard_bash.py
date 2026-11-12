@@ -158,6 +158,10 @@ def test_abbreviated_no_verify_is_blocked(project: Project, command: str) -> Non
         "GIT_CONFIG_PARAMETERS=\"'core.hooksPath'='/dev/null'\" git commit -m x",
         "sh -c 'GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_COUNT=1 "
         "GIT_CONFIG_VALUE_0=x git rebase main'",
+        "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
+        "GIT_CONFIG_VALUE_0=/dev/null; sh -c 'git commit -m x'",
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
+        "GIT_CONFIG_VALUE_0=/dev/null bash -c 'git commit -m x'",
     ],
 )
 def test_env_hooks_path_override_is_blocked(project: Project, command: str) -> None:
