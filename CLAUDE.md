@@ -102,6 +102,7 @@ Code: `**/*.py`. Tests: `tests/**/*.py`, `**/test_*.py`, `**/*_test.py`, `**/con
 | format | `uv run ruff format src tests project-files` |
 | format_check | `uv run ruff format --check src tests project-files` |
 | typecheck | `uv run pyright` |
+| structure | `uv run deptry . --extend-exclude .claude` |
 | run | add when the entry point exists |
 
 Run every check: `mise run check` (CI runs the same checks).
