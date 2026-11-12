@@ -299,16 +299,34 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
 
 
-def refresh_manifest(target: Path) -> None:
+def _project_json(target: Path) -> dict[str, Any] | None:
+    """project.json, or None when there is none; an unreadable one stops."""
     path = target / PROJECT_JSON
     try:
-        data = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
-        files = cast(dict[str, str], data["manifest"]["files"])
-    except (OSError, ValueError, KeyError, TypeError):
+        data: object = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        problem: object = e
+    else:
+        if isinstance(data, dict):
+            return cast(dict[str, Any], data)
+        problem = "it isn't a JSON object"
+    raise GenerateError(
+        f"{path} can't be read as the interview answers ({problem}). Restore it "
+        f"with git checkout {PROJECT_JSON}, or fix it by hand, then retry."
+    )
+
+
+def refresh_manifest(target: Path) -> None:
+    data = _project_json(target)
+    manifest: object = data.get("manifest") if data is not None else None
+    if data is None or not isinstance(manifest, dict):
         return
+    files = cast(dict[str, str], cast(dict[str, Any], manifest).get("files", {}))
     present = [rel for rel in files if (target / rel).is_file()]
     data["manifest"]["files"] = file_hashes(target, present)
-    write_json(path, data)
+    write_json(target / PROJECT_JSON, data)
 
 
 def load_project_principles(target: Path) -> dict[str, Any]:
@@ -327,13 +345,10 @@ def load_project_principles(target: Path) -> dict[str, Any]:
 
 
 def project_book(target: Path) -> RecipeBook:
-    try:
-        data = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    data = _project_json(target)
+    if data is None:
         return RecipeBook()
-    if not isinstance(data, dict):
-        return RecipeBook()
-    raw: object = cast(dict[str, Any], data).get("recipes", {})
+    raw: object = data.get("recipes", {})
     return RecipeBook(drafted_recipes(raw, generated=True))
 
 

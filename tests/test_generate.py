@@ -416,6 +416,23 @@ def test_bootstrap_install_failure_points_at_the_install(
     assert "mise run check" not in message
 
 
+@pytest.mark.parametrize("text", ["{not json", "[1, 2]"])
+def test_bootstrap_names_unreadable_project_json(
+    tmp_path: Path, generate_scenario: GenerateScenario, text: str
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    answers = project / ".claude/alpha/project.json"
+    answers.write_text(text)
+    with pytest.raises(GenerateError) as err:
+        bootstrap(project, principles)
+    message = str(err.value)
+    assert message.startswith(f"{answers} can't be read as the interview answers")
+    assert "Restore it with git checkout .claude/alpha/project.json" in message
+
+
 def test_bootstrap_step_times_out_with_a_fix(
     tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
