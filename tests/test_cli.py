@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import tomllib
 from pathlib import Path
 
@@ -57,3 +58,16 @@ def test_every_module_imports_and_the_cli_runs_on_python_3_11():
     )
     assert done.returncode == 0, done.stderr
     assert "python (proven)" in done.stdout
+
+
+def test_startup_budget_bin_alpha_help_under_200_ms():
+    """docs/performance.md: bin/alpha starts in under 200 ms. The best of five
+    runs, so one slow scheduler tick on a busy machine doesn't fail it."""
+    shim = ROOT / "bin" / "alpha"
+    times: list[float] = []
+    for _ in range(5):
+        started = time.perf_counter()
+        done = subprocess.run([str(shim), "--help"], capture_output=True, timeout=30)
+        times.append(time.perf_counter() - started)
+        assert done.returncode == 0, done.stderr
+    assert min(times) < 0.2, f"bin/alpha --help took {min(times) * 1000:.0f} ms at best"
