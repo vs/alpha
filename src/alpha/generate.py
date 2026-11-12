@@ -197,6 +197,7 @@ def render_project(
             registry,
             _tooling_excludes(principles, book),
             components=principles["components"],
+            ci=a.build is not None and a.build.ci != "none",
         )
     )
     assert a.build is not None

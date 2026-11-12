@@ -61,9 +61,13 @@ _COMMUNICATION = (
     "- When you report finished work, end with one or two lines: what you skipped "
     "or didn't check, and any risk the user must know.",
 )
-_CHECK_RULES = (
+_GENERATOR_RULE = (
     "- When you add a code generator, add a `generate` task to `mise.toml` and to "
-    "the `ci` task's `depends`; CI fails when checks change tracked files.",
+    "the `ci` task's `depends`; "
+)
+_GENERATOR_WITH_CI = "CI fails when checks change tracked files."
+_GENERATOR_WITHOUT_CI = "commit what it regenerates with the change."
+_CHECK_RULES = (
     "- Never disable a lint rule to pass; an exception names one path and one "
     "rule, and a decision record that names that path gives the reason.",
     "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
@@ -228,6 +232,7 @@ def _stack_rules(principles: dict[str, Any]) -> list[str]:
 def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     ident = _identity(a)
     assert a.git is not None
+    has_ci = a.build is not None and a.build.ci != "none"
     lines = [f"# {ident.name}", "", ident.value_proposition, "", "## Principles", ""]
     lines += [
         f"- **{p['title']}**: {p['statement']}"
@@ -247,6 +252,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "## Working rules",
         "",
         *_WORKING_RULES,
+        _GENERATOR_RULE + (_GENERATOR_WITH_CI if has_ci else _GENERATOR_WITHOUT_CI),
         *_CHECK_RULES,
         "",
         "## Communication",
@@ -261,7 +267,8 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         c = next(x for x in a.components if x.name == comp["name"])
         lines += _command_table(c, comp) + [""]
     lines += [
-        "Run every check: `mise run check` (CI runs the same checks).",
+        "Run every check: `mise run check`"
+        + (" (CI runs the same checks)." if has_ci else "."),
         "",
     ]
     scopes = ", ".join([*a.git.scopes, "or another area it touches"])

@@ -48,7 +48,7 @@ def test_render_tooling_returns_the_tool_configs(tmp_path: Path):
     rendered = render_project(tmp_path, a, D, 2026, TODAY, registry=REGISTRY)
     checks = repo_checks(a, rendered.principles, REGISTRY)
     components = rendered.principles["components"]
-    out = render_tooling(checks, REGISTRY, ["target/"], components=components)
+    out = render_tooling(checks, REGISTRY, ["target/"], components=components, ci=True)
     assert set(out) == {
         "mise.toml",
         ".rumdl.toml",
@@ -282,3 +282,37 @@ def test_rumdl_leaves_paragraph_length_alone(tmp_path: Path):
     text = texts(tmp_path, "rust-cli")[".rumdl.toml"]
     assert tomllib.loads(text)["MD013"] == {"paragraphs": False}
     assert "one line per paragraph" in text
+
+
+def test_no_ci_wording_without_ci(tmp_path: Path):
+    data = json.loads((SCENARIOS / "rust-cli.json").read_text())
+    data["build"]["ci"] = "none"
+    data["overrides"].append(
+        {
+            "principle": "build-hosting-upfront",
+            "scope": "project",
+            "change": "loosen",
+            "params": {},
+            "reason": "Checks run locally before each commit.",
+        }
+    )
+    path = tmp_path / ".claude" / "alpha" / "project.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(data))
+    out = render_project(
+        tmp_path, load_answers(path), D, 2026, TODAY, registry=REGISTRY
+    )
+    assert not re.search(r"\bCI\b", out.texts["mise.toml"])
+    assert "CI runs" not in out.texts["CLAUDE.md"]
+    assert "CI fails" not in out.texts["CLAUDE.md"]
+    assert "commit what it regenerates with the change." in out.texts["CLAUDE.md"]
+    tasks = tomllib.loads(out.texts["mise.toml"])["tasks"]
+    assert tasks["ci"]["description"] == "Run the repository checks"
+    assert "Run every check: `mise run check`." in out.texts["CLAUDE.md"]
+
+
+def test_ci_wording_with_ci(tmp_path: Path):
+    out = texts(tmp_path, "rust-cli")
+    assert "(CI runs the same checks)" in out["CLAUDE.md"]
+    assert "what CI runs on a pull request" in out["mise.toml"]
+    assert "CI fails when checks change tracked files." in out["CLAUDE.md"]
