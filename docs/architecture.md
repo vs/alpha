@@ -14,7 +14,7 @@ Components do not communicate with each other.
 
 ## Tool choices
 
-- alpha-python: the stack's own toolchain. Commands: `uv sync`, `uv run pytest`, `uv run ruff check src tests project-files`, `uv run ruff format src tests project-files`, `uv run ruff format --check src tests project-files`, `uv run pyright` (less proven: recipe drafted for this project)
+- alpha-python: the stack's own toolchain. Commands: `uv sync`, `uv run pytest`, `uv run ruff check src tests project-files`, `uv run ruff format src tests project-files`, `uv run ruff format --check src tests project-files`, `uv run pyright`, `uv run deptry . --extend-exclude .claude` (less proven: recipe drafted for this project)
 
 ## Responsibilities
 
