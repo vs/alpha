@@ -151,13 +151,13 @@ def test_survey_refusals(tmp_path: Path):
 def test_survey_reads_one_listing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     root = _repo(tmp_path, {f"src/f{i}.py": "" for i in range(30)})
     calls: list[tuple[str, ...]] = []
-    real = adopt._git
+    real = adopt.run_git
 
     def counting(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
         calls.append(args)
         return real(target, *args)
 
-    monkeypatch.setattr(adopt, "_git", counting)
+    monkeypatch.setattr(adopt, "run_git", counting)
     survey(root, SOURCE)
     assert sum(1 for c in calls if c[0] == "ls-files") == 1
     assert len(calls) < 15  # a fixed number of git calls, whatever the repo's size

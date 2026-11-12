@@ -7,6 +7,7 @@ import sys
 import time
 from typing import Any
 
+import _common
 import pytest
 import review
 import stop_checks
@@ -1163,7 +1164,7 @@ def test_slot_wait_past_deadline_is_a_problem_and_not_cached(
     def no_slot(deadline: float) -> Any:
         yield False
 
-    monkeypatch.setattr(stop_checks._common, "heavy_slot", no_slot)
+    monkeypatch.setattr(_common, "heavy_slot", no_slot)
     project.set_commands("api", typecheck=STUB, structure="", test="")
     data = project.principles()
     problems = stop_checks.command_problems(

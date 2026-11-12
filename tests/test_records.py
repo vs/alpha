@@ -1,8 +1,9 @@
 import json
 from dataclasses import replace
 from datetime import date
+from pathlib import Path
 
-from helpers import SCENARIOS, TODAY
+from helpers import SCENARIOS, TODAY, GenerateScenario
 
 from alpha.answers import PROJECT_JSON, answers_snapshot, load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -14,7 +15,9 @@ from alpha.render.docs import render_docs
 SCENARIO = SCENARIOS / "web-ts-plus-python-api.json"
 
 
-def test_fresh_numbering_matches_generation(tmp_path, generate_scenario):
+def test_fresh_numbering_matches_generation(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     files = generate_scenario(tmp_path, "web-ts-plus-python-api")
     a = load_answers(tmp_path / PROJECT_JSON)
     r = record_paths(a)
@@ -23,7 +26,7 @@ def test_fresh_numbering_matches_generation(tmp_path, generate_scenario):
     ]
 
 
-def test_known_paths_stay_and_new_ones_follow_the_highest_number(tmp_path):
+def test_known_paths_stay_and_new_ones_follow_the_highest_number(tmp_path: Path):
     base = load_answers(SCENARIO)
     a = replace(
         base,
@@ -82,7 +85,7 @@ def test_dependency_rows_use_each_components_added_date():
 
 
 def test_generate_records_applied_answers_records_and_added(
-    tmp_path, generate_scenario
+    tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     data = json.loads((tmp_path / PROJECT_JSON).read_text())

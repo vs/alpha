@@ -35,14 +35,14 @@ generated-files: report
 """
 
 
-def _expand(value: object, folder: str) -> object:
+def expand(value: object, folder: str) -> object:
     if isinstance(value, str):
         return _DIR.sub(lambda _: folder, value)
     if isinstance(value, dict):
         items = cast("dict[str, object]", value).items()
-        return {k: _expand(v, folder) for k, v in items}
+        return {k: expand(v, folder) for k, v in items}
     if isinstance(value, list):
-        return [_expand(v, folder) for v in cast("list[object]", value)]
+        return [expand(v, folder) for v in cast("list[object]", value)]
     return value
 
 
@@ -53,7 +53,7 @@ def _pinned(registry: Registry, repo: str) -> Commented:
 
 def _step(step: object, folder: str) -> object:
     """A recipe step: ${dir} expanded, its version shown as a comment on `uses`."""
-    expanded = cast("dict[str, object]", _expand(step, folder))
+    expanded = cast("dict[str, object]", expand(step, folder))
     version = expanded.pop("version", None)
     if isinstance(version, str) and isinstance(expanded.get("uses"), str):
         expanded["uses"] = Commented(cast("str", expanded["uses"]), version)

@@ -127,7 +127,12 @@ def _repo_with(tmp_path: Path, commands: dict[str, str], **extra: Any) -> Path:
     (root / "svc" / "findings.txt").write_text("a.py:1: E1\na.py:2: E1\nb.py:1: E2\n")
     git(root, "add", "-A")
     git(root, "commit", "-q", "-m", "feat: Start")
-    recipe = {**shell_recipe(), "adopted": True, "templates": {}, "allow": []}
+    recipe: dict[str, Any] = {
+        **shell_recipe(),
+        "adopted": True,
+        "templates": {},
+        "allow": [],
+    }
     recipe["commands"] = {**recipe["commands"], "test": "true", **commands}
     recipe.update(extra)
     project = root / ".claude/alpha/project.json"

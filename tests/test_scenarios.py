@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import TODAY, git, place_answers
+from helpers import TODAY, GenerateScenario, git, place_answers
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
@@ -83,7 +83,9 @@ def principles_of(target: Path) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
-def test_scenario_skeleton(tmp_path: Path, scenario: str, generate_scenario):
+def test_scenario_skeleton(
+    tmp_path: Path, scenario: str, generate_scenario: GenerateScenario
+):
     files = generate_scenario(tmp_path, scenario)
     for f in [
         "CLAUDE.md",
@@ -109,7 +111,9 @@ def test_scenario_skeleton(tmp_path: Path, scenario: str, generate_scenario):
     assert all(sha256(tmp_path / p) == h for p, h in m["files"].items())
 
 
-def test_generated_guard_blocks_no_verify(tmp_path: Path, generate_scenario):
+def test_generated_guard_blocks_no_verify(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     payload = {"tool_name": "Bash", "tool_input": {"command": "git commit -nm x"}}
     done = subprocess.run(
@@ -125,7 +129,7 @@ def test_generated_guard_blocks_no_verify(tmp_path: Path, generate_scenario):
 
 
 def test_commit_skeleton_groups_and_trailers(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     hashes = commit_skeleton(tmp_path, principles_of(tmp_path), [TRAILER])
@@ -182,7 +186,7 @@ def test_commit_skeleton_groups_and_trailers(
 
 
 def test_commit_skeleton_component_at_root_takes_the_rest(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "python-ml-single")
     commit_skeleton(tmp_path, principles_of(tmp_path), [])
@@ -206,7 +210,7 @@ def test_commit_skeleton_component_at_root_takes_the_rest(
 
 
 def test_commit_skeleton_goes_through_the_real_commit_msg_hook(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "python-ml-single")
     data = principles_of(tmp_path)
@@ -218,7 +222,7 @@ def test_commit_skeleton_goes_through_the_real_commit_msg_hook(
 
 
 def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     data = principles_of(tmp_path)
@@ -238,7 +242,7 @@ def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
 
 
 def test_commit_skeleton_rerun_finishes_after_a_partial_failure(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "python-ml-single")
     data = principles_of(tmp_path)
@@ -260,7 +264,10 @@ def test_commit_skeleton_rerun_finishes_after_a_partial_failure(
 
 
 def test_commit_skeleton_refuses_a_guessed_git_identity(
-    tmp_path: Path, generate_scenario, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    generate_scenario: GenerateScenario,
+    git_env: None,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     # No user.name/user.email anywhere: git would otherwise guess one from
     # the login and host name (e.g. you@your-mac.local) and commit with it.
@@ -280,7 +287,7 @@ def test_commit_skeleton_refuses_a_guessed_git_identity(
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
 def test_ds_store_is_never_committed(
-    tmp_path: Path, scenario: str, generate_scenario, git_env
+    tmp_path: Path, scenario: str, generate_scenario: GenerateScenario, git_env: None
 ):
     (tmp_path / ".DS_Store").write_text("")
     (tmp_path / ".claude" / "alpha").mkdir(parents=True)
@@ -299,7 +306,7 @@ def settings_hook(settings: dict[str, Any], event: str, matcher: str | None) -> 
 
 
 def test_generated_hooks_enforce_the_generated_principles(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
     target = tmp_path / "proj"
     answers = place_answers(target, "web-ts-plus-python-api")
@@ -345,7 +352,10 @@ def test_generated_hooks_enforce_the_generated_principles(
     assert "0001 Product identity [accepted]" in told
     assert "- tests-first-class: drop, scope component:web (" in told
 
-    edit = {"tool_name": "Write", "tool_input": {"file_path": str(target / "x")}}
+    edit: dict[str, Any] = {
+        "tool_name": "Write",
+        "tool_input": {"file_path": str(target / "x")},
+    }
     for rel in ("api/main.py", "web/app/page.tsx"):
         (target / rel).parent.mkdir(parents=True, exist_ok=True)
         (target / rel).write_text("x\n")
@@ -394,7 +404,9 @@ def test_generated_hooks_enforce_the_generated_principles(
     assert hook("PreToolUse", "Bash", no_verify).returncode == 2
 
 
-def test_commit_skeleton_commits_ci_last(tmp_path: Path, generate_scenario, git_env):
+def test_commit_skeleton_commits_ci_last(
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
+):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     commit_skeleton(tmp_path, principles_of(tmp_path), [])
     assert git_log_subjects(tmp_path)[:2] == [

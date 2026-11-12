@@ -360,7 +360,7 @@ def test_ci_skips_slots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def test_nested_skips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _slot_env(monkeypatch, tmp_path)
     with _common.heavy_slot(time.monotonic() + 5):
-        code, out = _common.run_command('echo "$ALPHA_SLOT_HELD"', tmp_path, 10)
+        _, out = _common.run_command('echo "$ALPHA_SLOT_HELD"', tmp_path, 10)
         assert out.strip() == "1"
         # a nested call does not wait on the slot its parent holds
         with _common.heavy_slot(time.monotonic() + 0.3) as got:

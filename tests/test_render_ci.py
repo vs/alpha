@@ -2,7 +2,7 @@ import copy
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from helpers import proven, shell_recipe
@@ -18,7 +18,7 @@ from alpha.render.ci import (
     JACTIONLINT,
     SCHEDULED,
     WORKFLOW,
-    _expand,
+    expand,
     render_ci,
     render_dependabot,
 )
@@ -35,9 +35,11 @@ def workflow(principles: dict[str, Any]) -> dict[Any, Any]:
 
 def values(node: object) -> list[str]:
     if isinstance(node, dict):
-        return [v for item in node.values() for v in values(item)]
+        return [
+            v for item in cast(dict[str, object], node).values() for v in values(item)
+        ]
     if isinstance(node, list):
-        return [v for item in node for v in values(item)]
+        return [v for item in cast(list[object], node) for v in values(item)]
     return [node] if isinstance(node, str) else []
 
 
@@ -83,7 +85,7 @@ def test_checkout_keeps_no_credentials():
 
 
 def test_dir_expansion_leaves_other_dollars_alone():
-    assert _expand("${dir}a $$ $HOME ${{ env.X }}", "api/") == (
+    assert expand("${dir}a $$ $HOME ${{ env.X }}", "api/") == (
         "api/a $$ $HOME ${{ env.X }}"
     )
 

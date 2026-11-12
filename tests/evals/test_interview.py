@@ -1,9 +1,12 @@
 import os
 from pathlib import Path
+from typing import Any
 
 from alpha_evals.claude import run_claude
 from alpha_evals.interview import Config, interview
 from alpha_evals.scenario import load_brief
+
+from .conftest import FakeClaude
 
 BRIEF = load_brief("python-ml-single")
 
@@ -14,7 +17,7 @@ def project_in(tmp_path: Path) -> Path:
     return project
 
 
-def go(fake, tmp_path: Path, **config):
+def go(fake: FakeClaude, tmp_path: Path, **config: Any):
     project = project_in(tmp_path)
     kit = tmp_path / "kit"
     cfg = Config(claude=fake.command, **config)
@@ -25,7 +28,7 @@ def arg_after(argv: list[str], flag: str) -> str:
     return argv[argv.index(flag) + 1]
 
 
-def test_loop_alternates_and_ends_on_the_token(fake, tmp_path: Path):
+def test_loop_alternates_and_ends_on_the_token(fake: FakeClaude, tmp_path: Path):
     fake.reply("Q1?", session="s-int")
     fake.reply("A1", session="s-user")
     fake.reply("Done, committed.", session="s-int")
@@ -58,29 +61,29 @@ def test_loop_alternates_and_ends_on_the_token(fake, tmp_path: Path):
     assert arg_after(user2["argv"], "--resume") == "s-user"
 
 
-def test_a_failed_call_stops_with_its_stderr(fake, tmp_path: Path):
+def test_a_failed_call_stops_with_its_stderr(fake: FakeClaude, tmp_path: Path):
     fake.fail(exit=1, stderr="auth expired\n")
     _, _, t = go(fake, tmp_path)
     assert t.outcome.status == "fail"
     assert "assistant call failed: exit 1: auth expired" in t.outcome.detail
 
 
-def test_a_failed_user_call_names_the_user(fake, tmp_path: Path):
+def test_a_failed_user_call_names_the_user(fake: FakeClaude, tmp_path: Path):
     fake.reply("Q1?")
     fake.fail(exit=3, stderr="rate limited")
     _, _, t = go(fake, tmp_path)
     assert "user call failed: exit 3: rate limited" in t.outcome.detail
 
 
-def test_non_json_output_is_a_failure_not_a_crash(fake, tmp_path: Path):
+def test_non_json_output_is_a_failure_not_a_crash(fake: FakeClaude, tmp_path: Path):
     fake.fail(exit=0, stdout="oops")
     _, _, t = go(fake, tmp_path)
     assert t.outcome.status == "fail"
     assert "not JSON: oops" in t.outcome.detail
 
 
-def test_an_error_result_is_a_failure(fake, tmp_path: Path):
-    fake._add(
+def test_an_error_result_is_a_failure(fake: FakeClaude, tmp_path: Path):
+    fake.add(
         {
             "stdout": {
                 "subtype": "error_max_turns",
@@ -97,7 +100,7 @@ def test_an_error_result_is_a_failure(fake, tmp_path: Path):
     assert t.cost_usd == 0.5
 
 
-def test_exchange_cap_stops_a_looping_interview(fake, tmp_path: Path):
+def test_exchange_cap_stops_a_looping_interview(fake: FakeClaude, tmp_path: Path):
     for _ in range(3):
         fake.reply("Same question?")
         fake.reply("Same answer")
@@ -107,7 +110,7 @@ def test_exchange_cap_stops_a_looping_interview(fake, tmp_path: Path):
     assert len(t.exchanges) == 4
 
 
-def test_budget_stops_before_the_next_call(fake, tmp_path: Path):
+def test_budget_stops_before_the_next_call(fake: FakeClaude, tmp_path: Path):
     for _ in range(3):
         fake.reply("Q?", cost=0.03)
         fake.reply("A", cost=0.03)
@@ -117,7 +120,7 @@ def test_budget_stops_before_the_next_call(fake, tmp_path: Path):
     assert len(fake.calls()) == 2
 
 
-def test_denials_are_collected(fake, tmp_path: Path):
+def test_denials_are_collected(fake: FakeClaude, tmp_path: Path):
     denial = {"tool_name": "Bash", "tool_input": {"command": "python3 -"}}
     fake.reply("Q1?", denials=[denial])
     fake.reply("<<END>>")
@@ -144,8 +147,10 @@ def test_run_claude_reports_a_missing_binary(tmp_path: Path):
     assert "no-such-claude-x" in turn.error
 
 
-def test_a_failed_json_result_keeps_its_reason_and_cost(fake, tmp_path: Path):
-    fake._add(
+def test_a_failed_json_result_keeps_its_reason_and_cost(
+    fake: FakeClaude, tmp_path: Path
+):
+    fake.add(
         {
             "stdout": {
                 "subtype": "success",
@@ -162,13 +167,13 @@ def test_a_failed_json_result_keeps_its_reason_and_cost(fake, tmp_path: Path):
     assert t.cost_usd == 0.02
 
 
-def test_a_failure_reported_on_stdout_is_shown(fake, tmp_path: Path):
+def test_a_failure_reported_on_stdout_is_shown(fake: FakeClaude, tmp_path: Path):
     fake.fail(exit=1, stdout="Rate limited, retry later")
     _, _, t = go(fake, tmp_path)
     assert "Rate limited, retry later" in t.outcome.detail
 
 
-def test_each_call_gets_the_remaining_budget(fake, tmp_path: Path):
+def test_each_call_gets_the_remaining_budget(fake: FakeClaude, tmp_path: Path):
     fake.reply("Q?", cost=0.25)
     fake.reply("<<END>>", cost=0.5)
     go(fake, tmp_path, max_usd=2)

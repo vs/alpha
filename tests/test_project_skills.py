@@ -2,7 +2,7 @@ import re
 from datetime import date
 
 from alpha.cli import PLUGIN_ROOT
-from alpha.render.docs import _decision
+from alpha.render.docs import decision_record
 
 DECISION = PLUGIN_ROOT / "project-files" / "skills" / "decision" / "SKILL.md"
 
@@ -39,7 +39,7 @@ def test_decision_skill_keeps_claude_md_in_step_with_overrides():
 
 
 def test_decision_skill_matches_the_interview_format():
-    record = _decision(7, "Use OpenAPI", date(2026, 10, 23), "c", "d", "q")
+    record = decision_record(7, "Use OpenAPI", date(2026, 10, 23), "c", "d", "q")
     lines = record.splitlines()
     assert re.fullmatch(r"# \d{4}\. .+", lines[0])
     text = DECISION.read_text()

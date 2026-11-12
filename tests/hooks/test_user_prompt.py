@@ -1,4 +1,5 @@
 import json
+import subprocess
 from typing import Any
 
 import pytest
@@ -34,7 +35,7 @@ def accepted(project: Project) -> dict[str, Any]:
     return {f["id"]: f["accepted"] for f in review.load_state(project.root)["findings"]}
 
 
-def context(proc) -> str:
+def context(proc: subprocess.CompletedProcess[str]) -> str:
     data = json.loads(proc.stdout)["hookSpecificOutput"]
     assert data["hookEventName"] == "UserPromptSubmit"
     return data["additionalContext"]

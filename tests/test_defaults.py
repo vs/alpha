@@ -17,7 +17,7 @@ from alpha.defaults import (
     CONDITIONS,
     DefaultsError,
     Source,
-    _list_gap,
+    list_gap,
     load_defaults,
     load_survey,
     locate_source,
@@ -263,7 +263,7 @@ def test_set_default_on_a_whitespace_only_changelog(tmp_path: Path):
     ("existing", "gap"), [("", ""), ("\n\n", ""), ("  ", "\n"), (" \n\t\n", "")]
 )
 def test_list_gap_without_text_adds_no_blank_line(existing: str, gap: str):
-    assert _list_gap(existing) == gap
+    assert list_gap(existing) == gap
 
 
 @pytest.mark.slow

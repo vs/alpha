@@ -13,8 +13,8 @@ addopts = "-m 'not slow'"
 
 [tool.pyright]
 include = ["src", "project-files/hooks", "project-files/checks", "tests"]
-typeCheckingMode = "standard"
-strict = ["src", "project-files/hooks", "project-files/checks"]
+typeCheckingMode = "strict"
+reportUnnecessaryTypeIgnoreComment = "error"
 extraPaths = ["src", "project-files/hooks", "project-files/checks"]
 
 [tool.ruff.lint]

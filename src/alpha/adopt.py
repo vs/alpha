@@ -46,7 +46,7 @@ class AdoptError(Exception):
     """The repo can't be adopted as it is; the message says what to do."""
 
 
-def _git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def run_git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             ["git", *args], cwd=target, capture_output=True, text=True
@@ -56,7 +56,7 @@ def _git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def _out(target: Path, *args: str) -> str | None:
-    done = _git(target, *args)
+    done = run_git(target, *args)
     return done.stdout.strip() if done.returncode == 0 else None
 
 
@@ -111,7 +111,7 @@ def _status_paths(target: Path, untracked: str = "normal") -> list[str]:
     """The paths `git status` lists, with untracked files shown as `untracked`
     says (normal: folders, all: every file)."""
     # Unstripped: each entry starts with its status column, often a space.
-    status = _git(target, "status", "--porcelain", "-z", f"-u{untracked}").stdout
+    status = run_git(target, "status", "--porcelain", "-z", f"-u{untracked}").stdout
     fields = status.split("\0")
     paths: list[str] = []
     i = 0
@@ -159,7 +159,7 @@ def _git_facts(target: Path, defaults: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tracked(target: Path) -> list[str]:
-    done = _git(target, "ls-files", "-z")
+    done = run_git(target, "ls-files", "-z")
     if done.returncode != 0:
         raise AdoptError(f"git ls-files failed in {target}: {done.stderr.strip()}")
     return sorted(p for p in done.stdout.split("\0") if p)
@@ -310,7 +310,7 @@ _MUST_TRACK = (
 
 def _ignored(target: Path) -> list[str]:
     """`git check-ignore -v` lines for alpha's paths the repo ignores."""
-    done = _git(target, "check-ignore", "-v", "--", *_MUST_TRACK)
+    done = run_git(target, "check-ignore", "-v", "--", *_MUST_TRACK)
     return [line for line in done.stdout.splitlines() if line.strip()]
 
 
@@ -439,7 +439,7 @@ def _branch(target: Path) -> str:
             f"A branch {ADOPT_BRANCH} already exists. Switch to it (git switch "
             f"{ADOPT_BRANCH}) to go on with that adoption, or delete it, then retry."
         )
-    done = _git(target, "switch", "--quiet", "-c", ADOPT_BRANCH)
+    done = run_git(target, "switch", "--quiet", "-c", ADOPT_BRANCH)
     if done.returncode != 0:
         raise AdoptError(
             f"git couldn't create {ADOPT_BRANCH}: {done.stderr.strip()}. Fix that, "
@@ -463,7 +463,7 @@ def apply_adoption(target: Path, adoption: AdoptionPlan) -> list[str]:
     notes = [f"On branch {branch}.", *adoption.notes]
     adopting = cast(dict[str, Any], adoption.update.answers["adoption"])
     if adopting.get("git_hooks") == "alpha":
-        done = _git(target, "config", "core.hooksPath", HOOKS_PATH)
+        done = run_git(target, "config", "core.hooksPath", HOOKS_PATH)
         if done.returncode != 0:
             raise AdoptError(
                 f"git couldn't set core.hooksPath: {done.stderr.strip()}. Run git "

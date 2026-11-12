@@ -175,7 +175,9 @@ def test_dropped_clean_history_accepts_any_message(project: Project) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_shim_explains_a_missing_python3(project: Project, tmp_path_factory) -> None:
+def test_shim_explains_a_missing_python3(
+    project: Project, tmp_path_factory: pytest.TempPathFactory
+) -> None:
     bin_dir = tmp_path_factory.mktemp("bin")
     git_exe = shutil.which("git")
     assert git_exe is not None

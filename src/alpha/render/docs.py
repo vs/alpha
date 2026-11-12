@@ -500,7 +500,7 @@ def _dependencies(a: Answers, today: date, added: Mapping[str, date]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _decision(
+def decision_record(
     number: int,
     title: str,
     day: date,
@@ -564,7 +564,7 @@ def render_docs(
         )
     for d, path in zip(a.decisions, records.decisions, strict=True):
         kind = "product" if d.area in PRODUCT_AREAS else "technical"
-        out[path] = _decision(
+        out[path] = decision_record(
             record_number(path),
             d.title,
             today,
@@ -574,7 +574,7 @@ def render_docs(
             f"Kind: {kind}",
         )
     for o, path in zip(a.overrides, records.overrides, strict=True):
-        out[path] = _decision(
+        out[path] = decision_record(
             record_number(path),
             f"Override {o.principle}",
             today,

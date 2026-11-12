@@ -5,7 +5,7 @@ import review
 
 from .conftest import Project
 
-FINDING = {
+FINDING: dict[str, object] = {
     "principle": "safe-migrations",
     "file": "api/migrations/0001.sql",
     "line": 1,

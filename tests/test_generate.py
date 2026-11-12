@@ -5,7 +5,9 @@ import re
 import subprocess
 import sys
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -13,6 +15,7 @@ from helpers import (
     SCENARIOS,
     SHIM,
     TODAY,
+    GenerateScenario,
     generated_repo,
     git,
     override_record,
@@ -82,7 +85,7 @@ def source_head() -> str | None:
 
 
 def test_manifest_records_kit_defaults_and_hashes(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     original = json.loads(
@@ -105,7 +108,7 @@ def test_manifest_records_kit_defaults_and_hashes(
 
 
 def test_manifest_abbreviates_the_home_directory(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setenv("HOME", str(ROOT.parent))
     generate_scenario(tmp_path, "python-ml-single")
@@ -123,7 +126,9 @@ def test_manifest_commit_is_null_for_bundled_defaults(
     assert m["defaults"] == {"path": str(ROOT), "live": False, "commit": None}
 
 
-def test_gitignore_prefixes_component_paths(tmp_path: Path, generate_scenario):
+def test_gitignore_prefixes_component_paths(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     assert (tmp_path / ".gitignore").read_text() == (
         ".claude/alpha/state/\n"
@@ -147,7 +152,9 @@ def test_gitignore_prefixes_component_paths(tmp_path: Path, generate_scenario):
     )
 
 
-def test_gitignore_for_root_component(tmp_path: Path, generate_scenario):
+def test_gitignore_for_root_component(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, "python-ml-single")
     assert (tmp_path / ".gitignore").read_text() == (
         ".claude/alpha/state/\n"
@@ -180,7 +187,11 @@ def test_gitignore_for_root_component(tmp_path: Path, generate_scenario):
     ],
 )
 def test_gitignore_ignores_env_files_but_not_the_example(
-    tmp_path: Path, generate_scenario, git_env, rel: str, ignored: bool
+    tmp_path: Path,
+    generate_scenario: GenerateScenario,
+    git_env: None,
+    rel: str,
+    ignored: bool,
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     git(tmp_path, "init", "-q")
@@ -191,7 +202,7 @@ def test_gitignore_ignores_env_files_but_not_the_example(
 
 
 def test_copies_hook_scripts_tools_and_executable_githook(
-    tmp_path: Path, generate_scenario
+    tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, "python-ml-single")
     hooks = tmp_path / ".claude/alpha/hooks"
@@ -228,7 +239,9 @@ def test_copies_hook_scripts_tools_and_executable_githook(
     assert agent.read_text() == (ROOT / "project-files/agents/committer.md").read_text()
 
 
-def test_override_decision_file_matches_principles(tmp_path: Path, generate_scenario):
+def test_override_decision_file_matches_principles(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     files = generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = (tmp_path / "docs/principles.toml").read_text()
     answers = json.loads((tmp_path / ".claude/alpha/project.json").read_text())
@@ -237,7 +250,9 @@ def test_override_decision_file_matches_principles(tmp_path: Path, generate_scen
     assert f'override_decision = "{path}"' in principles
 
 
-def test_decision_records_carry_the_full_date(tmp_path: Path, generate_scenario):
+def test_decision_records_carry_the_full_date(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     for record in sorted((tmp_path / "docs/decisions").glob("*.md")):
         assert "\nDate: 2026-10-19\n" in record.read_text(), record.name
@@ -263,7 +278,7 @@ def fake_tools(
 
 def test_bootstrap_runs_bootstrap_setup_test_per_component(
     tmp_path: Path,
-    generate_scenario,
+    generate_scenario: GenerateScenario,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
@@ -318,7 +333,7 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
 
 
 def test_bootstrap_without_mise_says_how_to_install(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -354,7 +369,7 @@ def mise_recording_argv(bin_dir: Path, fail_on: str = "") -> Path:
 
 
 def test_bootstrap_installs_only_the_project_s_check_tools(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     # A bare `mise install` would also install the user's global tools.
     project = tmp_path / "proj"
@@ -375,7 +390,7 @@ def test_bootstrap_installs_only_the_project_s_check_tools(
 
 
 def test_bootstrap_install_failure_points_at_the_install(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -400,7 +415,7 @@ def test_bootstrap_install_failure_points_at_the_install(
 
 
 def test_bootstrap_repo_check_failure_names_command_and_fix(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -427,7 +442,7 @@ def test_bootstrap_repo_check_failure_names_command_and_fix(
 
 
 def test_bootstrap_without_mise_toml_skips_the_repository_checks(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -441,7 +456,7 @@ def test_bootstrap_without_mise_toml_skips_the_repository_checks(
 
 
 def test_bootstrap_only_named_components(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -456,7 +471,7 @@ def test_bootstrap_only_named_components(
 
 
 def test_bootstrap_unknown_component_is_explained(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -472,7 +487,7 @@ def test_bootstrap_unknown_component_is_explained(
 
 
 def test_bootstrap_refreshes_the_manifest_hashes(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -493,7 +508,7 @@ def test_bootstrap_refreshes_the_manifest_hashes(
 
 
 def test_bootstrap_failure_names_command_output_and_fix(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -517,7 +532,7 @@ def test_bootstrap_failure_names_command_output_and_fix(
 
 
 def test_bootstrap_keeps_only_the_last_40_lines(
-    tmp_path: Path, generate_scenario, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
@@ -585,7 +600,9 @@ def test_cli_bootstrap_without_principles_exits_1(tmp_path: Path):
     assert "alpha generate" in out.stderr
 
 
-def test_cli_commit_skeleton_with_trailers(tmp_path: Path, generate_scenario, git_env):
+def test_cli_commit_skeleton_with_trailers(
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
+):
     generate_scenario(tmp_path, "python-ml-single")
     out = run_cli(
         "commit-skeleton", str(tmp_path), "--trailer", "A: b", "--trailer", "C: d"
@@ -602,14 +619,14 @@ def test_cli_commit_skeleton_with_trailers(tmp_path: Path, generate_scenario, gi
 
 
 def test_answers_still_load_after_the_manifest_is_added(
-    tmp_path: Path, generate_scenario
+    tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     out = run_cli("answers", "check", str(tmp_path / PROJECT_JSON))
     assert out.returncode == 0, out.stderr
 
 
-def edit_principles(target: Path, edit) -> None:
+def edit_principles(target: Path, edit: Callable[[dict[str, Any]], object]) -> None:
     path = target / "docs/principles.toml"
     data = tomllib.loads(path.read_text())
     edit(data)
@@ -623,7 +640,9 @@ def assert_explained(out: subprocess.CompletedProcess[str], *needles: str) -> No
         assert needle in out.stderr
 
 
-def test_cli_bootstrap_explains_unknown_stack(tmp_path: Path, generate_scenario):
+def test_cli_bootstrap_explains_unknown_stack(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, "python-ml-single")
     edit_principles(tmp_path, lambda d: d["components"][0].update(stack="cobol"))
     out = run_cli("bootstrap", str(tmp_path))
@@ -633,7 +652,7 @@ def test_cli_bootstrap_explains_unknown_stack(tmp_path: Path, generate_scenario)
 
 
 def test_cli_bootstrap_explains_missing_principles_key(
-    tmp_path: Path, generate_scenario
+    tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, "python-ml-single")
     edit_principles(tmp_path, lambda d: d["components"][0]["commands"].pop("setup"))
@@ -709,7 +728,7 @@ def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: 
     assert not (tmp_path / "CLAUDE.md").exists()
 
 
-def test_tooling_commit(tmp_path: Path, git_env):
+def test_tooling_commit(tmp_path: Path, git_env: None):
     repo = generated_repo(tmp_path, "web-ts-plus-python-api")
     subjects = git(repo, "log", "--format=%s").splitlines()
     subject = "build: Pin the repository's check tools"

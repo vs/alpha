@@ -1,21 +1,24 @@
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from helpers import generated_repo
 
 from alpha_evals.interview import Config
 from alpha_evals.reviewer import check_reviewer, probe_prompt
 
+from .conftest import FakeClaude
+
 STATE = ".claude/alpha/state/review.json"
 
 
-def write_state(findings: list[dict]) -> str:
+def write_state(findings: list[dict[str, Any]]) -> str:
     text = json.dumps({"findings": findings}).replace("'", "'\\''")
     return f"mkdir -p .claude/alpha/state && printf '%s' '{text}' > {STATE}"
 
 
-def probe(fake, tmp_path: Path, findings: list[dict] | None):
+def probe(fake: FakeClaude, tmp_path: Path, findings: list[dict[str, Any]] | None):
     project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
     run = None if findings is None else write_state(findings)
     fake.reply("Done.", run=run)
@@ -27,7 +30,7 @@ def test_prompt_names_the_component():
     assert probe_prompt({"name": "api"}).startswith("In the api component,")
 
 
-def test_seeded_finding_passes(fake, tmp_path: Path, git_env):
+def test_seeded_finding_passes(fake: FakeClaude, tmp_path: Path, git_env: None):
     finding = {
         "id": "F-1",
         "principle": "fail-helpfully",
@@ -46,14 +49,16 @@ def test_seeded_finding_passes(fake, tmp_path: Path, git_env):
     assert call["argv"][call["argv"].index("--permission-mode") + 1] == "acceptEdits"
 
 
-def test_other_findings_warn(fake, tmp_path: Path, git_env):
+def test_other_findings_warn(fake: FakeClaude, tmp_path: Path, git_env: None):
     finding = {"id": "F-1", "principle": "docs-match-code", "problem": "x"}
     _, check, _ = probe(fake, tmp_path, [finding])
     assert check.status == "warn"
     assert "docs-match-code" in check.detail
 
 
-def test_accepted_findings_do_not_count(fake, tmp_path: Path, git_env):
+def test_accepted_findings_do_not_count(
+    fake: FakeClaude, tmp_path: Path, git_env: None
+):
     finding = {
         "id": "F-1",
         "principle": "fail-helpfully",
@@ -65,12 +70,12 @@ def test_accepted_findings_do_not_count(fake, tmp_path: Path, git_env):
     assert check.detail == "no review findings recorded"
 
 
-def test_no_state_fails(fake, tmp_path: Path, git_env):
+def test_no_state_fails(fake: FakeClaude, tmp_path: Path, git_env: None):
     _, check, _ = probe(fake, tmp_path, None)
     assert (check.status, check.detail) == ("fail", "no review findings recorded")
 
 
-def test_a_failed_session_fails(fake, tmp_path: Path, git_env):
+def test_a_failed_session_fails(fake: FakeClaude, tmp_path: Path, git_env: None):
     project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
     fake.fail(exit=1, stderr="boom")
     check, _ = check_reviewer(project, dict(os.environ), Config(claude=fake.command))
@@ -85,11 +90,11 @@ def test_prompt_asks_to_leave_findings_open():
 
 
 def test_findings_count_even_when_the_session_hits_its_turn_cap(
-    fake, tmp_path: Path, git_env
+    fake: FakeClaude, tmp_path: Path, git_env: None
 ):
     project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
     finding = {"id": "F-1", "principle": "never-weaken-checks", "problem": "catch-all"}
-    fake._add(
+    fake.add(
         {
             "stdout": {
                 "subtype": "error_max_turns",
@@ -105,7 +110,9 @@ def test_findings_count_even_when_the_session_hits_its_turn_cap(
     assert check.status == "pass"
 
 
-def test_reviewer_gets_the_remaining_budget(fake, tmp_path: Path, git_env):
+def test_reviewer_gets_the_remaining_budget(
+    fake: FakeClaude, tmp_path: Path, git_env: None
+):
     project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
     fake.reply("Done.")
     check_reviewer(project, dict(os.environ), Config(claude=fake.command), budget=3.456)
@@ -113,7 +120,9 @@ def test_reviewer_gets_the_remaining_budget(fake, tmp_path: Path, git_env):
     assert argv[argv.index("--max-budget-usd") + 1] == "3.46"
 
 
-def test_no_budget_left_skips_the_probe(fake, tmp_path: Path, git_env):
+def test_no_budget_left_skips_the_probe(
+    fake: FakeClaude, tmp_path: Path, git_env: None
+):
     project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
     check, _ = check_reviewer(
         project, dict(os.environ), Config(claude=fake.command, max_usd=5), budget=0

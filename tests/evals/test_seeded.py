@@ -40,14 +40,18 @@ def test_seed_source_path_refuses_globs_it_cannot_satisfy():
         seed_source_path(c)
 
 
-def test_hooks_pass_on_a_fresh_skeleton(tmp_path: Path, git_env, stub_tools):
+def test_hooks_pass_on_a_fresh_skeleton(
+    tmp_path: Path, git_env: None, stub_tools: Path
+):
     project = generated_repo(tmp_path / "p", WEB)
     check = check_hooks(project, tmp_path / "scratch")
     assert check.name == "hooks"
     assert (check.status, check.detail) == ("pass", "")
 
 
-def test_hooks_fail_when_the_bash_guard_is_unwired(tmp_path: Path, git_env, stub_tools):
+def test_hooks_fail_when_the_bash_guard_is_unwired(
+    tmp_path: Path, git_env: None, stub_tools: Path
+):
     project = generated_repo(tmp_path / "p", WEB)
     path = project / ".claude/settings.json"
     settings = json.loads(path.read_text())
@@ -62,7 +66,7 @@ def test_hooks_fail_when_the_bash_guard_is_unwired(tmp_path: Path, git_env, stub
 
 
 def test_hooks_expect_no_untested_flag_where_tests_first_class_is_dropped(
-    tmp_path: Path, git_env, stub_tools
+    tmp_path: Path, git_env: None, stub_tools: Path
 ):
     project = generated_repo(tmp_path / "p", WEB)
     path = project / "docs/principles.toml"
@@ -75,7 +79,9 @@ def test_hooks_expect_no_untested_flag_where_tests_first_class_is_dropped(
     assert (check.status, check.detail) == ("pass", "")
 
 
-def test_hooks_leave_the_project_untouched(tmp_path: Path, git_env, stub_tools):
+def test_hooks_leave_the_project_untouched(
+    tmp_path: Path, git_env: None, stub_tools: Path
+):
     project = generated_repo(tmp_path / "p", WEB)
     before = snapshot(project)
     check_hooks(project, tmp_path / "scratch")
@@ -94,7 +100,7 @@ def stub_commands(project: Path, **steps: str) -> None:
     git(path.parent.parent, "commit", "-qam", "chore: Stub the checks")
 
 
-def test_commands_pass_when_every_check_does(tmp_path: Path, git_env):
+def test_commands_pass_when_every_check_does(tmp_path: Path, git_env: None):
     project = generated_repo(tmp_path / "p", "python-ml-single")
     stub_commands(project)
     check = check_commands(project)
@@ -102,7 +108,7 @@ def test_commands_pass_when_every_check_does(tmp_path: Path, git_env):
     assert (check.status, check.detail) == ("pass", "")
 
 
-def test_commands_report_the_failing_command(tmp_path: Path, git_env):
+def test_commands_report_the_failing_command(tmp_path: Path, git_env: None):
     project = generated_repo(tmp_path / "p", "python-ml-single")
     stub_commands(project, test="echo boom; false")
     check = check_commands(project)
@@ -110,7 +116,7 @@ def test_commands_report_the_failing_command(tmp_path: Path, git_env):
     assert 'ml: "echo boom; false" failed (exit 1): boom' in check.detail
 
 
-def test_commands_flag_checks_that_change_files(tmp_path: Path, git_env):
+def test_commands_flag_checks_that_change_files(tmp_path: Path, git_env: None):
     project = generated_repo(tmp_path / "p", "python-ml-single")
     stub_commands(project, format_check="touch stray.txt")
     check = check_commands(project)
@@ -119,7 +125,7 @@ def test_commands_flag_checks_that_change_files(tmp_path: Path, git_env):
 
 
 def test_a_hung_command_times_out(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(seeded, "COMMAND_TIMEOUT", 0.5)
     project = generated_repo(tmp_path / "p", "python-ml-single")
@@ -130,7 +136,7 @@ def test_a_hung_command_times_out(
 
 
 def test_a_hung_hook_times_out(
-    tmp_path: Path, git_env, stub_tools, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, stub_tools: Path, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(seeded, "HOOK_TIMEOUT", 0.5)
     project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
@@ -157,7 +163,7 @@ def lax_mise(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_repo_seeds_pass_when_every_check_fails_on_its_seed(
-    tmp_path: Path, git_env, stub_tools
+    tmp_path: Path, git_env: None, stub_tools: Path
 ):
     project = generated_repo(tmp_path / "p", WEB)
     check = check_repo_seeds(project)
@@ -165,7 +171,7 @@ def test_repo_seeds_pass_when_every_check_fails_on_its_seed(
 
 
 def test_repo_seeds_name_a_check_that_misses_its_seed(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
     project = generated_repo(tmp_path / "p", WEB)
     lax_mise(tmp_path, monkeypatch)
@@ -175,7 +181,9 @@ def test_repo_seeds_name_a_check_that_misses_its_seed(
         assert f"{name}: expected exit" in check.detail
 
 
-def test_repo_seeds_leave_the_project_untouched(tmp_path: Path, git_env, stub_tools):
+def test_repo_seeds_leave_the_project_untouched(
+    tmp_path: Path, git_env: None, stub_tools: Path
+):
     project = generated_repo(tmp_path / "p", WEB)
     before = snapshot(project)
     check_repo_seeds(project)
@@ -184,7 +192,7 @@ def test_repo_seeds_leave_the_project_untouched(tmp_path: Path, git_env, stub_to
 
 
 def test_repo_seeds_say_when_mise_is_missing(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
     project = generated_repo(tmp_path / "p", WEB)
     monkeypatch.setenv("PATH", str(tmp_path))
@@ -194,7 +202,7 @@ def test_repo_seeds_say_when_mise_is_missing(
 
 
 def test_repo_seeds_restore_files_when_a_check_times_out(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
     project = generated_repo(tmp_path / "p", WEB)
     bin_dir = tmp_path / "slow-bin"

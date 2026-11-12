@@ -1,18 +1,17 @@
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from helpers import TODAY, place_answers
+from helpers import TODAY, GenerateScenario, place_answers
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import generate
 
-GenerateScenario = Callable[[Path, str], list[str]]
-
 
 @pytest.fixture(autouse=True)
-def own_alpha_config(tmp_path_factory: pytest.TempPathFactory, monkeypatch):
+def own_alpha_config(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setenv("ALPHA_CONFIG_DIR", str(tmp_path_factory.mktemp("alpha")))
     monkeypatch.delenv("ALPHA_SOURCE", raising=False)
 
@@ -28,7 +27,9 @@ def generate_scenario() -> GenerateScenario:
 
 
 @pytest.fixture
-def git_env(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+def git_env(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
     config = tmp_path_factory.mktemp("gitconfig") / "config"
     config.write_text("")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))

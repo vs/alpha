@@ -4,6 +4,7 @@ import tomllib
 import types
 import typing
 from dataclasses import is_dataclass
+from typing import cast
 
 import pytest
 
@@ -78,8 +79,8 @@ def _section(skill: str, title: str) -> str:
 
 def _subcommands(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
     for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            return dict(action.choices)  # pyright: ignore[reportUnknownArgumentType]
+        if action.nargs == argparse.PARSER:
+            return cast(dict[str, argparse.ArgumentParser], action.choices)
     return {}
 
 

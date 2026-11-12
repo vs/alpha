@@ -1,5 +1,6 @@
 import tomllib
 from collections.abc import Mapping
+from typing import Any
 
 import pytest
 
@@ -29,7 +30,7 @@ def test_nested_tables_and_odd_keys() -> None:
 
 
 def test_array_of_tables_with_subtable() -> None:
-    d = {
+    d: dict[str, Any] = {
         "components": [
             {"name": "api", "commands": {"test": "uv run pytest"}},
             {"name": "web", "commands": {}},

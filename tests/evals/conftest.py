@@ -1,7 +1,9 @@
 import json
 import os
 import sys
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, TypedDict, cast
 
 import pytest
 
@@ -36,7 +38,7 @@ def honest_mise() -> str:
 @pytest.fixture
 def stub_tools(
     tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-):
+) -> Path:
     bin_dir = tmp_path_factory.mktemp("bin")
     log = bin_dir / "tools.log"
     for tool in ("uv", "pnpm"):
@@ -65,18 +67,31 @@ def snapshot(project: Path) -> dict[str, bytes]:
 FAKE = Path(__file__).with_name("fake_claude.py")
 
 
+class Call(TypedDict):
+    argv: list[str]
+    cwd: str
+    stdin: str
+
+
 class FakeClaude:
     def __init__(self, folder: Path) -> None:
         self.folder = folder
         self.command = (sys.executable, str(FAKE))
         (folder / "replies.jsonl").write_text("")
 
-    def _add(self, reply: dict) -> None:
+    def add(self, reply: dict[str, Any]) -> None:
         with (self.folder / "replies.jsonl").open("a") as f:
             f.write(json.dumps(reply) + "\n")
 
-    def reply(self, text, session="s-a", cost=0.01, denials=(), run=None) -> None:
-        self._add(
+    def reply(
+        self,
+        text: str,
+        session: str = "s-a",
+        cost: float = 0.01,
+        denials: Sequence[dict[str, Any]] = (),
+        run: str | None = None,
+    ) -> None:
+        self.add(
             {
                 "stdout": {
                     "type": "result",
@@ -91,18 +106,20 @@ class FakeClaude:
             }
         )
 
-    def fail(self, exit=1, stderr="", stdout="") -> None:
-        self._add({"stdout": stdout, "exit": exit, "stderr": stderr})
+    def fail(self, exit: int = 1, stderr: str = "", stdout: str = "") -> None:
+        self.add({"stdout": stdout, "exit": exit, "stderr": stderr})
 
-    def calls(self) -> list[dict]:
+    def calls(self) -> list[Call]:
         path = self.folder / "calls.jsonl"
         if not path.exists():
             return []
-        return [json.loads(line) for line in path.read_text().splitlines()]
+        return [cast(Call, json.loads(line)) for line in path.read_text().splitlines()]
 
 
 @pytest.fixture
-def fake(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+def fake(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> FakeClaude:
     folder = tmp_path_factory.mktemp("fake-claude")
     monkeypatch.setenv("FAKE_CLAUDE_DIR", str(folder))
     return FakeClaude(folder)

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import TODAY, git, place_answers
+from helpers import TODAY, GenerateScenario, git, place_answers
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
@@ -32,7 +32,7 @@ NEEDS_CARGO = pytest.mark.skipif(
     ],
 )
 def test_bootstrap_runs_green(
-    tmp_path: Path, scenario: str, generate_scenario, git_env
+    tmp_path: Path, scenario: str, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, scenario)
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
@@ -75,7 +75,7 @@ UNFORMATTED = {
 
 @pytest.mark.slow
 def test_format_check_fails_on_an_unformatted_file(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
@@ -96,7 +96,7 @@ def test_format_check_fails_on_an_unformatted_file(
 
 
 @pytest.mark.slow
-def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env):
+def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env: None):
     answers = place_answers(tmp_path, "python-ml-single")
     data = json.loads(answers.read_text())
     data["components"][0].update(stack="typescript", kind="cli")
@@ -124,7 +124,7 @@ def mise_run(cwd: Path, task: str) -> subprocess.CompletedProcess[str]:
     ],
 )
 def test_scenarios_pass_repo_checks(
-    tmp_path: Path, scenario: str, generate_scenario, git_env
+    tmp_path: Path, scenario: str, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, scenario)
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
@@ -148,16 +148,20 @@ def bootstrapped_web(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture
-def seeded(bootstrapped_web: Path, request: pytest.FixtureRequest) -> Iterator[Path]:
-    """The bootstrapped project with one seed applied, reverted afterwards."""
-    _, rel, change, _ = SEEDS[request.param]
+def seeded(
+    bootstrapped_web: Path, request: pytest.FixtureRequest
+) -> Iterator[tuple[str, Path]]:
+    """The seed's check and the bootstrapped project with the seed applied,
+    reverted afterwards."""
+    check: str = request.param
+    _, rel, change, _ = SEEDS[check]
     path = bootstrapped_web / rel
     before = path.read_text() if path.exists() else None
     after = change(before)
-    assert after != before, f"the {request.param} seed changed nothing"
+    assert after != before, f"the {check} seed changed nothing"
     path.write_text(after)
     try:
-        yield bootstrapped_web
+        yield check, bootstrapped_web
     finally:
         if before is None:
             path.unlink()
@@ -167,11 +171,11 @@ def seeded(bootstrapped_web: Path, request: pytest.FixtureRequest) -> Iterator[P
 
 @pytest.mark.slow
 @pytest.mark.parametrize("seeded", list(SEEDS), indirect=True)
-def test_repo_checks_can_fail(seeded: Path, request: pytest.FixtureRequest):
-    check = request.node.callspec.params["seeded"]
+def test_repo_checks_can_fail(seeded: tuple[str, Path]):
+    check, project = seeded
     pin = load_registry(Source(PLUGIN_ROOT, True)).tool(SEEDS[check][0]).pin
     assert pin is not None
-    done = mise_run(seeded, f"check:{check}")
+    done = mise_run(project, f"check:{check}")
     output = done.stdout + done.stderr
     # mise run passes the task's exit code through unchanged.
     assert done.returncode == pin.fails_with, output
@@ -188,7 +192,7 @@ def _sh(
 
 @pytest.mark.slow
 def test_structure_fails_on_unused_dependency(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
@@ -211,7 +215,9 @@ def test_structure_fails_on_unused_dependency(
 
 
 @pytest.mark.slow
-def test_depcruise_reports_a_cycle(tmp_path: Path, generate_scenario, git_env):
+def test_depcruise_reports_a_cycle(
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
+):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
     bootstrap(tmp_path, principles)
@@ -237,7 +243,9 @@ def test_depcruise_reports_a_cycle(tmp_path: Path, generate_scenario, git_env):
 
 
 @pytest.mark.slow
-def test_diff_cover_catches_untested_line(tmp_path: Path, generate_scenario, git_env):
+def test_diff_cover_catches_untested_line(
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
+):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
     bootstrap(tmp_path, principles)
@@ -299,7 +307,7 @@ def test_diff_cover_catches_untested_line(tmp_path: Path, generate_scenario, git
 
 @pytest.mark.slow
 def test_diff_cover_catches_untested_typescript_line(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
@@ -357,7 +365,7 @@ def test_diff_cover_catches_untested_typescript_line(
 @pytest.mark.slow
 @NEEDS_CARGO
 def test_rust_checks_fail_on_their_violations(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "rust-cli")
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
@@ -398,7 +406,7 @@ def test_rust_checks_fail_on_their_violations(
 @pytest.mark.slow
 @NEEDS_CARGO
 def test_diff_cover_catches_untested_rust_line(
-    tmp_path: Path, generate_scenario, git_env
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "rust-cli")
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())

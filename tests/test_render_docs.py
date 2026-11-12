@@ -1,5 +1,6 @@
 import copy
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,9 @@ FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 D = load_defaults(Source(PLUGIN_ROOT, True))
 
 
-def load(tmp_path: Path, mutate: Any = None) -> Answers:
+def load(
+    tmp_path: Path, mutate: Callable[[dict[str, Any]], object] | None = None
+) -> Answers:
     data = copy.deepcopy(json.loads(FIXTURE.read_text()))
     if mutate:
         mutate(data)

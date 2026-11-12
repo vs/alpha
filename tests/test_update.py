@@ -5,11 +5,12 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import review
 from helpers import (
+    GenerateScenario,
     clone_component,
     generated_repo,
     git,
@@ -85,9 +86,9 @@ def move_component(data: dict[str, Any], name: str, new: str) -> None:
         if isinstance(value, str) and value.startswith(f"{old}/"):
             return f"{new}/{value[len(old) + 1 :]}"
         if isinstance(value, list):
-            return [moved(v) for v in value]
+            return [moved(v) for v in cast(list[Any], value)]
         if isinstance(value, dict):
-            return {k: moved(v) for k, v in value.items()}
+            return {k: moved(v) for k, v in cast(dict[str, Any], value).items()}
         return value
 
     for key in list(data):
@@ -105,16 +106,16 @@ def remove_component(data: dict[str, Any], name: str) -> None:
             section, dict
         ):
             continue
-        entries = section.get("components")
+        entries: object = cast(dict[str, Any], section).get("components")
         if isinstance(entries, list):
-            section["components"] = [
-                e
-                for e in entries
-                if not (isinstance(e, dict) and e.get("name") == name)
+            kept = [
+                e for e in cast(list[dict[str, Any]], entries) if e.get("name") != name
             ]
-            for e in section["components"]:
-                if isinstance(e, dict) and isinstance(e.get("calls"), list):
-                    e["calls"] = [c for c in e["calls"] if c != name]
+            section["components"] = kept
+            for e in kept:
+                calls: object = e.get("calls")
+                if isinstance(calls, list):
+                    e["calls"] = [c for c in cast(list[str], calls) if c != name]
     data["git"]["scopes"] = [s for s in data["git"]["scopes"] if s != name]
     data["components_talk"] = False
 
@@ -130,7 +131,9 @@ def test_unfinished_interview_points_to_new_project(tmp_path: Path):
         plan(tmp_path)
 
 
-def test_refuses_a_project_without_applied_answers(tmp_path: Path, generate_scenario):
+def test_refuses_a_project_without_applied_answers(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, SCENARIO)
     data = answers(tmp_path)
     del data["manifest"]["applied"]
@@ -144,7 +147,7 @@ def test_refuses_a_project_without_applied_answers(tmp_path: Path, generate_scen
 
 
 def test_baseline_that_no_longer_loads_names_the_alpha_to_use(
-    tmp_path: Path, generate_scenario
+    tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, SCENARIO)
     data = answers(tmp_path)
@@ -176,14 +179,16 @@ def test_commit_group_sorts_paths_by_what_made_them():
         assert commit_group(tooling, component_of) == "tooling"
 
 
-def test_nothing_to_change_after_generation(tmp_path: Path, git_env):
+def test_nothing_to_change_after_generation(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     p = plan(target)
     assert p.changes == ()
     assert describe(p, target) == "alpha update: nothing to change"
 
 
-def test_invalid_answers_name_the_area_to_revisit(tmp_path: Path, generate_scenario):
+def test_invalid_answers_name_the_area_to_revisit(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, SCENARIO)
     data = answers(tmp_path)
     data["components"].append(
@@ -196,7 +201,9 @@ def test_invalid_answers_name_the_area_to_revisit(tmp_path: Path, generate_scena
     assert str(err.value).startswith("Revisit the architecture area:")
 
 
-def test_changed_decision_is_refused(tmp_path: Path, generate_scenario):
+def test_changed_decision_is_refused(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, SCENARIO)
     data = answers(tmp_path)
     data["decisions"][0]["title"] = "A better title"
@@ -205,7 +212,7 @@ def test_changed_decision_is_refused(tmp_path: Path, generate_scenario):
         plan(tmp_path)
 
 
-def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env):
+def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     claude_md = target / "CLAUDE.md"
     claude_md.write_text(claude_md.read_text() + "Team rule: ask before deploys.\n")
@@ -225,7 +232,7 @@ def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env):
 
 
 def test_new_decision_is_numbered_after_the_projects_own_records(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
     records = target / "docs" / "decisions"
@@ -248,7 +255,7 @@ def test_new_decision_is_numbered_after_the_projects_own_records(
 
 
 def test_overlapping_edit_leaves_the_file_and_writes_a_proposal(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
     principles = target / "docs/principles.toml"
@@ -266,7 +273,9 @@ def test_overlapping_edit_leaves_the_file_and_writes_a_proposal(
     assert "merge by hand" in describe(p, target)
 
 
-def test_uncommitted_change_in_a_file_alpha_changes_is_refused(tmp_path: Path, git_env):
+def test_uncommitted_change_in_a_file_alpha_changes_is_refused(
+    tmp_path: Path, git_env: None
+):
     target = generated_repo(tmp_path, SCENARIO)
     claude_md = target / "CLAUDE.md"
     claude_md.write_text(claude_md.read_text() + "Draft rule.\n")
@@ -279,7 +288,7 @@ def test_uncommitted_change_in_a_file_alpha_changes_is_refused(tmp_path: Path, g
     assert "Commit or stash" in str(err.value)
 
 
-def test_stale_files_are_listed_not_deleted(tmp_path: Path, git_env):
+def test_stale_files_are_listed_not_deleted(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
     data["releases"]["changelog"] = "none"
@@ -292,7 +301,9 @@ def test_stale_files_are_listed_not_deleted(tmp_path: Path, git_env):
     assert "stale     CHANGELOG.md" in describe(p, target)
 
 
-def test_added_component_gets_templates_ci_and_dated_rows(tmp_path: Path, git_env):
+def test_added_component_gets_templates_ci_and_dated_rows(
+    tmp_path: Path, git_env: None
+):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
     clone_component(data, "api", "worker", "worker")
@@ -315,7 +326,7 @@ def test_added_component_gets_templates_ci_and_dated_rows(tmp_path: Path, git_en
 
 
 def test_new_component_folder_with_uncommitted_files_is_refused(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
     (target / "worker").mkdir()
@@ -329,7 +340,9 @@ def test_new_component_folder_with_uncommitted_files_is_refused(
     )
 
 
-def test_moved_component_waits_for_its_files(tmp_path: Path, generate_scenario):
+def test_moved_component_waits_for_its_files(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
     generate_scenario(tmp_path, SCENARIO)
     data = answers(tmp_path)
     move_component(data, "api", "backend")
@@ -342,7 +355,7 @@ OVERRIDE_RECORD = "docs/decisions/0018-override-observability.md"
 
 
 def test_removing_a_component_with_a_scoped_override_plans_cleanly(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
@@ -364,7 +377,7 @@ def test_removing_a_component_with_a_scoped_override_plans_cleanly(
     assert kinds(plan(target))["docs/principles.toml"] == "change"
 
 
-def test_renaming_a_component_leaves_its_override_inert(tmp_path: Path, git_env):
+def test_renaming_a_component_leaves_its_override_inert(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
     clone_component(data, "api", "backend", "api")
@@ -383,7 +396,7 @@ def test_renaming_a_component_leaves_its_override_inert(tmp_path: Path, git_env)
 
 
 def test_override_for_a_component_that_never_existed_is_refused(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
@@ -395,7 +408,7 @@ def test_override_for_a_component_that_never_existed_is_refused(
 
 def test_moved_component_without_manifests_waits_for_its_files(tmp_path: Path):
     data = json.loads(place_answers(tmp_path, SCENARIO).read_text())
-    recipe = {**shell_recipe(), "manifests": []}
+    recipe: dict[str, Any] = {**shell_recipe(), "manifests": []}
     data["recipes"] = {"shell": proven(recipe)}
     next(c for c in data["components"] if c["name"] == "api")["stack"] = "shell"
     (tmp_path / PROJECT_JSON).write_text(json.dumps(data))
@@ -408,7 +421,7 @@ def test_moved_component_without_manifests_waits_for_its_files(tmp_path: Path):
         plan(tmp_path)
 
 
-def test_moved_component_merges_against_its_old_files(tmp_path: Path, git_env):
+def test_moved_component_merges_against_its_old_files(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     git(target, "mv", "api", "backend")
     commit(target, "refactor: Move the API to backend")
@@ -424,7 +437,7 @@ def test_moved_component_merges_against_its_old_files(tmp_path: Path, git_env):
     assert p.changes
 
 
-def test_applied_update_becomes_the_new_baseline(tmp_path: Path, git_env):
+def test_applied_update_becomes_the_new_baseline(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
     smaller_reviews(data)
@@ -440,7 +453,7 @@ def test_applied_update_becomes_the_new_baseline(tmp_path: Path, git_env):
     assert describe(plan(target), target) == "alpha update: nothing to change"
 
 
-def test_update_refuses_while_an_update_awaits_commit(tmp_path: Path, git_env):
+def test_update_refuses_while_an_update_awaits_commit(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     principles = target / "docs/principles.toml"
     principles.write_text(
@@ -457,7 +470,7 @@ def test_update_refuses_while_an_update_awaits_commit(tmp_path: Path, git_env):
     assert (target / PROPOSALS / "docs/principles.toml").is_file()
 
 
-def test_update_with_nothing_to_change_writes_nothing(tmp_path: Path, git_env):
+def test_update_with_nothing_to_change_writes_nothing(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     before = (target / PROJECT_JSON).read_bytes()
     out = run_cli("update", str(target), env={"ALPHA_SOURCE": str(PLUGIN_ROOT)})
@@ -467,7 +480,7 @@ def test_update_with_nothing_to_change_writes_nothing(tmp_path: Path, git_env):
     assert not (target / UPDATE_STATE).exists()
 
 
-def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env):
+def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
     smaller_reviews(data)
@@ -494,7 +507,9 @@ def commit_the_update(target: Path) -> tuple[list[str], list[str]]:
     return commit_update(target, load_project_principles(target), [])
 
 
-def test_commit_update_commits_only_alphas_files_in_groups(tmp_path: Path, git_env):
+def test_commit_update_commits_only_alphas_files_in_groups(
+    tmp_path: Path, git_env: None
+):
     target = generated_repo(tmp_path, SCENARIO)
     base = git(target, "rev-parse", "HEAD")
     add_worker(target)
@@ -521,7 +536,7 @@ def test_commit_update_commits_only_alphas_files_in_groups(tmp_path: Path, git_e
 
 
 def test_commit_update_names_an_existing_components_changed_templates(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
     base = git(target, "rev-parse", "HEAD")
@@ -543,7 +558,7 @@ def test_commit_update_names_an_existing_components_changed_templates(
 
 
 def test_commit_update_with_only_the_manifest_commits_it_and_clears_state(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
     base = git(target, "rev-parse", "HEAD")
@@ -561,13 +576,13 @@ def test_commit_update_with_only_the_manifest_commits_it_and_clears_state(
     assert not (target / UPDATE_STATE).exists()
 
 
-def test_commit_update_without_an_update_is_explained(tmp_path: Path, git_env):
+def test_commit_update_without_an_update_is_explained(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     with pytest.raises(GenerateError, match="Nothing to commit: run alpha update"):
         commit_the_update(target)
 
 
-def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env):
+def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     principles = target / "docs/principles.toml"
     principles.write_text(
@@ -600,7 +615,9 @@ def conflicting_update(target: Path) -> Path:
     return principles
 
 
-def test_commit_update_keeps_proposals_of_unmerged_conflicts(tmp_path: Path, git_env):
+def test_commit_update_keeps_proposals_of_unmerged_conflicts(
+    tmp_path: Path, git_env: None
+):
     target = generated_repo(tmp_path, SCENARIO)
     conflicting_update(target)
     commit_the_update(target)
@@ -608,7 +625,7 @@ def test_commit_update_keeps_proposals_of_unmerged_conflicts(tmp_path: Path, git
     assert not (target / UPDATE_STATE).exists()
 
 
-def test_update_state_labels_conflict_digests(tmp_path: Path, git_env):
+def test_update_state_labels_conflict_digests(tmp_path: Path, git_env: None):
     # The secrets check scans the state folder too, and reads bare hex next
     # to a path like "...-api-keys.md" as a leaked key.
     target = generated_repo(tmp_path, SCENARIO)
@@ -620,7 +637,7 @@ def test_update_state_labels_conflict_digests(tmp_path: Path, git_env):
     }
 
 
-def test_commit_update_reads_a_pre_label_state_file(tmp_path: Path, git_env):
+def test_commit_update_reads_a_pre_label_state_file(tmp_path: Path, git_env: None):
     # An update.json written before digests were labelled holds bare hex.
     target = generated_repo(tmp_path, SCENARIO)
     conflicting_update(target)
@@ -636,7 +653,9 @@ def test_commit_update_reads_a_pre_label_state_file(tmp_path: Path, git_env):
     assert (target / PROPOSALS / "docs/principles.toml").is_file()
 
 
-def test_commit_update_deletes_proposals_of_merged_conflicts(tmp_path: Path, git_env):
+def test_commit_update_deletes_proposals_of_merged_conflicts(
+    tmp_path: Path, git_env: None
+):
     target = generated_repo(tmp_path, SCENARIO)
     principles = conflicting_update(target)
     principles.write_text(principles.read_text().replace("150", "120"))
@@ -645,7 +664,7 @@ def test_commit_update_deletes_proposals_of_merged_conflicts(tmp_path: Path, git
     assert not (target / PROPOSALS).exists()
 
 
-def test_later_update_leaves_an_earlier_kept_proposal(tmp_path: Path, git_env):
+def test_later_update_leaves_an_earlier_kept_proposal(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     conflicting_update(target)
     commit_the_update(target)
@@ -658,10 +677,8 @@ def test_later_update_leaves_an_earlier_kept_proposal(tmp_path: Path, git_env):
 
 
 def test_apply_update_absorbs_alphas_changes_into_review(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
-
     target = generated_repo(tmp_path, SCENARIO)
     review.ensure_state(target)
     add_worker(target)
@@ -673,10 +690,8 @@ def test_apply_update_absorbs_alphas_changes_into_review(
 
 
 def test_absorb_leaves_edits_after_the_update_as_debt(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
-
     target = generated_repo(tmp_path, SCENARIO)
     review.ensure_state(target)
     add_worker(target)
@@ -688,10 +703,8 @@ def test_absorb_leaves_edits_after_the_update_as_debt(
 
 
 def test_review_hook_acts_on_the_target_not_the_sessions_project(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
-
     session, target = tmp_path / "session", tmp_path / "target"
     session.mkdir()
     target.mkdir()
@@ -721,7 +734,7 @@ runpy.run_path(str(Path(__file__).with_name("review_real.py")), run_name="__main
 
 
 def test_cli_update_says_the_reviewer_will_look_when_absorb_fails(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
     hooks = target / ".claude/alpha/hooks"
@@ -740,7 +753,7 @@ def test_cli_update_says_the_reviewer_will_look_when_absorb_fails(
 
 
 def test_commit_update_errors_name_commit_update(
-    tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
@@ -757,7 +770,7 @@ def test_commit_update_errors_name_commit_update(
 
 
 def test_commit_update_new_root_component_commits_only_alphas_files(
-    tmp_path: Path, git_env
+    tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, "python-ml-single")
     principles = load_project_principles(target)
@@ -783,7 +796,7 @@ def test_commit_update_new_root_component_commits_only_alphas_files(
     )
 
 
-def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env):
+def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     principles = target / "docs/principles.toml"
     principles.write_text(
@@ -813,7 +826,7 @@ TOOLING = (
 
 
 @pytest.fixture
-def pre_branch_project(tmp_path: Path, git_env) -> Path:
+def pre_branch_project(tmp_path: Path, git_env: None) -> Path:
     """The web+API scenario, generated and committed by the pre-branch kit."""
     known = subprocess.run(
         ["git", "cat-file", "-e", f"{PRE_BRANCH}^{{commit}}"],
@@ -881,7 +894,9 @@ def test_update_of_a_pre_branch_project_blames_kit_changes(pre_branch_project: P
     assert (target / "worker/pyproject.toml").is_file()
 
 
-def test_update_of_a_current_project_keeps_the_plain_notes(tmp_path: Path, git_env):
+def test_update_of_a_current_project_keeps_the_plain_notes(
+    tmp_path: Path, git_env: None
+):
     target = generated_repo(tmp_path, SCENARIO)
     (target / "docs/build.md").unlink()
     commit(target, "docs: Drop the build doc")

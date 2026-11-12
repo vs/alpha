@@ -348,7 +348,11 @@ def answers_write(
     return code, out, err
 
 
-START = {"schema": 1, "areas": dict.fromkeys(AREAS, "pending"), "decisions": []}
+START: dict[str, Any] = {
+    "schema": 1,
+    "areas": dict.fromkeys(AREAS, "pending"),
+    "decisions": [],
+}
 
 
 def test_answers_write_creates_the_file_and_its_folders(
@@ -702,7 +706,11 @@ def test_parse_answers_matches_load_answers(tmp_path: Path):
 
 
 def test_snapshot_leaves_out_the_manifest():
-    top = {"schema": 1, "manifest": {"files": {}}, "decisions": [{"area": "git"}]}
+    top: dict[str, Any] = {
+        "schema": 1,
+        "manifest": {"files": {}},
+        "decisions": [{"area": "git"}],
+    }
     snap = answers_snapshot(top)
     assert snap == {"schema": 1, "decisions": [{"area": "git"}]}
     snap["decisions"].append({})

@@ -3,6 +3,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, NoReturn
 
 import pytest
 from helpers import SCENARIOS, generated_repo, git
@@ -11,6 +12,8 @@ import alpha_evals.__main__ as cli
 from alpha_evals import run
 from alpha_evals.__main__ import main
 from alpha_evals.run import eval_env, prepare_kit, summary
+
+from .conftest import FakeClaude
 
 ORDER = [
     "interview",
@@ -27,7 +30,7 @@ ORDER = [
 ]
 
 
-def fake_interview(fake, scenario: str) -> None:
+def fake_interview(fake: FakeClaude, scenario: str) -> None:
     answers = shlex.quote(str(SCENARIOS / f"{scenario}.json"))
     fake.reply(
         "Generated and committed.",
@@ -41,15 +44,17 @@ def fake_interview(fake, scenario: str) -> None:
     fake.reply("<<END>>", session="s-user")
 
 
-def run_args(fake, out: Path, *more: str) -> list[str]:
+def run_args(fake: FakeClaude, out: Path, *more: str) -> list[str]:
     return ["run", *more, "--out", str(out), "--claude", shlex.join(fake.command)]
 
 
-def report_of(out: Path, scenario: str) -> dict:
+def report_of(out: Path, scenario: str) -> dict[str, Any]:
     return json.loads((out / scenario / "report.json").read_text())
 
 
-def test_offline_run_writes_a_passing_report(fake, tmp_path: Path, git_env, stub_tools):
+def test_offline_run_writes_a_passing_report(
+    fake: FakeClaude, tmp_path: Path, git_env: None, stub_tools: Path
+):
     fake_interview(fake, "python-ml-single")
     out = tmp_path / "out"
     assert main(run_args(fake, out, "python-ml-single", "--no-reviewer")) == 0
@@ -66,7 +71,9 @@ def test_offline_run_writes_a_passing_report(fake, tmp_path: Path, git_env, stub
     assert "| python-ml-single | pass |" in text
 
 
-def test_unfinished_interview_skips_the_checks(fake, tmp_path: Path, git_env):
+def test_unfinished_interview_skips_the_checks(
+    fake: FakeClaude, tmp_path: Path, git_env: None
+):
     fake.fail(exit=1, stderr="auth expired")
     out = tmp_path / "out"
     assert main(run_args(fake, out, "rust-cli")) == 1
@@ -79,9 +86,13 @@ def test_unfinished_interview_skips_the_checks(fake, tmp_path: Path, git_env):
 
 
 def test_a_crashing_check_is_recorded(
-    monkeypatch: pytest.MonkeyPatch, fake, tmp_path: Path, git_env, stub_tools
+    monkeypatch: pytest.MonkeyPatch,
+    fake: FakeClaude,
+    tmp_path: Path,
+    git_env: None,
+    stub_tools: Path,
 ):
-    def boom(project):
+    def boom(project: Path) -> NoReturn:
         raise RuntimeError("bad")
 
     monkeypatch.setattr(run, "check_files", boom)
@@ -94,7 +105,9 @@ def test_a_crashing_check_is_recorded(
     assert checks["commits"]["status"] == "pass"
 
 
-def test_denials_become_a_prompts_warning(fake, tmp_path: Path, git_env):
+def test_denials_become_a_prompts_warning(
+    fake: FakeClaude, tmp_path: Path, git_env: None
+):
     denial = {"tool_name": "Bash", "tool_input": {"command": "python3 - <<EOF"}}
     fake.reply("Q?", denials=[denial])
     fake.fail(exit=1, stderr="x")
@@ -132,7 +145,7 @@ def test_summary_lists_the_problems():
     assert "- rust-cli / answers (fail): /layout: x" in text
 
 
-def test_prepare_kit_reports_dirty_state(tmp_path: Path, git_env):
+def test_prepare_kit_reports_dirty_state(tmp_path: Path, git_env: None):
     repo = tmp_path / "repo"
     repo.mkdir()
     git(repo, "init", "-q", "-b", "main")
@@ -164,7 +177,7 @@ def test_unknown_scenario_exits_2(capsys: pytest.CaptureFixture[str]):
 
 
 def test_check_subcommand_on_a_generated_project(
-    tmp_path: Path, git_env, stub_tools, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, git_env: None, stub_tools: Path, capsys: pytest.CaptureFixture[str]
 ):
     project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
     assert main(["check", str(project), "web-ts-plus-python-api"]) == 0
@@ -184,7 +197,7 @@ def test_shim_runs_the_cli():
 
 
 def test_a_relative_out_becomes_absolute(
-    fake, tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
+    fake: FakeClaude, tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.chdir(tmp_path)
     fake.fail(exit=1, stderr="x")
@@ -198,7 +211,7 @@ def test_a_relative_out_becomes_absolute(
 
 
 def test_a_run_folder_inside_the_kit_is_refused(
-    fake, capsys: pytest.CaptureFixture[str]
+    fake: FakeClaude, capsys: pytest.CaptureFixture[str]
 ):
     inside = Path(run.PLUGIN_ROOT) / ".superpowers" / "eval-run"
     assert main(run_args(fake, inside, "rust-cli")) == 2
@@ -207,15 +220,19 @@ def test_a_run_folder_inside_the_kit_is_refused(
     assert fake.calls() == []
 
 
-def test_the_kit_clone_has_no_remote(tmp_path: Path, git_env):
+def test_the_kit_clone_has_no_remote(tmp_path: Path, git_env: None):
     prepare_kit(Path(run.PLUGIN_ROOT), tmp_path / "kit")
     assert git(tmp_path / "kit", "remote") == ""
 
 
 def test_a_crashing_reviewer_is_recorded(
-    monkeypatch: pytest.MonkeyPatch, fake, tmp_path: Path, git_env, stub_tools
+    monkeypatch: pytest.MonkeyPatch,
+    fake: FakeClaude,
+    tmp_path: Path,
+    git_env: None,
+    stub_tools: Path,
 ):
-    def boom(*args, **kwargs):
+    def boom(*args: object, **kwargs: object) -> NoReturn:
         raise RuntimeError("bad principles")
 
     monkeypatch.setattr(run, "check_reviewer", boom)
@@ -228,11 +245,11 @@ def test_a_crashing_reviewer_is_recorded(
 
 
 def test_a_crashing_scenario_does_not_stop_the_run(
-    monkeypatch: pytest.MonkeyPatch, fake, tmp_path: Path, git_env
+    monkeypatch: pytest.MonkeyPatch, fake: FakeClaude, tmp_path: Path, git_env: None
 ):
     real = cli.run_scenario
 
-    def flaky(name, *args, **kwargs):
+    def flaky(name: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
         if name == "rust-cli":
             raise RuntimeError("disk full")
         return real(name, *args, **kwargs)
