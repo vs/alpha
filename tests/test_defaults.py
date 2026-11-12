@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import stop_checks
+from test_repo_checks import REGISTRY, scenario
 
 from alpha.defaults import (
     CONDITIONS,
@@ -140,8 +142,6 @@ def test_reversible_work_does_not_wait_for_the_user():
 
 def hook_checks() -> set[tuple[str, str]]:
     hooks = ROOT / "project-files" / "hooks"
-    sys.path.insert(0, str(hooks))
-    import stop_checks
 
     found = {(p, "hook:stop_checks") for p in stop_checks.COMMAND_PRINCIPLES.values()}
     call = re.compile(r'principle_applies\(\s*\w+,\s*"([a-z-]+)"')
@@ -165,8 +165,6 @@ def test_checked_by_names_the_hooks_that_check_each_principle():
 
 def catalog_ids() -> set[str]:
     """Every repository check id, from a project with every conditional on."""
-    from test_repo_checks import REGISTRY, scenario
-
     with tempfile.TemporaryDirectory() as tmp:
         a, _ = scenario(Path(tmp), "web-ts-plus-python-api")
         principles = build_principles(

@@ -2,6 +2,8 @@ import json
 import subprocess
 from typing import Any
 
+import post_edit
+
 from .conftest import Project
 
 LINT_FAIL = "python3 -c \"import sys; print('E1 bad'); sys.exit(1)\""
@@ -119,8 +121,6 @@ def test_output_tail_is_last_60_lines(project: Project) -> None:
 
 
 def test_timeout_blocks_naming_command(project: Project, monkeypatch: Any) -> None:
-    import post_edit
-
     monkeypatch.setattr(post_edit, "TIMEOUT", 1)
     code = None
     try:

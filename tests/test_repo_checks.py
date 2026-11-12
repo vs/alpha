@@ -1,4 +1,5 @@
 import json
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -171,8 +172,6 @@ def test_principles_carry_stop_checks(tmp_path: Path):
 
 
 def test_principles_file_round_trips_repo_checks(tmp_path: Path):
-    import tomllib
-
     a, _ = scenario(tmp_path, "web-ts-plus-python-api")
     principles = build_principles(D, a, "0.1.0", registry=REGISTRY)
     read = tomllib.loads(render_principles(principles))

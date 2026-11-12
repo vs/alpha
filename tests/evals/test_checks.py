@@ -6,6 +6,7 @@ import pytest
 from helpers import generated_repo, git
 
 from alpha_evals.checks import (
+    Check,
     check_answers,
     check_commits,
     check_files,
@@ -140,8 +141,6 @@ def test_commits_fails_without_any_commit(tmp_path: Path, git_env):
 
 
 def test_check_to_json():
-    from alpha_evals.checks import Check
-
     assert Check("files", "pass").to_json() == {
         "name": "files",
         "status": "pass",

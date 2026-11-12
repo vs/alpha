@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, NoReturn, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
-import _common  # noqa: E402
+import _common
 
 BASELINES = ".claude/alpha/baselines"
 TAIL_LINES = 40

@@ -9,7 +9,7 @@ from .conftest import OLD_PYTHON, Project
 HOOKS_PATH = ".claude/alpha/githooks"
 
 
-def start(project: Project, **extra: object):  # noqa: ANN201
+def start(project: Project, **extra: object):
     return project.run_hook(
         "session_start.py", {"hook_event_name": "SessionStart", **extra}
     )

@@ -3,6 +3,7 @@
 
 import json
 import shutil
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -184,8 +185,6 @@ def test_bootstrap_captures_after_setup(tmp_path: Path):
 
 
 def _principles(root: Path) -> dict[str, Any]:
-    import tomllib
-
     return tomllib.loads((root / "docs" / "principles.toml").read_text())
 
 

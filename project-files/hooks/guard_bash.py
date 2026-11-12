@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
-import _common  # noqa: E402
-import review  # noqa: E402
+import _common
+import review
 
 NO_VERIFY_MESSAGE = (
     "--no-verify skips the project's commit checks. Fix what the hook reports "

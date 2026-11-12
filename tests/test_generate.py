@@ -28,6 +28,7 @@ from alpha.answers import AnswersError
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import GenerateError, bootstrap, generate
+from alpha.principles import render_principles
 
 ROOT = PLUGIN_ROOT
 SRC = Source(ROOT, True)
@@ -609,8 +610,6 @@ def test_answers_still_load_after_the_manifest_is_added(
 
 
 def edit_principles(target: Path, edit) -> None:
-    from alpha.principles import render_principles
-
     path = target / "docs/principles.toml"
     data = tomllib.loads(path.read_text())
     edit(data)

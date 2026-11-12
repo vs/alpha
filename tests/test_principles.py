@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import override_record, single_component
+from helpers import SCENARIOS, override_record, single_component
 
 from alpha.answers import Answers, AnswersError, load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -318,8 +318,6 @@ def test_protecting_what_checks_must_change_is_refused(
 
 
 def scenario_answers(tmp_path: Path, name: str, mutate: Any = None) -> Answers:
-    from helpers import SCENARIOS
-
     data = json.loads((SCENARIOS / f"{name}.json").read_text())
     if mutate:
         mutate(data)

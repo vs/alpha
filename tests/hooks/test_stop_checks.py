@@ -1,11 +1,15 @@
+import contextlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+import time
 from typing import Any
 
 import pytest
+import review
+import stop_checks
 
 from .conftest import HOOKS, STUB, Project
 
@@ -25,8 +29,6 @@ def commit_all(project: Project) -> None:
 
 def run(project: Project, reviewed: bool = True) -> subprocess.CompletedProcess[str]:
     if reviewed:
-        import review
-
         state = review.ensure_state(project.root)
         state["reviewed_tree"] = review.snapshot(project.root)
         review.save_state(project.root, state)
@@ -98,8 +100,6 @@ def untested(project: Project, *args: str) -> subprocess.CompletedProcess[str]:
 def test_a_noted_trivial_change_needs_no_test_until_it_changes(
     project: Project,
 ) -> None:
-    import review
-
     commit_all(project)
     project.write("api/src/app.py", "x = 1\n")
     assert "If a file needs none (a rename, a constant, wiring)" in reason(run(project))
@@ -177,8 +177,6 @@ def test_manifest_config_change_needs_no_dependency_entry(project: Project) -> N
 
 
 def test_give_up_still_requires_the_review(project: Project) -> None:
-    import review
-
     commit_all(project)
     review.ensure_state(project.root)
     project.write("api/migrations/0001.sql", "create table t (id int);\n")
@@ -335,8 +333,6 @@ def test_clean_tree_runs_nothing_and_resets(project: Project) -> None:
 
 
 def test_timeout_raises_timed_out(project: Project, monkeypatch: Any) -> None:
-    import stop_checks
-
     monkeypatch.setattr(stop_checks, "TIMEOUT", 1)
     out = stop_checks.run_step("sleep 5", project.root)
     assert out[0] == "timeout"
@@ -397,8 +393,6 @@ def test_readme_only_change_runs_nothing(project: Project) -> None:
 
 
 def test_budget_exhausted_skips_steps(project: Project, monkeypatch: Any) -> None:
-    import stop_checks
-
     project.set_commands("api", typecheck=STUB, structure="", test=STUB)
     data = project.principles()
     monkeypatch.setattr(stop_checks, "BUDGET", 0)
@@ -699,8 +693,6 @@ def test_subagent_stop_leaves_component_commands_to_the_main_stop(
 def open_finding(
     project: Project, accepted: bool = False, file: str = "api/src/x.py"
 ) -> dict[str, Any]:
-    import review
-
     state = review.ensure_state(project.root)
     finding = {
         "id": "F-abc123",
@@ -743,8 +735,6 @@ def test_open_findings_block_with_ids_and_how_to_accept(project: Project) -> Non
 def test_a_recorded_disproof_clears_a_finding_off_risk_paths(
     project: Project,
 ) -> None:
-    import review
-
     commit_all(project)
     open_finding(project)
     accepts_record(project, "F-abc123")
@@ -774,8 +764,6 @@ def test_accepted_but_unrecorded_findings_block(project: Project) -> None:
 
 
 def test_accepted_and_recorded_findings_clear_the_review(project: Project) -> None:
-    import review
-
     commit_all(project)
     accepts_record(project, "F-abc123")
     open_finding(project, accepted=True)
@@ -787,7 +775,6 @@ def test_accepted_and_recorded_findings_clear_the_review(project: Project) -> No
 
 def test_review_due_blocks_with_its_reason(project: Project) -> None:
     commit_all(project)
-    import review
 
     review.ensure_state(project.root)
     project.write("api/migrations/0001.sql", "create table t (id int);\n")
@@ -800,7 +787,6 @@ def test_review_due_blocks_with_its_reason(project: Project) -> None:
 
 def test_mechanical_problems_hide_the_review_gate(project: Project) -> None:
     commit_all(project)
-    import review
 
     review.ensure_state(project.root)
     project.write("api/migrations/0001.sql", "create table t (id int);\n")
@@ -839,8 +825,6 @@ def test_a_repeated_review_block_ends_the_turn_with_a_message(project: Project) 
 def test_a_changed_review_block_blocks_again_in_the_same_turn(
     project: Project,
 ) -> None:
-    import review
-
     commit_all(project)
     open_finding(project)
     reason(run(project))
@@ -851,8 +835,6 @@ def test_a_changed_review_block_blocks_again_in_the_same_turn(
 
 
 def test_a_failed_snapshot_warns_at_stop(project: Project) -> None:
-    import review
-
     commit_all(project)
     review.ensure_state(project.root)
     lock = project.root / ".git" / (review.INDEX_FILE + ".lock")
@@ -1043,8 +1025,6 @@ def calls(project: Project) -> list[str]:
 
 
 def run_with(project: Project, env: dict[str, str | None]) -> Any:
-    import review
-
     state = review.ensure_state(project.root)
     state["reviewed_tree"] = review.snapshot(project.root)
     review.save_state(project.root, state)
@@ -1179,11 +1159,6 @@ def test_deleted_matched_file_does_not_crash(project: Project) -> None:
 def test_slot_wait_past_deadline_is_a_problem_and_not_cached(
     project: Project, monkeypatch: Any, tmp_path: Any
 ) -> None:
-    import contextlib
-    import time
-
-    import stop_checks
-
     @contextlib.contextmanager
     def no_slot(deadline: float) -> Any:
         yield False

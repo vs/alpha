@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import single_component
+from helpers import SCENARIOS, single_component
 
 from alpha.answers import AnswersError, load_answers
 
@@ -266,8 +266,6 @@ def test_one_component_cannot_talk(tmp_path: Path):
 
 
 def scenario(name: str) -> dict[str, Any]:
-    from helpers import SCENARIOS
-
     return json.loads((SCENARIOS / f"{name}.json").read_text())
 
 

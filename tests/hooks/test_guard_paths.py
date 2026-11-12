@@ -1,8 +1,9 @@
 import json
 import subprocess
+import sys
 from typing import Any
 
-from .conftest import Project
+from .conftest import HOOKS, Project
 
 
 def run(
@@ -83,12 +84,7 @@ def test_other_tools_ignored(project: Project) -> None:
 
 
 def test_non_alpha_project_passes(tmp_path: Any) -> None:
-    import subprocess as sp
-    import sys
-
-    from .conftest import HOOKS
-
-    proc = sp.run(
+    proc = subprocess.run(
         [sys.executable, str(HOOKS / "guard_paths.py")],
         input=json.dumps(
             {"tool_name": "Write", "tool_input": {"file_path": str(tmp_path / ".env")}}

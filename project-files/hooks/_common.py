@@ -175,7 +175,7 @@ def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:
     path = root / "docs" / "principles.toml"
     if not path.is_file():
         return None
-    import tomllib  # lazy: absent on 3.9, and check_python() has exited by then
+    import tomllib  # noqa: PLC0415 - absent on 3.9; check_python() has exited by then
 
     try:
         with path.open("rb") as f:

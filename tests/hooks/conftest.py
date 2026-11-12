@@ -17,8 +17,6 @@ REPO = Path(__file__).resolve().parents[2]
 HOOKS = REPO / "project-files" / "hooks"
 FIXTURE = REPO / "tests" / "fixtures" / "answers_valid.json"
 
-sys.path.insert(0, str(HOOKS))
-
 
 STUB = 'python3 -c "import sys; sys.exit(0)"'
 OLD_PYTHON = [

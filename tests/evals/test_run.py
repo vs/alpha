@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from helpers import SCENARIOS, generated_repo, git
 
+import alpha_evals.__main__ as cli
 from alpha_evals import run
 from alpha_evals.__main__ import main
 from alpha_evals.run import eval_env, prepare_kit, summary
@@ -229,8 +230,6 @@ def test_a_crashing_reviewer_is_recorded(
 def test_a_crashing_scenario_does_not_stop_the_run(
     monkeypatch: pytest.MonkeyPatch, fake, tmp_path: Path, git_env
 ):
-    import alpha_evals.__main__ as cli
-
     real = cli.run_scenario
 
     def flaky(name, *args, **kwargs):

@@ -2,6 +2,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import review
 
 from .conftest import Project
 
@@ -11,8 +12,6 @@ HOOKS_CONFIG = "Changing core.hooksPath switches off the project's commit checks
 
 
 def mark_reviewed(project: Project) -> None:
-    import review
-
     state = review.ensure_state(project.root)
     state["reviewed_tree"] = review.snapshot(project.root)
     review.save_state(project.root, state)
@@ -539,8 +538,6 @@ def test_push_allowed_right_after_a_clean_review(project: Project) -> None:
 
 
 def test_open_findings_block_the_push(project: Project) -> None:
-    import review
-
     committed(project)
     state = review.load_state(project.root)
     state["findings"] = [

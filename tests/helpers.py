@@ -13,6 +13,7 @@ from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import generate, load_project_principles
 from alpha.gitops import commit_skeleton
+from alpha.recipes import recipe_hash
 
 SCENARIOS = PLUGIN_ROOT / "evals" / "scenarios"
 SHIM = PLUGIN_ROOT / "bin" / "alpha"
@@ -184,8 +185,6 @@ def shell_recipe() -> dict[str, Any]:
 
 
 def proven(recipe: dict[str, Any]) -> dict[str, Any]:
-    from alpha.recipes import recipe_hash
-
     return {**recipe, "proven_hash": recipe_hash(recipe)}
 
 

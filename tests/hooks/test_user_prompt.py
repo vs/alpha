@@ -34,7 +34,7 @@ def accepted(project: Project) -> dict[str, Any]:
     return {f["id"]: f["accepted"] for f in review.load_state(project.root)["findings"]}
 
 
-def context(proc) -> str:  # noqa: ANN001
+def context(proc) -> str:
     data = json.loads(proc.stdout)["hookSpecificOutput"]
     assert data["hookEventName"] == "UserPromptSubmit"
     return data["additionalContext"]

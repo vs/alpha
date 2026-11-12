@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import review
 from helpers import (
     clone_component,
     generated_repo,
@@ -660,7 +661,6 @@ def test_apply_update_absorbs_alphas_changes_into_review(
     tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
-    import review
 
     target = generated_repo(tmp_path, SCENARIO)
     review.ensure_state(target)
@@ -676,7 +676,6 @@ def test_absorb_leaves_edits_after_the_update_as_debt(
     tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
-    import review
 
     target = generated_repo(tmp_path, SCENARIO)
     review.ensure_state(target)
@@ -692,7 +691,6 @@ def test_review_hook_acts_on_the_target_not_the_sessions_project(
     tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.syspath_prepend(str(PLUGIN_ROOT / "project-files/hooks"))
-    import review
 
     session, target = tmp_path / "session", tmp_path / "target"
     session.mkdir()

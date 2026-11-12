@@ -5,14 +5,14 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import _common
 import pytest
+import review
 
 from .conftest import Project
 
 
 def committed(project: Project) -> None:
-    import review
-
     project.git("checkout", "-q", "-B", "main")
     project.write("api/src/a.py", "x = 1\n")
     project.git("add", "-A")
@@ -38,8 +38,6 @@ def bash(
 
 
 def mark_reviewed(root: Path) -> None:
-    import review
-
     state = review.ensure_state(root)
     state["reviewed_tree"] = review.snapshot(root)
     review.save_state(root, state)
@@ -129,8 +127,6 @@ def test_edits_in_a_worktree_are_checked_against_it(project: Project) -> None:
 def test_a_pushed_branch_is_not_taken_as_reviewed(
     project: Project, tmp_path: Path
 ) -> None:
-    import review
-
     committed(project)
     remote = tmp_path.parent / f"{tmp_path.name}-remote.git"
     subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
@@ -146,8 +142,6 @@ def test_a_pushed_branch_is_not_taken_as_reviewed(
 
 
 def test_a_rebase_onto_main_keeps_the_review(project: Project) -> None:
-    import review
-
     committed(project)
     project.git("checkout", "-q", "-b", "topic")
     project.write("api/src/b.py", "y = 2\n")
@@ -168,8 +162,6 @@ def test_a_rebase_onto_main_keeps_the_review(project: Project) -> None:
 def test_project_root_prefers_the_file_then_the_cwd(
     project: Project, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    import _common
-
     committed(project)
     wt = worktree(project)
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project.root))

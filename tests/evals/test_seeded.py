@@ -7,6 +7,7 @@ import pytest
 from helpers import generated_repo, git
 
 from alpha.principles import render_principles
+from alpha_evals import seeded
 from alpha_evals.seeded import (
     REPO_SEEDS,
     check_commands,
@@ -120,8 +121,6 @@ def test_commands_flag_checks_that_change_files(tmp_path: Path, git_env):
 def test_a_hung_command_times_out(
     tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
 ):
-    from alpha_evals import seeded
-
     monkeypatch.setattr(seeded, "COMMAND_TIMEOUT", 0.5)
     project = generated_repo(tmp_path / "p", "python-ml-single")
     stub_commands(project, test="sleep 5")
@@ -133,8 +132,6 @@ def test_a_hung_command_times_out(
 def test_a_hung_hook_times_out(
     tmp_path: Path, git_env, stub_tools, monkeypatch: pytest.MonkeyPatch
 ):
-    from alpha_evals import seeded
-
     monkeypatch.setattr(seeded, "HOOK_TIMEOUT", 0.5)
     project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
     path = project / ".claude/settings.json"
@@ -199,8 +196,6 @@ def test_repo_seeds_say_when_mise_is_missing(
 def test_repo_seeds_restore_files_when_a_check_times_out(
     tmp_path: Path, git_env, monkeypatch: pytest.MonkeyPatch
 ):
-    from alpha_evals import seeded
-
     project = generated_repo(tmp_path / "p", WEB)
     bin_dir = tmp_path / "slow-bin"
     bin_dir.mkdir()

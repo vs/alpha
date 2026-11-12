@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "project-files/hooks", "project-files/checks"]
 markers = ["slow: needs network and stack tools"]
 addopts = "-m 'not slow'"
 
@@ -15,10 +15,12 @@ addopts = "-m 'not slow'"
 include = ["src", "project-files/hooks", "project-files/checks", "tests"]
 typeCheckingMode = "standard"
 strict = ["src", "project-files/hooks", "project-files/checks"]
-extraPaths = ["src", "project-files/hooks"]
+extraPaths = ["src", "project-files/hooks", "project-files/checks"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+# BLE: no catch-all except. ERA: no commented-out code. PGH, RUF100: no blanket
+# or stale suppressions. PLC0415: imports at the top. TRY002: raise specific types.
+select = ["E", "F", "I", "UP", "B", "BLE", "ERA", "PGH", "RUF100", "PLC0415", "TRY002"]
 
 [dependency-groups]
 dev = [

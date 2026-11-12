@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
-import _common  # noqa: E402
+import _common
 
 TOOLS = {"Edit", "Write", "MultiEdit"}
 TIMEOUT = 60

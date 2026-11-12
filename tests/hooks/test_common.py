@@ -1,4 +1,5 @@
 import ast
+import fcntl
 import io
 import json
 import os
@@ -388,8 +389,6 @@ def test_previous_slot_held_value_is_restored(
 
 
 def _lock_is_free(tmp_path: Path) -> bool:
-    import fcntl
-
     with (tmp_path / ".cache" / "alpha" / "slots" / "0.lock").open("a") as f:
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
