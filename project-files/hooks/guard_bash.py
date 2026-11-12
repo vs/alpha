@@ -19,7 +19,14 @@ NO_VERIFY_MESSAGE = (
     "instead; if the hook itself is wrong, tell the user."
 )
 SKIPPING = {"commit", "push", "merge", "rebase", "cherry-pick"}
-GLOBAL_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+GLOBAL_OPTIONS_WITH_VALUE = {
+    "-C",
+    "-c",
+    "--config-env",
+    "--git-dir",
+    "--work-tree",
+    "--namespace",
+}
 COMMIT_VALUE_FLAGS = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--template"}
 COMMIT_VALUE_LETTERS = "mFCct"
 HOOKS_PATH_MESSAGE = (
@@ -57,6 +64,8 @@ SHELLS = {"sh", "bash", "zsh"}
 SHELL_KEYWORDS = {"then", "do", "else", "elif", "!", "time", "if", "while", "until"}
 MAX_DEPTH = 2
 ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+CONFIG_FROM_ENV = re.compile(r"GIT_CONFIG_(?:PARAMETERS|KEY_[0-9]+)=")
+EXPORTS = {"export", "declare", "typeset"}
 
 
 # A heredoc operator (<<WORD, <<-'WORD', <<"WORD"), but not a <<< here-string.
@@ -160,10 +169,12 @@ def git_invocation(segment: list[str]) -> tuple[str, list[str], bool] | None:
     i = 1
     while i < len(segment) and segment[i].startswith("-"):
         arg = segment[i]
-        if arg == "-c" and i + 1 < len(segment):
+        if arg in ("-c", "--config-env") and i + 1 < len(segment):
             config = segment[i + 1]
         elif arg.startswith("-c") and not arg.startswith("--"):
             config = arg[2:]
+        elif arg.startswith("--config-env="):
+            config = arg.removeprefix("--config-env=")
         else:
             config = ""
         if config.lower().startswith("core.hookspath"):
@@ -291,8 +302,10 @@ def check_command(
     if segments is None:
         return
     here = here or root
-    for segment in segments:
-        segment = strip_prefix(segment)
+    hooks_env = False
+    for raw in segments:
+        segment = strip_prefix(raw)
+        hooks_env = hooks_env or sets_hooks_path_env(raw, segment)
         if segment[:1] == ["cd"] and len(segment) > 1 and segment[1] != "-":
             here = here / Path(segment[1]).expanduser()
         script = shell_script(segment)
@@ -300,7 +313,18 @@ def check_command(
             check_command(script, root, depth + 1, here)
         folder = git_folder(segment) if segment[:1] == ["git"] else None
         target = here / folder if folder else here
-        check_segment(segment, _common.checkout_of(target.resolve()) or root)
+        check_segment(segment, _common.checkout_of(target.resolve()) or root, hooks_env)
+
+
+def sets_hooks_path_env(raw: list[str], command: list[str]) -> bool:
+    """Whether the segment's assignments point git's config at core.hooksPath."""
+    assignments = raw[: len(raw) - len(command)]
+    if command[:1] and command[0] in EXPORTS:
+        assignments = assignments + command[1:]
+    return any(
+        CONFIG_FROM_ENV.match(word) and "core.hookspath" in word.lower()
+        for word in assignments
+    )
 
 
 REDIRECTS = (">>", ">|", ">")  # longest first; "&>" is "&" glued to ">"
@@ -626,7 +650,7 @@ def check_shared_work(
         )
 
 
-def check_segment(segment: list[str], root: Path) -> None:
+def check_segment(segment: list[str], root: Path, hooks_env: bool) -> None:
     gh = gh_command(segment)
     if gh is not None and gh[:2] == ["pr", "merge"]:
         check_merge(root, gh[2:])
@@ -637,10 +661,10 @@ def check_segment(segment: list[str], root: Path) -> None:
     if sub == "config" and changes_hooks_path(raw_args):
         _common.block(HOOKS_CONFIG_MESSAGE)
     args = option_args(sub, raw_args)
-    if hooks_override and sub in SKIPPING:
+    if (hooks_override or hooks_env) and sub in SKIPPING:
         _common.block(HOOKS_PATH_MESSAGE)
     if sub in SKIPPING:
-        if "--no-verify" in args:
+        if any(skips_verify(a) for a in args):
             _common.block(NO_VERIFY_MESSAGE)
         if sub == "commit" and any("n" in short_flags(a, sub) for a in args):
             _common.block(NO_VERIFY_MESSAGE)
@@ -663,6 +687,11 @@ def check_segment(segment: list[str], root: Path) -> None:
                 f"HEAD is already on {', '.join(branches)}; amending rewrites the "
                 "main branch's history. Make a new commit instead."
             )
+
+
+def skips_verify(arg: str) -> bool:
+    """--no-verify, or any prefix of it git accepts as an abbreviation."""
+    return len(arg) >= len("--no-v") and "--no-verify".startswith(arg)
 
 
 def check_push(root: Path, raw_args: list[str], args: list[str]) -> None:

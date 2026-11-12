@@ -131,6 +131,77 @@ def test_allowed(project: Project, command: str) -> None:
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit --no-verif -m x",
+        "git commit --no-ve -m x",
+        "git commit -m x --no-v",
+        "git push --no-veri",
+        "git merge --no-verif topic",
+    ],
+)
+def test_abbreviated_no_verify_is_blocked(project: Project, command: str) -> None:
+    result = bash(project, command)
+    assert result.returncode == 2, result.stderr
+    assert NO_VERIFY in result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
+        "GIT_CONFIG_VALUE_0=/dev/null git commit -m x",
+        "env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hookspath "
+        "GIT_CONFIG_VALUE_0=x git push",
+        "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
+        "GIT_CONFIG_VALUE_0=x; git commit -m x",
+        "GIT_CONFIG_PARAMETERS=\"'core.hooksPath'='/dev/null'\" git commit -m x",
+        "sh -c 'GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_COUNT=1 "
+        "GIT_CONFIG_VALUE_0=x git rebase main'",
+    ],
+)
+def test_env_hooks_path_override_is_blocked(project: Project, command: str) -> None:
+    result = bash(project, command)
+    assert result.returncode == 2, result.stderr
+    assert HOOKS_PATH in result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git --config-env=core.hooksPath=EMPTY commit -m x",
+        "git --config-env core.hookspath=EMPTY push",
+    ],
+)
+def test_config_env_hooks_path_override_is_blocked(
+    project: Project, command: str
+) -> None:
+    result = bash(project, command)
+    assert result.returncode == 2, result.stderr
+    assert HOOKS_PATH in result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
+        "GIT_CONFIG_VALUE_0=x git status",
+        "git --config-env=user.name=NAME commit -m x",
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=x "
+        "git commit -m x",
+        "git commit -m 'GIT_CONFIG_KEY_0=core.hooksPath'",
+        "git commit --no-edit -m x",
+    ],
+)
+def test_env_and_config_env_without_a_hooks_override_pass(
+    project: Project, command: str
+) -> None:
+    mark_reviewed(project)
+    result = bash(project, command)
+    assert result.returncode == 0, result.stderr
+
+
 def test_non_bash_tool_ignored(project: Project) -> None:
     result = project.run_hook(
         "guard_bash.py",

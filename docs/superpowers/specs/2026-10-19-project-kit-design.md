@@ -467,8 +467,10 @@ fail-helpfully principle: what's wrong, and how to fix it.
 - `commit-msg`: type, scope format, subject length, imperative mood →
   reject. The project's scopes are suggestions; any well-formed scope passes,
   so an area outside the list (pstack's habit) works too.
-- `--no-verify`, a plain `--force` push, a `--force-with-lease` push to the
-  main branch, and `--amend` of a commit already on the remote main → block
+- `--no-verify` (or an abbreviation of it), `core.hooksPath` overridden
+  through `-c`, `--config-env` or `GIT_CONFIG_*`, a plain `--force` push, a
+  `--force-with-lease` push to the main branch, and `--amend` of a commit
+  already on the remote main → block
   (for Claude, via Claude Code hooks; see §9). Claude may rebase its own
   branch and push it with `--force-with-lease`.
 - Git commands that stage, stash or discard changes nobody named (`git add
