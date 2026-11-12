@@ -12,9 +12,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-MARKER = re.compile(
-    r"(?:#|//|/\*|--|;|<!--)\s?shortcut:\s*(?P<text>.*?)\s*(?:\*/|-->)?$"
-)
+COMMENT = re.compile(r"#|//|/\*|--|;|<!--")
+PROSE_COMMENT = re.compile(r"<!--")
+MARKER = re.compile(r"\s?shortcut:\s*(?P<text>.*?)\s*(?:\*/|-->)?$")
+QUOTES = "\"'`"
+# Prose has only HTML comments, and apostrophes rather than string literals.
+PROSE = {".md", ".markdown", ".rst", ".html", ".htm"}
 FORM = "shortcut: <the limit>, <when to upgrade>"
 EXAMPLE = "shortcut: reads the whole file into memory, stream it past 100 MB"
 SKIP = ".claude/alpha/"
@@ -41,11 +44,36 @@ def markers(root: Path) -> list[tuple[str, int, str]]:
             text = (root / rel).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        prose = Path(rel).suffix.lower() in PROSE
         for n, line in enumerate(text.splitlines(), start=1):
-            m = MARKER.search(line)
-            if m:
-                found.append((rel, n, m.group("text")))
+            marked = marker(line, prose)
+            if marked is not None:
+                found.append((rel, n, marked))
     return found
+
+
+def marker(line: str, prose: bool) -> str | None:
+    """The text of the line's `shortcut:` comment, skipping string literals."""
+    comment = PROSE_COMMENT if prose else COMMENT
+    quote = ""
+    in_comment = prose
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if quote:
+            if ch == "\\":
+                i += 1
+            elif ch == quote:
+                quote = ""
+        elif ch in QUOTES and not in_comment:
+            quote = ch
+        elif start := comment.match(line, i):
+            found = MARKER.match(line, start.end())
+            if found:
+                return found.group("text")
+            in_comment = True
+        i += 1
+    return None
 
 
 def split(text: str) -> tuple[str, str] | None:

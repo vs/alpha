@@ -5,6 +5,9 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).parents[2] / "project-files" / "checks" / "shortcuts.py"
+# Fixtures with no trigger spell the marker through MARK: the copy of this
+# check that kit 0.4.2 installed in .claude/alpha/ reads one in a string.
+MARK = "shortcut:"
 
 
 def repo(tmp_path: Path, files: dict[str, str]) -> Path:
@@ -62,11 +65,40 @@ def test_prose_ignored_and_alpha_files_skipped(tmp_path: Path) -> None:
         tmp_path,
         {
             "README.md": "Mark one with a `shortcut: <limit>, <when>` comment.\n",
-            # Split so the repo's own shortcuts check doesn't read them here.
-            ".claude/alpha/checks/x.py": "#" + " shortcut: nothing\n",
-            "ignored/b.py": "#" + " shortcut: nothing\n",
+            ".claude/alpha/checks/x.py": f"# {MARK} nothing\n",
+            "ignored/b.py": f"# {MARK} nothing\n",
             ".gitignore": "ignored/\n",
         },
     )
     assert run(root).returncode == 0
+    assert run(root, "--list").stdout == "No shortcuts. Clean ledger.\n"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        f'fixture = "x = 1  # {MARK} no trigger"',
+        f"fixture = 'a // {MARK} no trigger'",
+        f'say("it\\"s  -- {MARK} no trigger")',
+        f"const s = `/* {MARK} no trigger */`;",
+    ],
+)
+def test_a_shortcut_inside_a_string_is_not_a_comment(tmp_path: Path, line: str) -> None:
+    root = repo(tmp_path, {"src/a.py": f"{line}\n"})
+    assert run(root).returncode == 0
+    assert run(root, "--list").stdout == "No shortcuts. Clean ledger.\n"
+
+
+def test_a_shortcut_after_a_string_is_still_read(tmp_path: Path) -> None:
+    root = repo(tmp_path, {"src/a.py": f'x = "# not this"  # {MARK} no trigger\n'})
+    assert run(root).returncode == 1
+
+
+def test_prose_apostrophes_do_not_hide_a_shortcut(tmp_path: Path) -> None:
+    root = repo(tmp_path, {"docs/a.md": f"It's handwritten <!-- {MARK} x -->\n"})
+    assert run(root).returncode == 1
+
+
+def test_a_hash_in_prose_is_not_a_comment(tmp_path: Path) -> None:
+    root = repo(tmp_path, {"docs/a.md": f"It reads # {MARK} anywhere\n"})
     assert run(root, "--list").stdout == "No shortcuts. Clean ledger.\n"
