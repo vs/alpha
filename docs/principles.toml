@@ -1,0 +1,687 @@
+# Single source of truth for this project's principles, review thresholds,
+# protected paths and component commands. Edit by hand or through alpha skills;
+# hooks and reviewers read this file.
+
+schema = 1
+kit_version = "0.4.2"
+
+[project]
+name = "alpha"
+slug = "alpha"
+
+[review]
+mode = "at-merge"
+max_lines = 200
+max_files = 5
+exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]
+risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/principles.toml"]
+expected_load = "one developer running alpha on a laptop, against one project at a time"
+
+[protected]
+paths = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key", "uv.lock"]
+extra = []
+
+[git]
+convention = "conventional"
+types = ["feat", "fix", "docs", "style", "refactor", "test", "build", "chore", "perf", "ci", "revert"]
+scopes = ["alpha", "hooks", "recipes", "defaults", "spec"]
+branching = "feature-branches"
+
+[docs_map]
+"src/alpha/cli.py" = ["README.md", "CLAUDE.md"]
+"bin/**" = ["README.md", "CLAUDE.md"]
+"skills/new-project/**" = ["README.md"]
+"skills/adopt/**" = ["README.md"]
+"skills/extend/**" = ["README.md"]
+
+[data]
+migration_paths = []
+squawk_paths = []
+
+[testing]
+diff_coverage = 80
+
+[[components]]
+name = "alpha"
+path = "."
+kind = "cli"
+stack = "alpha-python"
+manifests = ["pyproject.toml"]
+lockfiles = ["uv.lock"]
+source_globs = ["**/*.py"]
+test_globs = ["tests/**/*.py", "**/test_*.py", "**/*_test.py", "**/conftest.py"]
+exclude_globs = ["**/.*/**", "**/__pycache__/**", "**/build/**", "**/dist/**"]
+
+[components.commands]
+setup = "uv sync"
+format_check = "uv run ruff format --check src tests project-files"
+lint = "uv run ruff check src tests project-files"
+typecheck = "uv run pyright"
+structure = ""
+test = "uv run pytest"
+format = "uv run ruff format src tests project-files"
+format_file = "uv run ruff format {file}"
+lint_file = "uv run ruff check {file}"
+
+[[components.rules]]
+id = "alpha-python:uv-for-dependencies"
+rule = "Add and remove dependencies with `uv add` and `uv remove`, never by editing the dependency lists in `pyproject.toml` or with `pip`."
+
+[[components.rules]]
+id = "alpha-python:typed-boundaries"
+rule = "Parse external input (JSON, files, environment, requests) into dataclasses or typed models at the boundary; don't pass `dict[str, Any]` inward."
+
+[[components.rules]]
+id = "alpha-python:import-contracts"
+rule = "Once a component has more than one package, add import-linter contracts for the layers `docs/architecture.md` names, and add `lint-imports` to its `structure` command."
+
+[[principles]]
+id = "simplest-architecture"
+title = "Simplest sufficient architecture"
+statement = "As simple as possible, as complex as the problem requires."
+rationale = "Every extra layer is a cost paid on each future change, so structure must be earned by a real requirement."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "fail-helpfully"
+title = "Fail fast, fail helpfully"
+statement = "Detect errors as early as possible. Every error message describes the problem and tells the user how to proceed."
+rationale = "Early detection keeps bugs cheap, and an actionable message saves the reader from guessing the fix."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "tests-first-class"
+title = "Tests are as important as the core"
+statement = "Test design and writing get the same effort and intensity as the logic. Tests trace back to acceptance checks. Risky logic (a branch, a parser, money, security, data writes, a bug fix) gets a test that fails when it breaks: one good test, not coverage. A trivial change (a rename, a constant, wiring) may go without one, with the reason recorded."
+rationale = "Untrusted tests make every change risky; tying them to acceptance checks keeps them meaningful."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:stop_checks"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "visual-system"
+title = "A deliberate visual system"
+statement = "The UI is built from the declared set of visual tools, not ad-hoc styles."
+rationale = "A declared set of tokens and components keeps the interface consistent and cheap to change."
+applies = ["has_ui"]
+core = false
+checked_by = ["reviewer"]
+active = false
+components = []
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "docs-with-code"
+title = "Docs move with the code"
+statement = "A change to public behavior updates the docs in the same change."
+rationale = "Docs updated later are docs that drift; keeping them in the same change keeps them true."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:stop_checks"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "build-hosting-upfront"
+title = "Build and hosting are decided up front"
+statement = "Build and hosting are decided up front and runnable in CI."
+rationale = "Late build and deploy decisions force rework, and a pipeline that runs from day one catches breakage immediately."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = "docs/decisions/0018-override-build-hosting-upfront.md"
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "validate-at-edges"
+title = "Validate at the edges, trust the inside"
+statement = "External input is parsed into typed data once, at the boundary. Inside, code doesn't re-check what its own modules return; each remaining cast or runtime check says which boundary or invariant it serves."
+rationale = "Parsing once at the boundary means inner code can rely on its types instead of re-checking everywhere, and a check that names its reason can be judged and removed when the reason goes."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "strict-types"
+title = "Strict types"
+statement = "TypeScript `strict`, Python type-checked in strict mode."
+rationale = "Strict type checking turns whole classes of runtime bugs into immediate, local errors."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:stop_checks"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "pure-core"
+title = "Logic in the middle, side effects at the edges"
+statement = "Business logic is kept pure and in the middle; side effects live at the edges."
+rationale = "Pure logic is trivial to test and reason about, and isolated side effects are easy to fake or replace."
+applies = ["nontrivial_logic"]
+core = false
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "no-dead-code"
+title = "No dead code"
+statement = "No commented-out code, no speculative options."
+rationale = "Unused code still has to be read and maintained, and version control already remembers what was removed."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:stop_checks"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "code-over-comments"
+title = "Code over comments"
+statement = "A comment stays only for what the code can't say: a license header, a rule set by a dependency, platform or protocol we can't change, a public API's contract, an issue link for a constraint, or a `shortcut: <the limit>, <when to upgrade>` note on a deliberate shortcut. Anything surprising in our own code is fixed by renaming, extracting or retyping it until it reads plainly, not explained in prose."
+rationale = "Comments about our own code drift from it and excuse unclear code; reshaping the code keeps one source of truth that the compiler and tests check."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "generated-from-source"
+title = "Generated files come from their source"
+statement = "A generated file changes only by changing its source and regenerating it, never by hand."
+rationale = "A hand edit to generated output is lost on the next regeneration, and the source no longer describes what runs."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "ci:tree"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "contracts"
+title = "Contracts are the source of truth"
+statement = "Interfaces are defined once (OpenAPI/JSON Schema/protobuf). Clients and checks are generated from them."
+rationale = "A single contract prevents components from drifting apart, and generated clients cannot disagree with it."
+applies = ["communicating_components"]
+core = false
+checked_by = ["reviewer"]
+active = false
+components = []
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "one-vocabulary"
+title = "One vocabulary"
+statement = "A glossary, and consistent names across code, docs, and UI."
+rationale = "The same concept under different names causes misunderstandings between components, people, and agents."
+applies = ["multi_component", "domain_jargon"]
+core = false
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "one-command"
+title = "One command each to set up, test, and run"
+statement = "One command each to set up, test, and run, per component, on a fresh machine."
+rationale = "If getting started takes guesswork, contributors and CI both stumble; one command per step removes it."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "reproducible"
+title = "Reproducible"
+statement = "Pinned dependencies and lockfiles. For ML: seeds, data versions, recorded experiment configs."
+rationale = "Results and builds that cannot be repeated cannot be trusted or debugged."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "env-config"
+title = "Config from the environment"
+statement = "Deployed components take their configuration from the environment."
+rationale = "The same build must run in every environment, and secrets and settings must not be baked into code."
+applies = ["deployed"]
+core = false
+checked_by = ["reviewer"]
+active = false
+components = []
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "timeouts"
+title = "Every external call has a timeout and a failure path"
+statement = "Every external call has a timeout and a failure path. Retries only on safe-to-repeat operations."
+rationale = "Calls without limits hang whole systems, and blind retries of unsafe operations cause duplicate effects."
+applies = ["network_calls"]
+core = false
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "observability"
+title = "Observability"
+statement = "Structured logs, correlated across components."
+rationale = "Deployed systems fail where nobody is watching, so they must explain themselves through logs that can be followed across components."
+applies = ["deployed"]
+core = false
+checked_by = ["reviewer"]
+active = false
+components = []
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "perf-budgets"
+title = "Performance budgets"
+statement = "Performance budgets set in the interview are enforced."
+rationale = "A budget that is written down and checked stops slow regressions from accumulating unnoticed."
+applies = ["budgets_set"]
+core = false
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[principles.component_params.alpha]
+budgets = ["startup: 200 ms (an end-to-end pytest test that times bin/alpha --help, run by mise run check)"]
+
+[[principles]]
+id = "accessibility"
+title = "Accessibility"
+statement = "Every UI is usable with keyboard and assistive technology."
+rationale = "Accessibility is far cheaper to build in from the start than to retrofit, and it widens who can use the product."
+applies = ["has_ui"]
+core = false
+checked_by = ["reviewer"]
+active = false
+components = []
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "safe-migrations"
+title = "Safe migrations"
+statement = "Every schema change is a migration, reversible where possible."
+rationale = "Persisted data outlives code, so changes to it must be repeatable and recoverable."
+applies = ["persisted_data"]
+core = false
+checked_by = ["reviewer", "hook:stop_checks", "ci:migrations"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "no-secrets"
+title = "No secrets in the repo"
+statement = "Secrets come from the environment or a secret store."
+rationale = "A committed secret is leaked for good, since history keeps it even after deletion."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:stop_checks", "ci:secrets"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "dependency-reasons"
+title = "Every new dependency has a recorded reason"
+statement = "Every new dependency has a recorded reason and is pinned."
+rationale = "Each dependency is a long-term liability; recording why it exists lets it be questioned and removed later."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:stop_checks"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "clean-history"
+title = "Clean, readable history"
+statement = "Each commit is one logical change, holds only the files changed for it, passes checks on its own, and has a message that explains why."
+rationale = "Readable history makes review, bisecting, and reverting practical."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:commit_msg"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "evidence-before-done"
+title = "Evidence before \"done\""
+statement = "No claim of success without running the check that shows it."
+rationale = "Unverified claims of success are the most common source of broken handoffs."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "never-weaken-checks"
+title = "Never weaken a check to pass it"
+statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong in one place, record why in a decision that names the path and the rule, then make the exception there."
+rationale = "A check bent to pass proves nothing; an exception with a recorded reason can be reviewed, and reverted when the reason stops holding."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:guard_paths"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "stay-in-scope"
+title = "Stay in scope"
+statement = "No drive-by refactors of code the task doesn't touch."
+rationale = "Unrelated changes bloat review and hide the real change in the diff."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "subtract-first"
+title = "Subtract before you add"
+statement = "In the code a task touches, first remove what's dead there: unused code, redundant checks, stubs. A new internal API replaces the old one in the same change: every caller migrated, the old one deleted, no compatibility layer."
+rationale = "Building on a simpler base keeps the change small, and a compatibility layer kept for now becomes a second API to maintain."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "smallest-change"
+title = "Smallest complete change"
+statement = "Take the first option that fully works: skip what nobody asked for, then reuse what the codebase has, then the standard library or platform, then an installed dependency, then one line a reader gets at a glance, and only then new code. No new dependency for a few lines, and no abstraction, wrapper, option, config or \"for later\" code nobody asked for; keep values in the form the platform already gives you, and keep the structure the codebase already has. Never cut validation at trust boundaries, error handling that prevents data loss, security, accessibility, or anything the user asked for."
+rationale = "Every line written must be read, tested and fixed later, so the smallest change that fully works is the cheapest to own."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "scope-first"
+title = "Scope before writing"
+statement = "Before changing code, list every place the change must reach (callers, tests, fixtures, config, exports) and what it could break for users (data lost or exposed, callers that stop working), then finish every part of it. Features nobody asked for aren't scope."
+rationale = "A change that misses a caller or a fixture breaks later, far from the edit."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "fix-at-the-root"
+title = "Fix bugs at the root"
+statement = "Before a bug fix, find every caller of the function it touches and fix the root cause once, in the shared code, not in one caller. Code that is moved or merged keeps its error handling and validation."
+rationale = "A fix in one caller leaves the others broken, and a move that drops validation is a new bug."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "lean-structure"
+title = "Lean structure"
+statement = "Near-copies that must change together are merged into one. A function is split by job, never by line count, and never into helpers that only make it shorter. Between options of equal size, the one that is correct on edge cases wins."
+rationale = "Copies drift apart when only one changes, and a split by size adds layers between a question and its answer."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "never-block-on-the-human"
+title = "Never block on the human"
+statement = "Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, record it in the decision log, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people."
+rationale = "The user supervises asynchronously: a recorded, reversible choice costs less than a stalled session, and the record makes it quick to correct."
+applies = ["always"]
+core = true
+checked_by = ["reviewer"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "definition-of-done"
+title = "Definition of done"
+statement = "Tests written and passing, types and lint clean, docs updated, committed per the history principle, reviewer passed."
+rationale = "One shared checklist for done keeps completion from being a matter of opinion."
+applies = ["always"]
+core = true
+checked_by = ["reviewer", "hook:stop_checks"]
+active = true
+components = ["alpha"]
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[repo_checks]]
+id = "secrets"
+command = "mise run check:secrets"
+globs = ["**"]
+stop = false
+
+[[repo_checks]]
+id = "vulns"
+command = "mise run check:vulns"
+globs = ["uv.lock"]
+stop = false
+
+[[repo_checks]]
+id = "typos"
+command = "mise run check:typos"
+globs = ["**"]
+stop = true
+
+[[repo_checks]]
+id = "markdown"
+command = "mise run check:markdown"
+globs = ["**/*.md"]
+stop = true
+
+[[repo_checks]]
+id = "links"
+command = "mise run check:links"
+globs = ["**/*.md"]
+stop = true
+
+[[repo_checks]]
+id = "agent-config"
+command = "mise run check:agent-config"
+globs = ["CLAUDE.md", ".claude/**"]
+stop = true
+
+[[repo_checks]]
+id = "shortcuts"
+command = "mise run check:shortcuts"
+globs = ["**"]
+stop = true
+
+[[repo_checks]]
+id = "review-dates"
+command = "mise run check:review-dates"
+globs = []
+stop = false
