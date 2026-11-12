@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 4 | 4 |
-| P4 Rework | 1 | 14 |
+| P4 Rework | 2 | 14 |
 | P6 Traceability | 0 | 1 |
 
 ## P2 Close tool gaps
@@ -68,7 +68,7 @@ Done when:
 | Step | Component | Status |
 | --- | --- | --- |
 | `p4-guard-hook-bypasses` | alpha | done |
-| `p4-relative-license-file` | alpha | pending |
+| `p4-relative-license-file` | alpha | done |
 | `p4-subprocess-timeouts` | alpha | pending |
 | `p4-typed-principles` | alpha | pending |
 | `p4-unreadable-project-json` | alpha | pending |
