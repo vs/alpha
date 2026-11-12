@@ -6,7 +6,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 
 | Phase | Done | Steps |
 | --- | --- | --- |
-| P2 Close tool gaps | 2 | 4 |
+| P2 Close tool gaps | 3 | 4 |
 | P4 Rework | 1 | 14 |
 | P6 Traceability | 0 | 1 |
 
@@ -16,7 +16,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | --- | --- | --- |
 | `p2-ruff-rules-alpha` | alpha | done |
 | `p2-pyright-strict-alpha` | alpha | done |
-| `p2-structure-alpha` | alpha | in progress |
+| `p2-structure-alpha` | alpha | done |
 | `p2-coverage-alpha` | alpha | pending |
 
 ### `p2-ruff-rules-alpha`: Turn on the kit ruff rules for alpha
