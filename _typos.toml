@@ -8,6 +8,8 @@ extend-exclude = [
   # Real tool output on seeded violations (typos among them), for the
   # baseline readers' tests.
   "tests/fixtures/baseline-output/",
+  # alpha's: the files git ignores, and the lockfile.
+  ".claude/alpha/state/", ".claude/settings.local.json", ".DS_Store", ".claude/alpha/hooks/__pycache__/", ".env", ".env.*", "**/.env", "**/.env.*", "__pycache__/", ".pytest_cache/", "coverage.xml", ".coverage", "uv.lock", "CHANGELOG.md",
 ]
 
 [default.extend-words]
