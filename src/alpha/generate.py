@@ -330,7 +330,7 @@ def refresh_manifest(target: Path) -> None:
 def load_project_principles(target: Path) -> dict[str, Any]:
     path = target / PRINCIPLES_TOML
     try:
-        return tomllib.loads(path.read_text(encoding="utf-8"))
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
     except OSError:
         raise GenerateError(
             f'{path} not found. Run "alpha generate {target}" first, in a folder '
@@ -340,6 +340,58 @@ def load_project_principles(target: Path) -> dict[str, Any]:
         raise GenerateError(
             f"{path} is not valid TOML ({e}). Fix the syntax, then retry."
         ) from None
+    problem = _principles_problem(data)
+    if problem:
+        raise GenerateError(
+            f"{path}: {problem}. Fix it by hand, or restore it with "
+            f'"git checkout {PRINCIPLES_TOML}" (or "alpha update {target}"), then '
+            "retry."
+        )
+    return data
+
+
+def _principles_problem(data: dict[str, Any]) -> str | None:
+    """What's wrong with the fields alpha's commands read, or None."""
+    project: object = data.get("project")
+    if not isinstance(project, dict):
+        return "project is missing" if project is None else "project must be a table"
+    if not isinstance(cast(dict[str, Any], project).get("slug"), str):
+        return "project.slug is missing"
+    components: object = data.get("components")
+    if components is None:
+        return "components is missing"
+    if not isinstance(components, list):
+        return "components must be a list of [[components]] tables"
+    for i, raw in enumerate(cast(list[object], components)):
+        if not isinstance(raw, dict):
+            return f"components[{i}] must be a [[components]] table"
+        c = cast(dict[str, Any], raw)
+        name = c.get("name")
+        where = (
+            f'components[{i}] ("{name}")'
+            if isinstance(name, str)
+            else (f"components[{i}]")
+        )
+        for key in ("name", "path", "stack"):
+            if key not in c:
+                return f"{where}.{key} is missing"
+            if not isinstance(c[key], str):
+                return f"{where}.{key} must be text"
+        commands = c.get("commands")
+        if not isinstance(commands, dict):
+            return f'{where}.commands must be a table of step = "command"'
+        for step in ("setup", "test"):
+            if step not in commands:
+                return f"{where}.commands.{step} is missing"
+        for step, command in cast(dict[str, object], commands).items():
+            if not isinstance(command, str):
+                return f"{where}.commands.{step} must be text"
+        lockfiles = c.get("lockfiles", [])
+        if not isinstance(lockfiles, list) or not all(
+            isinstance(x, str) for x in cast(list[object], lockfiles)
+        ):
+            return f"{where}.lockfiles must be a list of paths"
+    return None
 
 
 def project_book(target: Path) -> RecipeBook:
@@ -498,9 +550,6 @@ def bootstrap(
                 f'Component "{c["name"]}" folder {cwd} is missing. Fix its path in '
                 f"{PRINCIPLES_TOML}, or regenerate the skeleton in an empty folder."
             )
-        missing = [s for s in ("setup", "test") if s not in c["commands"]]
-        if missing:
-            raise KeyError(missing[0])
         steps = [
             *(("bootstrap", command) for command in book.get(c["stack"]).bootstrap),
             *check_commands(c["commands"]),

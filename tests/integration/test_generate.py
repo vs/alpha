@@ -706,7 +706,7 @@ def test_cli_bootstrap_explains_missing_principles_key(
     out = run_cli("bootstrap", str(tmp_path))
     assert_explained(
         out,
-        "docs/principles.toml is missing 'setup'",
+        'docs/principles.toml: components[0] ("ml").commands.setup is missing',
         "git checkout docs/principles.toml",
     )
 
@@ -793,3 +793,38 @@ def test_tooling_commit(tmp_path: Path, git_env: None):
     ci = git(repo, "log", "--grep", "^ci: Run every", "--format=%H").splitlines()
     ci_files = git(repo, "show", "--name-only", "--format=", ci[0]).splitlines()
     assert ".github/workflows/scheduled.yml" in ci_files
+
+
+MALFORMED: list[tuple[Callable[[dict[str, Any]], object], str]] = [
+    (
+        lambda d: d["components"][0].update(commands="uv run pytest"),
+        'components[0] ("ml").commands must be a table of step = "command"',
+    ),
+    (
+        lambda d: d["components"][0]["commands"].update(test=3),
+        'components[0] ("ml").commands.test must be text',
+    ),
+    (
+        lambda d: d["components"][0].pop("path"),
+        'components[0] ("ml").path is missing',
+    ),
+    (lambda d: d.pop("components"), "components is missing"),
+    (lambda d: d["project"].pop("slug"), "project.slug is missing"),
+]
+
+
+@pytest.mark.parametrize(("edit", "problem"), MALFORMED)
+def test_bootstrap_rejects_malformed_principles_with_component_and_fix(
+    tmp_path: Path,
+    generate_scenario: GenerateScenario,
+    edit: Callable[[dict[str, Any]], object],
+    problem: str,
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    edit_principles(tmp_path, edit)
+    done = run_cli("bootstrap", str(tmp_path))
+    assert done.returncode == 1
+    path = tmp_path / "docs/principles.toml"
+    assert done.stderr.startswith(f"{path}: {problem}"), done.stderr
+    assert "git checkout docs/principles.toml" in done.stderr
+    assert "Traceback" not in done.stderr
