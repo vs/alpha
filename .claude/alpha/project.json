@@ -1,0 +1,1678 @@
+{
+  "adoption": {
+    "survey": {
+      "git": {
+        "head": "9d75d8d22cf2cff045d0b476d2d55009b3f172fc",
+        "branch": "main",
+        "default_branch": "main",
+        "clean": true,
+        "dirty": [],
+        "commits": 324,
+        "conventional": {
+          "checked": 50,
+          "matching": 48,
+          "others": [
+            "Merge branch 'feat/rust-recipe'",
+            "Merge branch 'feat/adopt'"
+          ]
+        },
+        "hooks_path": "",
+        "hook_managers": []
+      },
+      "components": [
+        {
+          "path": ".",
+          "stack": "python",
+          "markers": [
+            "pyproject.toml"
+          ],
+          "sources": 52,
+          "tests": 67
+        }
+      ],
+      "files": {
+        "ci": [],
+        "docs": [
+          "CLAUDE.md",
+          "README.md",
+          "docs/superpowers/plans/2026-10-19-alpha-foundation.md",
+          "docs/superpowers/plans/2026-10-22-alpha-core-areas.md",
+          "docs/superpowers/plans/2026-10-22-alpha-docs-build-ci.md",
+          "docs/superpowers/plans/2026-10-23-alpha-generic-stacks.md",
+          "docs/superpowers/plans/2026-10-23-alpha-reviewer.md",
+          "docs/superpowers/plans/2026-10-23-alpha-rules-in-context.md",
+          "docs/superpowers/plans/2026-10-26-alpha-remaining-areas.md",
+          "docs/superpowers/plans/2026-10-27-alpha-extend-generated-projects.md",
+          "docs/superpowers/plans/2026-10-29-alpha-interview-evals.md",
+          "docs/superpowers/plans/2026-11-08-alpha-quality-gates.md",
+          "docs/superpowers/plans/2026-11-11-alpha-adopt-install.md",
+          "docs/superpowers/plans/2026-11-11-alpha-adopt-skill.md",
+          "docs/superpowers/plans/2026-11-11-alpha-adopt-steps.md",
+          "docs/superpowers/plans/2026-11-11-alpha-adopt-survey.md",
+          "docs/superpowers/plans/2026-11-11-alpha-baselines.md",
+          "docs/superpowers/specs/2026-10-19-project-kit-design.md"
+        ],
+        "decisions": [],
+        "migrations": [],
+        "task_runners": [
+          "mise.toml"
+        ],
+        "license": [
+          "LICENSE"
+        ],
+        "env_examples": []
+      },
+      "tracked": 221
+    },
+    "git_hooks": "alpha",
+    "baselines": [],
+    "steps": [
+      {
+        "id": "p2-ruff-rules-alpha",
+        "phase": "P2",
+        "title": "Turn on the kit ruff rules for alpha",
+        "why": "ruff selects only E, F, I, UP and B; the kit also bans catch-all excepts (BLE), commented-out code (ERA), blanket or stale suppressions (PGH, RUF100), late imports (PLC0415) and raising bare Exception (TRY002).",
+        "component": "alpha",
+        "principles": [
+          "never-weaken-checks",
+          "no-dead-code"
+        ],
+        "acceptance": [
+          {
+            "run": "grep -qE \"BLE.*ERA.*PGH.*RUF100.*PLC0415.*TRY002\" pyproject.toml"
+          },
+          {
+            "run": "mise run check:component:alpha"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p2-pyright-strict-alpha",
+        "phase": "P2",
+        "title": "Make pyright strict for tests and stale ignores",
+        "why": "tests/ is checked in standard mode and an unneeded type: ignore goes unnoticed; the kit checks everything strictly and reports unnecessary ignores.",
+        "component": "alpha",
+        "principles": [
+          "strict-types",
+          "never-weaken-checks"
+        ],
+        "acceptance": [
+          {
+            "run": "grep -qE \"typeCheckingMode = .strict.\" pyproject.toml"
+          },
+          {
+            "run": "grep -qE \"reportUnnecessaryTypeIgnoreComment = .error.\" pyproject.toml"
+          },
+          {
+            "run": "mise run check:component:alpha"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p2-structure-alpha",
+        "phase": "P2",
+        "title": "Add deptry as the structure check of alpha",
+        "why": "Nothing checks for unused, missing or transitive dependencies; the kit runs deptry as the structure step.",
+        "component": "alpha",
+        "principles": [
+          "dependency-reasons",
+          "lean-structure"
+        ],
+        "acceptance": [
+          {
+            "recipe": "alpha.commands.structure"
+          },
+          {
+            "run": "mise run check:component:alpha"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-guard-hook-bypasses",
+        "phase": "P4",
+        "title": "Block every way to skip the commit hooks",
+        "why": "guard_bash matches only the exact --no-verify, so an abbreviated --no-verif, core.hooksPath set through GIT_CONFIG_* or git --config-env all commit past a failing commit-msg hook; this breaks R3.",
+        "component": "alpha",
+        "principles": [
+          "never-weaken-checks"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k \"abbreviated_no_verify or env_hooks_path or config_env\""
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-relative-license-file",
+        "phase": "P4",
+        "title": "Keep license_file relative to the project",
+        "why": "The identity skill says to save an absolute license_file path, which commits a machine path into project.json and breaks load_answers on every other clone.",
+        "component": "alpha",
+        "principles": [
+          "reproducible"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k test_license_file_must_be_relative_to_project_root"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-subprocess-timeouts",
+        "phase": "P4",
+        "title": "Bound toolchain and check commands in time",
+        "why": "About 30 of 45 subprocess calls (uv sync, pnpm install, mise install, cargo, a legacy test suite) have no timeout and capture output, so a prompt or a stalled download looks like a silent freeze; two comments justifying this are wrong.",
+        "component": "alpha",
+        "principles": [
+          "timeouts",
+          "fail-helpfully"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k \"test_bootstrap_step_times_out_with_a_fix or test_run_condition_times_out\""
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-typed-principles",
+        "phase": "P4",
+        "title": "Parse principles.toml into typed data",
+        "why": "load_project_principles returns raw TOML that 23 functions index as dict[str, Any]; a hand edit gives a traceback, and a blanket except KeyError names the wrong cause.",
+        "component": "alpha",
+        "principles": [
+          "validate-at-edges",
+          "fail-helpfully"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k test_bootstrap_rejects_malformed_principles_with_component_and_fix"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-unreadable-project-json",
+        "phase": "P4",
+        "title": "Report an unreadable project.json",
+        "why": "project_book swallows invalid JSON and bootstrap then says No recipe for stack; refresh_manifest returns silently, so file hashes go stale.",
+        "component": "alpha",
+        "principles": [
+          "fail-helpfully"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k test_bootstrap_names_unreadable_project_json"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-atomic-write-json",
+        "phase": "P4",
+        "title": "Write project.json atomically everywhere",
+        "why": "write_answers replaces project.json atomically, but write_json, used by generate, refresh_manifest, apply_update and adopt, writes in place, so an interrupted write can lose the answers.",
+        "component": "alpha",
+        "principles": [
+          "fix-at-the-root"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k test_write_json_keeps_old_file_when_write_fails"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-one-git-status-parser",
+        "phase": "P4",
+        "title": "Keep one git status parser",
+        "why": "adopt and update each parse git status --porcelain -z; adopt ignores the exit code, so a failed git status reads as a clean tree and apply can write over files. The default-branch lookup is also written three times.",
+        "component": "alpha",
+        "principles": [
+          "lean-structure",
+          "fail-helpfully"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k test_apply_refuses_when_git_status_fails"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-suppression-reasons",
+        "phase": "P4",
+        "title": "Give every suppression a reason or a fix",
+        "why": "src/ and project-files/ hold 17 type or pyright ignores and 15 noqa E402 comments with no reason or decision, which the kit blocks in generated projects.",
+        "component": "alpha",
+        "principles": [
+          "never-weaken-checks",
+          "strict-types"
+        ],
+        "acceptance": [
+          {
+            "run": "! grep -rnE \"# (type: ignore|pyright: ignore|noqa)(\\[[^]]*\\]|: [A-Z0-9, ]+)?[[:space:]]*$\" src project-files/hooks project-files/checks"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-shortcuts-skip-strings",
+        "phase": "P4",
+        "title": "Stop the shortcuts check reading string literals",
+        "why": "The shortcuts check matches # shortcut: anywhere on a line, so test fixtures that hold one in a string fail it; tests/checks/test_shortcuts.py now splits its fixtures to avoid that.",
+        "component": "alpha",
+        "principles": [
+          "fix-at-the-root"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k test_a_shortcut_inside_a_string_is_not_a_comment"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-betterleaks-nested-ignores",
+        "phase": "P4",
+        "title": "Allowlist folders that nested gitignores skip",
+        "why": "The generated .betterleaks.toml lists only the root .gitignore, so a folder ignored by its own .gitignore (here .superpowers/) is scanned; it was added to the allowlist by hand.",
+        "component": "alpha",
+        "principles": [
+          "fix-at-the-root",
+          "no-secrets"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k test_betterleaks_allowlist_covers_nested_gitignores"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-no-ci-wording",
+        "phase": "P4",
+        "title": "Drop CI wording when CI is none",
+        "why": "With build.ci none, the generated CLAUDE.md still says CI runs the same checks, and mise.toml says ci runs what CI runs on a pull request.",
+        "component": "alpha",
+        "principles": [
+          "docs-with-code"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k test_no_ci_wording_without_ci"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-tests-by-level",
+        "phase": "P4",
+        "title": "Sort alpha tests into unit, integration, e2e",
+        "why": "Tests sit flat in tests/ with slow ones marked by name; the testing answer puts each level under tests/<level>/.",
+        "component": "alpha",
+        "principles": [
+          "tests-first-class"
+        ],
+        "acceptance": [
+          {
+            "run": "test -d tests/unit && test -d tests/integration && test -d tests/end-to-end && ! ls tests/test_*.py"
+          },
+          {
+            "run": "uv run pytest"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-startup-budget-test",
+        "phase": "P4",
+        "title": "Test the 200 ms startup budget",
+        "why": "The performance answer holds bin/alpha to startup under 200 ms, measured by a timing test that does not exist yet.",
+        "component": "alpha",
+        "principles": [
+          "perf-budgets"
+        ],
+        "acceptance": [
+          {
+            "run": "uv run pytest -k startup_budget"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p4-missing-releases",
+        "phase": "P4",
+        "title": "Publish the missing GitHub releases",
+        "why": "The changelog is GitHub releases, but v0.2.0, v0.4.1 and v0.4.2 are tagged with no release notes.",
+        "principles": [
+          "docs-with-code"
+        ],
+        "acceptance": [
+          {
+            "run": "gh release view v0.2.0 -R vs/alpha && gh release view v0.4.1 -R vs/alpha && gh release view v0.4.2 -R vs/alpha"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p6-requirement-tests",
+        "phase": "P6",
+        "title": "Link R1-R7 to the tests that cover them",
+        "why": "Few tests name a requirement id, so the acceptance checks of R1-R7 do not trace to tests.",
+        "component": "alpha",
+        "principles": [
+          "tests-first-class"
+        ],
+        "acceptance": [
+          {
+            "run": "for r in R1 R2 R3 R4 R5 R6 R7; do grep -rqw $r tests || exit 1; done"
+          }
+        ],
+        "status": "pending"
+      },
+      {
+        "id": "p2-coverage-alpha",
+        "phase": "P2",
+        "title": "Measure coverage of alpha's changed lines",
+        "why": "Pull requests must cover 80% of the lines they change, but alpha's recipe has no coverage command.",
+        "component": "alpha",
+        "principles": [
+          "tests-first-class"
+        ],
+        "acceptance": [
+          {
+            "recipe": "alpha.coverage"
+          }
+        ],
+        "status": "pending"
+      }
+    ]
+  },
+  "schema": 1,
+  "areas": {
+    "identity": "done",
+    "components": "done",
+    "architecture": "done",
+    "errors": "done",
+    "testing": "done",
+    "ui": "done",
+    "documentation": "done",
+    "build": "done",
+    "security": "done",
+    "dependencies": "done",
+    "observability": "done",
+    "releases": "done",
+    "data": "done",
+    "accessibility": "done",
+    "performance": "done",
+    "git": "done",
+    "agent_workflow": "done"
+  },
+  "overrides": [
+    {
+      "principle": "build-hosting-upfront",
+      "scope": "project",
+      "change": "loosen",
+      "params": {},
+      "reason": "mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend."
+    }
+  ],
+  "decisions": [
+    {
+      "area": "identity",
+      "title": "Product identity",
+      "context": "alpha is an existing Claude Code plugin being adopted; its README states what it does. It serves developers who want agents held to engineering principles in new and existing repos.",
+      "decision": "Name alpha (slug alpha), for developers building with Claude Code; requirements R1 (interview), R2 (generate), R3 (enforce), R4 (adopt), R5 (extend), R6 (recipes), R7 (user layer). MIT, keeping the repo LICENSE; domain jargon on.",
+      "consequences": "Features outside R1-R7 need a new requirement first. The glossary and One vocabulary principle apply to code, docs and skills."
+    },
+    {
+      "area": "components",
+      "title": "Single Python CLI",
+      "context": "alpha is one Python package (src/alpha, src/alpha_evals) driven through bin/alpha and the plugin skills; the survey found one candidate at the root.",
+      "decision": "One component, alpha: kind cli, stack alpha-python (adopted, extends the kit python recipe), path . (single layout). Traits: network calls (subprocesses), persisted data (project.json, user layer, baselines), non-trivial logic; no UI, not deployed, no ML.",
+      "consequences": "One toolchain to maintain (uv, Python 3.11+). Subprocess calls need timeouts and failure paths; project.json and the user layer need a migration path on schema change. The recipe runs the commands mise.toml already runs; deptry and coverage are not set up yet."
+    },
+    {
+      "area": "architecture",
+      "title": "One component, no contracts",
+      "context": "alpha is a single component; nothing calls another component, but the domain has its own vocabulary.",
+      "decision": "alpha turns interview answers into an enforced project (generate, adopt, update) and checks the answers, recipes, baselines and adoption steps that drive it. No calls, contract format none. Glossary: kit, area, component, recipe, principle, override, baseline, adoption step.",
+      "consequences": "These eight terms are fixed names across code, docs and skills; a new concept needs a glossary entry. Splitting off a component would need contracts."
+    },
+    {
+      "area": "errors",
+      "title": "Messages and exit codes",
+      "context": "alpha errors reach a developer at the terminal or Claude running a skill, which relays the fix.",
+      "decision": "alpha uses message-and-exit-code: alpha: <problem> and its fix on stderr, non-zero exit. Categories: validation, not-found, conflict, unavailable, internal (the kit defaults).",
+      "consequences": "Every error names what went wrong and the next step to fix it, so a skill can act on it without guessing."
+    },
+    {
+      "area": "testing",
+      "title": "Unit, integration and end-to-end tests",
+      "context": "The risk is in subprocess calls, file merges and stored state, and in whole flows (interview, generate, adopt, update) users drive through bin/alpha and the skills.",
+      "decision": "alpha: unit, integration (the real-toolchain tests now marked slow) and end-to-end (whole flows from R1-R7). Diff coverage 80% (kit default).",
+      "consequences": "A test covering an acceptance check names its requirement id (R1-R7). Today tests are flat under tests/ and few name a requirement; moving them under tests/<level>/ and linking them is part of the adoption plan. Diff coverage applies once the recipe has a coverage command."
+    },
+    {
+      "area": "ui",
+      "title": "No UI",
+      "context": "alpha runs in a terminal and inside Claude Code; no component shows a user interface.",
+      "decision": "No UI components.",
+      "consequences": "The visual-system and accessibility principles do not apply; adding a UI component reopens this area."
+    },
+    {
+      "area": "documentation",
+      "title": "README as user docs",
+      "context": "Users meet alpha through the README and three skills; developers through CLAUDE.md. The kit usual CLI globs match nothing here.",
+      "decision": "User docs live in README.md (kit default). Mapped: src/alpha/cli.py and bin/** to README.md or CLAUDE.md; skills/new-project, skills/adopt and skills/extend to README.md. Decision records start at 0001 in docs/decisions/.",
+      "consequences": "A change to the CLI or a user-invoked skill must update the README (or CLAUDE.md for the CLI), or the Stop hook blocks it."
+    },
+    {
+      "area": "build",
+      "title": "No CI, plugin package",
+      "context": "alpha is published as a Claude Code plugin through its own marketplace on GitHub (vs/alpha); nothing is deployed. The kit default is GitHub Actions.",
+      "decision": "CI: none (loosens build-hosting-upfront). No environments. alpha builds into a package (the plugin, published through its marketplace); no hosting.",
+      "consequences": "Nothing checks a push remotely: mise run check (and the commit hooks) are the only gate, so run them before every commit. Not made a default for future projects."
+    },
+    {
+      "area": "security",
+      "title": "Local CLI, no secrets or auth",
+      "context": "alpha runs on the user machine and is not deployed; the evals use the claude CLI login, which alpha never handles.",
+      "decision": "No secret store (nothing deployed; local .env files suffice). Auth: none. No extra protected paths.",
+      "consequences": "Claude cannot edit .env files, keys or lockfiles (always protected); the betterleaks check blocks a committed secret. Baseline-output fixtures stay editable so they can be re-recorded."
+    },
+    {
+      "area": "dependencies",
+      "title": "Weekly manual updates",
+      "context": "One toolchain (uv) plus the mise-pinned check tools drift. The kit default is Dependabot, but with no CI nothing would check its pull requests.",
+      "decision": "Updates: manual (kit default dependabot), weekly, after a 7-day cooldown from each release.",
+      "consequences": "Someone runs the updates weekly with uv and mise, and checks them locally with mise run check before committing; a new dependency still needs its row in docs/dependencies.md. Not made a default for future projects."
+    },
+    {
+      "area": "observability",
+      "title": "Nothing deployed",
+      "context": "alpha runs only on the user machine; no component is deployed.",
+      "decision": "No observability setup.",
+      "consequences": "Observability applies once a component is deployed; that reopens this area."
+    },
+    {
+      "area": "releases",
+      "title": "Semver tags with GitHub releases",
+      "context": "Plugin users update through the marketplace and read release notes on GitHub. The repo already tags vX.Y.Z on main and has GitHub releases, but no CHANGELOG.md; the kit default changelog is a file.",
+      "decision": "Scheme semver, changelog github-releases (kit default file), scope repo. Process: a chore: Release X.Y.Z commit bumps plugin.json, pyproject.toml, src/alpha/__init__.py and uv.lock; tag vX.Y.Z on main and publish a GitHub release with its notes.",
+      "consequences": "A breaking change to answers, recipes or the CLI is a major version (minor while 0.x) and its release notes say how to migrate. v0.2.0, v0.4.1 and v0.4.2 have tags but no GitHub release yet. Not made a default for future projects."
+    },
+    {
+      "area": "data",
+      "title": "Versioned JSON and TOML files",
+      "context": "alpha stores answers in each project (project.json, schema 1), the user layer in ~/.config/alpha/ and baseline files; they outlive the plugin version that wrote them.",
+      "decision": "Storage: JSON and TOML files. Migration tool: none today; answers refuses any schema but 1, and skills treat a missing area as pending. No ML.",
+      "consequences": "Bumping project.json schema needs an upgrader that rewrites older files, with tests, before release; until then a shape change must stay backward compatible. There are no migration files, so the append-only rule has nothing to guard."
+    },
+    {
+      "area": "accessibility",
+      "title": "No accessibility target",
+      "context": "alpha has no user interface beyond the terminal and Claude Code.",
+      "decision": "No accessibility target or checks.",
+      "consequences": "The accessibility principle does not apply; adding a UI component reopens this area."
+    },
+    {
+      "area": "performance",
+      "title": "CLI startup budget",
+      "context": "Skills call bin/alpha many times per interview and hook, so a slow start adds up; the load is one developer on a laptop.",
+      "decision": "alpha: startup < 200 ms (kit default for a CLI), measured by an end-to-end pytest test timing bin/alpha --help, run by mise run check. Today it starts in about 60-70 ms.",
+      "consequences": "Breaking the budget needs a fix or a decision record. The timing test does not exist yet; it is an adoption step."
+    },
+    {
+      "area": "git",
+      "title": "Conventional commits on feature branches",
+      "context": "One maintainer and Claude commit; 48 of the last 50 commits already follow conventional commits (the other two are merges), with scopes hooks, recipes, defaults and spec in use.",
+      "decision": "Convention: conventional. Scopes: alpha, hooks, recipes, defaults, spec. Branching: feature-branches merged into main. Git hooks: alpha sets core.hooksPath (no hook manager found).",
+      "consequences": "The commit-msg hook rejects a header that is not type(scope): description with a 50-char imperative description, or body lines past 72; merge, revert and fixup commits pass. Existing history stays as it is."
+    },
+    {
+      "area": "agent_workflow",
+      "title": "Review at merge",
+      "context": "Work happens on feature branches verified once when finished; a review per task would slow small changes, and the hooks already check every edit.",
+      "decision": "Review mode at-merge (kit default); max_lines 200 and max_files 5 recorded for batched mode; no extra risk paths beyond the kit ones.",
+      "consequences": "Claude stops for the principles reviewer before pushing to main or merging a pull request, and cannot finish with open findings."
+    }
+  ],
+  "identity": {
+    "name": "alpha",
+    "slug": "alpha",
+    "value_proposition": "alpha interviews you about a new project, then writes what agents build on: principles, docs, decision records, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code, and each principle is checked, by a hook or by a reviewer agent, before a change reaches main.",
+    "target_users": "Developers building with Claude Code who want agents to follow enforced engineering principles from day one: starting a new project from an enforced skeleton, or bringing an existing repo under the same rules without stopping its work.",
+    "requirements": [
+      {
+        "id": "R1",
+        "text": "Interview the user area by area, recommending answers from the kit defaults, and save them to project.json.",
+        "acceptance": "Given an empty folder, when /alpha:new-project runs and the user accepts each recommendation, then project.json has every area done and alpha answers check prints ok."
+      },
+      {
+        "id": "R2",
+        "text": "From finished answers, generate, bootstrap and commit a skeleton (config, docs, test wiring, enforcement, no app code) whose checks pass.",
+        "acceptance": "Given finished answers, when alpha generate, bootstrap and commit-skeleton run, then the project has no app source files, every component check and mise run ci pass, and the tree is clean."
+      },
+      {
+        "id": "R3",
+        "text": "Enforce each active principle in a generated project through Claude Code hooks, git hooks, CI or the principles reviewer.",
+        "acceptance": "Given a generated project, when an agent skips git hooks, edits a protected file or stops with untested source, then the matching hook blocks it with a message naming the fix."
+      },
+      {
+        "id": "R4",
+        "text": "Bring an existing repo under the same enforcement on alpha/adopt, with legacy findings baselined and a compliance plan to work through.",
+        "acceptance": "Given a clean repo with legacy lint findings, when alpha adopt apply and bootstrap --capture-baselines run, then the files alpha writes are committed on alpha/adopt, the existing findings pass as baselined, and a new finding fails its check."
+      },
+      {
+        "id": "R5",
+        "text": "Change the answers of a generated or adopted project and merge the result without overwriting edits the user made.",
+        "acceptance": "Given a generated project with a hand edit in CLAUDE.md, when an answer changes and alpha update and commit-update run, then the change is applied, the edit survives, and a second update --dry-run prints nothing to change."
+      },
+      {
+        "id": "R6",
+        "text": "Support any stack through recipes: the ones the kit ships (Python, TypeScript, Rust) or drafted ones that must be proven before use.",
+        "acceptance": "Given a stack the kit has no recipe for, when a drafted recipe is saved, then answers check refuses it until alpha recipe try proves it, and again after any later edit."
+      },
+      {
+        "id": "R7",
+        "text": "Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates.",
+        "acceptance": "Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults."
+      }
+    ],
+    "license": "MIT",
+    "license_file": "LICENSE",
+    "copyright_holder": "Semyon Vadishev",
+    "domain_jargon": true
+  },
+  "layout": "single",
+  "components_talk": false,
+  "components": [
+    {
+      "name": "alpha",
+      "path": ".",
+      "kind": "cli",
+      "stack": "alpha-python",
+      "traits": {
+        "has_ui": false,
+        "deployed": false,
+        "network_calls": true,
+        "persisted_data": true,
+        "ml": false,
+        "nontrivial_logic": true
+      }
+    }
+  ],
+  "recipes": {
+    "alpha-python": {
+      "adopted": true,
+      "extends": "python",
+      "commands": {
+        "setup": "uv sync",
+        "lint": "uv run ruff check src tests project-files",
+        "lint_file": "uv run ruff check {file}",
+        "format": "uv run ruff format src tests project-files",
+        "format_check": "uv run ruff format --check src tests project-files",
+        "format_file": "uv run ruff format {file}",
+        "typecheck": "uv run pyright",
+        "test": "uv run pytest",
+        "structure": ""
+      },
+      "proven_hash": "3e912e0d3493bcd309734e19f86a028dc2b6321d00ca70e80875eaf5f1b3dda8"
+    }
+  },
+  "architecture": {
+    "components": [
+      {
+        "name": "alpha",
+        "responsibility": "Turns interview answers into an enforced project (generate, adopt, update) and checks the answers, recipes, baselines and adoption steps that drive it.",
+        "calls": []
+      }
+    ],
+    "contracts": {
+      "format": "none",
+      "paths": []
+    },
+    "glossary": [
+      {
+        "term": "kit",
+        "meaning": "The defaults, recipes, registry and templates alpha ships, which every project starts from."
+      },
+      {
+        "term": "area",
+        "meaning": "One topic of the interview (identity, components, ...), settled by its own skill and saved in project.json."
+      },
+      {
+        "term": "component",
+        "meaning": "One part of a project with its own folder, kind, stack and checks; also a commit scope."
+      },
+      {
+        "term": "recipe",
+        "meaning": "How a component on a stack is set up and checked: the kit's own, one drafted for a project, or one adopted from a repo's tools; proven before use."
+      },
+      {
+        "term": "principle",
+        "meaning": "A rule in docs/principles.toml, enforced by a hook, a check or the principles reviewer."
+      },
+      {
+        "term": "override",
+        "meaning": "A project's recorded change to a principle (tighten, loosen or drop), with its reason."
+      },
+      {
+        "term": "baseline",
+        "meaning": "The legacy findings of one check in an adopted repo, per file and rule; only new findings fail and it only shrinks."
+      },
+      {
+        "term": "adoption step",
+        "meaning": "One item of an adopted repo's compliance plan, done only when its acceptance conditions hold."
+      }
+    ]
+  },
+  "errors": {
+    "components": [
+      {
+        "name": "alpha",
+        "format": "message-and-exit-code"
+      }
+    ],
+    "categories": [
+      "validation",
+      "not-found",
+      "conflict",
+      "unavailable",
+      "internal"
+    ]
+  },
+  "testing": {
+    "components": [
+      {
+        "name": "alpha",
+        "levels": [
+          "unit",
+          "integration",
+          "end-to-end"
+        ]
+      }
+    ]
+  },
+  "ui": {
+    "components": []
+  },
+  "documentation": {
+    "external": "readme",
+    "external_path": "",
+    "external_location": "",
+    "mappings": [
+      {
+        "paths": [
+          "src/alpha/cli.py",
+          "bin/**"
+        ],
+        "docs": [
+          "README.md",
+          "CLAUDE.md"
+        ]
+      },
+      {
+        "paths": [
+          "skills/new-project/**",
+          "skills/adopt/**",
+          "skills/extend/**"
+        ],
+        "docs": [
+          "README.md"
+        ]
+      }
+    ]
+  },
+  "build": {
+    "ci": "none",
+    "environments": [],
+    "components": [
+      {
+        "name": "alpha",
+        "artifact": "package",
+        "hosting": ""
+      }
+    ]
+  },
+  "security": {
+    "secret_store": "",
+    "auth": "none",
+    "extra_protected": []
+  },
+  "dependencies": {
+    "updates": "manual",
+    "schedule": "weekly",
+    "cooldown_days": 7
+  },
+  "observability": {
+    "components": []
+  },
+  "releases": {
+    "scheme": "semver",
+    "changelog": "github-releases",
+    "scope": "repo",
+    "process": "Bump the version in .claude-plugin/plugin.json, pyproject.toml and src/alpha/__init__.py (plus uv.lock) in a chore: Release X.Y.Z commit on main, tag vX.Y.Z and publish a GitHub release with its notes. Users get it with claude plugin marketplace update alpha."
+  },
+  "data": {
+    "components": [
+      {
+        "name": "alpha",
+        "storage": "JSON and TOML files: .claude/alpha/project.json (schema 1) in each project, the user layer in ~/.config/alpha/, and per-check baseline files",
+        "migration_tool": "none",
+        "migrations": [],
+        "reversible": false
+      }
+    ],
+    "ml": null
+  },
+  "accessibility": {
+    "level": "",
+    "components": []
+  },
+  "performance": {
+    "expected_load": "one developer running alpha on a laptop, against one project at a time",
+    "components": [
+      {
+        "name": "alpha",
+        "budgets": [
+          {
+            "metric": "startup",
+            "limit": "200 ms",
+            "measured_by": "an end-to-end pytest test that times bin/alpha --help, run by mise run check"
+          }
+        ]
+      }
+    ]
+  },
+  "git": {
+    "convention": "conventional",
+    "scopes": [
+      "alpha",
+      "hooks",
+      "recipes",
+      "defaults",
+      "spec"
+    ],
+    "branching": "feature-branches"
+  },
+  "agent_workflow": {
+    "review_mode": "at-merge",
+    "max_lines": 200,
+    "max_files": 5,
+    "extra_risk_paths": []
+  },
+  "manifest": {
+    "kit_version": "0.4.2",
+    "generated_at": "2026-11-12",
+    "adopted_at": "2026-11-12",
+    "defaults": {
+      "path": "~/.claude/plugins/cache/alpha/alpha/0.4.2",
+      "live": false,
+      "commit": null
+    },
+    "applied": {
+      "adoption": {
+        "survey": {
+          "git": {
+            "head": "9d75d8d22cf2cff045d0b476d2d55009b3f172fc",
+            "branch": "main",
+            "default_branch": "main",
+            "clean": true,
+            "dirty": [],
+            "commits": 324,
+            "conventional": {
+              "checked": 50,
+              "matching": 48,
+              "others": [
+                "Merge branch 'feat/rust-recipe'",
+                "Merge branch 'feat/adopt'"
+              ]
+            },
+            "hooks_path": "",
+            "hook_managers": []
+          },
+          "components": [
+            {
+              "path": ".",
+              "stack": "python",
+              "markers": [
+                "pyproject.toml"
+              ],
+              "sources": 52,
+              "tests": 67
+            }
+          ],
+          "files": {
+            "ci": [],
+            "docs": [
+              "CLAUDE.md",
+              "README.md",
+              "docs/superpowers/plans/2026-10-19-alpha-foundation.md",
+              "docs/superpowers/plans/2026-10-22-alpha-core-areas.md",
+              "docs/superpowers/plans/2026-10-22-alpha-docs-build-ci.md",
+              "docs/superpowers/plans/2026-10-23-alpha-generic-stacks.md",
+              "docs/superpowers/plans/2026-10-23-alpha-reviewer.md",
+              "docs/superpowers/plans/2026-10-23-alpha-rules-in-context.md",
+              "docs/superpowers/plans/2026-10-26-alpha-remaining-areas.md",
+              "docs/superpowers/plans/2026-10-27-alpha-extend-generated-projects.md",
+              "docs/superpowers/plans/2026-10-29-alpha-interview-evals.md",
+              "docs/superpowers/plans/2026-11-08-alpha-quality-gates.md",
+              "docs/superpowers/plans/2026-11-11-alpha-adopt-install.md",
+              "docs/superpowers/plans/2026-11-11-alpha-adopt-skill.md",
+              "docs/superpowers/plans/2026-11-11-alpha-adopt-steps.md",
+              "docs/superpowers/plans/2026-11-11-alpha-adopt-survey.md",
+              "docs/superpowers/plans/2026-11-11-alpha-baselines.md",
+              "docs/superpowers/specs/2026-10-19-project-kit-design.md"
+            ],
+            "decisions": [],
+            "migrations": [],
+            "task_runners": [
+              "mise.toml"
+            ],
+            "license": [
+              "LICENSE"
+            ],
+            "env_examples": []
+          },
+          "tracked": 221
+        },
+        "git_hooks": "alpha",
+        "baselines": [],
+        "steps": [
+          {
+            "id": "p2-ruff-rules-alpha",
+            "phase": "P2",
+            "title": "Turn on the kit ruff rules for alpha",
+            "why": "ruff selects only E, F, I, UP and B; the kit also bans catch-all excepts (BLE), commented-out code (ERA), blanket or stale suppressions (PGH, RUF100), late imports (PLC0415) and raising bare Exception (TRY002).",
+            "component": "alpha",
+            "principles": [
+              "never-weaken-checks",
+              "no-dead-code"
+            ],
+            "acceptance": [
+              {
+                "run": "grep -qE \"BLE.*ERA.*PGH.*RUF100.*PLC0415.*TRY002\" pyproject.toml"
+              },
+              {
+                "run": "mise run check:component:alpha"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p2-pyright-strict-alpha",
+            "phase": "P2",
+            "title": "Make pyright strict for tests and stale ignores",
+            "why": "tests/ is checked in standard mode and an unneeded type: ignore goes unnoticed; the kit checks everything strictly and reports unnecessary ignores.",
+            "component": "alpha",
+            "principles": [
+              "strict-types",
+              "never-weaken-checks"
+            ],
+            "acceptance": [
+              {
+                "run": "grep -qE \"typeCheckingMode = .strict.\" pyproject.toml"
+              },
+              {
+                "run": "grep -qE \"reportUnnecessaryTypeIgnoreComment = .error.\" pyproject.toml"
+              },
+              {
+                "run": "mise run check:component:alpha"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p2-structure-alpha",
+            "phase": "P2",
+            "title": "Add deptry as the structure check of alpha",
+            "why": "Nothing checks for unused, missing or transitive dependencies; the kit runs deptry as the structure step.",
+            "component": "alpha",
+            "principles": [
+              "dependency-reasons",
+              "lean-structure"
+            ],
+            "acceptance": [
+              {
+                "recipe": "alpha.commands.structure"
+              },
+              {
+                "run": "mise run check:component:alpha"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-guard-hook-bypasses",
+            "phase": "P4",
+            "title": "Block every way to skip the commit hooks",
+            "why": "guard_bash matches only the exact --no-verify, so an abbreviated --no-verif, core.hooksPath set through GIT_CONFIG_* or git --config-env all commit past a failing commit-msg hook; this breaks R3.",
+            "component": "alpha",
+            "principles": [
+              "never-weaken-checks"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k \"abbreviated_no_verify or env_hooks_path or config_env\""
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-relative-license-file",
+            "phase": "P4",
+            "title": "Keep license_file relative to the project",
+            "why": "The identity skill says to save an absolute license_file path, which commits a machine path into project.json and breaks load_answers on every other clone.",
+            "component": "alpha",
+            "principles": [
+              "reproducible"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k test_license_file_must_be_relative_to_project_root"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-subprocess-timeouts",
+            "phase": "P4",
+            "title": "Bound toolchain and check commands in time",
+            "why": "About 30 of 45 subprocess calls (uv sync, pnpm install, mise install, cargo, a legacy test suite) have no timeout and capture output, so a prompt or a stalled download looks like a silent freeze; two comments justifying this are wrong.",
+            "component": "alpha",
+            "principles": [
+              "timeouts",
+              "fail-helpfully"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k \"test_bootstrap_step_times_out_with_a_fix or test_run_condition_times_out\""
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-typed-principles",
+            "phase": "P4",
+            "title": "Parse principles.toml into typed data",
+            "why": "load_project_principles returns raw TOML that 23 functions index as dict[str, Any]; a hand edit gives a traceback, and a blanket except KeyError names the wrong cause.",
+            "component": "alpha",
+            "principles": [
+              "validate-at-edges",
+              "fail-helpfully"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k test_bootstrap_rejects_malformed_principles_with_component_and_fix"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-unreadable-project-json",
+            "phase": "P4",
+            "title": "Report an unreadable project.json",
+            "why": "project_book swallows invalid JSON and bootstrap then says No recipe for stack; refresh_manifest returns silently, so file hashes go stale.",
+            "component": "alpha",
+            "principles": [
+              "fail-helpfully"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k test_bootstrap_names_unreadable_project_json"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-atomic-write-json",
+            "phase": "P4",
+            "title": "Write project.json atomically everywhere",
+            "why": "write_answers replaces project.json atomically, but write_json, used by generate, refresh_manifest, apply_update and adopt, writes in place, so an interrupted write can lose the answers.",
+            "component": "alpha",
+            "principles": [
+              "fix-at-the-root"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k test_write_json_keeps_old_file_when_write_fails"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-one-git-status-parser",
+            "phase": "P4",
+            "title": "Keep one git status parser",
+            "why": "adopt and update each parse git status --porcelain -z; adopt ignores the exit code, so a failed git status reads as a clean tree and apply can write over files. The default-branch lookup is also written three times.",
+            "component": "alpha",
+            "principles": [
+              "lean-structure",
+              "fail-helpfully"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k test_apply_refuses_when_git_status_fails"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-suppression-reasons",
+            "phase": "P4",
+            "title": "Give every suppression a reason or a fix",
+            "why": "src/ and project-files/ hold 17 type or pyright ignores and 15 noqa E402 comments with no reason or decision, which the kit blocks in generated projects.",
+            "component": "alpha",
+            "principles": [
+              "never-weaken-checks",
+              "strict-types"
+            ],
+            "acceptance": [
+              {
+                "run": "! grep -rnE \"# (type: ignore|pyright: ignore|noqa)(\\[[^]]*\\]|: [A-Z0-9, ]+)?[[:space:]]*$\" src project-files/hooks project-files/checks"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-tests-by-level",
+            "phase": "P4",
+            "title": "Sort alpha tests into unit, integration, e2e",
+            "why": "Tests sit flat in tests/ with slow ones marked by name; the testing answer puts each level under tests/<level>/.",
+            "component": "alpha",
+            "principles": [
+              "tests-first-class"
+            ],
+            "acceptance": [
+              {
+                "run": "test -d tests/unit && test -d tests/integration && test -d tests/end-to-end && ! ls tests/test_*.py"
+              },
+              {
+                "run": "uv run pytest"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-startup-budget-test",
+            "phase": "P4",
+            "title": "Test the 200 ms startup budget",
+            "why": "The performance answer holds bin/alpha to startup under 200 ms, measured by a timing test that does not exist yet.",
+            "component": "alpha",
+            "principles": [
+              "perf-budgets"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k startup_budget"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-missing-releases",
+            "phase": "P4",
+            "title": "Publish the missing GitHub releases",
+            "why": "The changelog is GitHub releases, but v0.2.0, v0.4.1 and v0.4.2 are tagged with no release notes.",
+            "principles": [
+              "docs-with-code"
+            ],
+            "acceptance": [
+              {
+                "run": "gh release view v0.2.0 -R vs/alpha && gh release view v0.4.1 -R vs/alpha && gh release view v0.4.2 -R vs/alpha"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p6-requirement-tests",
+            "phase": "P6",
+            "title": "Link R1-R7 to the tests that cover them",
+            "why": "Few tests name a requirement id, so the acceptance checks of R1-R7 do not trace to tests.",
+            "component": "alpha",
+            "principles": [
+              "tests-first-class"
+            ],
+            "acceptance": [
+              {
+                "run": "for r in R1 R2 R3 R4 R5 R6 R7; do grep -rqw $r tests || exit 1; done"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p2-coverage-alpha",
+            "phase": "P2",
+            "title": "Measure coverage of alpha's changed lines",
+            "why": "Pull requests must cover 80% of the lines they change, but alpha's recipe has no coverage command.",
+            "component": "alpha",
+            "principles": [
+              "tests-first-class"
+            ],
+            "acceptance": [
+              {
+                "recipe": "alpha.coverage"
+              }
+            ],
+            "status": "pending"
+          }
+        ]
+      },
+      "schema": 1,
+      "areas": {
+        "identity": "done",
+        "components": "done",
+        "architecture": "done",
+        "errors": "done",
+        "testing": "done",
+        "ui": "done",
+        "documentation": "done",
+        "build": "done",
+        "security": "done",
+        "dependencies": "done",
+        "observability": "done",
+        "releases": "done",
+        "data": "done",
+        "accessibility": "done",
+        "performance": "done",
+        "git": "done",
+        "agent_workflow": "done"
+      },
+      "overrides": [
+        {
+          "principle": "build-hosting-upfront",
+          "scope": "project",
+          "change": "loosen",
+          "params": {},
+          "reason": "mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend."
+        }
+      ],
+      "decisions": [
+        {
+          "area": "identity",
+          "title": "Product identity",
+          "context": "alpha is an existing Claude Code plugin being adopted; its README states what it does. It serves developers who want agents held to engineering principles in new and existing repos.",
+          "decision": "Name alpha (slug alpha), for developers building with Claude Code; requirements R1 (interview), R2 (generate), R3 (enforce), R4 (adopt), R5 (extend), R6 (recipes), R7 (user layer). MIT, keeping the repo LICENSE; domain jargon on.",
+          "consequences": "Features outside R1-R7 need a new requirement first. The glossary and One vocabulary principle apply to code, docs and skills."
+        },
+        {
+          "area": "components",
+          "title": "Single Python CLI",
+          "context": "alpha is one Python package (src/alpha, src/alpha_evals) driven through bin/alpha and the plugin skills; the survey found one candidate at the root.",
+          "decision": "One component, alpha: kind cli, stack alpha-python (adopted, extends the kit python recipe), path . (single layout). Traits: network calls (subprocesses), persisted data (project.json, user layer, baselines), non-trivial logic; no UI, not deployed, no ML.",
+          "consequences": "One toolchain to maintain (uv, Python 3.11+). Subprocess calls need timeouts and failure paths; project.json and the user layer need a migration path on schema change. The recipe runs the commands mise.toml already runs; deptry and coverage are not set up yet."
+        },
+        {
+          "area": "architecture",
+          "title": "One component, no contracts",
+          "context": "alpha is a single component; nothing calls another component, but the domain has its own vocabulary.",
+          "decision": "alpha turns interview answers into an enforced project (generate, adopt, update) and checks the answers, recipes, baselines and adoption steps that drive it. No calls, contract format none. Glossary: kit, area, component, recipe, principle, override, baseline, adoption step.",
+          "consequences": "These eight terms are fixed names across code, docs and skills; a new concept needs a glossary entry. Splitting off a component would need contracts."
+        },
+        {
+          "area": "errors",
+          "title": "Messages and exit codes",
+          "context": "alpha errors reach a developer at the terminal or Claude running a skill, which relays the fix.",
+          "decision": "alpha uses message-and-exit-code: alpha: <problem> and its fix on stderr, non-zero exit. Categories: validation, not-found, conflict, unavailable, internal (the kit defaults).",
+          "consequences": "Every error names what went wrong and the next step to fix it, so a skill can act on it without guessing."
+        },
+        {
+          "area": "testing",
+          "title": "Unit, integration and end-to-end tests",
+          "context": "The risk is in subprocess calls, file merges and stored state, and in whole flows (interview, generate, adopt, update) users drive through bin/alpha and the skills.",
+          "decision": "alpha: unit, integration (the real-toolchain tests now marked slow) and end-to-end (whole flows from R1-R7). Diff coverage 80% (kit default).",
+          "consequences": "A test covering an acceptance check names its requirement id (R1-R7). Today tests are flat under tests/ and few name a requirement; moving them under tests/<level>/ and linking them is part of the adoption plan. Diff coverage applies once the recipe has a coverage command."
+        },
+        {
+          "area": "ui",
+          "title": "No UI",
+          "context": "alpha runs in a terminal and inside Claude Code; no component shows a user interface.",
+          "decision": "No UI components.",
+          "consequences": "The visual-system and accessibility principles do not apply; adding a UI component reopens this area."
+        },
+        {
+          "area": "documentation",
+          "title": "README as user docs",
+          "context": "Users meet alpha through the README and three skills; developers through CLAUDE.md. The kit usual CLI globs match nothing here.",
+          "decision": "User docs live in README.md (kit default). Mapped: src/alpha/cli.py and bin/** to README.md or CLAUDE.md; skills/new-project, skills/adopt and skills/extend to README.md. Decision records start at 0001 in docs/decisions/.",
+          "consequences": "A change to the CLI or a user-invoked skill must update the README (or CLAUDE.md for the CLI), or the Stop hook blocks it."
+        },
+        {
+          "area": "build",
+          "title": "No CI, plugin package",
+          "context": "alpha is published as a Claude Code plugin through its own marketplace on GitHub (vs/alpha); nothing is deployed. The kit default is GitHub Actions.",
+          "decision": "CI: none (loosens build-hosting-upfront). No environments. alpha builds into a package (the plugin, published through its marketplace); no hosting.",
+          "consequences": "Nothing checks a push remotely: mise run check (and the commit hooks) are the only gate, so run them before every commit. Not made a default for future projects."
+        },
+        {
+          "area": "security",
+          "title": "Local CLI, no secrets or auth",
+          "context": "alpha runs on the user machine and is not deployed; the evals use the claude CLI login, which alpha never handles.",
+          "decision": "No secret store (nothing deployed; local .env files suffice). Auth: none. No extra protected paths.",
+          "consequences": "Claude cannot edit .env files, keys or lockfiles (always protected); the betterleaks check blocks a committed secret. Baseline-output fixtures stay editable so they can be re-recorded."
+        },
+        {
+          "area": "dependencies",
+          "title": "Weekly manual updates",
+          "context": "One toolchain (uv) plus the mise-pinned check tools drift. The kit default is Dependabot, but with no CI nothing would check its pull requests.",
+          "decision": "Updates: manual (kit default dependabot), weekly, after a 7-day cooldown from each release.",
+          "consequences": "Someone runs the updates weekly with uv and mise, and checks them locally with mise run check before committing; a new dependency still needs its row in docs/dependencies.md. Not made a default for future projects."
+        },
+        {
+          "area": "observability",
+          "title": "Nothing deployed",
+          "context": "alpha runs only on the user machine; no component is deployed.",
+          "decision": "No observability setup.",
+          "consequences": "Observability applies once a component is deployed; that reopens this area."
+        },
+        {
+          "area": "releases",
+          "title": "Semver tags with GitHub releases",
+          "context": "Plugin users update through the marketplace and read release notes on GitHub. The repo already tags vX.Y.Z on main and has GitHub releases, but no CHANGELOG.md; the kit default changelog is a file.",
+          "decision": "Scheme semver, changelog github-releases (kit default file), scope repo. Process: a chore: Release X.Y.Z commit bumps plugin.json, pyproject.toml, src/alpha/__init__.py and uv.lock; tag vX.Y.Z on main and publish a GitHub release with its notes.",
+          "consequences": "A breaking change to answers, recipes or the CLI is a major version (minor while 0.x) and its release notes say how to migrate. v0.2.0, v0.4.1 and v0.4.2 have tags but no GitHub release yet. Not made a default for future projects."
+        },
+        {
+          "area": "data",
+          "title": "Versioned JSON and TOML files",
+          "context": "alpha stores answers in each project (project.json, schema 1), the user layer in ~/.config/alpha/ and baseline files; they outlive the plugin version that wrote them.",
+          "decision": "Storage: JSON and TOML files. Migration tool: none today; answers refuses any schema but 1, and skills treat a missing area as pending. No ML.",
+          "consequences": "Bumping project.json schema needs an upgrader that rewrites older files, with tests, before release; until then a shape change must stay backward compatible. There are no migration files, so the append-only rule has nothing to guard."
+        },
+        {
+          "area": "accessibility",
+          "title": "No accessibility target",
+          "context": "alpha has no user interface beyond the terminal and Claude Code.",
+          "decision": "No accessibility target or checks.",
+          "consequences": "The accessibility principle does not apply; adding a UI component reopens this area."
+        },
+        {
+          "area": "performance",
+          "title": "CLI startup budget",
+          "context": "Skills call bin/alpha many times per interview and hook, so a slow start adds up; the load is one developer on a laptop.",
+          "decision": "alpha: startup < 200 ms (kit default for a CLI), measured by an end-to-end pytest test timing bin/alpha --help, run by mise run check. Today it starts in about 60-70 ms.",
+          "consequences": "Breaking the budget needs a fix or a decision record. The timing test does not exist yet; it is an adoption step."
+        },
+        {
+          "area": "git",
+          "title": "Conventional commits on feature branches",
+          "context": "One maintainer and Claude commit; 48 of the last 50 commits already follow conventional commits (the other two are merges), with scopes hooks, recipes, defaults and spec in use.",
+          "decision": "Convention: conventional. Scopes: alpha, hooks, recipes, defaults, spec. Branching: feature-branches merged into main. Git hooks: alpha sets core.hooksPath (no hook manager found).",
+          "consequences": "The commit-msg hook rejects a header that is not type(scope): description with a 50-char imperative description, or body lines past 72; merge, revert and fixup commits pass. Existing history stays as it is."
+        },
+        {
+          "area": "agent_workflow",
+          "title": "Review at merge",
+          "context": "Work happens on feature branches verified once when finished; a review per task would slow small changes, and the hooks already check every edit.",
+          "decision": "Review mode at-merge (kit default); max_lines 200 and max_files 5 recorded for batched mode; no extra risk paths beyond the kit ones.",
+          "consequences": "Claude stops for the principles reviewer before pushing to main or merging a pull request, and cannot finish with open findings."
+        }
+      ],
+      "identity": {
+        "name": "alpha",
+        "slug": "alpha",
+        "value_proposition": "alpha interviews you about a new project, then writes what agents build on: principles, docs, decision records, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code, and each principle is checked, by a hook or by a reviewer agent, before a change reaches main.",
+        "target_users": "Developers building with Claude Code who want agents to follow enforced engineering principles from day one: starting a new project from an enforced skeleton, or bringing an existing repo under the same rules without stopping its work.",
+        "requirements": [
+          {
+            "id": "R1",
+            "text": "Interview the user area by area, recommending answers from the kit defaults, and save them to project.json.",
+            "acceptance": "Given an empty folder, when /alpha:new-project runs and the user accepts each recommendation, then project.json has every area done and alpha answers check prints ok."
+          },
+          {
+            "id": "R2",
+            "text": "From finished answers, generate, bootstrap and commit a skeleton (config, docs, test wiring, enforcement, no app code) whose checks pass.",
+            "acceptance": "Given finished answers, when alpha generate, bootstrap and commit-skeleton run, then the project has no app source files, every component check and mise run ci pass, and the tree is clean."
+          },
+          {
+            "id": "R3",
+            "text": "Enforce each active principle in a generated project through Claude Code hooks, git hooks, CI or the principles reviewer.",
+            "acceptance": "Given a generated project, when an agent skips git hooks, edits a protected file or stops with untested source, then the matching hook blocks it with a message naming the fix."
+          },
+          {
+            "id": "R4",
+            "text": "Bring an existing repo under the same enforcement on alpha/adopt, with legacy findings baselined and a compliance plan to work through.",
+            "acceptance": "Given a clean repo with legacy lint findings, when alpha adopt apply and bootstrap --capture-baselines run, then the files alpha writes are committed on alpha/adopt, the existing findings pass as baselined, and a new finding fails its check."
+          },
+          {
+            "id": "R5",
+            "text": "Change the answers of a generated or adopted project and merge the result without overwriting edits the user made.",
+            "acceptance": "Given a generated project with a hand edit in CLAUDE.md, when an answer changes and alpha update and commit-update run, then the change is applied, the edit survives, and a second update --dry-run prints nothing to change."
+          },
+          {
+            "id": "R6",
+            "text": "Support any stack through recipes: the ones the kit ships (Python, TypeScript, Rust) or drafted ones that must be proven before use.",
+            "acceptance": "Given a stack the kit has no recipe for, when a drafted recipe is saved, then answers check refuses it until alpha recipe try proves it, and again after any later edit."
+          },
+          {
+            "id": "R7",
+            "text": "Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates.",
+            "acceptance": "Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults."
+          }
+        ],
+        "license": "MIT",
+        "license_file": "LICENSE",
+        "copyright_holder": "Semyon Vadishev",
+        "domain_jargon": true
+      },
+      "layout": "single",
+      "components_talk": false,
+      "components": [
+        {
+          "name": "alpha",
+          "path": ".",
+          "kind": "cli",
+          "stack": "alpha-python",
+          "traits": {
+            "has_ui": false,
+            "deployed": false,
+            "network_calls": true,
+            "persisted_data": true,
+            "ml": false,
+            "nontrivial_logic": true
+          }
+        }
+      ],
+      "recipes": {
+        "alpha-python": {
+          "adopted": true,
+          "extends": "python",
+          "commands": {
+            "setup": "uv sync",
+            "lint": "uv run ruff check src tests project-files",
+            "lint_file": "uv run ruff check {file}",
+            "format": "uv run ruff format src tests project-files",
+            "format_check": "uv run ruff format --check src tests project-files",
+            "format_file": "uv run ruff format {file}",
+            "typecheck": "uv run pyright",
+            "test": "uv run pytest",
+            "structure": ""
+          },
+          "proven_hash": "3e912e0d3493bcd309734e19f86a028dc2b6321d00ca70e80875eaf5f1b3dda8"
+        }
+      },
+      "architecture": {
+        "components": [
+          {
+            "name": "alpha",
+            "responsibility": "Turns interview answers into an enforced project (generate, adopt, update) and checks the answers, recipes, baselines and adoption steps that drive it.",
+            "calls": []
+          }
+        ],
+        "contracts": {
+          "format": "none",
+          "paths": []
+        },
+        "glossary": [
+          {
+            "term": "kit",
+            "meaning": "The defaults, recipes, registry and templates alpha ships, which every project starts from."
+          },
+          {
+            "term": "area",
+            "meaning": "One topic of the interview (identity, components, ...), settled by its own skill and saved in project.json."
+          },
+          {
+            "term": "component",
+            "meaning": "One part of a project with its own folder, kind, stack and checks; also a commit scope."
+          },
+          {
+            "term": "recipe",
+            "meaning": "How a component on a stack is set up and checked: the kit's own, one drafted for a project, or one adopted from a repo's tools; proven before use."
+          },
+          {
+            "term": "principle",
+            "meaning": "A rule in docs/principles.toml, enforced by a hook, a check or the principles reviewer."
+          },
+          {
+            "term": "override",
+            "meaning": "A project's recorded change to a principle (tighten, loosen or drop), with its reason."
+          },
+          {
+            "term": "baseline",
+            "meaning": "The legacy findings of one check in an adopted repo, per file and rule; only new findings fail and it only shrinks."
+          },
+          {
+            "term": "adoption step",
+            "meaning": "One item of an adopted repo's compliance plan, done only when its acceptance conditions hold."
+          }
+        ]
+      },
+      "errors": {
+        "components": [
+          {
+            "name": "alpha",
+            "format": "message-and-exit-code"
+          }
+        ],
+        "categories": [
+          "validation",
+          "not-found",
+          "conflict",
+          "unavailable",
+          "internal"
+        ]
+      },
+      "testing": {
+        "components": [
+          {
+            "name": "alpha",
+            "levels": [
+              "unit",
+              "integration",
+              "end-to-end"
+            ]
+          }
+        ]
+      },
+      "ui": {
+        "components": []
+      },
+      "documentation": {
+        "external": "readme",
+        "external_path": "",
+        "external_location": "",
+        "mappings": [
+          {
+            "paths": [
+              "src/alpha/cli.py",
+              "bin/**"
+            ],
+            "docs": [
+              "README.md",
+              "CLAUDE.md"
+            ]
+          },
+          {
+            "paths": [
+              "skills/new-project/**",
+              "skills/adopt/**",
+              "skills/extend/**"
+            ],
+            "docs": [
+              "README.md"
+            ]
+          }
+        ]
+      },
+      "build": {
+        "ci": "none",
+        "environments": [],
+        "components": [
+          {
+            "name": "alpha",
+            "artifact": "package",
+            "hosting": ""
+          }
+        ]
+      },
+      "security": {
+        "secret_store": "",
+        "auth": "none",
+        "extra_protected": []
+      },
+      "dependencies": {
+        "updates": "manual",
+        "schedule": "weekly",
+        "cooldown_days": 7
+      },
+      "observability": {
+        "components": []
+      },
+      "releases": {
+        "scheme": "semver",
+        "changelog": "github-releases",
+        "scope": "repo",
+        "process": "Bump the version in .claude-plugin/plugin.json, pyproject.toml and src/alpha/__init__.py (plus uv.lock) in a chore: Release X.Y.Z commit on main, tag vX.Y.Z and publish a GitHub release with its notes. Users get it with claude plugin marketplace update alpha."
+      },
+      "data": {
+        "components": [
+          {
+            "name": "alpha",
+            "storage": "JSON and TOML files: .claude/alpha/project.json (schema 1) in each project, the user layer in ~/.config/alpha/, and per-check baseline files",
+            "migration_tool": "none",
+            "migrations": [],
+            "reversible": false
+          }
+        ],
+        "ml": null
+      },
+      "accessibility": {
+        "level": "",
+        "components": []
+      },
+      "performance": {
+        "expected_load": "one developer running alpha on a laptop, against one project at a time",
+        "components": [
+          {
+            "name": "alpha",
+            "budgets": [
+              {
+                "metric": "startup",
+                "limit": "200 ms",
+                "measured_by": "an end-to-end pytest test that times bin/alpha --help, run by mise run check"
+              }
+            ]
+          }
+        ]
+      },
+      "git": {
+        "convention": "conventional",
+        "scopes": [
+          "alpha",
+          "hooks",
+          "recipes",
+          "defaults",
+          "spec"
+        ],
+        "branching": "feature-branches"
+      },
+      "agent_workflow": {
+        "review_mode": "at-merge",
+        "max_lines": 200,
+        "max_files": 5,
+        "extra_risk_paths": []
+      }
+    },
+    "records": {
+      "decisions": [
+        "docs/decisions/0001-product-identity.md",
+        "docs/decisions/0002-single-python-cli.md",
+        "docs/decisions/0003-one-component-no-contracts.md",
+        "docs/decisions/0004-messages-and-exit-codes.md",
+        "docs/decisions/0005-unit-integration-and-end-to-end-tests.md",
+        "docs/decisions/0006-no-ui.md",
+        "docs/decisions/0007-readme-as-user-docs.md",
+        "docs/decisions/0008-no-ci-plugin-package.md",
+        "docs/decisions/0009-local-cli-no-secrets-or-auth.md",
+        "docs/decisions/0010-weekly-manual-updates.md",
+        "docs/decisions/0011-nothing-deployed.md",
+        "docs/decisions/0012-semver-tags-with-github-releases.md",
+        "docs/decisions/0013-versioned-json-and-toml-files.md",
+        "docs/decisions/0014-no-accessibility-target.md",
+        "docs/decisions/0015-cli-startup-budget.md",
+        "docs/decisions/0016-conventional-commits-on-feature-branches.md",
+        "docs/decisions/0017-review-at-merge.md"
+      ],
+      "overrides": [
+        "docs/decisions/0018-override-build-hosting-upfront.md"
+      ]
+    },
+    "added": {
+      "alpha": "2026-11-12"
+    },
+    "files": {
+      ".betterleaks.toml": "sha256:277a6d453dca13ec70f5f64ac966dbe5efb93f9a3f75f0e6721b5b4f317ad89c",
+      ".claude/agents/committer.md": "sha256:388deb1b7b411facea05ca55825a1d5de3419c103665f2781e7c94199c9150d8",
+      ".claude/agents/principles-reviewer.md": "sha256:4a8c49e6de4e6484ea0268ec10bc4f3d62e7b41d66353155aacd81d785376fd7",
+      ".claude/alpha/checks/diff_checks.py": "sha256:64d95c1ec6e254bad93b0f40cc559cf6dd5af9b119b89b9c1256ab14ca4ef111",
+      ".claude/alpha/checks/ratchet.py": "sha256:3b2089cf059b08bad92858e81b8c44acdd617a71c8b66a745c61fcc2abfd84af",
+      ".claude/alpha/checks/review_dates.py": "sha256:34cc0db87776aae7b7a30199f327f9114f3df5411af741f9599e27da3e3dfbbb",
+      ".claude/alpha/checks/shortcuts.py": "sha256:35d78c0e9d3480effdbc77ba86a6128996e0870e95165bcaf664ffdb56c88a28",
+      ".claude/alpha/githooks/commit-msg": "sha256:cf04bd88851198263c0dd79b1eb4b8833a195ac1163db0888bb986d2fa8bd60c",
+      ".claude/alpha/hooks/_common.py": "sha256:9e0370d2a631238e442700a64f4b32d15211931c60920d0f4227e784d9babfb8",
+      ".claude/alpha/hooks/commit_msg.py": "sha256:16788f9c1eb10703e630239954f0259ed376c426c6435c2a2b05d3317b86a4fe",
+      ".claude/alpha/hooks/guard_bash.py": "sha256:5c3a601c90a6c004311dda94b27942429a2cc8fa3ef89b85c73674ea9b1ef769",
+      ".claude/alpha/hooks/guard_paths.py": "sha256:5d3d5a6fb97fa0e316bea8c272766c3bf3b6e409fac3d9cc9a9d465597e9b7f1",
+      ".claude/alpha/hooks/post_edit.py": "sha256:6ddfeceb6ecb11709e4010bff32045c3148d9a5908c4016ce2ce0b712ae95a85",
+      ".claude/alpha/hooks/review.py": "sha256:ad340f3f382f0aa023282ec8f9349419757da2c8dc8ce13e151690e28dedca60",
+      ".claude/alpha/hooks/review_record.py": "sha256:922b8229435482a8273eacea9803f5fe6e888bd705b8192aef642c42994afbb0",
+      ".claude/alpha/hooks/session_start.py": "sha256:4a9c76c0b001139cdd258efb23b04e59f2451f840803c9e352eba41355192bf6",
+      ".claude/alpha/hooks/stop_checks.py": "sha256:8577fce56e3d394a8092587b9619b1b146a14d9f975d6f8617af2e206609f51b",
+      ".claude/alpha/hooks/subagent_start.py": "sha256:e521ea41d0d35c476cba1fb9dbdff5bcc71f76553e3d3c48ddae22631acf04e5",
+      ".claude/alpha/hooks/user_prompt.py": "sha256:513ee01ebb7f89e5953d490dfde9ed17ea4ebe1c5b8537a626245aa8bc103ad9",
+      ".claude/settings.json": "sha256:8470c8cc20b63aa4a32a10cbfa3a772388e9c445d5dab3b6dd9fbfc1f7f400a6",
+      ".claude/skills/audit/SKILL.md": "sha256:9002c887beeaf19fb7e249935da53ccc01f24331af0186abf36151fc1a5eea68",
+      ".claude/skills/commit/SKILL.md": "sha256:6153014a29fb87eb378d160459e275b81b6e4d7cc8eabb76afb0a8ecc2d0a3b4",
+      ".claude/skills/debt/SKILL.md": "sha256:28ce95aa110ca9addccbf6bde630645739d206be0483acbc6b0fe046b9628eba",
+      ".claude/skills/decision/SKILL.md": "sha256:21bd8dfc679706dea21ca35992641cba84017d3adde9afcc3db3f2462a52bb30",
+      ".claude/skills/review-change/SKILL.md": "sha256:030a78de6260b37987fb01b508dc3f5c2fd082ae665dbb55f312db85d2b2b158",
+      ".gitignore": "sha256:c67d69e292be739a98dee4a088225e588acce0efbfb08fea2b23530d7d32bd7c",
+      ".rumdl.toml": "sha256:0b2cb9228e9e7c88b4f46f14e9dffc561cf241b7a8f502076f933d8f05f1a389",
+      "CLAUDE.md": "sha256:f0124f47951c6f2d61971cb9bb4c01f3b9c277b62689f036648555ff43df018f",
+      "CONTRIBUTING.md": "sha256:347821163280866bfe9065e0e56d9b41c9f3afdb8e22283efeaadccc57e91817",
+      "README.md": "sha256:140e31a8b912485d549a65091314c6fd566d59f33d759fa6e9dba35675fbb7cb",
+      "_typos.toml": "sha256:8c1d7a0673f71fe186099c95af72f8f870c893418f2951ab6092793e1f3dc637",
+      "docs/adoption.md": "sha256:80ff9aa3c4a0401ad29e6cf77f0cdd5e57f6a524a7750402ee8ede5cae34e68e",
+      "docs/architecture.md": "sha256:ff900f6e9c635acf8ca837da8b75715a9a6be45ca496f7761d15be1ab25024b4",
+      "docs/build.md": "sha256:5906f90593d99653c3cbf2fd70b365def882617bed8c518049c5d462d23a7cde",
+      "docs/data.md": "sha256:ada50e4034585f01e461e0ac21fddf40c78dd38c129a06cadf79a00b283b537f",
+      "docs/decisions/0001-product-identity.md": "sha256:a7e7451a1c79f049dbe5dbd9e9a0d1007546be029c279f9e641a7665a5070a16",
+      "docs/decisions/0002-single-python-cli.md": "sha256:f6785c9e980a26218310969fffaa82f8eee5b0c43806e3d612a78a9243301c0c",
+      "docs/decisions/0003-one-component-no-contracts.md": "sha256:e598195c766a586942bfa3dead075136cfffb16980d524d5b5d343037fd6b4a4",
+      "docs/decisions/0004-messages-and-exit-codes.md": "sha256:6f564200de67d5917464a0df7abbe55afd6b72824885e3e4dcb56fffb5bbbf23",
+      "docs/decisions/0005-unit-integration-and-end-to-end-tests.md": "sha256:5175043b80fd7902f88c1ddc39cc5ef980bfa9031d3658240cee1fc82de68cb9",
+      "docs/decisions/0006-no-ui.md": "sha256:1b6c1d973b7c6aa2f50b890a86a2c00af45a1f9f375849410f0476579ac594f0",
+      "docs/decisions/0007-readme-as-user-docs.md": "sha256:5c5986d453de4a9c05dc0bcc2437a405b363403faeb1adfb2b2caaad8f44cb15",
+      "docs/decisions/0008-no-ci-plugin-package.md": "sha256:0cdb37820ad46481411a9a51194c7ba0cc89accab45b11a660f627b8f89515c7",
+      "docs/decisions/0009-local-cli-no-secrets-or-auth.md": "sha256:93eb069352bcaf25bcf7255993efc997ae29b866c4ea69c4e251e9a50286ed1d",
+      "docs/decisions/0010-weekly-manual-updates.md": "sha256:fd1bf05b5c0b0547c155d0be69f1b747f287a8e243ce441ccbd42adc4751b6d3",
+      "docs/decisions/0011-nothing-deployed.md": "sha256:60320b2d429134875387797c8c75285070b50543492fa6f5d6831c61adc6bc64",
+      "docs/decisions/0012-semver-tags-with-github-releases.md": "sha256:a5d58bc4116313eedb1032dda50ab74cf8329678eade9bc62797d7d5b07a4e9e",
+      "docs/decisions/0013-versioned-json-and-toml-files.md": "sha256:d2ee82c41aacbc1158ad1400febb2e44a043aa788c356d02b58f38fae0341fa7",
+      "docs/decisions/0014-no-accessibility-target.md": "sha256:4108c29aebb093de9d59e878e5652faa61fbebca05f52581f9316df284a04e6d",
+      "docs/decisions/0015-cli-startup-budget.md": "sha256:b9bd6de9bbf0ec80e42df48fa5ac1f55e176bf53da7bf49cf24b3b981e5a7858",
+      "docs/decisions/0016-conventional-commits-on-feature-branches.md": "sha256:2d1e9b729d9ad2778a83ca33069b2de472ab98b92807eeaff2a27d5290b93912",
+      "docs/decisions/0017-review-at-merge.md": "sha256:29c2e0e1b5f1af4983ead8fa0aed8fcffed4bfa4caa7b233b37a7e944c7ff43d",
+      "docs/decisions/0018-override-build-hosting-upfront.md": "sha256:dca75b3a787516298eb455e5ce8f83498d0552f0e41ddd6dd4f61c63236fac8c",
+      "docs/dependencies.md": "sha256:b0602a4ef2fa27d7943fb514e0d9531d7b55b518d234bae0b7f47a8d71041ce4",
+      "docs/glossary.md": "sha256:7eaea5016c5a9318a97987c96e106c512186c8ec02a779a73a2105719a3bd5cd",
+      "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
+      "docs/principles.toml": "sha256:34ee3dd9466e08e6ae4432b2b81fd2ded134e67d6efba4e7ef4124d8416bb75d",
+      "docs/product.md": "sha256:f16cf2fdf4b69e188970efff2396c3dbfed048821621887a097fdafe091b1165",
+      "docs/releases.md": "sha256:f87fe7b35dd5a3b79159c751d5074fdd42d8e1aa9105c2a475c3df4cd45afd11",
+      "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
+      "lychee.toml": "sha256:acde12a85a932d34967b4139d0a3452f5d7dcdb08c6755a3805b671d455835ea",
+      "mise.toml": "sha256:cf1f84524091b7757c38337c95448f6542d0ecee0cf64ef1136f72cbea46e553"
+    }
+  }
+}

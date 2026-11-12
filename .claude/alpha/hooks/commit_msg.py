@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+import _common  # noqa: E402
+
+DEFAULT_TYPES = [
+    "feat",
+    "fix",
+    "docs",
+    "style",
+    "refactor",
+    "test",
+    "build",
+    "chore",
+    "perf",
+    "ci",
+    "revert",
+]
+EXAMPLE = 'Example: "feat(api): Add token refresh"'
+PASS_PREFIXES = ("Merge ", 'Revert "', "fixup! ", "squash! ", "amend! ")
+SCISSORS = "# ------------------------ >8 ------------------------"
+HEADER = re.compile(r"^(?P<type>[a-z]+)(\((?P<scope>[a-z0-9-]+)\))?!?: (?P<desc>.+)$")
+TRAILER = re.compile(r"^[A-Za-z-]+: ")
+MAX_DESC = 50
+MAX_BODY = 72
+NOT_IMPERATIVE = {
+    "adds",
+    "fixes",
+    "updates",
+    "removes",
+    "changes",
+    "makes",
+    "uses",
+    "moves",
+    "renames",
+}
+IMPERATIVE_EXCEPTIONS = {
+    "embed",
+    "seed",
+    "feed",
+    "need",
+    "shed",
+    "speed",
+    "bring",
+    "ring",
+    "string",
+    "sing",
+    "ping",
+}
+
+
+def fail(rule: str) -> None:
+    print(f"commit-msg: {rule}. {EXAMPLE}", file=sys.stderr)
+    sys.exit(1)
+
+
+def toplevel() -> Path:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return Path.cwd()
+    out = proc.stdout.strip()
+    return Path(out) if proc.returncode == 0 and out else Path.cwd()
+
+
+def clean(text: str) -> list[str]:
+    lines: list[str] = []
+    for line in text.splitlines():
+        if line.startswith(SCISSORS):
+            break
+        if line.startswith("#"):
+            continue
+        lines.append(line.rstrip())
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    return lines
+
+
+def is_imperative(word: str) -> bool:
+    low = word.lower()
+    if low in IMPERATIVE_EXCEPTIONS:
+        return True
+    return not (low in NOT_IMPERATIVE or low.endswith(("ed", "ing")))
+
+
+def check(lines: list[str], types: list[str]) -> None:
+    if not lines:
+        fail("the message is empty; write a header like type(scope): description")
+    header = lines[0]
+    if header.startswith(PASS_PREFIXES):
+        return
+    m = HEADER.match(header)
+    if m is None:
+        fail(
+            f'the header "{header}" does not match type(scope): description '
+            "(lowercase type, optional scope in parentheses, a colon and a space)"
+        )
+        return
+    kind, desc = m.group("type"), m.group("desc")
+    if kind not in types:
+        fail(f'unknown type "{kind}"; use one of: {", ".join(types)}')
+    if len(desc) > MAX_DESC:
+        fail(f"the description is {len(desc)} chars; keep it to {MAX_DESC} or fewer")
+    if desc.endswith("."):
+        fail("the description must not end with a period")
+    word = desc.split()[0]
+    if not is_imperative(word):
+        fail(f'"{word}" is not imperative; write "Add", not "Adds", "Added", "Adding"')
+    if len(lines) > 1:
+        if lines[1]:
+            fail("a blank line must separate the header from the body")
+        for line in lines[2:]:
+            if len(line) > MAX_BODY and "://" not in line and not TRAILER.match(line):
+                fail(f"body lines wrap at {MAX_BODY} chars; rewrap: {line[:30]}...")
+
+
+def main() -> None:
+    _common.check_python(fail_code=1)
+    if len(sys.argv) != 2:
+        print(
+            "commit-msg: expected the commit message file as the only argument. "
+            "Run this through git (git config core.hooksPath .claude/alpha/githooks).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        text = Path(sys.argv[1]).read_text(errors="replace")
+    except OSError as e:
+        print(
+            f"commit-msg: cannot read the message file ({e}). Retry the commit.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    principles = _common.load_principles(toplevel(), fail_code=1)
+    types = DEFAULT_TYPES
+    if principles is not None:
+        if not _common.principle_applies(principles, "clean-history"):
+            sys.exit(0)
+        git = principles.get("git", {})
+        types = [str(t) for t in git.get("types", DEFAULT_TYPES)]
+    check(clean(text), types)
+
+
+if __name__ == "__main__":
+    main()
