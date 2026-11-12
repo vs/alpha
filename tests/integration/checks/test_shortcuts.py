@@ -102,3 +102,15 @@ def test_prose_apostrophes_do_not_hide_a_shortcut(tmp_path: Path) -> None:
 def test_a_hash_in_prose_is_not_a_comment(tmp_path: Path) -> None:
     root = repo(tmp_path, {"docs/a.md": f"It reads # {MARK} anywhere\n"})
     assert run(root, "--list").stdout == "No shortcuts. Clean ledger.\n"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        f"fn kind(&self) -> &'static str {{ // {MARK} no trigger",
+        f"(setq x 'sym) ; {MARK} no trigger",
+    ],
+)
+def test_a_lone_quote_does_not_hide_a_shortcut(tmp_path: Path, line: str) -> None:
+    root = repo(tmp_path, {"src/a.rs": f"{line}\n"})
+    assert run(root).returncode == 1

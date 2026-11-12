@@ -56,6 +56,7 @@ def marker(line: str, prose: bool) -> str | None:
     """The text of the line's `shortcut:` comment, skipping string literals."""
     comment = PROSE_COMMENT if prose else COMMENT
     quote = ""
+    opened = 0
     in_comment = prose
     i = 0
     while i < len(line):
@@ -66,13 +67,16 @@ def marker(line: str, prose: bool) -> str | None:
             elif ch == quote:
                 quote = ""
         elif ch in QUOTES and not in_comment:
-            quote = ch
+            quote, opened = ch, i
         elif start := comment.match(line, i):
             found = MARKER.match(line, start.end())
             if found:
                 return found.group("text")
             in_comment = True
         i += 1
+    if quote:
+        # A quote that never closes (a Rust lifetime, a Lisp symbol) isn't one.
+        return marker(line[:opened] + " " + line[opened + 1 :], prose)
     return None
 
 
