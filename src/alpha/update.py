@@ -256,7 +256,7 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
         if change is not None and (change.text is None or change.text != disk):
             changes.append(change)
     touched = [c.path for c in changes if c.kind in _WRITES]
-    dirty = status_paths(target, *touched) if touched else []
+    dirty = status_paths(target, *touched, command="update") if touched else []
     if dirty:
         raise GenerateError(
             f"Commit or stash your changes to {', '.join(dirty)} first: alpha "
@@ -266,7 +266,7 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     for c in now.components:
         if c.name in old_names or c.path == ".":
             continue
-        theirs = status_paths(target, c.path)
+        theirs = status_paths(target, c.path, command="update")
         if theirs:
             raise GenerateError(
                 f"Commit or move your files in {c.path}/ first "

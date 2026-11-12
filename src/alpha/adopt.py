@@ -132,7 +132,7 @@ def _conventional(target: Path, types: list[str]) -> dict[str, Any]:
 
 def _git_facts(target: Path, defaults: dict[str, Any]) -> dict[str, Any]:
     branch = _out(target, "rev-parse", "--abbrev-ref", "HEAD") or ""
-    dirty = status_paths(target, untracked="normal")
+    dirty = status_paths(target, command="adopt survey", untracked="normal")
     facts: dict[str, Any] = {
         "head": _out(target, "rev-parse", "HEAD") or "",
         "branch": branch,
@@ -281,7 +281,7 @@ def _answers(target: Path) -> dict[str, Any]:
 def _uncommitted(target: Path) -> list[str]:
     """Uncommitted changes other than the adoption's own answers."""
     own = (PROJECT_JSON, ".claude/settings.local.json")
-    return [p for p in status_paths(target) if p not in own]
+    return [p for p in status_paths(target, command="adopt apply") if p not in own]
 
 
 # Paths alpha writes and commits; a repo that ignores them can't take alpha.

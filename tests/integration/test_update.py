@@ -918,3 +918,13 @@ def test_update_of_a_current_project_keeps_the_plain_notes(
     ) in out
     assert "  skipped   docs/build.md (you deleted it: alpha's change to it is " in out
     assert "kit changes" not in out
+
+
+def test_a_failed_git_status_says_to_rerun_the_update(tmp_path: Path, git_env: None):
+    target = generated_repo(tmp_path, SCENARIO)
+    (target / ".git" / "index").write_bytes(b"not an index")
+    data = json.loads((target / ".claude/alpha/project.json").read_text())
+    data["git"]["scopes"].append("docs")
+    (target / ".claude/alpha/project.json").write_text(json.dumps(data))
+    with pytest.raises(GenerateError, match=r'then rerun "alpha update'):
+        plan_update(target, SOURCE, TODAY)
