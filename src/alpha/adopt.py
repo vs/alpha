@@ -25,10 +25,11 @@ from alpha.answers import (
     load_answers,
     parse_answers,
     write_answers,
+    write_json,
 )
 from alpha.baseline import accepts, find_record
 from alpha.defaults import Source, load_defaults, load_survey
-from alpha.generate import copied_files, render_project, source_info, write_json
+from alpha.generate import copied_files, render_project, source_info
 from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group
 from alpha.merge import Change, classify, merge_json, union_lines
 from alpha.recipes import RecipeBook, matches

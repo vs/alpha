@@ -18,6 +18,7 @@ from alpha.answers import (
     answers_snapshot,
     drafted_recipes,
     load_answers,
+    write_json,
 )
 from alpha.baseline import BaselineError, baseline_file
 from alpha.baseline import capture as capture_baseline
@@ -293,10 +294,6 @@ def digest(data: bytes) -> str:
 
 def file_hashes(target: Path, rels: list[str]) -> dict[str, str]:
     return {rel: digest((target / rel).read_bytes()) for rel in rels}
-
-
-def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
 
 
 def _project_json(target: Path) -> dict[str, Any] | None:

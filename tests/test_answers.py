@@ -18,6 +18,7 @@ from alpha.answers import (
     load_answers,
     parse_answers,
     write_answers,
+    write_json,
 )
 from alpha.validate import fail
 
@@ -733,3 +734,13 @@ def test_snapshot_leaves_out_the_manifest():
     assert snap == {"schema": 1, "decisions": [{"area": "git"}]}
     snap["decisions"].append({})
     assert len(top["decisions"]) == 1
+
+
+def test_write_json_keeps_old_file_when_write_fails(tmp_path: Path):
+    path = tmp_path / "project.json"
+    write_json(path, {"schema": 1})
+    before = path.read_text()
+    with pytest.raises(TypeError):
+        write_json(path, {"schema": 1, "broken": object()})
+    assert path.read_text() == before
+    assert [p.name for p in tmp_path.iterdir()] == ["project.json"]

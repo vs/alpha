@@ -1286,18 +1286,7 @@ def write_answers(target: Path, text: str) -> Path:
         data = cast(dict[str, Any], current)
     data.update(cast(dict[str, Any], update))
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".project.", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-            # mkstemp makes the file owner-only; keep the mode the file had,
-            # or the one any other new file would get.
-            os.chmod(tmp, _mode_for(path))
-            os.replace(tmp, path)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
+        write_json(path, data)
     except OSError as e:
         raise fail(
             str(path),
@@ -1305,6 +1294,23 @@ def write_answers(target: Path, text: str) -> Path:
             "Check the folder's permissions and free space, then retry",
         ) from None
     return path
+
+
+def write_json(path: Path, data: Mapping[str, Any]) -> None:
+    """Replace `path` with `data` in one step: an interrupted write leaves the
+    old file as it was."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        # mkstemp makes the file owner-only; keep the mode the file had, or the
+        # one any other new file would get.
+        os.chmod(tmp, _mode_for(path))
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def _mode_for(path: Path) -> int:

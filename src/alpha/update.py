@@ -15,6 +15,7 @@ from alpha.answers import (
     area_of,
     generated_components,
     parse_answers,
+    write_json,
 )
 from alpha.defaults import Source, load_defaults
 from alpha.generate import (
@@ -24,7 +25,6 @@ from alpha.generate import (
     digest,
     file_hashes,
     render_project,
-    write_json,
 )
 from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group
 from alpha.merge import Change, classify
