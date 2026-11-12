@@ -4,7 +4,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
@@ -51,13 +51,14 @@ def texts(tool: str, tool_input: dict[str, Any], current: Path) -> tuple[str, st
     pairs: list[Any] = [tool_input] if tool == "Edit" else []
     edits = tool_input.get("edits")
     if tool == "MultiEdit" and isinstance(edits, list):
-        pairs = list(edits)  # pyright: ignore[reportUnknownArgumentType]
+        pairs = list(cast("list[Any]", edits))
     olds: list[str] = []
     news: list[str] = []
     for pair in pairs:
         if isinstance(pair, dict):
-            o = pair.get("old_string")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            n = pair.get("new_string")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+            fields = cast("dict[str, object]", pair)
+            o = fields.get("old_string")
+            n = fields.get("new_string")
             olds.append(o if isinstance(o, str) else "")
             news.append(n if isinstance(n, str) else "")
     return "\n".join(olds), "\n".join(news)
@@ -93,7 +94,7 @@ def main() -> None:
     tool_input: object = inp.get("tool_input")
     if tool not in TOOLS or not isinstance(tool_input, dict):
         sys.exit(0)
-    args: dict[str, Any] = tool_input  # pyright: ignore[reportUnknownVariableType]
+    args = cast("dict[str, Any]", tool_input)
     file_path = args.get("file_path")
     if not isinstance(file_path, str) or not file_path:
         sys.exit(0)

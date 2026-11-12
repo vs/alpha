@@ -68,7 +68,7 @@ def _merge(base: dict[str, Any], over: Mapping[str, Any]) -> dict[str, Any]:
     for key, value in over.items():
         current = base.get(key)
         if isinstance(value, Mapping) and isinstance(current, dict):
-            _merge(current, value)  # pyright: ignore[reportUnknownArgumentType]
+            _merge(cast(dict[str, Any], current), cast(Mapping[str, Any], value))
         else:
             base[key] = value
     return base

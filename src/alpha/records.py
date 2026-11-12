@@ -40,7 +40,10 @@ class Records:
 
 
 def record_number(path: str) -> int:
-    return int(re.match(r"\d+", Path(path).name).group())  # type: ignore[union-attr]
+    found = re.match(r"\d+", Path(path).name)
+    if found is None:
+        raise ValueError(f"{path} is not a decision record (NNNN-<slug>.md)")
+    return int(found.group())
 
 
 def taken_numbers(target: Path) -> set[int]:

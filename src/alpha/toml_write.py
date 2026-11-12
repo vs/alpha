@@ -1,5 +1,6 @@
 import re
 from collections.abc import Mapping, Sequence
+from typing import cast
 
 _BARE_KEY = re.compile(r"[A-Za-z0-9_-]+")
 _ESCAPES = {
@@ -43,11 +44,10 @@ def _string(text: str) -> str:
 
 
 def _is_table_array(value: object) -> bool:
-    return (
-        isinstance(value, list)
-        and len(value) > 0  # pyright: ignore[reportUnknownArgumentType]
-        and all(isinstance(v, Mapping) for v in value)  # pyright: ignore[reportUnknownVariableType]
-    )
+    if not isinstance(value, list):
+        return False
+    items = cast(list[object], value)
+    return len(items) > 0 and all(isinstance(v, Mapping) for v in items)
 
 
 def _value(value: object, where: Sequence[str]) -> str:
@@ -59,9 +59,9 @@ def _value(value: object, where: Sequence[str]) -> str:
         return _string(value)
     if isinstance(value, list):
         items: list[str] = []
-        for item in value:  # pyright: ignore[reportUnknownVariableType]
+        for item in cast(list[object], value):
             if isinstance(item, bool) or not isinstance(item, (str, int)):
-                raise TypeError(f"cannot write {type(item)!r} at {'.'.join(where)}")  # pyright: ignore[reportUnknownArgumentType]
+                raise TypeError(f"cannot write {type(item)!r} at {'.'.join(where)}")
             items.append(_value(item, where))
         return "[" + ", ".join(items) + "]"
     raise TypeError(f"cannot write {type(value)!r} at {'.'.join(where)}")
@@ -74,9 +74,9 @@ def _emit_table(
     table_arrays: list[tuple[str, list[Mapping[str, object]]]] = []
     for key, value in data.items():
         if isinstance(value, Mapping):
-            subtables.append((key, value))  # pyright: ignore[reportUnknownArgumentType]
+            subtables.append((key, cast(Mapping[str, object], value)))
         elif _is_table_array(value):
-            table_arrays.append((key, value))  # pyright: ignore[reportArgumentType]
+            table_arrays.append((key, cast(list[Mapping[str, object]], value)))
         else:
             out.append(f"{_key(key)} = {_value(value, (*path, key))}")
     for key, sub in subtables:

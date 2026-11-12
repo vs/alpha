@@ -148,7 +148,7 @@ def read_input() -> dict[str, Any]:
     if not isinstance(data, dict):
         print("alpha: hook input is not a JSON object; ignoring it.", file=sys.stderr)
         return {}
-    return data  # pyright: ignore[reportUnknownVariableType]
+    return cast("dict[str, Any]", data)
 
 
 def checkout_of(path: Path) -> Path | None:

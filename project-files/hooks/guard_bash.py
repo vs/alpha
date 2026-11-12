@@ -8,7 +8,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
@@ -768,7 +768,7 @@ def main() -> None:
     tool_input: object = inp.get("tool_input")
     command: object = None
     if isinstance(tool_input, dict):
-        command = tool_input.get("command")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        command = cast("dict[str, object]", tool_input).get("command")
     if not isinstance(command, str):
         sys.exit(0)
     cwd_value = inp.get("cwd")
