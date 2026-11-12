@@ -20,6 +20,7 @@ from alpha.answers import (
     Condition,
     Step,
     answers_snapshot,
+    area_of,
     describe_condition,
     load_answers,
     parse_answers,
@@ -35,7 +36,6 @@ from alpha.records import record_paths, taken_numbers
 from alpha.registry import load_registry
 from alpha.render.docs import CHAINED_COMMIT_MSG
 from alpha.update import UpdatePlan, apply_update
-from alpha.validate import area_of
 
 CAP = 50  # entries per list; the rest are counted
 SUBJECTS = 50  # recent commits checked against the convention

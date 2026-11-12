@@ -78,6 +78,16 @@ AREAS: tuple[str, ...] = (
     "git",
     "agent_workflow",
 )
+_COMPONENTS_FIELDS = ("layout", "components_talk", "components", "recipes")
+
+
+def area_of(where: str) -> str | None:
+    head = re.split(r"[.\[]", where, maxsplit=1)[0]
+    if head in AREAS:
+        return head
+    return "components" if head in _COMPONENTS_FIELDS else None
+
+
 KINDS: frozenset[str] = frozenset(
     {"backend", "frontend", "cli", "mobile", "ml", "library", "worker"}
 )

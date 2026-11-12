@@ -17,18 +17,6 @@ def fail(where: str, problem: str, fix: str) -> AnswersError:
     return AnswersError(f"{where}: {problem}. {fix}", where)
 
 
-_COMPONENTS_FIELDS = ("layout", "components_talk", "components", "recipes")
-
-
-def area_of(where: str) -> str | None:
-    from alpha.answers import AREAS
-
-    head = re.split(r"[.\[]", where, maxsplit=1)[0]
-    if head in AREAS:
-        return head
-    return "components" if head in _COMPONENTS_FIELDS else None
-
-
 def join(parent: str, key: str) -> str:
     return f"{parent}.{key}" if parent else key
 

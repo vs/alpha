@@ -14,11 +14,12 @@ from alpha.answers import (
     AREAS,
     AnswersError,
     answers_snapshot,
+    area_of,
     load_answers,
     parse_answers,
     write_answers,
 )
-from alpha.validate import area_of, fail
+from alpha.validate import fail
 
 FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
 

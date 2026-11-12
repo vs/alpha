@@ -12,6 +12,7 @@ from alpha.answers import (
     PROJECT_JSON,
     Answers,
     answers_snapshot,
+    area_of,
     generated_components,
     parse_answers,
 )
@@ -29,7 +30,7 @@ from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group
 from alpha.merge import Change, classify
 from alpha.records import Records, record_paths, taken_numbers
 from alpha.registry import load_registry
-from alpha.validate import AnswersError, area_of
+from alpha.validate import AnswersError
 
 _WRITES = ("new", "change", "merge", "conflict")
 _ORDER = ("new", "change", "merge", "conflict", "stale", "skipped")
