@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 0 | 4 |
-| P4 Rework | 0 | 11 |
+| P4 Rework | 0 | 14 |
 | P6 Traceability | 0 | 1 |
 
 ## P2 Close tool gaps
@@ -75,6 +75,9 @@ Done when:
 | `p4-atomic-write-json` | alpha | pending |
 | `p4-one-git-status-parser` | alpha | pending |
 | `p4-suppression-reasons` | alpha | pending |
+| `p4-shortcuts-skip-strings` | alpha | pending |
+| `p4-betterleaks-nested-ignores` | alpha | pending |
+| `p4-no-ci-wording` | alpha | pending |
 | `p4-tests-by-level` | alpha | pending |
 | `p4-startup-budget-test` | alpha | pending |
 | `p4-missing-releases` | - | pending |
@@ -158,6 +161,36 @@ Serves `never-weaken-checks`, `strict-types`.
 Done when:
 
 - `! grep -rnE "# (type: ignore|pyright: ignore|noqa)(\[[^]]*\]|: [A-Z0-9, ]+)?[[:space:]]*$" src project-files/hooks project-files/checks` passes
+
+### `p4-shortcuts-skip-strings`: Stop the shortcuts check reading string literals
+
+The shortcuts check matches # shortcut: anywhere on a line, so test fixtures that hold one in a string fail it; tests/checks/test_shortcuts.py now splits its fixtures to avoid that.
+
+Serves `fix-at-the-root`.
+
+Done when:
+
+- `uv run pytest -k test_a_shortcut_inside_a_string_is_not_a_comment` passes
+
+### `p4-betterleaks-nested-ignores`: Allowlist folders that nested gitignores skip
+
+The generated .betterleaks.toml lists only the root .gitignore, so a folder ignored by its own .gitignore (here .superpowers/) is scanned; it was added to the allowlist by hand.
+
+Serves `fix-at-the-root`, `no-secrets`.
+
+Done when:
+
+- `uv run pytest -k test_betterleaks_allowlist_covers_nested_gitignores` passes
+
+### `p4-no-ci-wording`: Drop CI wording when CI is none
+
+With build.ci none, the generated CLAUDE.md still says CI runs the same checks, and mise.toml says ci runs what CI runs on a pull request.
+
+Serves `docs-with-code`.
+
+Done when:
+
+- `uv run pytest -k test_no_ci_wording_without_ci` passes
 
 ### `p4-tests-by-level`: Sort alpha tests into unit, integration, e2e
 
