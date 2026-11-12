@@ -15,8 +15,8 @@ from alpha.recipes import RecipeBook
 from alpha.registry import default_registry
 from alpha.toml_write import dumps
 
-SCRIPT = Path(__file__).parents[2] / "project-files" / "checks" / "ratchet.py"
-OUTPUT = Path(__file__).parents[1] / "fixtures" / "baseline-output"
+SCRIPT = Path(__file__).parents[3] / "project-files" / "checks" / "ratchet.py"
+OUTPUT = Path(__file__).parents[2] / "fixtures" / "baseline-output"
 ROOT = Path("/ROOT")
 
 

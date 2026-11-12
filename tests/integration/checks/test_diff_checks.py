@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from helpers import git
 
-SCRIPT = Path(__file__).parents[2] / "project-files" / "checks" / "diff_checks.py"
+SCRIPT = Path(__file__).parents[3] / "project-files" / "checks" / "diff_checks.py"
 PRINCIPLES = (
     '[data]\nmigration_paths = ["migrations/**"]\nsquawk_paths = ["migrations/**"]\n'
 )

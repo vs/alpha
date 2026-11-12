@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).parents[2] / "project-files" / "checks" / "shortcuts.py"
+SCRIPT = Path(__file__).parents[3] / "project-files" / "checks" / "shortcuts.py"
 # Fixtures with no trigger spell the marker through MARK: the copy of this
 # check that kit 0.4.2 installed in .claude/alpha/ reads one in a string.
 MARK = "shortcut:"

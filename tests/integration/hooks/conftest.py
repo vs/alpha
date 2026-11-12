@@ -13,7 +13,7 @@ from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 HOOKS = REPO / "project-files" / "hooks"
 FIXTURE = REPO / "tests" / "fixtures" / "answers_valid.json"
 

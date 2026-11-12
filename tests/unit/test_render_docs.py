@@ -13,7 +13,7 @@ from alpha.principles import build_principles
 from alpha.records import slug as _slug
 from alpha.render.docs import render_docs
 
-FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
 D = load_defaults(Source(PLUGIN_ROOT, True))
 
 

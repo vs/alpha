@@ -23,7 +23,7 @@ from alpha.render.ci import (
     render_dependabot,
 )
 
-FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
 PRINCIPLES = build_principles(
     load_defaults(Source(PLUGIN_ROOT, True)), load_answers(FIXTURE), "0.1.0"
 )
@@ -291,7 +291,7 @@ def test_no_coverage_steps_when_zero():
 
 
 def test_drafted_recipe_without_coverage(tmp_path: Path):
-    scenario = Path(__file__).parents[1] / "evals" / "scenarios" / "rust-cli.json"
+    scenario = Path(__file__).parents[2] / "evals" / "scenarios" / "rust-cli.json"
     data = json.loads(scenario.read_text())
     data["components"][0]["stack"] = "shell"
     data["recipes"] = {"shell": proven(shell_recipe())}

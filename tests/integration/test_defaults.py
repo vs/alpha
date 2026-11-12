@@ -26,7 +26,7 @@ from alpha.defaults import (
 from alpha.principles import build_principles
 from alpha.repo_checks import CI_STEPS, repo_checks
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SHIM = ROOT / "bin" / "alpha"
 HEADER = '# Managed by "alpha defaults set". Do not edit by hand.\n'
 

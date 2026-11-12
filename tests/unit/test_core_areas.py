@@ -8,7 +8,7 @@ from helpers import SCENARIOS, single_component
 
 from alpha.answers import AnswersError, load_answers
 
-FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
 
 
 def valid() -> dict[str, Any]:

@@ -22,7 +22,7 @@ from alpha.answers import (
 )
 from alpha.validate import fail
 
-FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
 
 
 def write(tmp_path: Path, data: dict[str, Any]) -> Path:

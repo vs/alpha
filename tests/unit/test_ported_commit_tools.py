@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1] / "project-files"
+ROOT = Path(__file__).resolve().parents[2] / "project-files"
 SKILL = ROOT / "skills" / "commit" / "SKILL.md"
 AGENT = ROOT / "agents" / "committer.md"
 

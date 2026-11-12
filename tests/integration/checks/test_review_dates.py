@@ -2,7 +2,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).parents[2] / "project-files" / "checks" / "review_dates.py"
+SCRIPT = Path(__file__).parents[3] / "project-files" / "checks" / "review_dates.py"
 
 OSV_GOOD = (
     '[[IgnoredVulns]]\nid = "GHSA-aaaa-bbbb-cccc"\nignoreUntil = 2026-12-31\n'

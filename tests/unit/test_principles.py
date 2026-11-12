@@ -18,7 +18,7 @@ from alpha.principles import (
 )
 from alpha.records import Records
 
-FIXTURE = Path(__file__).parent / "fixtures" / "answers_valid.json"
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
 D = load_defaults(Source(PLUGIN_ROOT, True))
 A = load_answers(FIXTURE)
 
