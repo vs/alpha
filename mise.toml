@@ -72,7 +72,7 @@ run = "mise outdated --no-global --bump --json | python3 -c \"import json,sys; d
 
 [tasks."check:component:alpha"]
 dir = "."
-run = ["uv sync", "uv run ruff format --check src tests project-files", "uv run ruff check src tests project-files", "uv run pyright", "uv run pytest"]
+run = ["uv sync", "uv run ruff format --check src tests project-files", "uv run ruff check src tests project-files", "uv run pyright", "uv run deptry . --extend-exclude .claude", "uv run pytest"]
 
 [tasks.ci]
 description = "Run the repository checks"
