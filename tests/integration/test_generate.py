@@ -828,3 +828,25 @@ def test_bootstrap_rejects_malformed_principles_with_component_and_fix(
     assert done.stderr.startswith(f"{path}: {problem}"), done.stderr
     assert "git checkout docs/principles.toml" in done.stderr
     assert "Traceback" not in done.stderr
+
+
+def test_generate_keeps_the_users_own_license_file(tmp_path: Path):
+    answers = place_answers(tmp_path, "python-ml-single")
+    data = json.loads(answers.read_text())
+    data["identity"]["license"] = "Custom"
+    data["identity"]["license_file"] = "LICENSE"
+    answers.write_text(json.dumps(data))
+    (tmp_path / "LICENSE").write_text("Do what thou wilt.\n")
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    assert (tmp_path / "LICENSE").read_text() == "Do what thou wilt.\n"
+
+
+def test_bootstrap_rejects_a_baseline_without_an_id(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    edit_principles(tmp_path, lambda d: d.update(baselines=[{"check": "lint"}]))
+    done = run_cli("bootstrap", str(tmp_path))
+    assert done.returncode == 1
+    assert "docs/principles.toml: baselines[0].id is missing" in done.stderr
+    assert "Traceback" not in done.stderr

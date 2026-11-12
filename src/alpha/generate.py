@@ -237,15 +237,18 @@ def generate(
             f"{target} is not a folder. Create it and run the alpha interview "
             "there first."
         )
+    answers_path = target / PROJECT_JSON
     extra = _unexpected(target)
+    a = load_answers(answers_path) if extra and answers_path.is_file() else None
+    if a is not None and a.identity is not None:
+        extra = [rel for rel in extra if rel != a.identity.license_file]
     if extra:
         raise GenerateError(
             f"{target} is not empty (found: {', '.join(extra)}). alpha v0.1 starts "
             "projects only in empty folders. Choose a new folder, or move these "
             "files out first."
         )
-    answers_path = target / PROJECT_JSON
-    a = load_answers(answers_path)
+    a = a or load_answers(answers_path)
     records = record_paths(a)
     today = today or date.today()
     rendered = render_project(
@@ -391,6 +394,14 @@ def _principles_problem(data: dict[str, Any]) -> str | None:
             isinstance(x, str) for x in cast(list[object], lockfiles)
         ):
             return f"{where}.lockfiles must be a list of paths"
+    baselines: object = data.get("baselines", [])
+    if not isinstance(baselines, list):
+        return "baselines must be a list of [[baselines]] tables"
+    for i, raw in enumerate(cast(list[object], baselines)):
+        if not isinstance(raw, dict) or not isinstance(
+            cast(dict[str, Any], raw).get("id"), str
+        ):
+            return f"baselines[{i}].id is missing"
     return None
 
 
