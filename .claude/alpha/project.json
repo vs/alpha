@@ -1084,6 +1084,55 @@
             "status": "pending"
           },
           {
+            "id": "p4-shortcuts-skip-strings",
+            "phase": "P4",
+            "title": "Stop the shortcuts check reading string literals",
+            "why": "The shortcuts check matches # shortcut: anywhere on a line, so test fixtures that hold one in a string fail it; tests/checks/test_shortcuts.py now splits its fixtures to avoid that.",
+            "component": "alpha",
+            "principles": [
+              "fix-at-the-root"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k test_a_shortcut_inside_a_string_is_not_a_comment"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-betterleaks-nested-ignores",
+            "phase": "P4",
+            "title": "Allowlist folders that nested gitignores skip",
+            "why": "The generated .betterleaks.toml lists only the root .gitignore, so a folder ignored by its own .gitignore (here .superpowers/) is scanned; it was added to the allowlist by hand.",
+            "component": "alpha",
+            "principles": [
+              "fix-at-the-root",
+              "no-secrets"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k test_betterleaks_allowlist_covers_nested_gitignores"
+              }
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "p4-no-ci-wording",
+            "phase": "P4",
+            "title": "Drop CI wording when CI is none",
+            "why": "With build.ci none, the generated CLAUDE.md still says CI runs the same checks, and mise.toml says ci runs what CI runs on a pull request.",
+            "component": "alpha",
+            "principles": [
+              "docs-with-code"
+            ],
+            "acceptance": [
+              {
+                "run": "uv run pytest -k test_no_ci_wording_without_ci"
+              }
+            ],
+            "status": "pending"
+          },
+          {
             "id": "p4-tests-by-level",
             "phase": "P4",
             "title": "Sort alpha tests into unit, integration, e2e",
@@ -1642,7 +1691,7 @@
       "CONTRIBUTING.md": "sha256:347821163280866bfe9065e0e56d9b41c9f3afdb8e22283efeaadccc57e91817",
       "README.md": "sha256:140e31a8b912485d549a65091314c6fd566d59f33d759fa6e9dba35675fbb7cb",
       "_typos.toml": "sha256:8c1d7a0673f71fe186099c95af72f8f870c893418f2951ab6092793e1f3dc637",
-      "docs/adoption.md": "sha256:80ff9aa3c4a0401ad29e6cf77f0cdd5e57f6a524a7750402ee8ede5cae34e68e",
+      "docs/adoption.md": "sha256:f2393c23b5f664e39e6da2226897be7ca915516fb84335ae9ba53b170226540e",
       "docs/architecture.md": "sha256:ff900f6e9c635acf8ca837da8b75715a9a6be45ca496f7761d15be1ab25024b4",
       "docs/build.md": "sha256:5906f90593d99653c3cbf2fd70b365def882617bed8c518049c5d462d23a7cde",
       "docs/data.md": "sha256:ada50e4034585f01e461e0ac21fddf40c78dd38c129a06cadf79a00b283b537f",
@@ -1673,6 +1722,7 @@
       "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
       "lychee.toml": "sha256:acde12a85a932d34967b4139d0a3452f5d7dcdb08c6755a3805b671d455835ea",
       "mise.toml": "sha256:cf1f84524091b7757c38337c95448f6542d0ecee0cf64ef1136f72cbea46e553"
-    }
+    },
+    "updated_at": "2026-11-12"
   }
 }
