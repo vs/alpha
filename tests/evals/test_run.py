@@ -55,6 +55,8 @@ def report_of(out: Path, scenario: str) -> dict[str, Any]:
 def test_offline_run_writes_a_passing_report(
     fake: FakeClaude, tmp_path: Path, git_env: None, stub_tools: Path
 ):
+    """R1: an interview that accepts each recommendation leaves every area
+    done and answers check ok."""
     fake_interview(fake, "python-ml-single")
     out = tmp_path / "out"
     assert main(run_args(fake, out, "python-ml-single", "--no-reviewer")) == 0

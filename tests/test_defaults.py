@@ -327,6 +327,7 @@ def cli_env(tmp_path: Path, src: Source | None = None) -> dict[str, str]:
 
 
 def test_cli_show_json_and_set(tmp_path: Path):
+    """R7: a default set with alpha defaults set shows on top of the kit's."""
     env = cli_env(tmp_path)
     shown = run_cli("defaults", "show", "--json", env=env)
     assert shown.returncode == 0, shown.stderr

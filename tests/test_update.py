@@ -213,6 +213,7 @@ def test_changed_decision_is_refused(
 
 
 def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env: None):
+    """R5: an answer change lands and the user's edit in CLAUDE.md survives."""
     target = generated_repo(tmp_path, SCENARIO)
     claude_md = target / "CLAUDE.md"
     claude_md.write_text(claude_md.read_text() + "Team rule: ask before deploys.\n")

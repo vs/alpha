@@ -114,6 +114,7 @@ def test_scenario_skeleton(
 def test_generated_guard_blocks_no_verify(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
+    """R3: skipping git hooks in a generated project is blocked."""
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     payload = {"tool_name": "Bash", "tool_input": {"command": "git commit -nm x"}}
     done = subprocess.run(
@@ -308,6 +309,7 @@ def settings_hook(settings: dict[str, Any], event: str, matcher: str | None) -> 
 def test_generated_hooks_enforce_the_generated_principles(
     tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
+    """R3: the generated hooks block what the principles forbid, naming the fix."""
     target = tmp_path / "proj"
     answers = place_answers(target, "web-ts-plus-python-api")
     data = json.loads(answers.read_text())
