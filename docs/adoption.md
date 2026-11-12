@@ -8,7 +8,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | --- | --- | --- |
 | P2 Close tool gaps | 4 | 4 |
 | P4 Rework | 10 | 14 |
-| P6 Traceability | 0 | 1 |
+| P6 Traceability | 1 | 1 |
 
 ## P2 Close tool gaps
 
@@ -227,7 +227,7 @@ Done when:
 
 | Step | Component | Status |
 | --- | --- | --- |
-| `p6-requirement-tests` | alpha | pending |
+| `p6-requirement-tests` | alpha | done |
 
 ### `p6-requirement-tests`: Link R1-R7 to the tests that cover them
 
