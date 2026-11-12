@@ -251,7 +251,8 @@
             "run": "uv run pytest -k test_apply_refuses_when_git_status_fails"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-one-git-status-parser"
       },
       {
         "id": "p4-suppression-reasons",
@@ -1083,7 +1084,8 @@
                 "run": "uv run pytest -k test_apply_refuses_when_git_status_fails"
               }
             ],
-            "status": "pending"
+            "status": "done",
+            "branch": "alpha/p4-one-git-status-parser"
           },
           {
             "id": "p4-suppression-reasons",
@@ -1713,7 +1715,7 @@
       "CONTRIBUTING.md": "sha256:347821163280866bfe9065e0e56d9b41c9f3afdb8e22283efeaadccc57e91817",
       "README.md": "sha256:140e31a8b912485d549a65091314c6fd566d59f33d759fa6e9dba35675fbb7cb",
       "_typos.toml": "sha256:8c1d7a0673f71fe186099c95af72f8f870c893418f2951ab6092793e1f3dc637",
-      "docs/adoption.md": "sha256:c4aee2f6bab87856fdd51495a072483a8bd9ccb80eb4a2a244b57ad3098e52b5",
+      "docs/adoption.md": "sha256:9f1dba4d752919840dbd0a85df9b8c0bc6737f1351c1d5096a64ec37deec9b86",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
       "docs/build.md": "sha256:5906f90593d99653c3cbf2fd70b365def882617bed8c518049c5d462d23a7cde",
       "docs/data.md": "sha256:ada50e4034585f01e461e0ac21fddf40c78dd38c129a06cadf79a00b283b537f",
