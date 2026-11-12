@@ -12,3 +12,4 @@ Log every dependency added, with the reason.
 
 | Dependency | Component | Why | Added |
 |---|---|---|---|
+| deptry (dev) | alpha | The structure check: finds unused, missing and transitive dependencies, as alpha's Python recipe does | 2026-11-12 |

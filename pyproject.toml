@@ -24,6 +24,7 @@ select = ["E", "F", "I", "UP", "B", "BLE", "ERA", "PGH", "RUF100", "PLC0415", "T
 
 [dependency-groups]
 dev = [
+    "deptry>=0.25.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pyyaml>=6.0.3",
@@ -33,3 +34,7 @@ dev = [
 
 [tool.ruff]
 extend-exclude = ["docs", ".superpowers"]
+
+[tool.deptry]
+# The kit's packages, and the hook and check modules that import each other.
+known_first_party = ["alpha", "alpha_evals", "_common", "review", "ratchet"]
