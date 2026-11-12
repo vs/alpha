@@ -13,3 +13,4 @@ Log every dependency added, with the reason.
 | Dependency | Component | Why | Added |
 |---|---|---|---|
 | deptry (dev) | alpha | The structure check: finds unused, missing and transitive dependencies, as alpha's Python recipe does | 2026-11-12 |
+| pytest-cov (dev) | alpha | Writes the coverage report the recipe's coverage command reads, as alpha's Python recipe does | 2026-11-12 |
