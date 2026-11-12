@@ -74,7 +74,7 @@ Done when:
 | `p4-unreadable-project-json` | alpha | done |
 | `p4-atomic-write-json` | alpha | done |
 | `p4-one-git-status-parser` | alpha | done |
-| `p4-suppression-reasons` | alpha | pending |
+| `p4-suppression-reasons` | alpha | in progress |
 | `p4-shortcuts-skip-strings` | alpha | pending |
 | `p4-betterleaks-nested-ignores` | alpha | pending |
 | `p4-no-ci-wording` | alpha | pending |
