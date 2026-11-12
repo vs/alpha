@@ -35,6 +35,7 @@ from alpha.recipes import RecipeBook, matches
 from alpha.records import record_paths, taken_numbers
 from alpha.registry import load_registry
 from alpha.render.docs import CHAINED_COMMIT_MSG
+from alpha.shell import GIT_TIMEOUT, run_command
 from alpha.update import UpdatePlan, apply_update
 
 CAP = 50  # entries per list; the rest are counted
@@ -49,10 +50,19 @@ class AdoptError(Exception):
 def run_git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
-            ["git", *args], cwd=target, capture_output=True, text=True
+            ["git", *args],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT,
         )
     except OSError as e:
         raise AdoptError(f"Cannot run git ({e}). Install git, then retry.") from e
+    except subprocess.TimeoutExpired:
+        raise AdoptError(
+            f"git {args[0]} took longer than {GIT_TIMEOUT:g}s in {target}, so alpha "
+            "stopped it. Run it yourself to see what it waits for, then retry."
+        ) from None
 
 
 def _out(target: Path, *args: str) -> str | None:
@@ -670,23 +680,26 @@ def _hook_runs_alpha(target: Path, a: Answers) -> bool:
 
 
 HOOK_TIMEOUT = 120  # seconds: a commit-msg hook that runs longer is stuck
+RUN_TIMEOUT = 1800.0  # seconds: a legacy suite may be slow, but not this slow
 
 
 def _problem(c: Condition, target: Path, a: Answers, confirmed: bool) -> str | None:
     """Why the condition doesn't hold, or None when it does."""
     if c.kind == "run":
-        # No time limit: a legacy suite may take a long while, and the user
-        # sees it running.
         try:
-            done = subprocess.run(
-                c.value, shell=True, cwd=target / c.dir, capture_output=True, text=True
-            )
+            done = run_command(c.value, target / c.dir, RUN_TIMEOUT)
         except OSError as e:
             return f"`{c.value}` can't run in {c.dir} ({e})"
-        if done.returncode == 0:
+        if done is None:
+            return (
+                f"`{c.value}` took longer than {RUN_TIMEOUT:g}s, so alpha stopped it. "
+                "If it waits for input, make it run without asking; otherwise find "
+                "out why it's slow."
+            )
+        if done.code == 0:
             return None
-        tail = "\n".join((done.stdout + done.stderr).strip().splitlines()[-20:])
-        return f"`{c.value}` failed (exit {done.returncode}):\n{tail}"
+        tail = "\n".join(done.out.strip().splitlines()[-20:])
+        return f"`{c.value}` failed (exit {done.code}):\n{tail}"
     if c.kind == "recipe":
         name, _, field_ = c.value.partition(".")
         comp = next((x for x in a.components if x.name == name), None)

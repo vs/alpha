@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
@@ -27,6 +28,7 @@ from helpers import (
 )
 
 from alpha import VERSION
+from alpha import generate as generate_module
 from alpha.answers import AnswersError
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
@@ -412,6 +414,34 @@ def test_bootstrap_install_failure_points_at_the_install(
         f'failed, then rerun "alpha bootstrap {project}"'
     )
     assert "mise run check" not in message
+
+
+def test_bootstrap_step_times_out_with_a_fix(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
+    mise = bin_dir / "mise"
+    mise.write_text('#!/bin/sh\n[ "$1" = install ] && sleep 30\nexit 0\n')
+    mise.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    monkeypatch.setattr(generate_module, "STEP_TIMEOUT", 0.5)
+    started = time.monotonic()
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/principles.toml").read_text())
+        )
+    assert time.monotonic() - started < 20
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    install = f"mise install {' '.join(tools)}"
+    message = str(err.value)
+    assert message.startswith(
+        f'"{install}" took longer than 0.5s in {project}, so alpha stopped it. '
+        "If it waits for input, run it there yourself;"
+    )
+    assert message.endswith(f'then rerun "alpha bootstrap {project}"')
 
 
 def test_bootstrap_repo_check_failure_names_command_and_fix(

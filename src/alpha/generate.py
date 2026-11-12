@@ -31,11 +31,13 @@ from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
 from alpha.render.tooling import MISE, render_tooling
 from alpha.repo_checks import repo_checks
+from alpha.shell import run_command
 
 PRINCIPLES_TOML = "docs/principles.toml"
 _ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
 _ALLOWED_DIRS = frozenset({".claude", ".claude/alpha"})
 _TAIL_LINES = 40
+STEP_TIMEOUT = 1800.0  # seconds: an install or a check that runs longer is stuck
 
 
 class GenerateError(Exception):
@@ -338,18 +340,17 @@ def project_book(target: Path) -> RecipeBook:
 def _run(label: str, command: str, cwd: Path, fix: str) -> None:
     """Run one bootstrap step, announced on stderr; raise with its output's tail."""
     print(f"alpha: {label}: {command}", file=sys.stderr, flush=True)
-    done = subprocess.run(
-        command,
-        shell=True,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    if done.returncode != 0:
-        tail = "\n".join(done.stdout.splitlines()[-_TAIL_LINES:])
+    done = run_command(command, cwd, STEP_TIMEOUT)
+    if done is None:
         raise GenerateError(
-            f'"{command}" failed in {cwd} (exit {done.returncode}). '
+            f'"{command}" took longer than {STEP_TIMEOUT:g}s in {cwd}, so alpha '
+            "stopped it. If it waits for input, run it there yourself; otherwise "
+            f"find out why it's slow.\n{fix}"
+        )
+    if done.code != 0:
+        tail = "\n".join(done.out.splitlines()[-_TAIL_LINES:])
+        raise GenerateError(
+            f'"{command}" failed in {cwd} (exit {done.code}). '
             f"Last lines of its output:\n{tail}\n{fix}"
         )
 

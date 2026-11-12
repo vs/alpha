@@ -1,8 +1,6 @@
 import json
-import os
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -21,6 +19,7 @@ from alpha.recipes import (
     recipe_hash,
     render_template,
 )
+from alpha.shell import Ran, run_command
 
 _TAIL_LINES = 40
 _NOT_FOUND = 127
@@ -70,25 +69,9 @@ def check(target: Path, stack: str) -> dict[str, Any]:
     return cast(dict[str, Any], drafted[stack])
 
 
-def _run(command: str, cwd: Path) -> tuple[int, str] | None:
+def _run(command: str, cwd: Path, merge: bool = True) -> Ran | None:
     print(f"alpha: try: {command}", file=sys.stderr, flush=True)
-    proc = subprocess.Popen(
-        command,
-        shell=True,
-        cwd=cwd,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        start_new_session=True,  # so a timeout stops what it started, too
-    )
-    try:
-        output, _ = proc.communicate(timeout=_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.communicate()
-        return None
-    return proc.returncode, output
+    return run_command(command, cwd, _TIMEOUT_SECONDS, merge=merge)
 
 
 def _missing_tool(command: str, output: str) -> str:
@@ -161,28 +144,6 @@ def _baseline_problem(
     return None
 
 
-def _run_split(command: str, cwd: Path) -> tuple[int, str, str] | None:
-    """Like _run, with stdout and stderr apart (a JSON reader needs stdout)."""
-    print(f"alpha: try: {command}", file=sys.stderr, flush=True)
-    proc = subprocess.Popen(
-        command,
-        shell=True,
-        cwd=cwd,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    try:
-        out, err = proc.communicate(timeout=_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.communicate()
-        return None
-    return proc.returncode, out, err
-
-
 def _users(target: Path, stack: str) -> list[str]:
     """The folders of the components project.json gives the stack."""
     try:
@@ -220,10 +181,10 @@ def _prove_step(
     recipe: Recipe, step: str, command: str, cwd: Path, tree: Path, again: str
 ) -> tuple[str | None, str | None]:
     """(problem, report) for one check of an adopted recipe on the repo."""
-    ran = _run_split(command, cwd)
+    ran = _run(command, cwd, merge=False)
     if ran is None:
         return _timed_out(command, step, again), None
-    code, out, err = ran
+    code, out, err = ran.code, ran.out, ran.err
     if code == 0:
         return None, None
     tail = "\n".join((out + err).splitlines()[-_TAIL_LINES:])
@@ -250,10 +211,10 @@ def _prove_step(
             f"findings can be baselined, or fix them first; then {again}",
             None,
         )
-    read = _run_split(reader.command, cwd)
+    read = _run(reader.command, cwd, merge=False)
     if read is None:
         return _timed_out(reader.command, f"baseline.{step}", again), None
-    _, rout, rerr = read
+    rout, rerr = read.out, read.err
     rtail = "\n".join((rout + rerr).splitlines()[-_TAIL_LINES:])
     try:
         found = findings(reader, rout, rerr, tree, cwd)
@@ -310,10 +271,10 @@ def _try_adopted(
                         ran = _run(command, cwd)
                         if ran is None:
                             return _timed_out(command, step, again)
-                        if ran[0] != 0:
-                            tail = "\n".join(ran[1].splitlines()[-_TAIL_LINES:])
+                        if ran.code != 0:
+                            tail = "\n".join(ran.out.splitlines()[-_TAIL_LINES:])
                             return (
-                                f'"{command}" failed in {path} (exit {ran[0]}). Last '
+                                f'"{command}" failed in {path} (exit {ran.code}). Last '
                                 f"lines:\n{tail}\nFix the recipe's setup command, "
                                 "then " + again
                             )
@@ -356,7 +317,7 @@ def try_recipe(target: Path, stack: str, report: list[str] | None = None) -> str
                     "command run without asking; otherwise find out why it's slow, "
                     f'fix it, and run "alpha recipe try {target} {stack}" again.'
                 )
-            code, output = ran
+            code, output = ran.code, ran.out
             if code == 0:
                 continue
             tail = "\n".join(output.splitlines()[-_TAIL_LINES:])

@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, git, proven, run_cli
 
+from alpha import adopt
 from alpha.adopt import (
     AdoptError,
     apply_adoption,
@@ -263,6 +264,17 @@ def test_done_needs_every_condition(tmp_path: Path, git_env: None):
     assert statuses(root) == {"p2-lint-ml": "pending"}
 
 
+def test_run_condition_times_out(
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
+):
+    root = plan_repo(tmp_path, [step(acceptance=[{"run": "sleep 30"}])])
+    monkeypatch.setattr(adopt, "RUN_TIMEOUT", 0.5)
+    with pytest.raises(AdoptError) as e:
+        done(root, "p2-lint-ml")
+    assert "`sleep 30` took longer than 0.5s, so alpha stopped it." in str(e.value)
+    assert statuses(root) == {"p2-lint-ml": "pending"}
+
+
 def test_done_marks_a_step_whose_acceptance_holds(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, [ok("p2-a")])
     result = run_cli("adopt", "done", str(root), "p2-a")
@@ -442,3 +454,14 @@ def test_survey_hook_files_reach_the_principles(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, [], git_hooks="chain", survey=survey)
     principles = tomllib.loads(rendered(root)["docs/principles.toml"])
     assert principles["git"]["hook_files"] == [".husky/commit-msg"]
+
+
+def test_a_hung_git_stops_with_a_fix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "git").write_text("#!/bin/sh\nsleep 30\n")
+    (bin_dir / "git").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    monkeypatch.setattr(adopt, "GIT_TIMEOUT", 0.5)
+    with pytest.raises(AdoptError, match=r"git status took longer than 0\.5s"):
+        adopt.run_git(tmp_path, "status")

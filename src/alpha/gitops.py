@@ -9,6 +9,7 @@ from alpha.baseline import BASELINE_DIR
 from alpha.generate import GenerateError, digest
 from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
 from alpha.render.tooling import BETTERLEAKS, LYCHEE, MISE, RUMDL, TYPOS
+from alpha.shell import GIT_TIMEOUT
 
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = [
@@ -51,12 +52,22 @@ def _git(
 ) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
-            ["git", *args], cwd=target, capture_output=True, text=True
+            ["git", *args],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT,
         )
     except OSError as e:
         raise GenerateError(
             f'Cannot run git ({e}). Install git, then rerun "alpha {command} {target}".'
         ) from e
+    except subprocess.TimeoutExpired:
+        raise GenerateError(
+            f"git {args[0]} took longer than {GIT_TIMEOUT:g}s in {target}, so alpha "
+            f'stopped it. Run it yourself to see what it waits for, then rerun "alpha '
+            f'{command} {target}".'
+        ) from None
 
 
 def _check(target: Path, *args: str, command: str = "commit-skeleton") -> str:

@@ -13,9 +13,12 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
+from alpha.shell import Ran, run_command
+
 # The component steps a baseline may hold. format_check is fixed once (plan
 # step P1), and setup isn't a check of the code.
 BASELINE_STEPS = ("lint", "typecheck", "structure", "test")
+RATCHET_TIMEOUT = 1800.0  # seconds: a check that runs longer is stuck
 NOT_BASELINED = {
     "setup": "setup installs the toolchain; it isn't a check of the code",
     "format_check": "formatting is fixed once, in one commit, instead of baselined",
@@ -353,9 +356,7 @@ def describe(rows: list[dict[str, Any]], target: Path) -> str:
     return "\n".join(lines)
 
 
-def _run_ratchet(
-    target: Path, *args: str, frozen: bool = False
-) -> subprocess.CompletedProcess[str]:
+def _run_ratchet(target: Path, *args: str, frozen: bool = False) -> Ran:
     script = target / RATCHET_SCRIPT
     if not script.is_file():
         raise BaselineError(
@@ -364,13 +365,16 @@ def _run_ratchet(
     env = {k: v for k, v in os.environ.items() if k != "CI"}
     if frozen:
         env["CI"] = "true"
-    return subprocess.run(
-        ["python3", str(script), *args],
-        cwd=target,
-        env=env,
-        capture_output=True,
-        text=True,
+    done = run_command(
+        ["python3", str(script), *args], target, RATCHET_TIMEOUT, merge=False, env=env
     )
+    if done is None:
+        raise BaselineError(
+            f"ratchet.py {' '.join(args)} took longer than {RATCHET_TIMEOUT:g}s, so "
+            "alpha stopped it. Run the check it names yourself to see why it's "
+            "slow, fix that, then retry."
+        )
+    return done
 
 
 def find_record(target: Path, number: str) -> Path | None:
@@ -450,8 +454,8 @@ def capture(target: Path, check: str, decision: str | None = None) -> str:
     path = baseline_file(target, check)
     old = path.read_bytes() if path.is_file() else None
     done = _run_ratchet(target, check, "--capture")
-    if done.returncode != 0:
-        raise BaselineError(done.stderr.strip() or done.stdout.strip())
+    if done.code != 0:
+        raise BaselineError(done.err.strip() or done.out.strip())
     now = counts(target, check) or {}
     grown, _ = ratchet().compare(now, before or {})
     if before is not None and grown:
@@ -471,7 +475,7 @@ def capture(target: Path, check: str, decision: str | None = None) -> str:
             assert old is not None
             path.write_bytes(old)
             raise
-    return done.stdout.strip()
+    return done.out.strip()
 
 
 def capture_missing(target: Path) -> list[str]:
@@ -491,8 +495,8 @@ def tighten(target: Path) -> tuple[list[str], list[str]]:
         path = baseline_file(target, check)
         old = path.read_bytes() if path.is_file() else None
         done = _run_ratchet(target, check)
-        if done.returncode != 0:
-            problems.append(done.stderr.strip() or done.stdout.strip())
+        if done.code != 0:
+            problems.append(done.err.strip() or done.out.strip())
         elif path.is_file() and path.read_bytes() != old:
             changed.append(path.relative_to(target).as_posix())
     return changed, problems
