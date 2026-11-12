@@ -145,14 +145,18 @@ def test_apache_and_proprietary_and_custom_license(tmp_path: Path):
     lic = render(load(tmp_path / "p", prop))["LICENSE"]
     assert lic.strip() == "Copyright (c) 2026 Semyon Vadishev. All rights reserved."
 
-    custom = tmp_path / "c" / "MY-LICENSE"
+    custom = tmp_path / "c2" / "MY-LICENSE"
     custom.parent.mkdir()
     custom.write_text("Do what thou wilt.\n")
 
     def own(d: dict[str, Any]) -> None:
-        d["identity"]["license_file"] = str(custom)
+        d["identity"]["license_file"] = "MY-LICENSE"
 
-    assert render(load(tmp_path / "c2", own))["LICENSE"] == "Do what thou wilt.\n"
+    a = load(custom.parent, own)
+    rendered = render_docs(
+        a, build_principles(D, a, "0.1.0"), 2026, TODAY, custom.parent
+    )
+    assert rendered["LICENSE"] == "Do what thou wilt.\n"
 
 
 def test_product_md_requirements_table(tmp_path: Path):

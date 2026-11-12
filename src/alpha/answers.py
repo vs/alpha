@@ -445,6 +445,14 @@ def _identity(raw: object, base: Path) -> Identity:
         raise fail("identity.license_file", "must be a path or null", "Use a path")
     license_ = string(d, "license", where)
     if license_file is not None:
+        relative = PurePosixPath(license_file)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise fail(
+                "identity.license_file",
+                f"{license_file!r} is outside the project",
+                "Copy the license text into the project (e.g. LICENSE) and give "
+                "its path relative to the project root",
+            )
         resolved = base / license_file
         if not resolved.is_file():
             raise fail(

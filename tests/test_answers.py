@@ -221,15 +221,17 @@ def test_trait_must_be_bool(tmp_path: Path):
 
 
 def test_license_rules(tmp_path: Path):
+    meta = tmp_path / ".claude" / "alpha"
+    meta.mkdir(parents=True)
     d = valid()
     d["identity"]["license"] = "GPL"
     with pytest.raises(AnswersError, match=r"identity\.license: .*MIT.*license_file"):
-        check(tmp_path, d)
-    d["identity"]["license_file"] = str(tmp_path / "LICENSE.txt")
+        check(meta, d)
+    d["identity"]["license_file"] = "LICENSE.txt"
     with pytest.raises(AnswersError, match=r"identity\.license_file: .*does not exist"):
-        check(tmp_path, d)
+        check(meta, d)
     (tmp_path / "LICENSE.txt").write_text("custom")
-    assert check(tmp_path, d).identity
+    assert check(meta, d).identity
 
 
 def test_loosen_without_reason(tmp_path: Path):
@@ -305,6 +307,22 @@ def test_cli_answers_check(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     assert cli.main(["answers", "check", str(p)]) == 1
     assert "areas.git" in capsys.readouterr().err
     assert cli.main(["answers", "check", str(p), "--area", "identity"]) == 0
+
+
+@pytest.mark.parametrize(
+    "license_file", ["/etc/LICENSE", "../LICENSE", "docs/../../LICENSE"]
+)
+def test_license_file_must_be_relative_to_project_root(
+    tmp_path: Path, license_file: str
+):
+    d = valid()
+    d["identity"]["license"] = "Custom"
+    d["identity"]["license_file"] = license_file
+    with pytest.raises(
+        AnswersError,
+        match=r"identity\.license_file: .* is outside the project\. Copy the license",
+    ):
+        check(tmp_path, d)
 
 
 def test_relative_license_file_resolves_against_project_root(tmp_path: Path):
