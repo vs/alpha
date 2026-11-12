@@ -200,7 +200,8 @@
             "run": "uv run pytest -k test_bootstrap_rejects_malformed_principles_with_component_and_fix"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-typed-principles"
       },
       {
         "id": "p4-unreadable-project-json",
@@ -1039,7 +1040,8 @@
                 "run": "uv run pytest -k test_bootstrap_rejects_malformed_principles_with_component_and_fix"
               }
             ],
-            "status": "pending"
+            "status": "done",
+            "branch": "alpha/p4-typed-principles"
           },
           {
             "id": "p4-unreadable-project-json",
@@ -1727,7 +1729,7 @@
       "CONTRIBUTING.md": "sha256:347821163280866bfe9065e0e56d9b41c9f3afdb8e22283efeaadccc57e91817",
       "README.md": "sha256:140e31a8b912485d549a65091314c6fd566d59f33d759fa6e9dba35675fbb7cb",
       "_typos.toml": "sha256:8c1d7a0673f71fe186099c95af72f8f870c893418f2951ab6092793e1f3dc637",
-      "docs/adoption.md": "sha256:9fb3740c3b442511649076b509196771fe4c941e0de32ec57998875b49110377",
+      "docs/adoption.md": "sha256:90aa083550aec042166fbbcd96da7663d04666c1c69af5327ae4170515d49109",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
       "docs/build.md": "sha256:5906f90593d99653c3cbf2fd70b365def882617bed8c518049c5d462d23a7cde",
       "docs/data.md": "sha256:ada50e4034585f01e461e0ac21fddf40c78dd38c129a06cadf79a00b283b537f",
