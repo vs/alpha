@@ -62,8 +62,9 @@ def test_prose_ignored_and_alpha_files_skipped(tmp_path: Path) -> None:
         tmp_path,
         {
             "README.md": "Mark one with a `shortcut: <limit>, <when>` comment.\n",
-            ".claude/alpha/checks/x.py": "# shortcut: nothing\n",
-            "ignored/b.py": "# shortcut: nothing\n",
+            # Split so the repo's own shortcuts check doesn't read them here.
+            ".claude/alpha/checks/x.py": "#" + " shortcut: nothing\n",
+            "ignored/b.py": "#" + " shortcut: nothing\n",
             ".gitignore": "ignored/\n",
         },
     )
