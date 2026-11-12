@@ -96,6 +96,12 @@ def test_apply_refuses_a_dirty_tree(repo: Path):
         _plan(repo)
 
 
+def test_apply_refuses_when_git_status_fails(repo: Path):
+    (repo / ".git" / "index").write_bytes(b"not an index")
+    with pytest.raises(GenerateError, match=r"git status failed in .*, so alpha"):
+        _plan(repo)
+
+
 def test_apply_refuses_unfinished_answers(repo: Path):
     data = adoption_answers(repo)
     data["areas"]["testing"] = "in_progress"

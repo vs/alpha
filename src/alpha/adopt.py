@@ -30,7 +30,7 @@ from alpha.answers import (
 from alpha.baseline import accepts, find_record
 from alpha.defaults import Source, load_defaults, load_survey
 from alpha.generate import copied_files, render_project, source_info
-from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group
+from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group, status_paths
 from alpha.merge import Change, classify, merge_json, union_lines
 from alpha.recipes import RecipeBook, matches
 from alpha.records import record_paths, taken_numbers
@@ -118,29 +118,6 @@ def _default_branch(target: Path, branch: str) -> str:
     return branch
 
 
-def _status_paths(target: Path, untracked: str = "normal") -> list[str]:
-    """The paths `git status` lists, with untracked files shown as `untracked`
-    says (normal: folders, all: every file)."""
-    # Unstripped: each entry starts with its status column, often a space.
-    status = run_git(target, "status", "--porcelain", "-z", f"-u{untracked}").stdout
-    fields = status.split("\0")
-    paths: list[str] = []
-    i = 0
-    while i < len(fields):
-        entry = fields[i]
-        i += 1
-        if not entry:
-            continue
-        paths.append(entry[3:])
-        if entry[0] in "RC":  # a rename or copy: its source path comes next
-            i += 1
-    return paths
-
-
-def _dirty(target: Path) -> list[str]:
-    return _status_paths(target)
-
-
 def _conventional(target: Path, types: list[str]) -> dict[str, Any]:
     log = _out(target, "log", f"-{SUBJECTS}", "--format=%s") or ""
     subjects = [s for s in log.splitlines() if s]
@@ -155,7 +132,7 @@ def _conventional(target: Path, types: list[str]) -> dict[str, Any]:
 
 def _git_facts(target: Path, defaults: dict[str, Any]) -> dict[str, Any]:
     branch = _out(target, "rev-parse", "--abbrev-ref", "HEAD") or ""
-    dirty = _dirty(target)
+    dirty = status_paths(target, untracked="normal")
     facts: dict[str, Any] = {
         "head": _out(target, "rev-parse", "HEAD") or "",
         "branch": branch,
@@ -304,7 +281,7 @@ def _answers(target: Path) -> dict[str, Any]:
 def _uncommitted(target: Path) -> list[str]:
     """Uncommitted changes other than the adoption's own answers."""
     own = (PROJECT_JSON, ".claude/settings.local.json")
-    return [p for p in _status_paths(target, "all") if p not in own]
+    return [p for p in status_paths(target) if p not in own]
 
 
 # Paths alpha writes and commits; a repo that ignores them can't take alpha.

@@ -70,6 +70,32 @@ def _git(
         ) from None
 
 
+def status_paths(target: Path, *paths: str, untracked: str = "all") -> list[str]:
+    """The paths `git status` lists, limited to `paths` when given, with
+    untracked files shown as `untracked` says (normal: folders, all: every
+    file)."""
+    done = _git(target, "status", "--porcelain", "-z", f"-u{untracked}", "--", *paths)
+    if done.returncode != 0:
+        raise GenerateError(
+            f"git status failed in {target} ({done.stderr.strip()}), so alpha "
+            "can't tell uncommitted edits from its own files. Fix that (is it a "
+            "git repository with a readable index?), then retry."
+        )
+    # Unstripped: each entry starts with its status column, often a space.
+    fields = done.stdout.split("\0")
+    found: list[str] = []
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if not entry:
+            continue
+        found.append(entry[3:])
+        if entry[0] in "RC":  # a rename or copy: its source path comes next
+            i += 1
+    return found
+
+
 def _check(target: Path, *args: str, command: str = "commit-skeleton") -> str:
     done = _git(target, *args, command=command)
     if done.returncode != 0:

@@ -26,7 +26,7 @@ from alpha.generate import (
     file_hashes,
     render_project,
 )
-from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group
+from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group, status_paths
 from alpha.merge import Change, classify
 from alpha.records import Records, record_paths, taken_numbers
 from alpha.registry import load_registry
@@ -201,38 +201,6 @@ def _before_text(
     return before.texts.get(path)
 
 
-def _dirty(target: Path, paths: list[str]) -> list[str]:
-    try:
-        done = subprocess.run(
-            ["git", "status", "--porcelain", "-z", "-uall", "--", *paths],
-            cwd=target,
-            capture_output=True,
-            text=True,
-        )
-    except OSError as e:
-        raise GenerateError(
-            f"Cannot run git ({e}). Install git, then rerun the update."
-        ) from e
-    if done.returncode != 0:
-        raise GenerateError(
-            f"{target} isn't a git repository ({done.stderr.strip()}), so alpha "
-            "can't tell your uncommitted edits from the generated files. Commit "
-            "the project to git first, then run this again."
-        )
-    fields = done.stdout.split("\0")
-    seen: list[str] = []
-    i = 0
-    while i < len(fields):
-        entry = fields[i]
-        i += 1
-        if not entry:
-            continue
-        seen.append(entry[3:])
-        if entry[0] in "RC":  # a rename or copy: its source path comes next
-            i += 1
-    return seen
-
-
 def _older_kit(target: Path) -> bool:
     """Whether an older kit generated the project: its principles file has no
     [[repo_checks]] (or doesn't load)."""
@@ -288,7 +256,7 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
         if change is not None and (change.text is None or change.text != disk):
             changes.append(change)
     touched = [c.path for c in changes if c.kind in _WRITES]
-    dirty = _dirty(target, touched) if touched else []
+    dirty = status_paths(target, *touched) if touched else []
     if dirty:
         raise GenerateError(
             f"Commit or stash your changes to {', '.join(dirty)} first: alpha "
@@ -298,7 +266,7 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
     for c in now.components:
         if c.name in old_names or c.path == ".":
             continue
-        theirs = _dirty(target, [c.path])
+        theirs = status_paths(target, c.path)
         if theirs:
             raise GenerateError(
                 f"Commit or move your files in {c.path}/ first "
