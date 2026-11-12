@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 4 | 4 |
-| P4 Rework | 6 | 14 |
+| P4 Rework | 7 | 14 |
 | P6 Traceability | 0 | 1 |
 
 ## P2 Close tool gaps
@@ -74,7 +74,7 @@ Done when:
 | `p4-unreadable-project-json` | alpha | done |
 | `p4-atomic-write-json` | alpha | done |
 | `p4-one-git-status-parser` | alpha | done |
-| `p4-suppression-reasons` | alpha | in progress |
+| `p4-suppression-reasons` | alpha | done |
 | `p4-shortcuts-skip-strings` | alpha | pending |
 | `p4-betterleaks-nested-ignores` | alpha | pending |
 | `p4-no-ci-wording` | alpha | pending |
