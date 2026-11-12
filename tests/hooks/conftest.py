@@ -124,6 +124,9 @@ def isolated_home(
     real = Path.home() / ".gitconfig"
     home = tmp_path_factory.mktemp("home")
     monkeypatch.setenv("HOME", str(home))
+    # A Stop hook running this suite holds a slot and exports this; the hooks
+    # under test would then skip slots.
+    monkeypatch.delenv("ALPHA_SLOT_HELD", raising=False)
     if "GIT_CONFIG_GLOBAL" not in os.environ and real.is_file():
         monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(real))
     return home
