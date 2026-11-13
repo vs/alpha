@@ -143,7 +143,10 @@ def test_checks_use_the_registry_commands(tmp_path: Path):
     assert checks["links-online"].command == "lychee --no-progress ."
     secrets = REGISTRY.tool("betterleaks").pin
     assert secrets is not None
-    assert checks["secrets"].command == f"{secrets.command} --config .betterleaks.toml"
+    assert checks["secrets"].command == (
+        f"python3 .claude/alpha/checks/secret_scan.py {secrets.command} "
+        "--config .betterleaks.toml"
+    )
     assert checks["migrations"].tool is None
     a, _ = scenario(tmp_path / "dbmate", "web-ts-plus-python-api", dbmate)
     principles = build_principles(D, a, "0.1.0", registry=REGISTRY)

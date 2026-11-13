@@ -84,12 +84,6 @@ def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
     return lines
 
 
-def _tooling_excludes(principles: dict[str, Any], book: RecipeBook) -> list[str]:
-    """What the repository checks skip: what git ignores, plus the lockfiles."""
-    locks = [lock for c in principles["components"] for lock in c["lockfiles"]]
-    return [*_ignored(principles, book), *locks]
-
-
 def copied_files(plugin_root: Path) -> dict[str, Path]:
     """The files every project gets as they are: hooks, checks, skills, agents."""
     files = plugin_root / "project-files"
@@ -195,7 +189,8 @@ def render_project(
         render_tooling(
             repo_checks(a, principles, registry),
             registry,
-            _tooling_excludes(principles, book),
+            _ignored(principles, book),
+            [lock for c in principles["components"] for lock in c["lockfiles"]],
             components=principles["components"],
             ci=a.build is not None and a.build.ci != "none",
         )
@@ -471,7 +466,8 @@ def _repo_checks(target: Path, capture: Sequence[str] = ()) -> None:
     """Install the repository checks' tools and run the ones CI runs on a PR."""
     _require_mise(target)
     if not (target / ".git").exists():
-        # jactionlint needs a repository; commit-skeleton then keeps this one.
+        # jactionlint and the secrets check need a repository; commit-skeleton
+        # then keeps this one.
         try:
             done = subprocess.run(
                 ["git", "init", "-q", "-b", "main"],

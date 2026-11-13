@@ -5,6 +5,7 @@ import secrets
 import shutil
 import string
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ from alpha.repo_checks import repo_checks
 SOURCE = Source(PLUGIN_ROOT, True)
 D = load_defaults(SOURCE)
 REGISTRY = load_registry(SOURCE)
+SECRET_SCAN = PLUGIN_ROOT / "project-files" / "checks" / "secret_scan.py"
 
 
 def answers(tmp_path: Path, name: str) -> Answers:
@@ -48,7 +50,9 @@ def test_render_tooling_returns_the_tool_configs(tmp_path: Path):
     rendered = render_project(tmp_path, a, D, 2026, TODAY, registry=REGISTRY)
     checks = repo_checks(a, rendered.principles, REGISTRY)
     components = rendered.principles["components"]
-    out = render_tooling(checks, REGISTRY, ["target/"], components=components, ci=True)
+    out = render_tooling(
+        checks, REGISTRY, ["target/"], ["Cargo.lock"], components=components, ci=True
+    )
     assert set(out) == {
         "mise.toml",
         ".rumdl.toml",
@@ -57,7 +61,8 @@ def test_render_tooling_returns_the_tool_configs(tmp_path: Path):
         ".betterleaks.toml",
     }
     assert set(out) <= set(rendered.texts)
-    assert "target/" in tomllib.loads(out["_typos.toml"])["files"]["extend-exclude"]
+    typos = tomllib.loads(out["_typos.toml"])["files"]["extend-exclude"]
+    assert "target/" in typos and "Cargo.lock" in typos
 
 
 def test_mise_pins_registry_versions(tmp_path: Path):
@@ -194,33 +199,14 @@ def betterleaks_skipped(config: str) -> Any:
     return skipped
 
 
-def test_secrets_check_skips_what_git_ignores(tmp_path: Path):
+def test_secrets_allowlist_holds_only_the_lockfiles(tmp_path: Path):
+    # What git ignores never reaches betterleaks: secret_scan.py leaves it out.
     out = texts(tmp_path, "web-ts-plus-python-api")
     skipped = betterleaks_skipped(out[".betterleaks.toml"])
-    for path in (
-        ".env",
-        ".env.local",
-        ".env.examples",
-        ".env.",
-        "api/.env",
-        "api/.env.production",
-        "api/.venv/lib/x.py",
-        "web/node_modules/pkg/index.js",
-        "web/src/node_modules/pkg/index.js",
-        ".claude/alpha/state/update.json",
-        "api/uv.lock",
-    ):
-        assert skipped(path), path
-    for path in (
-        ".env.example",  # tracked: git's `!.env.example` keeps it
-        "api/.env.example",
-        "docs/x.md",
-        "web/src/env.ts",
-        "sub/.envx",
-        "api/app/main.py",
-    ):
+    assert skipped("api/uv.lock")
+    assert skipped("web/pnpm-lock.yaml")
+    for path in (".env", ".env.example", "api/uv.lock.md", "docs/x.md"):
         assert not skipped(path), path
-    assert not skipped("./.env.example") and skipped("./.env.ex")
 
 
 def test_secrets_check_reads_the_config(tmp_path: Path):
@@ -229,7 +215,10 @@ def test_secrets_check_reads_the_config(tmp_path: Path):
     tasks = tomllib.loads(rendered.texts["mise.toml"])["tasks"]
     pin = REGISTRY.tool("betterleaks").pin
     assert pin is not None
-    assert tasks["check:secrets"]["run"] == f"{pin.command} --config .betterleaks.toml"
+    assert tasks["check:secrets"]["run"] == (
+        f"python3 .claude/alpha/checks/secret_scan.py {pin.command} "
+        "--config .betterleaks.toml"
+    )
 
 
 @pytest.mark.slow
@@ -247,7 +236,14 @@ def test_real_betterleaks_passes_ignored_secrets_only(tmp_path: Path, git_env: N
         secrets.choice(string.ascii_letters + string.digits) for _ in range(40)
     )
     leak = f"AWS_ACCESS_KEY_ID={key}\nAWS_SECRET_ACCESS_KEY={secret}\n"
-    for rel in (".env", "api/.env.local", "api/.venv/lib/x.py"):
+    (project / ".superpowers/sdd").mkdir(parents=True)
+    (project / ".superpowers/sdd/.gitignore").write_text("*\n")
+    for rel in (
+        ".env",
+        "api/.env.local",
+        "api/.venv/lib/x.py",
+        ".superpowers/sdd/notes.md",
+    ):
         (project / rel).parent.mkdir(parents=True, exist_ok=True)
         (project / rel).write_text(leak)
     subprocess.run(["git", "init", "-q"], cwd=project, check=True)
@@ -255,7 +251,8 @@ def test_real_betterleaks_passes_ignored_secrets_only(tmp_path: Path, git_env: N
     assert pin is not None
     command = f"{pin.command} --config .betterleaks.toml".split()
     run = [
-        "mise", "exec", f"{pin.mise}@{pin.version}", "--", *command
+        sys.executable, str(SECRET_SCAN),
+        "mise", "exec", f"{pin.mise}@{pin.version}", "--", *command,
     ]  # fmt: skip
     clean = subprocess.run(run, cwd=project, capture_output=True, text=True)
     assert clean.returncode == 0, clean.stdout + clean.stderr

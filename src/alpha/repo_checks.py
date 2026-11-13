@@ -21,6 +21,7 @@ _SQUAWK = "python3 .claude/alpha/checks/diff_checks.py squawk"
 _REVIEW_DATES = "python3 .claude/alpha/checks/review_dates.py"
 _BASELINES = "python3 .claude/alpha/checks/diff_checks.py baselines"
 _SHORTCUTS = "python3 .claude/alpha/checks/shortcuts.py"
+_SECRET_SCAN = "python3 .claude/alpha/checks/secret_scan.py"
 # Exact pins never fall behind their own request, so compare against the
 # newest release (--bump), and only for the project's tools (--no-global).
 TOOLCHAIN = "toolchain"  # CI runs it as its own step, after the weekly scans
@@ -89,8 +90,10 @@ def repo_checks(
                 "GitHub Actions workflows",
             )
         )
-    # The config skips what git ignores, where local secrets belong (.env).
-    secrets = f"{_command(registry, 'betterleaks')} --config {BETTERLEAKS_CONFIG}"
+    # secret_scan passes only the files git doesn't ignore: local secrets
+    # belong in .env files. The config skips the lockfiles.
+    betterleaks = _command(registry, "betterleaks")
+    secrets = f"{_SECRET_SCAN} {betterleaks} --config {BETTERLEAKS_CONFIG}"
     checks.append(
         RepoCheck(
             "secrets",

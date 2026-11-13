@@ -533,9 +533,12 @@ Decisions:
   failure says to run `mise upgrade --bump --no-global` and commit
   `mise.toml`.
 - **D9 Secrets in the working tree.** betterleaks `dir` also reads gitignored
-  files, where local secrets belong (`.env`). A generated `.betterleaks.toml`
-  extends the default rules with a path allowlist from the same excludes as
-  the other tool configs (`.env.example` is still scanned).
+  files, where local secrets belong (`.env`). So the check runs it through
+  `.claude/alpha/checks/secret_scan.py`, which passes only the files git
+  lists (`git ls-files --cached --others --exclude-standard`): a folder
+  ignored by its own `.gitignore` is skipped, and `.env.example` is still
+  scanned. A generated `.betterleaks.toml` extends the default rules with a
+  path allowlist of the lockfiles.
 - **D10 squawk only for SQL migrations.** squawk lints added `.sql` files, so
   it applies only to a PostgreSQL store whose migration tool writes SQL
   (`SQL_MIGRATION_TOOLS` in `principles.py`); Alembic gets none.
@@ -546,7 +549,7 @@ where CI runs it: `pr`, `schedule`, or `both`.
 | id | tool | command | globs | stop | when | applies when |
 |---|---|---|---|---|---|---|
 | actions | jactionlint | lint `.github/` | `.github/**` | yes | pr | `build.ci == "github-actions"` |
-| secrets | betterleaks | scan the working tree, `--config .betterleaks.toml` | `**` | no | pr | always |
+| secrets | betterleaks | `secret_scan.py`: scan the files git doesn't ignore, `--config .betterleaks.toml` | `**` | no | pr | always |
 | vulns | osv-scanner | scan source recursively | lockfiles | no | both | any component has lockfiles |
 | typos | typos | `typos` | `**` | yes | pr | always |
 | markdown | rumdl | `rumdl check .` | `**/*.md` | yes | pr | always |
