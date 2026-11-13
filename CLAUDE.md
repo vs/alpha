@@ -27,7 +27,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - **Fail fast, fail helpfully**: Detect errors as early as possible. Every error message describes the problem and tells the user how to proceed.
 - **Tests are as important as the core**: Test design and writing get the same effort and intensity as the logic. Tests trace back to acceptance checks. Risky logic (a branch, a parser, money, security, data writes, a bug fix) gets a test that fails when it breaks: one good test, not coverage. A trivial change (a rename, a constant, wiring) may go without one, with the reason recorded.
 - **Docs move with the code**: A change to public behavior updates the docs in the same change.
-- **Build and hosting are decided up front**: Build and hosting are decided up front and runnable in CI. (overridden: see docs/decisions/0018-override-build-hosting-upfront.md)
+- **Build and hosting are decided up front**: Build and hosting are decided up front and runnable in CI. (overridden: see docs/decisions/0021-no-ci-checks-run-locally.md)
 - **Validate at the edges, trust the inside**: External input is parsed into typed data once, at the boundary. Inside, code doesn't re-check what its own modules return; each remaining cast or runtime check says which boundary or invariant it serves.
 - **Strict types**: TypeScript `strict`, Python type-checked in strict mode.
 - **Logic in the middle, side effects at the edges**: Business logic is kept pure and in the middle; side effects live at the edges.

@@ -1,7 +1,7 @@
 # 0018. Override build-hosting-upfront
 
 Date: 2026-11-12
-Status: accepted
+Status: superseded by 0021
 Principle: build-hosting-upfront (loosen, scope project)
 
 ## Context

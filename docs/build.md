@@ -2,7 +2,7 @@
 
 ## CI
 
-No CI. Why: see [the decision](decisions/0018-override-build-hosting-upfront.md).
+No CI. Why: see [the decision](decisions/0021-no-ci-checks-run-locally.md).
 
 ## Components
 
