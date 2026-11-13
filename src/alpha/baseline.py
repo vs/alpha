@@ -33,6 +33,8 @@ REPO_NOT_BASELINED = {
     "links-online": "it runs on the schedule only; baseline `links` instead",
     "migrations": "it checks only a pull request's own changes",
     "squawk": "it checks only a pull request's own migrations",
+    "palette": 'set design_language.palette_check to "advise" while legacy '
+    "colors remain",
     "shortcuts": "a shortcut: comment is fixed by naming when to upgrade it",
     "review-dates": "a lapsed suppression is reviewed, not baselined",
     "toolchain": "an outdated tool is upgraded, not baselined",

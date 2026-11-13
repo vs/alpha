@@ -6,6 +6,7 @@
     "architecture": "done",
     "errors": "done",
     "testing": "done",
+    "design_language": "done",
     "ui": "done",
     "documentation": "done",
     "build": "done",
@@ -226,6 +227,41 @@
       }
     ]
   },
+  "design_language": {
+    "defined": true,
+    "character": "Calm and technical: flat, high contrast, generous whitespace, no gradients or shadows.",
+    "colors": [
+      {
+        "name": "surface",
+        "value": "#FFFFFF (light), #0D1117 (dark)",
+        "use": "page and diagram backgrounds"
+      },
+      {
+        "name": "text",
+        "value": "#1F2328 (light), #E6EDF3 (dark)",
+        "use": "text, labels and diagram lines"
+      },
+      {
+        "name": "accent",
+        "value": "#0B5FFF",
+        "use": "links, primary actions and the highlighted path in a diagram"
+      },
+      {
+        "name": "danger",
+        "value": "#CF222E",
+        "use": "errors and a payload that fails verification"
+      }
+    ],
+    "typography": "Inter for text and labels, JetBrains Mono for code; system fallbacks",
+    "shape": "4 px grid, 6 px corners, 1.5 px lines, no shadows",
+    "imagery": "lucide outline icons at 1.5 px; no illustrations",
+    "diagrams": "Mermaid in Markdown, themed with the palette; boxes for components, the accent color for the path being explained",
+    "source": "",
+    "palette_check": "advise",
+    "third_party": [
+      "docs/partners/**"
+    ]
+  },
   "ui": {
     "components": [
       {
@@ -420,6 +456,13 @@
       "context": "Reviewing every task is slow; unreviewed large diffs are risky.",
       "decision": "Batched review with a 200 line / 5 file threshold.",
       "consequences": "Agents stop for review once a batch crosses either limit."
+    },
+    {
+      "area": "design_language",
+      "title": "A flat, high-contrast design language",
+      "context": "The docs carry architecture diagrams and the web app is the product's face; journalists see both.",
+      "decision": "One design language for every visual: a four-color palette, Inter and JetBrains Mono, flat shapes on a 4 px grid, and Mermaid diagrams themed with the palette.",
+      "consequences": "The reviewer checks every changed visual against docs/design-language.md, and the web tokens carry its values."
     }
   ]
 }

@@ -19,6 +19,7 @@ expect = [
   "/agent_workflow/review_mode",
   "/agent_workflow/max_lines",
   "/overrides[principle=observability]/change",
+  "/design_language/defined",
 ]
 brief = """
 You are starting a project called Pico Trust (slug: pico-trust). It hides short trust signals inside ordinary images so they survive re-sharing. It is for journalists and fact-checkers who publish photos and need provenance to travel with them.
@@ -37,6 +38,7 @@ Git: conventional commits, with the component names (api, web) as scopes.
 CI: GitHub Actions. Dependency updates: Dependabot, weekly.
 Releases: semantic versioning, with a changelog file in the repo.
 Agent workflow: review in batches, at most 200 changed lines per review.
+Design language: define one. Calm and technical: flat, high contrast, no gradients or shadows; a white surface, near-black text, blue (#0B5FFF) as the accent, red (#CF222E) for errors; Inter for text and JetBrains Mono for code; Mermaid diagrams themed with the palette.
 Observability: loosen it for the api only. The api is a single-process prototype; structured logs are enough until it is deployed beyond one host.
 
 For anything these notes don't settle, take the recommendation.

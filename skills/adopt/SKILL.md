@@ -37,12 +37,13 @@ As `/alpha:new-project` step 3: run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults 
 
 ## 4. Interview
 
-Run every area in `/alpha:new-project`'s order, invoking each area's skill with the Skill tool, `<target>` as its target: `alpha:identity`, `alpha:components`, `alpha:architecture`, `alpha:errors`, `alpha:testing`, `alpha:ui`, `alpha:documentation`, `alpha:build-and-hosting`, `alpha:security`, `alpha:dependencies`, `alpha:observability`, `alpha:releases`, `alpha:data`, `alpha:accessibility`, `alpha:performance`, `alpha:git-history`, `alpha:agent-workflow`. Move on only after its check prints `ok`. These rules win over the area skill's own:
+Run every area in `/alpha:new-project`'s order, invoking each area's skill with the Skill tool, `<target>` as its target: `alpha:identity`, `alpha:components`, `alpha:architecture`, `alpha:errors`, `alpha:testing`, `alpha:design-language`, `alpha:ui`, `alpha:documentation`, `alpha:build-and-hosting`, `alpha:security`, `alpha:dependencies`, `alpha:observability`, `alpha:releases`, `alpha:data`, `alpha:accessibility`, `alpha:performance`, `alpha:git-history`, `alpha:agent-workflow`. Move on only after its check prints `ok`. These rules win over the area skill's own:
 
 - Recommend what the repo already does when it meets the principle, else the kit default; say which it is. Never ask what the survey or the repo's files answer: read the README for identity, the manifests, lockfiles and CI for components and build, `LICENSE` for `identity.license_file` (keep the repo's license).
 - Where the repo falls short of an active principle, say so in one line and note it as a gap for step 5. Change no app code during the interview.
 - Components: start from the survey's candidates. Every component gets an adopted recipe drafted with `alpha:stack-recipe` (named `<component>-<stack>`, extending the kit's recipe when the repo's tools are the kit's). Prove each with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <recipe>`; each check it reports with findings goes into `adoption.baselines` as `<step>:<component>`.
 - Git history: set `adoption.git_hooks` to `alpha` when the survey found no hook manager and no `hooks_path`, else `chain` (the repo's manager stays in charge and calls alpha's check). Commits already in history stay as they are.
+- Design language: recommend defining it only when the repo already has one (a brand or style guide, a tokens or theme file, themed diagrams), and read its colors, typefaces and diagram style from there; otherwise recommend skipping. Recommend `palette_check` `advise`, never `enforce`: the palette check has no baseline, so the repo's existing colors would fail it.
 - Documentation: an existing decision-record folder keeps its numbers; alpha's records follow them.
 - Repository checks: offer to baseline the ones the repo likely fails today (`typos`, `markdown`, `links`, `agent-config`, `actions`) by adding them to `adoption.baselines`.
 

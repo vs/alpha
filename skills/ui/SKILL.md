@@ -13,7 +13,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 - No project.json: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
 - project.json has a `manifest` key: the project is already generated. If the `alpha:extend` skill sent you here, go on as it says. Otherwise invoke `alpha:extend` with the Skill tool and follow it; it brings you back here.
 - project.json has an `adoption` key and no `manifest`: `alpha:adopt` is bringing an existing repo in. Go on as it says; its rules win over this skill's, and don't point to `/alpha:new-project` afterwards.
-- `areas.testing` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
+- `areas.design_language` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
 - Otherwise go on. When the user called this skill directly, use the current answers as the recommendations, and when you finish, tell them to run `/alpha:new-project` to continue.
 
 ## Purpose
@@ -36,7 +36,7 @@ A UI built from a declared set of tools stays consistent and cheap to change ("A
 
 When no component has a UI, ask nothing: save `{"components": []}` and a decision saying the project has no UI, so the visual-system principle doesn't apply.
 
-Otherwise run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round per component with a UI. Facts first: look up what the component's stack and framework usually use (its manifest, the stack's docs) and recommend from that. Never assume a library the stack can't use.
+Otherwise run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round per component with a UI. Facts first: look up what the component's stack and framework usually use (its manifest, the stack's docs) and recommend from that. Never assume a library the stack can't use. When `design_language.defined` is true, it comes first: recommend typography, icons and theming that match it, and say the tokens file is where its colors, type and shape live in code.
 
 - **Component library** - recommend one that fits the stack and the users from identity; explain that a library brings accessible, consistent building blocks.
 - **Design tokens** - recommend a path inside the component (e.g. `<path>/src/styles/tokens.css`, or the platform's theme file). Explain: every color, spacing and font comes from there, so a restyle is one file.

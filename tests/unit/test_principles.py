@@ -210,12 +210,13 @@ def test_review_settings_come_from_answers(tmp_path: Path):
     assert review["max_lines"] == 50
     assert review["mode"] == "every-task"
     assert review["risk_paths"].count("docs/principles.toml") == 1
-    assert review["risk_paths"][-5:] == [
+    assert review["risk_paths"][-6:] == [
         "infra/**",
         "api/openapi.yaml",
         "api/migrations/versions/**",
         "web/src/styles/tokens.css",
         "web/src/styles/tokens.css/**",
+        "docs/design-language.md",
     ]
 
 
@@ -585,3 +586,71 @@ def test_an_unknown_default_test_run_says_how_to_fix():
     with pytest.raises(AnswersError) as e:
         build_principles(defaults, A, "0.1.0")
     assert "[testing] run is 'sometimes'. Use one of: at-merge, at-stop" in str(e.value)
+
+
+def test_a_defined_design_language_switches_its_principle_on():
+    out = build_principles(D, A, "0.1.0")
+    p = principle(out, "design-language")
+    assert p["active"] is True and p["components"] == ["api", "web"]
+    assert p["params"] == {"language": "docs/design-language.md"}
+    assert "docs/design-language.md" in out["review"]["risk_paths"]
+
+
+def test_a_skipped_design_language_enforces_nothing(tmp_path: Path):
+    out = build_principles(D, scenario_answers(tmp_path, "rust-cli"), "0.1.0")
+    p = principle(out, "design-language")
+    assert p["active"] is False and p["components"] == [] and p["params"] == {}
+    assert "docs/design-language.md" not in out["review"]["risk_paths"]
+
+
+def test_defaults_older_than_the_design_language_say_how_to_proceed():
+    older = {
+        **D,
+        "principles": [p for p in D["principles"] if p["id"] != "design-language"],
+    }
+    with pytest.raises(
+        AnswersError, match="design-language principle or its .*unset ALPHA_SOURCE"
+    ):
+        build_principles(older, A, "0.1.0")
+
+
+def test_a_defined_design_language_lists_the_visual_files(tmp_path: Path):
+    visuals = build_principles(D, A, "0.1.0")["visuals"]
+    assert visuals["palette_check"] == "advise"
+    assert visuals["palette"][2] == "#0B5FFF"
+    for glob in ("**/*.mmd", "**/*.svg", "**/*.css", "**/*.tokens.json"):
+        assert glob in visuals["sources"]
+    assert "**/*.md" in visuals["carriers"] and "**/*.tsx" in visuals["carriers"]
+    assert "**/*.png" in visuals["opaque"] and "**/*.woff2" in visuals["opaque"]
+    assert "**/node_modules/**" in visuals["exclude"]
+    assert visuals["exclude"][-1] == "docs/partners/**"
+    assert set(visuals["palette_files"]) <= {*visuals["sources"], *visuals["carriers"]}
+    kinds = [visuals[kind] for kind in ("sources", "carriers", "opaque")]
+    assert sum(map(len, kinds)) == len({glob for kind in kinds for glob in kind})
+    skipped = build_principles(D, scenario_answers(tmp_path, "rust-cli"), "0.1.0")
+    assert "visuals" not in skipped
+
+
+def test_the_palette_check_runs_only_when_enforced(tmp_path: Path):
+    def enforce(data: dict[str, Any]) -> None:
+        data["design_language"]["palette_check"] = "enforce"
+
+    advised = build_principles(D, A, "0.1.0")
+    assert "palette" not in [c["id"] for c in advised["repo_checks"]]
+    assert principle(advised, "design-language")["checked_by"] == ["reviewer"]
+    enforced = build_principles(D, variant(tmp_path, enforce), "0.1.0")
+    check = next(c for c in enforced["repo_checks"] if c["id"] == "palette")
+    assert check["command"] == "mise run check:palette" and check["stop"] is True
+    assert "**/*.svg" in check["globs"]
+    assert principle(enforced, "design-language")["checked_by"] == [
+        "reviewer",
+        "ci:palette",
+    ]
+
+
+def test_defaults_without_the_visuals_list_say_how_to_proceed():
+    older = {k: v for k, v in D.items() if k != "design_language"}
+    with pytest.raises(
+        AnswersError, match=r"\[design_language.visuals\] list is missing"
+    ):
+        build_principles(older, A, "0.1.0")

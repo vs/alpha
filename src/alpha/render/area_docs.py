@@ -197,6 +197,70 @@ def observability_doc(a: Answers) -> str | None:
     return "\n".join(lines) + "\n"
 
 
+_PALETTE_CHECKS = {
+    "off": "The reviewer checks changed visuals against this page.",
+    "advise": "The reviewer checks changed visuals against this page, and is "
+    "shown each color outside the palette in diagrams, SVG and stylesheets to "
+    "judge: a deliberate exception passes, drift is a finding.",
+    "enforce": "The reviewer checks changed visuals against this page, and the "
+    "`palette` check (`mise run check:palette`) fails on a color outside the "
+    "palette in diagrams, SVG and stylesheets.",
+}
+
+
+def design_language_doc(a: Answers) -> str | None:
+    assert a.design_language is not None
+    language = a.design_language
+    if not language.defined:
+        return None
+    lines = [
+        "# Design language",
+        "",
+        "Every visual this project makes follows it: diagrams and charts in the "
+        "docs, images, and the UI. It guides; it isn't a wall. A visual may step "
+        "outside it for a reason the change states (a chart that needs more "
+        "series colors, a one-off illustration). What it must not do is drift: a "
+        "near-copy of a palette color, a second accent, a typeface nobody chose. "
+        "Something the project will keep using goes into the design language "
+        "first (`/alpha:extend`, with a decision record).",
+        "",
+        _PALETTE_CHECKS[language.palette_check] + " "
+        "`[visuals]` in [principles.toml](principles.toml) lists the files that "
+        "count as visuals, and the third-party and generated ones that don't.",
+        "",
+        "## Character",
+        "",
+        language.character,
+        "",
+        "## Colors",
+        "",
+        "| Name | Value | Use |",
+        "|---|---|---|",
+    ]
+    lines += [row(c.name, f"`{c.value}`", c.use) for c in language.colors]
+    lines += [
+        "",
+        "## Typography",
+        "",
+        language.typography,
+        "",
+        "## Shape",
+        "",
+        language.shape,
+        "",
+        "## Icons and imagery",
+        "",
+        language.imagery,
+        "",
+        "## Diagrams and charts",
+        "",
+        language.diagrams,
+    ]
+    if language.source:
+        lines += ["", "## Source", "", f"The full guide: {language.source}."]
+    return "\n".join(lines) + "\n"
+
+
 def ui_doc(a: Answers) -> str | None:
     assert a.ui is not None and a.accessibility is not None
     if not a.ui.components:
@@ -217,6 +281,14 @@ def ui_doc(a: Answers) -> str | None:
         "",
         "Build the UI from these; no ad-hoc colors, spacing or fonts outside the "
         "tokens.",
+    ]
+    if design_language_doc(a) is not None:
+        lines += [
+            "",
+            "The tokens carry the [design language](design-language.md): its "
+            "colors, typography and shape, and nothing it doesn't declare.",
+        ]
+    lines += [
         "",
         "## Visual regression",
         "",

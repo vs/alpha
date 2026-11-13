@@ -101,6 +101,90 @@ telemetry = "none"
 theming = "light-dark"
 visual_regression = "screenshots in the end-to-end tests"
 
+# How colors outside the palette are handled: "advise" lists them for the
+# reviewer to judge, "enforce" also fails the palette check, "off" skips it.
+[design_language]
+palette_check = "advise"
+
+# The files that count as visuals once a project defines a design language.
+# The reviewer's brief lists the changed ones: `sources` are always visuals;
+# `carriers` only when the change touches a diagram block, a style or a color;
+# `opaque` ones can only be named. `exclude` holds third-party and generated
+# files, which follow somebody else's design; the interview adds the
+# project's own (partner logos, say).
+[design_language.visuals]
+sources = [
+  # Diagram sources.
+  "**/*.mmd", "**/*.mermaid", "**/*.d2",
+  "**/*.puml", "**/*.plantuml", "**/*.iuml", "**/*.pu",
+  "**/*.dot", "**/*.gv",
+  "**/*.excalidraw", "**/*.excalidraw.json", "**/*.drawio", "**/*.dio", "**/*.tldr",
+  "**/*.svg",
+  # Stylesheets, themes and design tokens.
+  "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.stylus",
+  "**/*.pcss", "**/*.postcss", "**/*.sss",
+  "**/*.css.ts", "**/*.stylex.*", "**/tailwind.config.*", "**/uno.config.*",
+  "**/unocss.config.*", "**/*.tcss",
+  "**/*.tokens", "**/*.tokens.json", "**/tokens/**/*.json",
+  "**/res/values*/*.xml", "**/res/drawable*/*.xml", "**/res/mipmap-anydpi*/*.xml",
+  "**/res/font/*.xml", "**/Color.kt", "**/Theme.kt",
+  "**/*.colorset/Contents.json", "**/*.appiconset/Contents.json",
+  "**/*.xaml", "**/*.axaml", "**/*.storyboard", "**/*.xib", "**/*.qml",
+  "**/*.webmanifest",
+  # Chart specs and plot styles.
+  "**/*.vg", "**/*.vl", "**/*.vg.json", "**/*.vl.json", "**/*.mplstyle", "**/matplotlibrc",
+  "**/*.gp", "**/*.gnuplot", "**/*.plt",
+]
+carriers = [
+  # Docs that can hold a diagram block, and typeset documents and decks.
+  "**/*.md", "**/*.markdown", "**/*.mdx", "**/*.adoc", "**/*.asciidoc", "**/*.rst",
+  "**/*.qmd", "**/*.rmd", "**/*.Rmd", "**/*.ipynb", "**/*.org",
+  "**/*.typ", "**/*.tex", "**/*.ltx", "**/*.sty", "**/*.cls",
+  # UI markup and templates.
+  "**/*.html", "**/*.htm", "**/*.xhtml", "**/*.jsx", "**/*.tsx", "**/*.vue", "**/*.svelte",
+  "**/*.astro",
+  "**/*.j2", "**/*.jinja", "**/*.jinja2", "**/*.erb", "**/*.hbs", "**/*.handlebars",
+  "**/*.mustache", "**/*.liquid", "**/*.blade.php", "**/*.cshtml", "**/*.razor",
+  "**/*.ejs", "**/*.njk", "**/*.twig", "**/*.pug", "**/*.haml", "**/*.slim", "**/*.heex",
+  "**/*.mjml",
+]
+# What the palette check reads: formats whose colors are plain CSS-style
+# literals. In a Markdown file it reads only the diagram blocks.
+palette_files = [
+  "**/*.svg",
+  "**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.stylus", "**/*.pcss", "**/*.postcss",
+  "**/*.mmd", "**/*.mermaid", "**/*.d2",
+  "**/*.puml", "**/*.plantuml", "**/*.iuml", "**/*.pu", "**/*.dot", "**/*.gv",
+  "**/*.md", "**/*.markdown", "**/*.mdx",
+]
+opaque = [
+  # Images.
+  "**/*.png", "**/*.apng", "**/*.jpg", "**/*.jpeg", "**/*.jpe", "**/*.jif", "**/*.jfif",
+  "**/*.pjpeg", "**/*.pjp",
+  "**/*.gif", "**/*.webp", "**/*.avif", "**/*.jxl", "**/*.heic", "**/*.heif",
+  "**/*.bmp", "**/*.tif", "**/*.tiff", "**/*.ico", "**/*.cur", "**/*.icns", "**/*.svgz",
+  "**/*.pdf", "**/*.eps", "**/*.ai", "**/*.psd",
+  # Fonts.
+  "**/*.woff", "**/*.woff2", "**/*.ttf", "**/*.otf", "**/*.ttc", "**/*.otc", "**/*.eot",
+  # Design-tool and animation files.
+  "**/*.fig", "**/*.sketch", "**/*.xd", "**/*.penpot", "**/*.riv", "**/*.lottie",
+  # Video.
+  "**/*.mp4", "**/*.m4v", "**/*.webm", "**/*.mov", "**/*.ogv",
+]
+exclude = [
+  # Dependencies.
+  "**/node_modules/**", "**/vendor/**", "**/third_party/**", "**/bower_components/**",
+  "**/Pods/**", "**/Carthage/**", "**/.venv/**",
+  # Build output.
+  "**/dist/**", "**/build/**", "**/out/**", "**/target/**", "**/.next/**", "**/.nuxt/**",
+  "**/.svelte-kit/**", "**/.astro/**", "**/storybook-static/**", "**/coverage/**",
+  "**/*.min.css",
+  # Screenshots and snapshots the tests write.
+  "**/*-snapshots/**", "**/__image_snapshots__/**", "**/__snapshots__/**",
+  "**/cypress/screenshots/**", "**/cypress/videos/**",
+  "**/test-results/**", "**/playwright-report/**",
+]
+
 [accessibility]
 level = "WCAG 2.2 AA"
 
@@ -160,6 +244,15 @@ title = "A deliberate visual system"
 statement = "The UI is built from the declared set of visual tools, not ad-hoc styles."
 rationale = "A declared set of tokens and components keeps the interface consistent and cheap to change."
 applies = ["has_ui"]
+checked_by = ["reviewer"]
+core = false
+
+[[principles]]
+id = "design-language"
+title = "One design language"
+statement = "Every visual the project makes (a diagram, a chart, an image, the UI) is built from the design language in docs/design-language.md: read it before making or changing one. A visual may step outside it for a stated reason; it may not drift from it."
+rationale = "Visuals made one at a time drift apart; one declared language keeps the docs and the product looking like the same thing, and makes a restyle one decision."
+applies = ["design_language"]
 checked_by = ["reviewer"]
 core = false
 

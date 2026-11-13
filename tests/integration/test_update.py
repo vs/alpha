@@ -31,7 +31,7 @@ from alpha.generate import (
     generate,
     load_project_principles,
 )
-from alpha.gitops import commit_group, commit_update
+from alpha.gitops import commit_group, commit_skeleton, commit_update
 from alpha.render.ci import DEPENDABOT, WORKFLOW
 from alpha.update import (
     PROPOSALS,
@@ -359,7 +359,7 @@ def test_moved_component_waits_for_its_files(
         plan(tmp_path)
 
 
-OVERRIDE_RECORD = "docs/decisions/0018-override-observability.md"
+OVERRIDE_RECORD = "docs/decisions/0019-override-observability.md"
 
 
 def test_removing_a_component_with_a_scoped_override_plans_cleanly(
@@ -952,3 +952,35 @@ def test_a_failed_git_status_says_to_rerun_the_update(tmp_path: Path, git_env: N
     (target / ".claude/alpha/project.json").write_text(json.dumps(data))
     with pytest.raises(GenerateError, match=r'then rerun "alpha update'):
         plan_update(target, PLUGIN_ROOT, SOURCE, TODAY)
+
+
+def test_a_project_from_before_the_design_language_area_can_define_one(
+    tmp_path: Path, git_env: None
+):
+    dest = place_answers(tmp_path, SCENARIO)
+    data = json.loads(dest.read_text())
+    language = data.pop("design_language")
+    del data["areas"]["design_language"]
+    decision = next(d for d in data["decisions"] if d["area"] == "design_language")
+    data["decisions"].remove(decision)
+    dest.write_text(json.dumps(data))
+    generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, date(2026, 10, 19))
+    git(tmp_path, "init", "-q", "-b", "main")
+    commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
+    assert not (tmp_path / "docs/design-language.md").exists()
+    assert "design language" not in (tmp_path / "CLAUDE.md").read_text().lower()
+    assert kinds(plan(tmp_path)) == {}
+
+    data = answers(tmp_path)
+    data["design_language"] = language
+    data["areas"]["design_language"] = "done"
+    data["decisions"].append(decision)
+    save(tmp_path, data)
+    p = plan(tmp_path)
+    found = kinds(p)
+    assert found["docs/design-language.md"] == "new"
+    assert found["docs/principles.toml"] == "change"
+    assert "- **One design language**: " in text_of(p, "CLAUDE.md")
+    assert '"docs/design-language.md"' in text_of(p, "docs/principles.toml")
+    record = "docs/decisions/0019-a-flat-high-contrast-design-language.md"
+    assert "Kind: product" in text_of(p, record)

@@ -20,6 +20,7 @@ from alpha.core_areas import (
     Architecture,
     Data,
     Dependencies,
+    DesignLanguage,
     Errors,
     Observability,
     Performance,
@@ -59,12 +60,14 @@ from alpha.validate import AnswersError as AnswersError
 PROJECT_JSON = ".claude/alpha/project.json"
 PRINCIPLES_FILE = "docs/principles.toml"
 DEPENDENCY_LOG = "docs/dependencies.md"
+DESIGN_LANGUAGE_DOC = "docs/design-language.md"
 AREAS: tuple[str, ...] = (
     "identity",
     "components",
     "architecture",
     "errors",
     "testing",
+    "design_language",
     "ui",
     "documentation",
     "build",
@@ -78,6 +81,7 @@ AREAS: tuple[str, ...] = (
     "git",
     "agent_workflow",
 )
+_DESIGN = "design_language"
 _COMPONENTS_FIELDS = ("layout", "components_talk", "components", "recipes")
 
 
@@ -135,6 +139,7 @@ _TOP_KEYS = frozenset(
         "security",
         "dependencies",
         "observability",
+        "design_language",
         "ui",
         "releases",
         "data",
@@ -331,6 +336,7 @@ class Answers:
     security: Security | None
     dependencies: Dependencies | None
     observability: Observability | None
+    design_language: DesignLanguage | None
     ui: Ui | None
     releases: Releases | None
     data: Data | None
@@ -1079,6 +1085,9 @@ def parse_answers(
         a: choice(areas_raw, a, "areas", _STATUSES) if a in areas_raw else "pending"
         for a in AREAS
     }
+    predates_design_area = _DESIGN not in areas_raw and _DESIGN not in top
+    if predates_design_area:
+        areas[_DESIGN] = "done"
     for area in require_areas:
         if areas[area] != "done":
             raise fail(
@@ -1171,6 +1180,11 @@ def parse_answers(
         if active("observability")
         else None
     )
+    design_language: DesignLanguage | None = None
+    if predates_design_area:
+        design_language = DesignLanguage(defined=False)
+    elif active(_DESIGN):
+        design_language = core_areas.design_language(get(top, _DESIGN, ""))
     ui = core_areas.ui(get(top, "ui", ""), comps_or_none) if active("ui") else None
     releases = (
         core_areas.releases(get(top, "releases", ""), comps_or_none)
@@ -1197,6 +1211,8 @@ def parse_answers(
     baselines = _adoption(top.get("adoption", {}), comps_or_none, RecipeBook(drafted))
     have = {d.area for d in decisions}
     for area in AREAS:
+        if area == _DESIGN and predates_design_area:
+            continue
         if areas[area] == "done" and area not in have:
             raise fail(
                 "decisions",
@@ -1221,6 +1237,7 @@ def parse_answers(
         security,
         dependencies,
         observability,
+        design_language,
         ui,
         releases,
         data_area,

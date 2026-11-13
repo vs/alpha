@@ -110,8 +110,8 @@ Modeled on `mattpocock/skills` → `grilling`:
   granularity, to avoid 100+ files: **one record per area** summarizing its
   decisions, plus **a separate record for each override** of a kit default
   and for each decision made later in the project's life. Each record says
-  its `Kind`: `product` (identity, UI, accessibility: what the product does
-  and for whom) or `technical` (the rest). Claude may supersede a technical
+  its `Kind`: `product` (identity, design language, UI, accessibility: what
+  the product does and for whom) or `technical` (the rest). Claude may supersede a technical
   record with a recorded reason; a product record, or one that changes a
   principle, needs the user's agreement, which the reviewer checks.
 - **Done** means the frontier is empty and the user confirms shared
@@ -152,30 +152,55 @@ minimum. The exact question wording is the builder's.
    component, which test levels apply (unit, integration, end-to-end, contract),
    how acceptance checks map to tests, and whether the project opts into
    exhaustive testing (§6).
-6. **UI/UX** (only if a component has a UI). The set of visual tools that
+6. **Design language** (optional; user decision, 2026-11-13). The one look
+   every visual of the project follows, from the diagrams in its docs to its
+   UI: character, palette, typography, shape, icons and imagery, and how
+   diagrams and charts are drawn. The area's first question is whether to
+   define one, and skipping is a full answer: then the kit writes nothing
+   about visuals, and enforces and recommends nothing. Defined, it becomes
+   `docs/design-language.md`, the "One design language" principle (§6),
+   which CLAUDE.md states in one line that names the page, and the source the
+   UI area's tokens, typography and icons come from. Which files count as visuals is a list in the kit
+   defaults (`[design_language.visuals]`): `sources` that are always visuals
+   (diagram sources, SVG, styles, tokens, chart specs), `carriers` that count
+   only when a change touches a diagram block, a style or a color (docs, UI
+   markup), `opaque` ones (rasters, fonts, design-tool files), and exclusions
+   for third-party and generated files, to which the interview adds the
+   project's own third-party paths. The project gets it as `[visuals]` in its
+   principles file, and the reviewer's brief names the changed files on it.
+   The design language guides and isn't a wall (user decision, 2026-11-13):
+   a visual may step outside it for a stated reason, and only drift is a
+   finding. How firmly colors are held is an answer, `palette_check`:
+   `advise` (default) shows the reviewer each color outside the palette in
+   diagrams, SVG and stylesheets to judge; `enforce` adds the `palette`
+   repository check (§8a), which fails on one; `off` does neither. The check
+   reads hex, rgb() and hsl() only, ignores alpha and rounding, and lets
+   black, white, named colors and variables pass. Answers saved before the
+   kit had this area read as skipped, so older projects stay as they are.
+7. **UI/UX** (only if a component has a UI). The set of visual tools that
    make up the UI: design tokens, component library, icon set, typography,
    theming, plus visual regression and accessibility checks.
-7. **Documentation.** Internal vs external docs, where external docs live, and
+8. **Documentation.** Internal vs external docs, where external docs live, and
    how they're kept in step with code (which code paths map to which docs, for
    the docs-drift check).
-8. **Build, CI, hosting.** How each component is built, the CI provider and
+9. **Build, CI, hosting.** How each component is built, the CI provider and
    what it runs, where each component is hosted, environments.
-9. **Security & secrets.** Where secrets live, what's never committed,
-   auth approach if any, protected paths.
-10. **Dependencies.** Policy for adding, pinning, and upgrading. Lockfiles. A
+10. **Security & secrets.** Where secrets live, what's never committed,
+    auth approach if any, protected paths.
+11. **Dependencies.** Policy for adding, pinning, and upgrading. Lockfiles. A
     dependency log entry with the reason for each new dependency.
-11. **Observability.** Logging format (structured), levels, correlation across
+12. **Observability.** Logging format (structured), levels, correlation across
     components, metrics or tracing if needed.
-12. **Versioning & releases.** Versioning scheme, changelog, release process.
-13. **Data & migrations** (only if there's persisted data). Storage, schema
+13. **Versioning & releases.** Versioning scheme, changelog, release process.
+14. **Data & migrations** (only if there's persisted data). Storage, schema
     ownership, migration tool and rules. For ML: data versioning, seeds,
     experiment tracking.
-14. **Accessibility** (only with a UI). Target level, automated checks.
-15. **Performance.** Budgets per component (response time, bundle size,
+15. **Accessibility** (only with a UI). Target level, automated checks.
+16. **Performance.** Budgets per component (response time, bundle size,
     memory, training/inference time) and how they're measured.
-16. **Git history.** Commit convention and scopes (per component), branching
+17. **Git history.** Commit convention and scopes (per component), branching
     model, what's protected (§10).
-17. **Agent workflow.** Hooks, permissions, review thresholds and risk
+18. **Agent workflow.** Hooks, permissions, review thresholds and risk
     triggers (§9), definition of done.
 
 ## 5a. Calling an area skill on a kit-generated project
@@ -324,6 +349,12 @@ both), and any parameters.
   the recipes; a project adds each when its first test needs it.
 - **A deliberate visual system.** *When: a component has a UI.* The UI is
   built from the declared set of visual tools, not ad-hoc styles.
+- **One design language.** *When: the user defined a design language.* Every
+  visual the project makes (a diagram, a chart, an image, the UI) is built
+  from it. A visual may step outside it for a stated reason; it may not
+  drift from it. The reviewer checks each changed visual it can read as text
+  against `docs/design-language.md`, a change to that page is a risk path,
+  and the `palette` check holds colors when the project chose `enforce`.
 - ★ **Docs move with the code.** A change to public behavior updates the docs
   in the same change.
 - ★ **Build and hosting are decided up front** and runnable in CI.
@@ -437,9 +468,10 @@ the builder's, with these constraints:
 - **docs/**: product brief (identity and acceptance checks), architecture
   (components, stacks, contracts, reasons), decisions (ADR-style decision
   log, seeded by the interview), contributing guide (incl. commit convention),
-  glossary (when applicable), UI/visual system (when applicable), build/CI/
-  hosting, security, dependency log, observability, release process, data/
-  migrations (when applicable), performance budgets (when applicable).
+  glossary (when applicable), design language (when defined), UI/visual
+  system (when applicable), build/CI/hosting, security, dependency log,
+  observability, release process, data/migrations (when applicable),
+  performance budgets (when applicable).
 - **LICENSE**, **README** (identity plus how to set up/test/run).
 - **`.claude/settings.json`**: permissions matched to each component's stack
   (allow its test/build/lint commands, deny dangerous ones), hooks wired to
@@ -590,6 +622,7 @@ where CI runs it: `pr`, `schedule`, or `both`.
 | agent-config | agnix | strict lint of `.` | `CLAUDE.md`, `.claude/**` | yes | pr | always |
 | migrations | none | `python3 .claude/alpha/checks/diff_checks.py immutable-migrations` | none | no | pr | `data.migration_paths` non-empty |
 | squawk | squawk | `python3 .claude/alpha/checks/diff_checks.py squawk` | none | no | pr | `data.squawk_paths` non-empty (PostgreSQL with SQL migrations) |
+| palette | none | `python3 .claude/alpha/checks/palette.py` | the `palette_files` of `[visuals]` | yes | pr | `design_language.palette_check == "enforce"` |
 | baselines | none | `python3 .claude/alpha/checks/diff_checks.py baselines` | none | no | pr | `adoption.baselines` non-empty (§8b) |
 | review-dates | none | `python3 .claude/alpha/checks/review_dates.py` | none | no | both | always |
 | toolchain | none | `mise outdated --no-global --bump --json \| python3 -c "…"`: prints the outdated tools and, if any, the `mise upgrade --bump --no-global` fix, then exits 1 | none | no | schedule (own step) | always |

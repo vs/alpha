@@ -4,7 +4,13 @@ from pathlib import Path
 from string import Template
 from typing import Any
 
-from alpha.answers import Answers, Component, Documentation, Identity
+from alpha.answers import (
+    DESIGN_LANGUAGE_DOC,
+    Answers,
+    Component,
+    Documentation,
+    Identity,
+)
 from alpha.recipes import OPTIONAL_STEPS, check_commands
 from alpha.records import Records, record_number, record_paths
 from alpha.registry import Registry, default_registry
@@ -49,7 +55,6 @@ _WORKING_RULES = (
     "as a stranger would.",
     "- At the end of a planned piece of work, run the principles-reviewer agent.",
 )
-PRODUCT_AREAS = frozenset({"identity", "ui", "accessibility"})
 _TEST_RUNS = {
     "at-merge": (
         "The hooks leave the full test suites to one checkpoint: before your "
@@ -63,6 +68,7 @@ _TEST_RUNS = {
         "every time you finish a turn."
     ),
 }
+PRODUCT_AREAS = frozenset({"identity", "design_language", "ui", "accessibility"})
 _COMMUNICATION = (
     "- Answer a question before making edits or running commands for it.",
     "- When responding to feedback or a review, say first whether you agree, "
@@ -571,6 +577,7 @@ def render_docs(
         "docs/releases.md": area_docs.releases_doc(a),
     }
     optional = {
+        DESIGN_LANGUAGE_DOC: area_docs.design_language_doc(a),
         "docs/ui.md": area_docs.ui_doc(a),
         "docs/data.md": area_docs.data_doc(a, principles),
         "docs/performance.md": area_docs.performance_doc(a),

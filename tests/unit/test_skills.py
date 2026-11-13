@@ -20,6 +20,7 @@ AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "architecture": ("architecture", ("architecture",)),
     "errors": ("errors", ("errors",)),
     "testing": ("testing", ("testing",)),
+    "design-language": ("design_language", ("design_language",)),
     "ui": ("ui", ("ui",)),
     "documentation": ("documentation", ("documentation",)),
     "build-and-hosting": ("build", ("build",)),
@@ -510,7 +511,7 @@ def test_new_project_reports_append_only_migrations():
     assert "Claude can't edit a migration that existed before the session" in report
 
 
-@pytest.mark.parametrize("skill", ["ui", "accessibility", "data"])
+@pytest.mark.parametrize("skill", ["design-language", "ui", "accessibility", "data"])
 def test_areas_that_may_not_apply_ask_nothing(skill: str):
     questions = _section(skill, "Questions")
     assert "ask nothing" in questions
@@ -518,7 +519,14 @@ def test_areas_that_may_not_apply_ask_nothing(skill: str):
 
 def test_new_project_summary_covers_the_remaining_areas():
     summary = _section("new-project", "5. Summary and confirmation")
-    for area in ("UI", "releases", "data", "accessibility", "performance"):
+    for area in (
+        "design language",
+        "UI",
+        "releases",
+        "data",
+        "accessibility",
+        "performance",
+    ):
         assert area in summary
 
 
@@ -765,3 +773,34 @@ def test_adopt_uses_the_adoption_cli():
     needed = {"adopt survey", "adopt gaps", "adopt apply", "adopt next", "adopt start"}
     needed |= {"adopt done", "adopt drop", "baseline show", "baseline tighten"}
     assert needed <= {" ".join(c.split()[:2]) for c in calls} | calls
+
+
+def test_design_language_is_the_users_to_skip():
+    questions = _section("design-language", "Questions")
+    assert "Either answer is fine; never argue for one." in questions
+    assert 'save `{"defined": false}`' in questions
+    assert (
+        "Don't suggest colors, typefaces or diagram styles anywhere later" in questions
+    )
+    assert "enforces and recommends nothing" in _section("design-language", "Purpose")
+    assert "When `design_language.defined` is true" in _section("ui", "Questions")
+
+
+def test_the_reviewer_checks_visuals_against_the_design_language():
+    text = (PLUGIN_ROOT / "project-files/agents/principles-reviewer.md").read_text()
+    assert "When the brief lists `design-language`" in text
+    assert "its `language` parameter names" in text
+    assert 'check every file under "Changed visuals" against it' in text
+    assert "the same color in another notation" in text
+    assert "\"Changed visuals that aren't text\" isn't a finding" in text
+
+
+def test_design_language_is_held_as_firmly_as_the_user_chooses():
+    questions = _section("design-language", "Questions")
+    assert "recommend `defaults.design_language.palette_check`" in questions
+    assert "In an adoption, never recommend `enforce`" in questions
+    assert "key `design_language.palette_check`" in questions
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    assert kit["design_language"]["palette_check"] in core_areas.PALETTE_CHECKS
+    reviewer = (PLUGIN_ROOT / "project-files/agents/principles-reviewer.md").read_text()
+    assert "The design language guides, it isn't a wall" in reviewer

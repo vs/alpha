@@ -21,6 +21,7 @@ CONDITIONS: frozenset[str] = frozenset(
         "budgets_set",
         "domain_jargon",
         "exhaustive_testing",
+        "design_language",
     }
 )
 

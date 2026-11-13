@@ -20,6 +20,7 @@ from alpha.answers import (
     write_answers,
     write_json,
 )
+from alpha.core_areas import DesignLanguage
 from alpha.validate import fail
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
@@ -744,3 +745,31 @@ def test_write_json_keeps_old_file_when_write_fails(tmp_path: Path):
         write_json(path, {"schema": 1, "broken": object()})
     assert path.read_text() == before
     assert [p.name for p in tmp_path.iterdir()] == ["project.json"]
+
+
+def test_answers_from_before_the_design_language_area_read_as_skipped(tmp_path: Path):
+    d = valid()
+    del d["design_language"]
+    del d["areas"]["design_language"]
+    d["decisions"] = [x for x in d["decisions"] if x["area"] != "design_language"]
+    a = check(tmp_path, d)
+    assert a.design_language == DesignLanguage(defined=False)
+    assert a.areas["design_language"] == "done"
+
+
+def test_a_design_language_area_the_interview_started_must_finish(tmp_path: Path):
+    d = valid()
+    d["areas"]["design_language"] = "in_progress"
+    with pytest.raises(
+        AnswersError, match=r"areas\.design_language: is in_progress, not done"
+    ):
+        check(tmp_path, d)
+
+
+def test_design_language_answers_without_their_area_are_not_done(tmp_path: Path):
+    d = valid()
+    del d["areas"]["design_language"]
+    with pytest.raises(
+        AnswersError, match=r"areas\.design_language: is pending, not done"
+    ):
+        check(tmp_path, d)

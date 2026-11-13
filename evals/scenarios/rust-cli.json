@@ -6,6 +6,7 @@
     "architecture": "done",
     "errors": "done",
     "testing": "done",
+    "design_language": "done",
     "ui": "done",
     "documentation": "done",
     "build": "done",
@@ -134,6 +135,9 @@
   },
   "observability": {
     "components": []
+  },
+  "design_language": {
+    "defined": false
   },
   "ui": {
     "components": []
@@ -286,6 +290,13 @@
       "context": "Small changes, occasional risk.",
       "decision": "Batched review at 200 lines or 5 files.",
       "consequences": "Agents stop for review past either limit."
+    },
+    {
+      "area": "design_language",
+      "title": "No design language",
+      "context": "The project has no UI and few visuals; the user skipped the design language.",
+      "decision": "No design language is defined.",
+      "consequences": "alpha enforces and recommends nothing about how the project's visuals look."
     }
   ]
 }
