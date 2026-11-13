@@ -68,7 +68,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - Subagents work under the same principles, decisions and checks.
 - Before you report work as done, re-read every changed file top to bottom as a stranger would.
 - At the end of a planned piece of work, run the principles-reviewer agent.
-- When you add a code generator, add a `generate` task to `mise.toml` and to the `ci` task's `depends`; CI fails when checks change tracked files.
+- When you add a code generator, add a `generate` task to `mise.toml` and to the `ci` task's `depends`; commit what it regenerates with the change.
 - Never disable a lint rule to pass; an exception names one path and one rule, and a decision record that names that path gives the reason.
 - A security suppression (osv-scanner, betterleaks) needs a reason and a review date: in the `osv-scanner.toml` next to the lockfile it applies to, `ignoreUntil` and `reason`; in `.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly above the entry.
 
@@ -105,7 +105,7 @@ Code: `**/*.py`. Tests: `tests/**/*.py`, `**/test_*.py`, `**/*_test.py`, `**/con
 | structure | `uv run deptry . --extend-exclude .claude` |
 | run | add when the entry point exists |
 
-Run every check: `mise run check` (CI runs the same checks).
+Run every check: `mise run check`.
 
 ## Definition of done
 
