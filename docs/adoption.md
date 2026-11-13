@@ -172,7 +172,7 @@ Done when:
 
 - `uv run pytest -k test_a_shortcut_inside_a_string_is_not_a_comment` passes
 
-### `p4-betterleaks-nested-ignores`: Scan only the files git does not ignore for secrets
+### `p4-betterleaks-nested-ignores`: Secrets scan skips what git ignores
 
 betterleaks dir reads every file, and the generated .betterleaks.toml allowlists only the root .gitignore, so a folder ignored by its own .gitignore (here .superpowers/) is scanned; it was added to the generated file by hand.
 
