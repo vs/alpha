@@ -13,6 +13,7 @@ from typing import Any, cast
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
 import review
+import stop_checks
 
 NO_VERIFY_MESSAGE = (
     "--no-verify skips the project's commit checks. Fix what the hook reports "
@@ -496,7 +497,9 @@ def check_review(root: Path) -> None:
     principles = _common.load_principles(root)
     if principles is None:
         return
-    reason = review.merge_blocker(root, principles)
+    reason = review.merge_blocker(root, principles) or stop_checks.untested_blocker(
+        root, principles
+    )
     if reason:
         _common.block(reason)
 
