@@ -832,7 +832,7 @@
     "extra_risk_paths": []
   },
   "manifest": {
-    "kit_version": "0.6.1",
+    "kit_version": "0.6.2",
     "generated_at": "2026-11-12",
     "adopted_at": "2026-11-12",
     "defaults": {
@@ -1719,7 +1719,7 @@
       ".claude/alpha/hooks/review.py": "sha256:cf3e1be196cad00b612cc932d7449adea1bf92863ab32300da65777721b08ce4",
       ".claude/alpha/hooks/review_record.py": "sha256:ed811c19bcd9e72beaa591c5d9389900ec0213c20d3dae488fb9bb5c4fca14fb",
       ".claude/alpha/hooks/session_start.py": "sha256:54d572b1cc0585b8fcc12fb344c3abc6536b58987cd53d4ac3771710e292bc99",
-      ".claude/alpha/hooks/stop_checks.py": "sha256:ce659f4371b4b40cd8ce9e79b95dc809638ad2eb6bad3788a3da42448a8d802d",
+      ".claude/alpha/hooks/stop_checks.py": "sha256:16a33df2b5eb170e65c3b75cc0e44e5ee2b42ea1f148e93b6fbb5e7a882a8762",
       ".claude/alpha/hooks/subagent_start.py": "sha256:c65b7861fcb08685626c2a48c95b5f19bbba5b0d90f192af1f1964920c742039",
       ".claude/alpha/hooks/user_prompt.py": "sha256:36ca81b355e43d6d45b19d1974136740ef946c37fd9828830c5a71b1e67b0608",
       ".claude/settings.json": "sha256:8470c8cc20b63aa4a32a10cbfa3a772388e9c445d5dab3b6dd9fbfc1f7f400a6",
@@ -1759,7 +1759,7 @@
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
       "docs/glossary.md": "sha256:7eaea5016c5a9318a97987c96e106c512186c8ec02a779a73a2105719a3bd5cd",
       "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
-      "docs/principles.toml": "sha256:aa85e07116151bf4e5022c6fe74da126836aaf049bba88e49dc22ad4f4fb852f",
+      "docs/principles.toml": "sha256:c2972ff85f943941876e5509492ad59504ad6a26002fc8d4c2bc70c2ce246a7c",
       "docs/product.md": "sha256:f16cf2fdf4b69e188970efff2396c3dbfed048821621887a097fdafe091b1165",
       "docs/releases.md": "sha256:f87fe7b35dd5a3b79159c751d5074fdd42d8e1aa9105c2a475c3df4cd45afd11",
       "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
