@@ -2,7 +2,7 @@
 
 ## Policy
 
-- Adding: every new dependency gets a row in the log below, with the reason. The Stop hook blocks a lockfile change without one. A release also changes `uv.lock`, since it holds alpha's own version; that needs no row, but the hook can't tell it apart.
+- Adding: every new dependency gets a row in the log below, with the reason. The Stop hook blocks a lockfile change without one; a release that only bumps the project's own version in uv.lock or Cargo.lock needs none.
 - Pinning: lockfiles pin every version. Only the package manager changes them; Claude can't edit them by hand.
 - Upgrading: Upgrades are manual: check for updates weekly.
 
