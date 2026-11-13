@@ -375,7 +375,8 @@
             "run": "gh release view v0.2.0 -R vs/alpha && gh release view v0.4.1 -R vs/alpha && gh release view v0.4.2 -R vs/alpha"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-missing-releases"
       },
       {
         "id": "p6-requirement-tests",
@@ -1216,7 +1217,8 @@
                 "run": "gh release view v0.2.0 -R vs/alpha && gh release view v0.4.1 -R vs/alpha && gh release view v0.4.2 -R vs/alpha"
               }
             ],
-            "status": "pending"
+            "status": "done",
+            "branch": "alpha/p4-missing-releases"
           },
           {
             "id": "p6-requirement-tests",
@@ -1727,13 +1729,13 @@
       ".claude/skills/review-change/SKILL.md": "sha256:030a78de6260b37987fb01b508dc3f5c2fd082ae665dbb55f312db85d2b2b158",
       ".gitignore": "sha256:c67d69e292be739a98dee4a088225e588acce0efbfb08fea2b23530d7d32bd7c",
       ".rumdl.toml": "sha256:0b2cb9228e9e7c88b4f46f14e9dffc561cf241b7a8f502076f933d8f05f1a389",
-      "CLAUDE.md": "sha256:e33618f81c15063fcaee1c8052673d3992e4c2d8aa9857afb913f866bd295eba",
+      "CLAUDE.md": "sha256:8297bd4b6bf7c27ed3e60acef6ba896efb2bfb2ce4aac29c290dc4c70c220232",
       "CONTRIBUTING.md": "sha256:347821163280866bfe9065e0e56d9b41c9f3afdb8e22283efeaadccc57e91817",
       "README.md": "sha256:140e31a8b912485d549a65091314c6fd566d59f33d759fa6e9dba35675fbb7cb",
       "_typos.toml": "sha256:8c1d7a0673f71fe186099c95af72f8f870c893418f2951ab6092793e1f3dc637",
-      "docs/adoption.md": "sha256:79c94695e31e44902b98eaa0b827f07283f3fcce109936672693eece09b8ba01",
+      "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
-      "docs/build.md": "sha256:5906f90593d99653c3cbf2fd70b365def882617bed8c518049c5d462d23a7cde",
+      "docs/build.md": "sha256:1989a6f6d23296f92d8e9e68401b43f5e07f865e5ca5ba5b93b04d0201dce55e",
       "docs/data.md": "sha256:ada50e4034585f01e461e0ac21fddf40c78dd38c129a06cadf79a00b283b537f",
       "docs/decisions/0001-product-identity.md": "sha256:a7e7451a1c79f049dbe5dbd9e9a0d1007546be029c279f9e641a7665a5070a16",
       "docs/decisions/0002-single-python-cli.md": "sha256:f6785c9e980a26218310969fffaa82f8eee5b0c43806e3d612a78a9243301c0c",
@@ -1752,11 +1754,11 @@
       "docs/decisions/0015-cli-startup-budget.md": "sha256:b9bd6de9bbf0ec80e42df48fa5ac1f55e176bf53da7bf49cf24b3b981e5a7858",
       "docs/decisions/0016-conventional-commits-on-feature-branches.md": "sha256:2d1e9b729d9ad2778a83ca33069b2de472ab98b92807eeaff2a27d5290b93912",
       "docs/decisions/0017-review-at-merge.md": "sha256:29c2e0e1b5f1af4983ead8fa0aed8fcffed4bfa4caa7b233b37a7e944c7ff43d",
-      "docs/decisions/0018-override-build-hosting-upfront.md": "sha256:dca75b3a787516298eb455e5ce8f83498d0552f0e41ddd6dd4f61c63236fac8c",
+      "docs/decisions/0018-override-build-hosting-upfront.md": "sha256:be025c90f01b359d304ce147af26b9e6d0713de21cbcead8d050252b4026b61e",
       "docs/dependencies.md": "sha256:1d9b1433208cda31a43e26a21df344befa4a565202cc50ed2600bd36f4bca1ee",
       "docs/glossary.md": "sha256:7eaea5016c5a9318a97987c96e106c512186c8ec02a779a73a2105719a3bd5cd",
       "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
-      "docs/principles.toml": "sha256:aa3c7c06ffabbd7effb948c9f5dc869c8f16226550b7903fc04409b233b984e8",
+      "docs/principles.toml": "sha256:c580ce5fd2daabb54950288327e48f7e209d21b00bcc958e0cd18ff4b8e32c73",
       "docs/product.md": "sha256:f16cf2fdf4b69e188970efff2396c3dbfed048821621887a097fdafe091b1165",
       "docs/releases.md": "sha256:f87fe7b35dd5a3b79159c751d5074fdd42d8e1aa9105c2a475c3df4cd45afd11",
       "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
