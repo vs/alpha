@@ -4,6 +4,8 @@ Built from the answers, recorded in docs/principles.toml (all but the scheduled
 ones) and pinned in the project's root mise.toml.
 """
 
+import posixpath
+import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -110,7 +112,12 @@ def repo_checks(
         )
     )
     if lockfiles:
-        vulns = _command(registry, "osv-scanner")
+        # osv-scanner applies the .gitignore of an enclosing repo, so a walk
+        # finds nothing in a worktree under an ignored folder
+        # (.claude/worktrees/). The pin scans with --no-ignore and without -r:
+        # only the lockfiles' own folders, never the ignored ones below them.
+        folders = dict.fromkeys(posixpath.dirname(lock) or "." for lock in lockfiles)
+        vulns = f"{_command(registry, 'osv-scanner')} {shlex.join(folders)}"
         checks.append(
             RepoCheck(
                 "vulns",
