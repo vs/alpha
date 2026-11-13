@@ -51,7 +51,11 @@ class RepoCheck:
 # CI steps that aren't repository checks, which `checked_by` names as
 # `ci:<step>`. The other `ci:` names are repository check ids.
 CI_STEPS = {
-    "tree": "every CI job ends by checking that the checks left the tree unchanged"
+    "tree": "every CI job ends by checking that the checks left the tree unchanged",
+    "diff-coverage": (
+        "a pull request's job fails when its tests cover less of the changed "
+        "lines than `testing.diff_coverage`"
+    ),
 }
 
 

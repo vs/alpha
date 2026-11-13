@@ -90,6 +90,22 @@ def test_contributing_testing_section(tmp_path: Path):
     assert "names its requirement id (e.g. `R1`)" in testing
     order = [text.index(f"## {t}") for t in ("Testing", "Documentation", "Branching")]
     assert order == sorted(order)
+    assert "Exhaustive testing" not in text
+
+
+def test_exhaustive_testing_reaches_contributing_and_claude_md(tmp_path: Path):
+    def exhaustive(data: dict[str, Any]) -> None:
+        data["testing"]["exhaustive"] = True
+
+    out = render(load(tmp_path, mutate=exhaustive))
+    testing = section(out["CONTRIBUTING.md"], "Testing")
+    assert "### Exhaustive testing" in testing
+    assert "https://www.sqlite.org/testing.html" in testing
+    assert "every line and branch it changes" in testing
+    assert (
+        "- **Exhaustive testing**: Tests take every branch both ways"
+        in out["CLAUDE.md"]
+    )
 
 
 def test_security_doc(tmp_path: Path):

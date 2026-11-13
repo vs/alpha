@@ -7,7 +7,7 @@ from alpha.records import Records, record_paths
 from alpha.registry import Registry, default_registry
 from alpha.repo_checks import RepoCheck, principles_entries, repo_checks
 from alpha.toml_write import dumps
-from alpha.validate import prefixed
+from alpha.validate import fail, prefixed
 
 _COMPONENT_FACTS = (
     "has_ui",
@@ -22,6 +22,7 @@ _PROJECT_ONLY = (
     "multi_component",
     "communicating_components",
     "domain_jargon",
+    "exhaustive_testing",
 )
 
 _HEADER = """\
@@ -53,13 +54,14 @@ def component_facts(c: Component, a: Answers) -> dict[str, bool]:
     }
 
 
-def compute_facts(a: Answers) -> dict[str, bool]:
+def compute_facts(a: Answers, defaults: dict[str, Any]) -> dict[str, bool]:
     per = [component_facts(c, a) for c in a.components]
     multi = len(a.components) > 1
     facts = {key: any(f[key] for f in per) for key in _COMPONENT_FACTS}
     facts["multi_component"] = multi
     facts["communicating_components"] = multi and a.components_talk
     facts["domain_jargon"] = a.identity.domain_jargon if a.identity else False
+    facts["exhaustive_testing"] = exhaustive_testing(a, defaults)
     return facts
 
 
@@ -88,10 +90,28 @@ def _docs_map(documentation: Documentation) -> dict[str, list[str]]:
     return out
 
 
-def _diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
+def exhaustive_testing(a: Answers, defaults: dict[str, Any]) -> bool:
     """The answer when the interview set one, else the kit's default."""
-    if a.testing is not None and a.testing.diff_coverage is not None:
-        return a.testing.diff_coverage
+    if a.testing is not None and a.testing.exhaustive is not None:
+        return a.testing.exhaustive
+    return defaults.get("testing", {}).get("exhaustive") is True
+
+
+def diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
+    """Every changed line under exhaustive testing; otherwise the answer when
+    the interview set one, else the kit's default."""
+    answer = a.testing.diff_coverage if a.testing is not None else None
+    if exhaustive_testing(a, defaults):
+        if answer not in (None, 100):
+            raise fail(
+                "testing.diff_coverage",
+                f"is {answer} but exhaustive testing covers every line a pull "
+                "request changes",
+                'Leave diff_coverage out, or set "exhaustive": false in testing',
+            )
+        return 100
+    if answer is not None:
+        return answer
     try:
         value = defaults["testing"]["diff_coverage"]
     except KeyError:
@@ -197,7 +217,7 @@ def build_principles(
             }
         )
 
-    project = compute_facts(a)
+    project = compute_facts(a, defaults)
     principles: list[dict[str, Any]] = []
     for p in defaults["principles"]:
         names = _applicable(list(p["applies"]), a, project)
@@ -289,7 +309,10 @@ def build_principles(
         "git": git_section,
         "docs_map": docs_map,
         "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
-        "testing": {"diff_coverage": _diff_coverage(a, defaults)},
+        "testing": {
+            "diff_coverage": diff_coverage(a, defaults),
+            **({"exhaustive": True} if project["exhaustive_testing"] else {}),
+        },
         "components": components,
         "principles": principles,
     }

@@ -150,7 +150,8 @@ minimum. The exact question wording is the builder's.
    how to fix it. Error taxonomy and format per component.
 5. **Testing.** Test effort matches core-logic effort. Test layout per
    component, which test levels apply (unit, integration, end-to-end, contract),
-   and how acceptance checks map to tests.
+   how acceptance checks map to tests, and whether the project opts into
+   exhaustive testing (§6).
 6. **UI/UX** (only if a component has a UI). The set of visual tools that
    make up the UI: design tokens, component library, icon set, typography,
    theming, plus visual regression and accessibility checks.
@@ -309,6 +310,18 @@ both), and any parameters.
 - ★ **Tests are as important as the core.** Test design and writing get the
   same effort and intensity as the logic. Tests trace back to acceptance
   checks.
+- **Exhaustive testing.** *When: the project opts in (`testing.exhaustive`;
+  user decision, 2026-11-13).* Modeled on
+  [SQLite's testing](https://www.sqlite.org/testing.html): every branch taken both
+  ways, every failure path forced by an injected failure, fuzz or
+  property-based tests for whatever reads outside input, each limit tested
+  at, just below and just above its value, a failing test before each bug
+  fix, invariants asserted in the code, and tests run on the build that
+  ships. Off by default (`defaults.testing.exhaustive`), since it takes
+  several times more test code than product code. The reviewer checks it,
+  and the diff-coverage gate (§8a) becomes every changed line and branch.
+  The fuzzing, property-testing and mutation-testing tools aren't picked by
+  the recipes; a project adds each when its first test needs it.
 - **A deliberate visual system.** *When: a component has a UI.* The UI is
   built from the declared set of visual tools, not ad-hoc styles.
 - ★ **Docs move with the code.** A change to public behavior updates the docs
@@ -518,6 +531,8 @@ Decisions:
   answers. There are two new tunables, each offered inside an existing round
   with a recommended default: `dependencies.cooldown_days` (7) and
   `testing.diff_coverage` (80). No new area. This keeps interview cost flat.
+  `testing.exhaustive` (off, 2026-11-13) joins the testing round the same
+  way.
 - **D4 Existing projects gain them through `alpha update`** (decision 0022,
   2026-11-13; it replaces "existing projects stay as they are"). When an
   older kit set the project up, `alpha update` upgrades it to the current
@@ -577,11 +592,15 @@ Recipe commands. A stack recipe may add two commands to the ones in §3:
   tools, each with a `[why]` line.
 - `coverage` and `coverage_report`: run the tests with coverage and name the
   report file, for the diff-coverage gate (`testing.diff_coverage`, 0 turns
-  it off). Python: `uv run pytest --cov --cov-report=xml:coverage.xml`, report
+  it off). Python: `uv run pytest --cov --cov-branch
+  --cov-report=xml:coverage.xml`, report
   `coverage.xml`. TypeScript: `pnpm vitest run --coverage
   --coverage.reporter=cobertura`, report `coverage/cobertura-coverage.xml`.
   Rust: `cargo llvm-cov --cobertura --output-path coverage.xml`, report
-  `coverage.xml`.
+  `coverage.xml`. With exhaustive testing (§6) the gate is
+  `--fail-under=100 --branch-coverage`: a changed branch with one side
+  untested fails too, where the report has branch data (Python and
+  TypeScript; stable Rust reports lines only).
 
 The registry (`registry/` in the kit) has one entry per repo-check tool. An
 entry holds the tool's pinned version and `pin.command`, the command that

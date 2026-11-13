@@ -32,6 +32,18 @@ claude plugin install alpha@alpha
 | `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, typos, markdown, links, action pins, agent config) |
 | `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
 
+## Exhaustive testing, if you ask
+
+For a project that must not fail, say yes to exhaustive testing in the
+interview (or later: `/alpha:extend test this exhaustively`). alpha adds a
+principle modeled on [how SQLite is tested](https://www.sqlite.org/testing.html):
+every branch taken both ways, every failure forced by injecting it, fuzz or
+property-based tests for outside input, limits tested on both sides, a
+failing test before each bug fix, invariants asserted in the code. The
+reviewer holds every change to it, and CI fails a pull request that leaves a
+changed line or branch uncovered (lines only for Rust, whose stable toolchain
+reports no branches). It is off by default.
+
 ## Needs
 
 [uv](https://docs.astral.sh/uv/) and [pnpm](https://pnpm.io/) for the Python

@@ -74,7 +74,7 @@ def test_catalog_has_all_core_principles():
         "clean-history",
         "definition-of-done",
     } <= ids
-    assert len(ids) == 35
+    assert len(ids) == 36
     assert d["review"]["risk_paths"][:5] == [
         "**/migrations/**",
         "**/*.proto",

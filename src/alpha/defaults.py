@@ -20,6 +20,7 @@ CONDITIONS: frozenset[str] = frozenset(
         "nontrivial_logic",
         "budgets_set",
         "domain_jargon",
+        "exhaustive_testing",
     }
 )
 
