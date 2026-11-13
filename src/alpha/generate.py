@@ -64,13 +64,15 @@ def _unexpected(target: Path) -> list[str]:
 
 def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
     """The .gitignore entries."""
-    # Hooks run with python3, which leaves bytecode next to them.
+    # Hooks and checks run with python3, which leaves bytecode next to the
+    # modules they import (diff_checks.py imports ratchet.py).
     lines = [
         ".claude/alpha/state/",
         ".claude/settings.local.json",
         ".claude/worktrees/",
         ".DS_Store",
         ".claude/alpha/hooks/__pycache__/",
+        ".claude/alpha/checks/__pycache__/",
         ".env",
         ".env.*",
         "**/.env",
