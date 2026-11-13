@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, NoReturn, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
-import _common  # noqa: E402
+import _common
 
 BASELINES = ".claude/alpha/baselines"
 TAIL_LINES = 40
@@ -378,7 +378,8 @@ def main() -> None:
             before = read_baseline(path)
         except (OSError, ValueError) as e:
             _fail(2, f"{rel} can't be read ({e}). Restore it: git checkout {rel}")
-    # No time limit here: the hooks and CI bound how long a check may run.
+    # No time limit here: whoever runs the ratchet (a hook, CI or alpha's CLI)
+    # bounds it, and stops its whole process group.
     done = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
     try:
         findings = parse(entry, done.stdout, done.stderr, root, cwd)

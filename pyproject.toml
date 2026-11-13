@@ -7,23 +7,27 @@ requires-python = ">=3.11"
 dependencies = []
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "project-files/hooks", "project-files/checks"]
 markers = ["slow: needs network and stack tools"]
 addopts = "-m 'not slow'"
 
 [tool.pyright]
 include = ["src", "project-files/hooks", "project-files/checks", "tests"]
-typeCheckingMode = "standard"
-strict = ["src", "project-files/hooks", "project-files/checks"]
-extraPaths = ["src", "project-files/hooks"]
+typeCheckingMode = "strict"
+reportUnnecessaryTypeIgnoreComment = "error"
+extraPaths = ["src", "project-files/hooks", "project-files/checks"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+# BLE: no catch-all except. ERA: no commented-out code. PGH, RUF100: no blanket
+# or stale suppressions. PLC0415: imports at the top. TRY002: raise specific types.
+select = ["E", "F", "I", "UP", "B", "BLE", "ERA", "PGH", "RUF100", "PLC0415", "TRY002"]
 
 [dependency-groups]
 dev = [
+    "deptry>=0.25.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "pyyaml>=6.0.3",
     "ruff>=0.17.1",
     "types-pyyaml>=6.0.12.20260906",
@@ -31,3 +35,10 @@ dev = [
 
 [tool.ruff]
 extend-exclude = ["docs", ".superpowers"]
+
+[tool.deptry]
+# The kit's packages, and the hook and check modules that import each other.
+known_first_party = ["alpha", "alpha_evals", "_common", "review", "ratchet"]
+
+[tool.coverage.run]
+source = ["src", "project-files"]

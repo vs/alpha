@@ -18,6 +18,7 @@ from alpha.answers import (
     answers_snapshot,
     drafted_recipes,
     load_answers,
+    write_json,
 )
 from alpha.baseline import BaselineError, baseline_file
 from alpha.baseline import capture as capture_baseline
@@ -31,11 +32,13 @@ from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
 from alpha.render.tooling import MISE, render_tooling
 from alpha.repo_checks import repo_checks
+from alpha.shell import run_command
 
 PRINCIPLES_TOML = "docs/principles.toml"
 _ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
 _ALLOWED_DIRS = frozenset({".claude", ".claude/alpha"})
 _TAIL_LINES = 40
+STEP_TIMEOUT = 1800.0  # seconds: an install or a check that runs longer is stuck
 
 
 class GenerateError(Exception):
@@ -79,12 +82,6 @@ def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
             # "**/" keeps the any-depth match the unprefixed pattern has.
             lines.append(entry if c["path"] == "." else f"{c['path']}/**/{entry}")
     return lines
-
-
-def _tooling_excludes(principles: dict[str, Any], book: RecipeBook) -> list[str]:
-    """What the repository checks skip: what git ignores, plus the lockfiles."""
-    locks = [lock for c in principles["components"] for lock in c["lockfiles"]]
-    return [*_ignored(principles, book), *locks]
 
 
 def copied_files(plugin_root: Path) -> dict[str, Path]:
@@ -192,8 +189,10 @@ def render_project(
         render_tooling(
             repo_checks(a, principles, registry),
             registry,
-            _tooling_excludes(principles, book),
+            _ignored(principles, book),
+            [lock for c in principles["components"] for lock in c["lockfiles"]],
             components=principles["components"],
+            ci=a.build is not None and a.build.ci != "none",
         )
     )
     assert a.build is not None
@@ -233,15 +232,18 @@ def generate(
             f"{target} is not a folder. Create it and run the alpha interview "
             "there first."
         )
+    answers_path = target / PROJECT_JSON
     extra = _unexpected(target)
+    a = load_answers(answers_path) if extra and answers_path.is_file() else None
+    if a is not None and a.identity is not None:
+        extra = [rel for rel in extra if rel != a.identity.license_file]
     if extra:
         raise GenerateError(
             f"{target} is not empty (found: {', '.join(extra)}). alpha v0.1 starts "
             "projects only in empty folders. Choose a new folder, or move these "
             "files out first."
         )
-    answers_path = target / PROJECT_JSON
-    a = load_answers(answers_path)
+    a = a or load_answers(answers_path)
     records = record_paths(a)
     today = today or date.today()
     rendered = render_project(
@@ -293,26 +295,40 @@ def file_hashes(target: Path, rels: list[str]) -> dict[str, str]:
     return {rel: digest((target / rel).read_bytes()) for rel in rels}
 
 
-def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+def _project_json(target: Path) -> dict[str, Any] | None:
+    """project.json, or None when there is none; an unreadable one stops."""
+    path = target / PROJECT_JSON
+    try:
+        data: object = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        problem: object = e
+    else:
+        if isinstance(data, dict):
+            return cast(dict[str, Any], data)
+        problem = "it isn't a JSON object"
+    raise GenerateError(
+        f"{path} can't be read as the interview answers ({problem}). Restore it "
+        f"with git checkout {PROJECT_JSON}, or fix it by hand, then retry."
+    )
 
 
 def refresh_manifest(target: Path) -> None:
-    path = target / PROJECT_JSON
-    try:
-        data = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
-        files = cast(dict[str, str], data["manifest"]["files"])
-    except (OSError, ValueError, KeyError, TypeError):
+    data = _project_json(target)
+    manifest: object = data.get("manifest") if data is not None else None
+    if data is None or not isinstance(manifest, dict):
         return
+    files = cast(dict[str, str], cast(dict[str, Any], manifest).get("files", {}))
     present = [rel for rel in files if (target / rel).is_file()]
     data["manifest"]["files"] = file_hashes(target, present)
-    write_json(path, data)
+    write_json(target / PROJECT_JSON, data)
 
 
 def load_project_principles(target: Path) -> dict[str, Any]:
     path = target / PRINCIPLES_TOML
     try:
-        return tomllib.loads(path.read_text(encoding="utf-8"))
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
     except OSError:
         raise GenerateError(
             f'{path} not found. Run "alpha generate {target}" first, in a folder '
@@ -322,34 +338,90 @@ def load_project_principles(target: Path) -> dict[str, Any]:
         raise GenerateError(
             f"{path} is not valid TOML ({e}). Fix the syntax, then retry."
         ) from None
+    problem = _principles_problem(data)
+    if problem:
+        raise GenerateError(
+            f"{path}: {problem}. Fix it by hand, or restore it with "
+            f'"git checkout {PRINCIPLES_TOML}" (or "alpha update {target}"), then '
+            "retry."
+        )
+    return data
+
+
+def _principles_problem(data: dict[str, Any]) -> str | None:
+    """What's wrong with the fields alpha's commands read, or None."""
+    project: object = data.get("project")
+    if not isinstance(project, dict):
+        return "project is missing" if project is None else "project must be a table"
+    if not isinstance(cast(dict[str, Any], project).get("slug"), str):
+        return "project.slug is missing"
+    components: object = data.get("components")
+    if components is None:
+        return "components is missing"
+    if not isinstance(components, list):
+        return "components must be a list of [[components]] tables"
+    for i, raw in enumerate(cast(list[object], components)):
+        if not isinstance(raw, dict):
+            return f"components[{i}] must be a [[components]] table"
+        c = cast(dict[str, Any], raw)
+        name = c.get("name")
+        where = (
+            f'components[{i}] ("{name}")'
+            if isinstance(name, str)
+            else (f"components[{i}]")
+        )
+        for key in ("name", "path", "stack"):
+            if key not in c:
+                return f"{where}.{key} is missing"
+            if not isinstance(c[key], str):
+                return f"{where}.{key} must be text"
+        commands = c.get("commands")
+        if not isinstance(commands, dict):
+            return f'{where}.commands must be a table of step = "command"'
+        for step in ("setup", "test"):
+            if step not in commands:
+                return f"{where}.commands.{step} is missing"
+        for step, command in cast(dict[str, object], commands).items():
+            if not isinstance(command, str):
+                return f"{where}.commands.{step} must be text"
+        lockfiles = c.get("lockfiles", [])
+        if not isinstance(lockfiles, list) or not all(
+            isinstance(x, str) for x in cast(list[object], lockfiles)
+        ):
+            return f"{where}.lockfiles must be a list of paths"
+    baselines: object = data.get("baselines", [])
+    if not isinstance(baselines, list):
+        return "baselines must be a list of [[baselines]] tables"
+    for i, raw in enumerate(cast(list[object], baselines)):
+        if not isinstance(raw, dict) or not isinstance(
+            cast(dict[str, Any], raw).get("id"), str
+        ):
+            return f"baselines[{i}].id is missing"
+    return None
 
 
 def project_book(target: Path) -> RecipeBook:
-    try:
-        data = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    data = _project_json(target)
+    if data is None:
         return RecipeBook()
-    if not isinstance(data, dict):
-        return RecipeBook()
-    raw: object = cast(dict[str, Any], data).get("recipes", {})
+    raw: object = data.get("recipes", {})
     return RecipeBook(drafted_recipes(raw, generated=True))
 
 
 def _run(label: str, command: str, cwd: Path, fix: str) -> None:
     """Run one bootstrap step, announced on stderr; raise with its output's tail."""
     print(f"alpha: {label}: {command}", file=sys.stderr, flush=True)
-    done = subprocess.run(
-        command,
-        shell=True,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    if done.returncode != 0:
-        tail = "\n".join(done.stdout.splitlines()[-_TAIL_LINES:])
+    done = run_command(command, cwd, STEP_TIMEOUT)
+    if done is None:
         raise GenerateError(
-            f'"{command}" failed in {cwd} (exit {done.returncode}). '
+            f'"{command}" took longer than {STEP_TIMEOUT:g}s in {cwd}, so alpha '
+            "stopped it. If it waits for input, run it there yourself; otherwise "
+            f"find out why it's slow.\n{fix}"
+        )
+    if done.code != 0:
+        tail = "\n".join(done.out.splitlines()[-_TAIL_LINES:])
+        raise GenerateError(
+            f'"{command}" failed in {cwd} (exit {done.code}). '
             f"Last lines of its output:\n{tail}\n{fix}"
         )
 
@@ -394,7 +466,8 @@ def _repo_checks(target: Path, capture: Sequence[str] = ()) -> None:
     """Install the repository checks' tools and run the ones CI runs on a PR."""
     _require_mise(target)
     if not (target / ".git").exists():
-        # jactionlint needs a repository; commit-skeleton then keeps this one.
+        # jactionlint and the secrets check need a repository; commit-skeleton
+        # then keeps this one.
         try:
             done = subprocess.run(
                 ["git", "init", "-q", "-b", "main"],
@@ -484,9 +557,6 @@ def bootstrap(
                 f'Component "{c["name"]}" folder {cwd} is missing. Fix its path in '
                 f"{PRINCIPLES_TOML}, or regenerate the skeleton in an empty folder."
             )
-        missing = [s for s in ("setup", "test") if s not in c["commands"]]
-        if missing:
-            raise KeyError(missing[0])
         steps = [
             *(("bootstrap", command) for command in book.get(c["stack"]).bootstrap),
             *check_commands(c["commands"]),

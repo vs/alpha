@@ -234,12 +234,12 @@ repo = "betterleaks/betterleaks"
 category = "Secrets"
 stacks = []
 rationale = "finds committed secrets in files, git history and pull requests, with optional live validation of credentials. Reads Gitleaks-style TOML rules."
-limitations = "created February 2026; the stable line is v1.9.0 while v2 is in release-candidate, so pin the version; recall claims are the project's own; TruffleHog (AGPL-3.0) and Kingfisher (Apache-2.0) are the alternatives. Verified in alpha: `dir` scans the working tree, not git history, so it works before the first commit. Exit 1 on leaks (`--exit-code` changes it). Ignore file: `.betterleaksignore` in the scan root, one fingerprint per line in the form `path:rule-id:line` (for example `a.py:github-pat:3`); `--verbose --legacy-print` shows each finding's fingerprint. Config: `.betterleaks.toml`, loaded only with `--unsafe-auto-load-config` or `--config`. `dir` scans gitignored files too (`.env`, `.venv`, `node_modules`), so alpha's config extends the default rules (`[extend] useDefault = true`) with an `[[allowlists]]` of path regexes. With the default re2 engine, a path regex never matches through a `(?:$|/)` group: `\\.env(?:$|/)` misses `.env`, while `\\.env$` matches it. Detection skips well-known example keys such as AKIAIOSFODNN7EXAMPLE."
-last_reviewed = 2026-11-10
+limitations = "created February 2026; the stable line is v1.9.0 while v2 is in release-candidate, so pin the version; recall claims are the project's own; TruffleHog (AGPL-3.0) and Kingfisher (Apache-2.0) are the alternatives. Verified in alpha: `dir` scans the working tree, not git history, so it works before the first commit; with no path it scans the current folder, and given paths, only those (a missing one is skipped with a warning). A finding's fingerprint is the same either way. Exit 1 on leaks (`--exit-code` changes it). Ignore file: `.betterleaksignore` in the scan root, one fingerprint per line in the form `path:rule-id:line` (for example `a.py:github-pat:3`); `--verbose --legacy-print` shows each finding's fingerprint. Config: `.betterleaks.toml`, loaded only with `--unsafe-auto-load-config` or `--config`. `dir` scans gitignored files too (`.env`, `.venv`, `node_modules`), so alpha's secrets check passes it only the files `git ls-files --cached --others --exclude-standard` lists, and its config extends the default rules (`[extend] useDefault = true`) with an `[[allowlists]]` of the lockfiles' path regexes. With the default re2 engine, a path regex never matches through a `(?:$|/)` group: `\\.env(?:$|/)` misses `.env`, while `\\.env$` matches it. Detection skips well-known example keys, such as the access key ID in the AWS documentation."
+last_reviewed = 2026-11-13
 [tools.betterleaks.pin]
 mise = "github:betterleaks/betterleaks"
 version = "1.10.0"
-command = "betterleaks dir . --no-banner --no-color"
+command = "betterleaks dir --no-banner --no-color"
 fails_with = 1
 
 [tools.osv-scanner]

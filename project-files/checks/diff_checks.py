@@ -15,6 +15,8 @@ import tomllib
 from pathlib import Path
 from typing import Any, cast
 
+import ratchet
+
 APPROVAL = "alpha: migration edit approved"
 BASELINES = ".claude/alpha/baselines"
 DECISIONS = "docs/decisions/"
@@ -121,13 +123,6 @@ def squawk() -> int:
     return subprocess.run(["squawk", *files]).returncode
 
 
-def _ratchet() -> Any:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import ratchet  # the same reading of a baseline file as the checks
-
-    return ratchet
-
-
 def _merge_base(base: str) -> str:
     """Where this branch left the base: baselines are compared there, so a
     branch behind the base isn't held to findings the base fixed since."""
@@ -137,7 +132,7 @@ def _merge_base(base: str) -> str:
 
 def _counts_at(ref: str, path: str) -> dict[str, dict[str, int]]:
     shown = git("show", f"{ref}:{path}")
-    return _ratchet().parse_baseline(shown.stdout) if shown.returncode == 0 else {}
+    return ratchet.parse_baseline(shown.stdout) if shown.returncode == 0 else {}
 
 
 def _baselined(text: str) -> set[str]:
@@ -176,7 +171,6 @@ def baselines() -> int:
     if base is None:
         return 0
     ref = _merge_base(base)
-    ratchet = _ratchet()
     principles = "docs/principles.toml"
     try:
         listed_now = _baselined(Path(principles).read_text(encoding="utf-8"))

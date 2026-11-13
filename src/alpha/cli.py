@@ -497,18 +497,13 @@ def _project(args: argparse.Namespace) -> int:
         print(f"{where}: {e}", file=sys.stderr)
         return 1
     except KeyError as e:
-        if generating:
-            print(
-                f"The kit defaults are missing {e}. Check them with "
-                '"alpha defaults show", restore defaults/defaults.toml, then retry.',
-                file=sys.stderr,
-            )
-        else:
-            print(
-                f"{PRINCIPLES_TOML} is missing {e}. Restore it with "
-                f'"git checkout {PRINCIPLES_TOML}" or regenerate, then rerun {rerun}.',
-                file=sys.stderr,
-            )
+        if not generating:
+            raise  # principles.toml is checked as it loads: this is a bug
+        print(
+            f"The kit defaults are missing {e}. Check them with "
+            '"alpha defaults show", restore defaults/defaults.toml, then retry.',
+            file=sys.stderr,
+        )
         return 1
     except OSError as e:
         verb, cleanup = ("access", "")

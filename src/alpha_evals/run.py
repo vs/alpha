@@ -71,7 +71,7 @@ def eval_env(run_dir: Path, kit: Path) -> dict[str, str]:
 def _safe(name: str, check: Callable[[], Check]) -> Check:
     try:
         return check()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - one crashing check is reported, not fatal
         return Check(name, "fail", f"crashed: {type(e).__name__}: {e}")
 
 
@@ -143,7 +143,7 @@ def run_scenario(
         try:
             found, turn = check_reviewer(project, env, config, config.max_usd - cost)
             cost += turn.cost_usd
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a crashing probe is reported, not fatal
             found = Check("reviewer", "fail", f"crashed: {type(e).__name__}: {e}")
         checks.append(found)
     report: dict[str, Any] = {

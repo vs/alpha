@@ -85,7 +85,7 @@ def _run(args: argparse.Namespace) -> int:
             report = run_scenario(
                 name, run_dir, kit, env, config, not args.no_reviewer, commit, dirty
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one crashing scenario must not stop the run
             report = crashed_report(name, e)
         cells = " ".join(f"{c['name']}={c['status']}" for c in report["checks"])
         print(f"{name}: {cells} (${report['cost_usd']:.2f})", flush=True)

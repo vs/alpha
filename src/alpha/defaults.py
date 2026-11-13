@@ -68,7 +68,7 @@ def _merge(base: dict[str, Any], over: Mapping[str, Any]) -> dict[str, Any]:
     for key, value in over.items():
         current = base.get(key)
         if isinstance(value, Mapping) and isinstance(current, dict):
-            _merge(current, value)  # pyright: ignore[reportUnknownArgumentType]
+            _merge(cast(dict[str, Any], current), cast(Mapping[str, Any], value))
         else:
             base[key] = value
     return base
@@ -234,7 +234,7 @@ def set_default(
         source.user.mkdir(parents=True, exist_ok=True)
         overrides_path.write_text(_OVERRIDES_HEADER + toml_write.dumps(data))
         changelog.write_text(
-            log + _list_gap(log) + f"- {today} · {key} = {value} · from {project} · "
+            log + list_gap(log) + f"- {today} · {key} = {value} · from {project} · "
             f"{reason}\n"
         )
     except OSError as e:
@@ -246,7 +246,7 @@ def set_default(
     return overrides_path
 
 
-def _list_gap(existing: str) -> str:
+def list_gap(existing: str) -> str:
     """What to write before a new list item: a blank line unless the file is
     empty or already ends in a list item (Markdown wants a list set apart from
     the paragraph above it), plus a newline if the last line lacks one."""

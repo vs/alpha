@@ -78,6 +78,16 @@ AREAS: tuple[str, ...] = (
     "git",
     "agent_workflow",
 )
+_COMPONENTS_FIELDS = ("layout", "components_talk", "components", "recipes")
+
+
+def area_of(where: str) -> str | None:
+    head = re.split(r"[.\[]", where, maxsplit=1)[0]
+    if head in AREAS:
+        return head
+    return "components" if head in _COMPONENTS_FIELDS else None
+
+
 KINDS: frozenset[str] = frozenset(
     {"backend", "frontend", "cli", "mobile", "ml", "library", "worker"}
 )
@@ -435,6 +445,14 @@ def _identity(raw: object, base: Path) -> Identity:
         raise fail("identity.license_file", "must be a path or null", "Use a path")
     license_ = string(d, "license", where)
     if license_file is not None:
+        relative = PurePosixPath(license_file)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise fail(
+                "identity.license_file",
+                f"{license_file!r} is outside the project",
+                "Copy the license text into the project (e.g. LICENSE) and give "
+                "its path relative to the project root",
+            )
         resolved = base / license_file
         if not resolved.is_file():
             raise fail(
@@ -1268,18 +1286,7 @@ def write_answers(target: Path, text: str) -> Path:
         data = cast(dict[str, Any], current)
     data.update(cast(dict[str, Any], update))
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".project.", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-            # mkstemp makes the file owner-only; keep the mode the file had,
-            # or the one any other new file would get.
-            os.chmod(tmp, _mode_for(path))
-            os.replace(tmp, path)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
+        write_json(path, data)
     except OSError as e:
         raise fail(
             str(path),
@@ -1287,6 +1294,23 @@ def write_answers(target: Path, text: str) -> Path:
             "Check the folder's permissions and free space, then retry",
         ) from None
     return path
+
+
+def write_json(path: Path, data: Mapping[str, Any]) -> None:
+    """Replace `path` with `data` in one step: an interrupted write leaves the
+    old file as it was."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        # mkstemp makes the file owner-only; keep the mode the file had, or the
+        # one any other new file would get.
+        os.chmod(tmp, _mode_for(path))
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def _mode_for(path: Path) -> int:

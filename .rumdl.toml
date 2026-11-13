@@ -8,6 +8,8 @@ exclude = [
   ".claude/worktrees", # other sessions' checkouts
   ".venv",
   "docs/superpowers",  # historical specs and plans, kept as written
+  # alpha's: the files git ignores, and the lockfile.
+  ".claude/alpha/state/", ".claude/settings.local.json", ".DS_Store", ".claude/alpha/hooks/__pycache__/", ".env", ".env.*", "**/.env", "**/.env.*", "__pycache__/", ".pytest_cache/", "coverage.xml", ".coverage", "uv.lock",
 ]
 
 [MD013]

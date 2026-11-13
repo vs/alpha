@@ -29,7 +29,7 @@ Pin down what the project is and who it's for before any technical choice: the p
 - `identity.requirements[].text` - one requirement in plain words.
 - `identity.requirements[].acceptance` - its acceptance check: "Given …, when …, then …".
 - `identity.license` - `MIT`, `Apache-2.0` or `Proprietary`.
-- `identity.license_file` - `null`, or the absolute path to the user's own license text.
+- `identity.license_file` - `null`, or the path of the user's own license text relative to `<target>`, e.g. `"LICENSE"`.
 - `identity.copyright_holder` - the person or organization named in the license.
 - `identity.domain_jargon` - `true` when the domain has its own vocabulary.
 - `areas.identity` - `"in_progress"` while you work, `"done"` at the end.
@@ -50,7 +50,7 @@ Round 2 (needs the value proposition):
 - **Name** - recommend a name that fits the value proposition, or the folder's name if it already reads as one.
 - **Target users** - draft from the value proposition and what the user said.
 - **Domain jargon** - "Does this domain have its own vocabulary that newcomers would trip over?" Explain: yes turns on the "One vocabulary" principle, which keeps a glossary and the same names across code, docs and UI. Recommend no unless the value proposition uses specialist terms.
-- **License** - recommend `defaults.identity.license`. Explain the three choices in one line each: MIT (anyone may reuse it, with credit), Apache-2.0 (like MIT, plus an explicit patent grant), Proprietary (all rights reserved). If the user has their own license text, set `license_file` to its absolute path and `license` to its short name.
+- **License** - recommend `defaults.identity.license`. Explain the three choices in one line each: MIT (anyone may reuse it, with credit), Apache-2.0 (like MIT, plus an explicit patent grant), Proprietary (all rights reserved). If the user has their own license text, copy it into `<target>` (e.g. as `LICENSE`), set `license_file` to that path relative to `<target>`, and `license` to its short name.
 - **Copyright holder** - recommend the `git config user.name` value.
 
 Round 3 (needs the name, value proposition and users):

@@ -1,0 +1,768 @@
+import argparse
+import re
+import tomllib
+import types
+import typing
+from dataclasses import is_dataclass
+from typing import cast
+
+import pytest
+
+from alpha import answers, core_areas
+from alpha.cli import PLUGIN_ROOT, build_parser
+from alpha.recipes import RecipeBook
+
+SKILLS = PLUGIN_ROOT / "skills"
+CLI = '"${CLAUDE_PLUGIN_ROOT}/bin/alpha"'
+AREA_SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "identity": ("identity", ("identity",)),
+    "components": ("components", ("layout", "components_talk", "components[]")),
+    "architecture": ("architecture", ("architecture",)),
+    "errors": ("errors", ("errors",)),
+    "testing": ("testing", ("testing",)),
+    "ui": ("ui", ("ui",)),
+    "documentation": ("documentation", ("documentation",)),
+    "build-and-hosting": ("build", ("build",)),
+    "security": ("security", ("security",)),
+    "dependencies": ("dependencies", ("dependencies",)),
+    "observability": ("observability", ("observability",)),
+    "releases": ("releases", ("releases",)),
+    "data": ("data", ("data",)),
+    "accessibility": ("accessibility", ("accessibility",)),
+    "performance": ("performance", ("performance",)),
+    "git-history": ("git", ("git",)),
+    "agent-workflow": ("agent_workflow", ("agent_workflow",)),
+}
+ALL_SKILLS = [
+    "grilling",
+    *AREA_SKILLS,
+    "stack-recipe",
+    "new-project",
+    "extend",
+    "adopt",
+]
+CLI_SKILLS = ALL_SKILLS
+ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
+AREA_SECTIONS = [
+    "Before you start",
+    "Purpose",
+    "Fields this area settles",
+    "Questions",
+    "Writing the answers",
+    "Check",
+]
+
+
+def _text(skill: str) -> str:
+    return (SKILLS / skill / "SKILL.md").read_text()
+
+
+def _frontmatter(skill: str) -> dict[str, str]:
+    lines = _text(skill).splitlines()
+    assert lines[0] == "---", f"{skill}: SKILL.md must start with frontmatter"
+    end = lines.index("---", 1)
+    meta: dict[str, str] = {}
+    for line in lines[1:end]:
+        key, sep, value = line.partition(":")
+        assert sep, f"{skill}: frontmatter line {line!r} is not 'key: value'"
+        meta[key.strip()] = value.strip()
+    return meta
+
+
+def _section(skill: str, title: str) -> str:
+    match = re.search(
+        rf"^## {re.escape(title)}\n(.*?)(?=^## |\Z)", _text(skill), re.M | re.S
+    )
+    assert match, f"{skill}: missing section '## {title}'"
+    return match.group(1)
+
+
+def _subcommands(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
+    for action in parser._actions:
+        if action.nargs == argparse.PARSER:
+            return cast(dict[str, argparse.ArgumentParser], action.choices)
+    return {}
+
+
+def _options(parser: argparse.ArgumentParser) -> set[str]:
+    return {flag for action in parser._actions for flag in action.option_strings}
+
+
+def _calls(skill: str) -> list[str]:
+    body = _text(skill).split("\n---\n", 1)[1]
+    return re.findall(rf"{re.escape(CLI)} ([^`\n]*)", body)
+
+
+def _unwrap(hint: object) -> tuple[object, bool]:
+    if isinstance(hint, types.UnionType):
+        (hint,) = [a for a in typing.get_args(hint) if a is not type(None)]
+    if typing.get_origin(hint) is tuple:
+        return typing.get_args(hint)[0], True
+    return hint, False
+
+
+def _resolve(path: str) -> object:
+    hint: object = answers.Answers
+    parts = path.split(".")
+    for i, part in enumerate(parts):
+        name = part.removesuffix("[]")
+        if typing.get_origin(hint) is dict:
+            assert name in answers.AREAS, f"{path}: {name!r} is not an area"
+            hint = str
+            continue
+        assert isinstance(hint, type) and is_dataclass(hint), (
+            f"{path}: {name!r} has no fields below it"
+        )
+        hints = typing.get_type_hints(hint)
+        assert name in hints, f"{path}: {hint.__name__} has no field {name!r}"
+        hint, is_list = _unwrap(hints[name])
+        if part.endswith("[]") or i < len(parts) - 1:
+            kind = "a list, write it as" if is_list else "not a list, drop the [] in"
+            assert part.endswith("[]") == is_list, f"{path}: {name!r} is {kind} {part}"
+    return hint
+
+
+def _leaves(path: str) -> set[str]:
+    hint = _resolve(path)
+    if not (isinstance(hint, type) and is_dataclass(hint)):
+        return {path}
+    out: set[str] = set()
+    for name, field_hint in typing.get_type_hints(hint).items():
+        element, is_list = _unwrap(field_hint)
+        nested = isinstance(element, type) and is_dataclass(element)
+        out |= _leaves(f"{path}.{name}" + ("[]" if is_list and nested else ""))
+    return out
+
+
+def _settled_paths(skill: str) -> list[str]:
+    section = _section(skill, "Fields this area settles")
+    return re.findall(r"^- `([^`]+)`", section, re.M)
+
+
+@pytest.mark.parametrize("skill", ALL_SKILLS)
+def test_frontmatter_names_and_describes_the_skill(skill: str):
+    meta = _frontmatter(skill)
+    assert meta.get("name") == skill
+    assert len(meta.get("description", "")) > 40
+
+
+def test_only_the_entry_point_is_user_invoked_only():
+    assert _frontmatter("new-project").get("disable-model-invocation") == "true"
+
+
+@pytest.mark.parametrize("skill", ["grilling", *AREA_SKILLS])
+def test_skills_new_project_calls_stay_model_invocable(skill: str):
+    assert "disable-model-invocation" not in _frontmatter(skill)
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_descriptions_only_trigger_inside_an_interview(skill: str):
+    description = _frontmatter(skill)["description"]
+    assert "Use only inside an alpha project interview (/alpha:new-project)" in (
+        description
+    )
+
+
+@pytest.mark.parametrize("skill", CLI_SKILLS)
+def test_cli_calls_are_pre_approved(skill: str):
+    assert _frontmatter(skill).get("allowed-tools") == ALLOWED_CLI
+
+
+@pytest.mark.parametrize(
+    ("path", "source"),
+    [
+        ("project-files/skills/debt/SKILL.md", "ponytail-debt"),
+        ("project-files/skills/review-change/SKILL.md", "ponytail-review"),
+        ("project-files/skills/audit/SKILL.md", "ponytail-audit"),
+        ("project-files/agents/principles-reviewer.md", "ponytail-review"),
+    ],
+)
+def test_ponytail_adaptations_credit_it_with_the_full_license(path: str, source: str):
+    text = (PLUGIN_ROOT / path).read_text()
+    credit = re.search(r"<!--(.*?)-->", text, re.S)
+    assert credit and f"`{source}` skill" in credit.group(1)
+    assert "Copyright (c) 2026 DietrichGebert" in credit.group(1)
+    assert 'THE SOFTWARE IS PROVIDED "AS IS"' in credit.group(1)
+
+
+def test_the_reviewer_needs_a_concrete_case_and_names_a_lens():
+    text = (PLUGIN_ROOT / "project-files/agents/principles-reviewer.md").read_text()
+    assert "No case, no finding." in text
+    for lens in ("lens:bug", "lens:risk", "lens:scale", "lens:speed", "lens:lean"):
+        assert lens in text
+    assert "prefer one that deletes code" in text
+
+
+def test_grilling_credits_its_source_with_the_full_license():
+    text = _text("grilling")
+    credit = re.search(r"<!--(.*?)-->", text, re.S)
+    assert credit and "mattpocock/skills" in credit.group(1)
+    assert "Permission is hereby granted, free of charge" in credit.group(1)
+    assert 'THE SOFTWARE IS PROVIDED "AS IS"' in credit.group(1)
+
+
+EMOJI = re.compile("[\U0001f000-\U0001faff☀-➿⬀-⯿️]")
+
+
+def test_grilling_rounds_are_compact_plain_text():
+    rounds = _section("grilling", "Rounds")
+    template = re.search(r"```text\n(.*?)```", rounds, re.S)
+    assert template
+    assert not EMOJI.search(rounds)
+    assert "---" not in template.group(1)
+    assert "\n\n\n" not in template.group(1)
+    assert "Recommended:" in template.group(1)
+
+
+def test_grilling_override_protocol_reads_the_exit_codes():
+    text = _text("grilling")
+    assert "Make this the default for future projects too?" in text
+    for code in ("exits 0", "exits 3"):
+        assert code in text
+    assert "exits 4" not in text and "--trailer" not in text.split("defaults set")[1]
+    assert "<target>/.claude/alpha/project.json" in text
+
+
+def test_every_kind_has_a_recommended_stack():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    stacks: dict[str, str] = kit["stacks"]
+    assert answers.KINDS <= set(stacks)
+    assert {stacks[kind] for kind in answers.KINDS} <= set(RecipeBook().kit_stacks())
+
+
+@pytest.mark.parametrize("skill", ALL_SKILLS)
+def test_skills_stay_short(skill: str):
+    assert len(_text(skill).splitlines()) <= 150
+
+
+@pytest.mark.parametrize("skill", ALL_SKILLS)
+def test_cli_is_always_called_through_the_plugin_root(skill: str):
+    text = _text(skill)
+    names = "|".join(map(re.escape, _subcommands(build_parser())))
+    bare = re.findall(rf"(?<![/\w])alpha ({names})\b", text)
+    assert not bare, f'{skill}: write "alpha {bare[0]}" as {CLI} {bare[0]}'
+    for match in re.finditer(r"bin/alpha", text):
+        start = match.start() - len('"${CLAUDE_PLUGIN_ROOT}/')
+        assert text[start : match.end() + 1] == CLI, (
+            f"{skill}: call the CLI as {CLI}, not {text[start : match.end() + 1]!r}"
+        )
+
+
+@pytest.mark.parametrize("skill", ALL_SKILLS)
+def test_cli_calls_name_real_subcommands_and_options(skill: str):
+    top = _subcommands(build_parser())
+    for call in _calls(skill):
+        words = call.split()
+        assert words[0] in top, f"{skill}: no subcommand {words[0]!r} in: {call}"
+        parser = top[words[0]]
+        nested = _subcommands(parser)
+        if nested:
+            assert len(words) > 1 and words[1] in nested, (
+                f"{skill}: {words[0]} needs one of {sorted(nested)}: {call}"
+            )
+            parser = nested[words[1]]
+        for flag in re.findall(r"(?<!\S)(--[a-z][a-z-]*)", call):
+            assert flag in _options(parser), f"{skill}: unknown {flag} in: {call}"
+        for area in re.findall(r"--area (\S+)", call):
+            assert area in answers.AREAS, f"{skill}: unknown area {area} in: {call}"
+
+
+def test_skills_use_every_cli_command_the_interview_needs():
+    calls = [" ".join(c.split()[:2]) for s in ALL_SKILLS for c in _calls(s)]
+    needed = ["defaults show", "defaults set", "answers check", "answers write"]
+    needed += ["generate"]
+    needed += ["bootstrap", "commit-skeleton"]
+    needed += ["recipe list", "recipe check", "recipe try", "recipe save"]
+    for command in needed:
+        assert any(c == command or c.startswith(command) for c in calls), command
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_skill_has_every_section_in_order(skill: str):
+    for title in AREA_SECTIONS:
+        assert _section(skill, title).strip(), f"{skill}: '## {title}' is empty"
+    titles = re.findall(r"^## (.+)$", _text(skill), re.M)
+    assert titles == AREA_SECTIONS
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_fields_exist_in_the_answers_contract(skill: str):
+    paths = _settled_paths(skill)
+    assert paths, f"{skill}: list the fields as '- `path` ...' bullets"
+    for path in paths:
+        _resolve(path)
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_lists_every_field_it_owns(skill: str):
+    area, roots = AREA_SKILLS[skill]
+    expected = {f"areas.{area}", "decisions[]"}
+    for root in roots:
+        expected |= _leaves(root)
+    assert expected <= set(_settled_paths(skill))
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_checks_its_own_area(skill: str):
+    area = AREA_SKILLS[skill][0]
+    check = f"{CLI} answers check <target>/.claude/alpha/project.json --area {area}"
+    assert check in _text(skill)
+
+
+def test_new_project_invokes_the_area_skills_in_order():
+    text = _text("new-project")
+    order = [text.index(f"`alpha:{skill}`") for skill in AREA_SKILLS]
+    assert order == sorted(order)
+    assert "SKILL.md" not in text, "invoke area skills, don't read their files"
+    assert "$ARGUMENTS" in text
+
+
+def test_new_project_saves_through_the_cli_and_says_what_to_approve():
+    # Claude Code asks before every Write/Edit under .claude/ (allow rules
+    # can't pre-approve those), so answers are saved with one Bash command
+    # the user can allow once.
+    start = _section("new-project", "2. Start or resume")
+    assert f"{CLI} answers write <target> --json '" in start
+    assert "<<" not in start
+    assert "don't ask again" in start
+    assert (
+        "never build it with python3, a heredoc, a script or a temporary file" in start
+    )
+
+
+@pytest.mark.parametrize("skill", ALL_SKILLS)
+def test_skills_never_save_answers_with_the_file_tools(skill: str):
+    text = _text(skill)
+    assert "Write or Edit tool" not in text
+    assert "Write tool" not in text.replace("never with the Write tool", "")
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_saves_its_answers_with_answers_write(skill: str):
+    section = _section(skill, "Writing the answers")
+    # One line: a multi-line (heredoc) command isn't covered by allowed-tools.
+    assert f"{CLI} answers write <target> --json '" in section
+    assert "<<" not in section
+
+
+def test_grilling_saves_overrides_with_answers_write():
+    protocol = _section("grilling", "When the user overrides a default")
+    assert f"{CLI} answers write <target> --json" in protocol
+    assert "<<" not in protocol
+
+
+def test_new_project_saves_summary_changes_with_one_line_json():
+    summary = _section("new-project", "5. Summary and confirmation")
+    assert f"{CLI} answers write <target> --json '" in summary
+    assert "<<" not in summary
+
+
+def test_every_kind_has_public_paths_and_an_artifact():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    assert answers.KINDS <= set(kit["documentation"]["public_paths"])
+    artifacts = kit["build"]["artifacts"]
+    assert answers.KINDS <= set(artifacts)
+    assert {artifacts[kind] for kind in answers.KINDS} <= set(answers.ARTIFACTS)
+    assert kit["build"]["ci"] in answers.CI_PROVIDERS
+    assert kit["documentation"]["external"] in answers.EXTERNAL_DOCS
+
+
+def test_new_project_creates_every_area_as_pending():
+    start = _section("new-project", "2. Start or resume")
+    for area in answers.AREAS:
+        assert f'"{area}": "pending"' in start
+    assert "missing from" in start
+
+
+def test_new_project_reports_ci_and_no_longer_lists_these_areas_as_missing():
+    report = _section("new-project", "7. Final report")
+    assert "CI runs" in report
+    assert "Not covered yet" not in report
+
+
+def test_every_kind_has_an_error_format_and_test_levels():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    formats = kit["errors"]["formats"]
+    levels = kit["testing"]["levels"]
+    assert answers.KINDS <= set(formats) and answers.KINDS <= set(levels)
+    assert {formats[k] for k in answers.KINDS} <= set(core_areas.ERROR_FORMATS)
+    for kind in answers.KINDS:
+        assert "unit" in levels[kind]
+        assert set(levels[kind]) <= set(core_areas.TEST_LEVELS)
+    assert kit["errors"]["categories"]
+    assert kit["architecture"]["contract_format"] in core_areas.CONTRACT_FORMATS
+
+
+def test_every_update_and_observability_default_is_a_choice():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    assert kit["dependencies"]["updates"] in core_areas.UPDATE_TOOLS
+    assert kit["dependencies"]["schedule"] in core_areas.SCHEDULES
+    obs = kit["observability"]
+    assert obs["log_format"] in core_areas.LOG_FORMATS
+    assert obs["correlation"] in core_areas.CORRELATION
+    assert obs["telemetry"] in core_areas.TELEMETRY
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_waits_for_the_area_before_it(skill: str):
+    area = AREA_SKILLS[skill][0]
+    index = answers.AREAS.index(area)
+    found = re.findall(
+        r"`areas\.(\w+)` isn't `\"done\"`", _section(skill, "Before you start")
+    )
+    assert found == ([answers.AREAS[index - 1]] if index else [])
+
+
+def test_new_project_no_longer_lists_the_core_areas_as_missing():
+    report = _section("new-project", "7. Final report")
+    assert "Not covered yet" not in report
+    assert "Dependabot" in report
+
+
+def test_agent_workflow_says_the_reviewer_is_real():
+    purpose = _section("agent-workflow", "Purpose")
+    assert "arrives in a later version" not in purpose
+    assert "principles-reviewer" in purpose and "before work reaches main" in purpose
+
+
+def test_new_project_reports_the_reviewer():
+    report = _section("new-project", "7. Final report")
+    assert (
+        "Claude can't push to main or merge a pull request with unreviewed changes "
+        "or open review findings, and can't finish with open findings" in report
+    )
+    assert 'a finding on a risk path needs your "accept".' in report
+    assert "Not covered yet" not in report
+
+
+def test_stack_recipe_skill_drafts_checks_and_tries():
+    text = _text("stack-recipe")
+    assert (
+        "Use only inside an alpha project interview"
+        in _frontmatter("stack-recipe")["description"]
+    )
+    for call in ("recipe check <target> <stack>", "recipe try <target> <stack>"):
+        assert f"{CLI} {call}" in text
+    for field in (
+        "bootstrap",
+        "commands",
+        "templates",
+        "test_globs",
+        "ci",
+        "dependabot",
+    ):
+        assert f"`{field}`" in text
+    assert "less proven" in text
+
+
+def test_components_offers_any_stack():
+    text = _text("components")
+    assert "Python** and **TypeScript** only" not in text
+    assert f"{CLI} recipe list" in text and "`alpha:stack-recipe`" in text
+
+
+def test_new_project_offers_to_save_drafted_recipes():
+    text = _text("new-project")
+    assert f"{CLI} recipe save <target> <stack>" in text
+    assert "Save the <stack> recipe for your future projects?" in text
+    assert "recipe save <target> <stack> --trailer" not in text
+    assert "less proven" in _section("new-project", "7. Final report")
+
+
+def test_stack_recipe_skill_covers_what_trips_typical_stacks():
+    text = _text("stack-recipe")
+    for fact in (
+        "CI runs `setup` and the checks, never `bootstrap`",
+        "must not create source files",
+        "binary files",
+        "test convention",
+        "`$name` and `$slug` are always replaced",
+        "Leave out `proven`",
+        "no `run` steps",
+        "Bash(<tool> <args>:*)",
+        "show the user what changed",
+    ):
+        assert fact in text, fact
+
+
+def test_every_remaining_area_default_is_a_choice():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    assert kit["ui"]["theming"] in core_areas.THEMING
+    assert kit["ui"]["visual_regression"].strip()
+    assert kit["accessibility"]["level"] in core_areas.A11Y_LEVELS
+    releases = kit["releases"]
+    assert releases["scheme"] in core_areas.SCHEMES
+    assert releases["changelog"] in core_areas.CHANGELOGS
+    assert releases["scope"] in core_areas.RELEASE_SCOPES
+
+
+def test_every_kind_has_starting_budgets():
+    kit = tomllib.loads((PLUGIN_ROOT / "defaults" / "defaults.toml").read_text())
+    budgets = kit["performance"]["budgets"]
+    assert answers.KINDS <= set(budgets)
+    for kind in answers.KINDS:
+        for budget in budgets[kind]:
+            assert " < " in budget, f"{kind}: write budgets as '<metric> < <limit>'"
+
+
+def test_new_project_reports_append_only_migrations():
+    report = _section("new-project", "7. Final report")
+    assert "Claude can't edit a migration that existed before the session" in report
+
+
+@pytest.mark.parametrize("skill", ["ui", "accessibility", "data"])
+def test_areas_that_may_not_apply_ask_nothing(skill: str):
+    questions = _section(skill, "Questions")
+    assert "ask nothing" in questions
+
+
+def test_new_project_summary_covers_the_remaining_areas():
+    summary = _section("new-project", "5. Summary and confirmation")
+    for area in ("UI", "releases", "data", "accessibility", "performance"):
+        assert area in summary
+
+
+def test_data_skill_explains_the_append_only_rule():
+    text = _text("data")
+    assert "append-only" in text and "Stop hook" in text
+
+
+EXTEND_BULLET = (
+    "- project.json has a `manifest` key: the project is already generated. If the "
+    "`alpha:extend` skill sent you here, go on as it says. Otherwise invoke "
+    "`alpha:extend` with the Skill tool and follow it; it brings you back here."
+)
+
+
+def test_extend_runs_the_update_loop():
+    text = _text("extend")
+    for part in (
+        "update <target> --dry-run",
+        "update <target>",
+        "bootstrap <target> --component",
+        "commit-update <target>",
+        "Revisit the",
+        ".claude/alpha/state/update/",
+        "new Claude Code session",
+    ):
+        assert part in text, part
+
+
+def test_extend_keeps_earlier_decisions():
+    text = _text("extend")
+    assert "add one new decision" in text and "unchanged" in text
+
+
+def test_extend_explains_kit_changes_in_conflicts():
+    text = _text("extend")
+    assert "may include kit changes" in text
+    assert "keep the user's side for anything the requested change doesn't need" in text
+    assert "left out" in text
+
+
+def test_extend_refuses_projects_alpha_did_not_generate():
+    text = _text("extend")
+    assert "alpha didn't generate or adopt this folder" in text
+    assert "`/alpha:adopt` brings an existing repo in" in text
+
+
+ADOPT_BULLET = (
+    "- project.json has an `adoption` key and no `manifest`: `alpha:adopt` is "
+    "bringing an existing repo in. Go on as it says; its rules win over this "
+    "skill's, and don't point to `/alpha:new-project` afterwards."
+)
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_skills_hand_adoptions_back(skill: str):
+    assert ADOPT_BULLET in _text(skill)
+    assert "/alpha:adopt" in _frontmatter(skill)["description"]
+
+
+def test_new_project_and_extend_point_to_adopt():
+    assert "run `/alpha:adopt <target>`" in _text("new-project")
+    assert "an adoption is under way. Point to `/alpha:adopt`" in _text("extend")
+
+
+def test_stack_recipe_covers_adopted_recipes():
+    text = _text("stack-recipe")
+    section = text.split("## Adopting a repo's tools", 1)[1].split("## Done")[0]
+    for needed in (
+        '"adopted": true',
+        '"extends"',
+        "`bootstrap` stays `[]`",
+        '`format_check` to `""`',
+        "[baseline.<step>]",
+        "recipe try",
+        "<step>:<component>",
+    ):
+        assert needed in section, needed
+
+
+@pytest.mark.parametrize("skill", AREA_SKILLS)
+def test_area_skills_hand_generated_projects_to_extend(skill: str):
+    text = _text(skill)
+    assert EXTEND_BULLET in text
+    assert "arrives in a later version" not in text
+    assert "or alpha:extend" in _frontmatter(skill)["description"]
+
+
+def test_new_project_hands_generated_projects_to_extend():
+    text = _text("new-project")
+    assert (
+        "the project is already generated. Tell the user, then invoke "
+        "`alpha:extend` with the Skill tool to change it, passing `<target>` as "
+        "its arguments." in text
+    )
+    assert "arrives in a later version" not in text
+
+
+def test_extend_sends_whole_decision_arrays():
+    what = _section("extend", "2. What changes")
+    assert "send the whole `decisions` array" in what
+    assert "every existing entry verbatim, then the new one" in what
+    assert "Do the same for `overrides`" in what
+
+
+def test_extend_asks_when_a_revisit_repeats():
+    loop = _section("extend", "3. Loop until valid")
+    assert "comes back twice" in loop
+    assert "ask what to change instead of invoking the area again" in loop
+
+
+def test_extend_writes_no_generated_files_before_confirming():
+    confirm = _section("extend", "4. Show and confirm")
+    assert (
+        "Write nothing to generated files (CLAUDE.md, docs, principles, component "
+        "configs) until the user confirms; the answers in project.json are already "
+        "saved" in confirm
+    )
+
+
+def test_extend_resumes_unapplied_and_uncommitted_updates():
+    checks = _section("extend", "1. Target and checks")
+    assert "on yes, go to step 4 (show and confirm), then step 5; on no, stop" in checks
+    assert "Don't rerun update first" in checks
+    assert "then run step 7's commit-update" in checks
+
+
+def test_extend_keeps_area_skills_from_pointing_to_new_project():
+    what = _section("extend", "2. What changes")
+    assert "Don't tell the user to run `/alpha:new-project` afterwards" in what
+    assert "continue with step 3" in what
+
+
+def test_extend_commits_deleted_stale_files_itself():
+    apply = _section("extend", "5. Apply")
+    assert "commit-update commits only alpha's writes" in apply
+    assert "commit the deletion yourself after step 7" in apply
+
+
+def test_extend_signs_a_stale_deletion_like_step_7():
+    apply = _section("extend", "5. Apply")
+    assert "the same attribution lines as step 7, as trailer lines" in apply
+    assert "at most 50 chars" in apply and "at most 72 chars" in apply
+
+
+def test_extend_goes_on_to_the_new_request_after_a_resumed_commit():
+    checks = _section("extend", "1. Target and checks")
+    assert "then go on to step 2 for the new request" in checks
+    assert "Then continue." not in checks
+
+
+def test_extend_relays_the_reviewer_note_after_update():
+    apply = _section("extend", "5. Apply")
+    commit = _section("extend", "7. Commit")
+    assert "the reviewer will look at alpha's changes at the next Stop" in apply
+    assert "next Stop" not in commit
+
+
+def test_extend_says_a_removed_components_override_stops_applying():
+    what = _section("extend", "2. What changes")
+    assert "An override for a removed or renamed component stops applying" in what
+    assert "add a new override for the new name" in what
+
+
+def test_extend_targets_the_handed_off_folder_or_the_working_directory():
+    checks = _section("extend", "1. Target and checks")
+    assert (
+        "`<target>` is the folder the hand-off names, if one was given "
+        "(`/alpha:new-project` passes its own); otherwise the current working "
+        "directory." in checks
+    )
+    what = _section("extend", "2. What changes")
+    assert "with `<target>` as its target folder" in what
+
+
+def test_extend_quotes_what_each_update_prints_for_a_conflict():
+    confirm = _section("extend", "4. Show and confirm")
+    apply = _section("extend", "5. Apply")
+    dry_run = "`conflict  <path> (your edits overlap alpha's change: merge by hand)`"
+    applied = "`<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`"
+    assert dry_run in confirm and applied not in confirm
+    assert applied in apply
+
+
+def test_extend_bootstraps_moved_components_too():
+    bootstrap = _section("extend", "6. Bootstrap")
+    assert "For each new or moved component" in bootstrap
+    assert "node_modules" in bootstrap and ".venv" in bootstrap
+
+
+def test_stack_recipe_reads_registry():
+    text = _text("stack-recipe")
+    facts = _section("stack-recipe", "Steps")
+    assert f"{CLI} registry list --stack <stack>" in facts
+    assert f"{CLI} registry stale" in facts
+    assert f"{CLI} registry show <id>" in facts
+    assert "`structure`" in text and "`coverage`" in text
+    assert "Registry picks come first" in facts
+    assert "If no row names `<stack>`" in facts
+    assert "Tools marked `all` are cross-cutting" in facts
+    assert "not from the registry" in facts
+    assert "Spell `<stack>` as the registry" in facts
+    assert "ships with the toolchain" not in facts
+
+
+def test_adopt_invokes_the_areas_in_order():
+    text = _text("adopt").split("## 4. Interview", 1)[1].split("## 5.", 1)[0]
+    order = [text.index(f"`alpha:{skill}`") for skill in AREA_SKILLS]
+    assert order == sorted(order)
+
+
+def test_adopt_installs_in_order():
+    calls = [" ".join(c.split()[:2]) for c in _calls("adopt")]
+    order = ["adopt survey", "adopt gaps", "adopt apply", "bootstrap <target>"]
+    order += ["commit-update <target>"]
+    found = [next(i for i, c in enumerate(calls) if c == step) for step in order]
+    assert found == sorted(found), calls
+    text = _text("adopt")
+    assert text.index("adopt apply <target> --dry-run") < text.index(
+        "adopt apply <target>`."
+    )
+    assert "--capture-baselines" in text
+
+
+def test_adopt_marks_steps_only_through_the_cli():
+    plan = _text("adopt").split("## 9. The plan", 1)[1]
+    for command in ("adopt next", "adopt start", "adopt done", "adopt drop"):
+        assert f"{CLI} {command}" in plan, command
+    assert '"status"' not in plan and "adoption.steps" not in plan
+    assert "Never set a step's status any other way" in plan
+
+
+def test_adopt_updates_before_checking_a_changed_step():
+    plan = _text("adopt").split("## 9. The plan", 1)[1]
+    assert plan.index(f"{CLI} update <target>") < plan.index(f"{CLI} adopt done")
+    assert "new Claude Code session" in _text("adopt").split("## 8. Report", 1)[1]
+
+
+def test_adopt_is_user_invoked():
+    assert _frontmatter("adopt").get("disable-model-invocation") == "true"
+
+
+def test_adopt_uses_the_adoption_cli():
+    calls = {" ".join(c.split()[:2]) for c in _calls("adopt")}
+    needed = {"adopt survey", "adopt gaps", "adopt apply", "adopt next", "adopt start"}
+    needed |= {"adopt done", "adopt drop", "baseline show", "baseline tighten"}
+    assert needed <= {" ".join(c.split()[:2]) for c in calls} | calls

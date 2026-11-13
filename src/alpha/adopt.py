@@ -20,22 +20,24 @@ from alpha.answers import (
     Condition,
     Step,
     answers_snapshot,
+    area_of,
     describe_condition,
     load_answers,
     parse_answers,
     write_answers,
+    write_json,
 )
 from alpha.baseline import accepts, find_record
 from alpha.defaults import Source, load_defaults, load_survey
-from alpha.generate import copied_files, render_project, source_info, write_json
-from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group
+from alpha.generate import copied_files, render_project, source_info
+from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group, status_paths
 from alpha.merge import Change, classify, merge_json, union_lines
 from alpha.recipes import RecipeBook, matches
 from alpha.records import record_paths, taken_numbers
 from alpha.registry import load_registry
 from alpha.render.docs import CHAINED_COMMIT_MSG
+from alpha.shell import GIT_TIMEOUT, run_command
 from alpha.update import UpdatePlan, apply_update
-from alpha.validate import area_of
 
 CAP = 50  # entries per list; the rest are counted
 SUBJECTS = 50  # recent commits checked against the convention
@@ -46,17 +48,26 @@ class AdoptError(Exception):
     """The repo can't be adopted as it is; the message says what to do."""
 
 
-def _git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def run_git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
-            ["git", *args], cwd=target, capture_output=True, text=True
+            ["git", *args],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT,
         )
     except OSError as e:
         raise AdoptError(f"Cannot run git ({e}). Install git, then retry.") from e
+    except subprocess.TimeoutExpired:
+        raise AdoptError(
+            f"git {args[0]} took longer than {GIT_TIMEOUT:g}s in {target}, so alpha "
+            "stopped it. Run it yourself to see what it waits for, then retry."
+        ) from None
 
 
 def _out(target: Path, *args: str) -> str | None:
-    done = _git(target, *args)
+    done = run_git(target, *args)
     return done.stdout.strip() if done.returncode == 0 else None
 
 
@@ -107,29 +118,6 @@ def _default_branch(target: Path, branch: str) -> str:
     return branch
 
 
-def _status_paths(target: Path, untracked: str = "normal") -> list[str]:
-    """The paths `git status` lists, with untracked files shown as `untracked`
-    says (normal: folders, all: every file)."""
-    # Unstripped: each entry starts with its status column, often a space.
-    status = _git(target, "status", "--porcelain", "-z", f"-u{untracked}").stdout
-    fields = status.split("\0")
-    paths: list[str] = []
-    i = 0
-    while i < len(fields):
-        entry = fields[i]
-        i += 1
-        if not entry:
-            continue
-        paths.append(entry[3:])
-        if entry[0] in "RC":  # a rename or copy: its source path comes next
-            i += 1
-    return paths
-
-
-def _dirty(target: Path) -> list[str]:
-    return _status_paths(target)
-
-
 def _conventional(target: Path, types: list[str]) -> dict[str, Any]:
     log = _out(target, "log", f"-{SUBJECTS}", "--format=%s") or ""
     subjects = [s for s in log.splitlines() if s]
@@ -144,7 +132,7 @@ def _conventional(target: Path, types: list[str]) -> dict[str, Any]:
 
 def _git_facts(target: Path, defaults: dict[str, Any]) -> dict[str, Any]:
     branch = _out(target, "rev-parse", "--abbrev-ref", "HEAD") or ""
-    dirty = _dirty(target)
+    dirty = status_paths(target, command="adopt survey", untracked="normal")
     facts: dict[str, Any] = {
         "head": _out(target, "rev-parse", "HEAD") or "",
         "branch": branch,
@@ -159,7 +147,7 @@ def _git_facts(target: Path, defaults: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tracked(target: Path) -> list[str]:
-    done = _git(target, "ls-files", "-z")
+    done = run_git(target, "ls-files", "-z")
     if done.returncode != 0:
         raise AdoptError(f"git ls-files failed in {target}: {done.stderr.strip()}")
     return sorted(p for p in done.stdout.split("\0") if p)
@@ -293,7 +281,7 @@ def _answers(target: Path) -> dict[str, Any]:
 def _uncommitted(target: Path) -> list[str]:
     """Uncommitted changes other than the adoption's own answers."""
     own = (PROJECT_JSON, ".claude/settings.local.json")
-    return [p for p in _status_paths(target, "all") if p not in own]
+    return [p for p in status_paths(target, command="adopt apply") if p not in own]
 
 
 # Paths alpha writes and commits; a repo that ignores them can't take alpha.
@@ -310,7 +298,7 @@ _MUST_TRACK = (
 
 def _ignored(target: Path) -> list[str]:
     """`git check-ignore -v` lines for alpha's paths the repo ignores."""
-    done = _git(target, "check-ignore", "-v", "--", *_MUST_TRACK)
+    done = run_git(target, "check-ignore", "-v", "--", *_MUST_TRACK)
     return [line for line in done.stdout.splitlines() if line.strip()]
 
 
@@ -439,7 +427,7 @@ def _branch(target: Path) -> str:
             f"A branch {ADOPT_BRANCH} already exists. Switch to it (git switch "
             f"{ADOPT_BRANCH}) to go on with that adoption, or delete it, then retry."
         )
-    done = _git(target, "switch", "--quiet", "-c", ADOPT_BRANCH)
+    done = run_git(target, "switch", "--quiet", "-c", ADOPT_BRANCH)
     if done.returncode != 0:
         raise AdoptError(
             f"git couldn't create {ADOPT_BRANCH}: {done.stderr.strip()}. Fix that, "
@@ -463,7 +451,7 @@ def apply_adoption(target: Path, adoption: AdoptionPlan) -> list[str]:
     notes = [f"On branch {branch}.", *adoption.notes]
     adopting = cast(dict[str, Any], adoption.update.answers["adoption"])
     if adopting.get("git_hooks") == "alpha":
-        done = _git(target, "config", "core.hooksPath", HOOKS_PATH)
+        done = run_git(target, "config", "core.hooksPath", HOOKS_PATH)
         if done.returncode != 0:
             raise AdoptError(
                 f"git couldn't set core.hooksPath: {done.stderr.strip()}. Run git "
@@ -670,23 +658,26 @@ def _hook_runs_alpha(target: Path, a: Answers) -> bool:
 
 
 HOOK_TIMEOUT = 120  # seconds: a commit-msg hook that runs longer is stuck
+RUN_TIMEOUT = 1800.0  # seconds: a legacy suite may be slow, but not this slow
 
 
 def _problem(c: Condition, target: Path, a: Answers, confirmed: bool) -> str | None:
     """Why the condition doesn't hold, or None when it does."""
     if c.kind == "run":
-        # No time limit: a legacy suite may take a long while, and the user
-        # sees it running.
         try:
-            done = subprocess.run(
-                c.value, shell=True, cwd=target / c.dir, capture_output=True, text=True
-            )
+            done = run_command(c.value, target / c.dir, RUN_TIMEOUT)
         except OSError as e:
             return f"`{c.value}` can't run in {c.dir} ({e})"
-        if done.returncode == 0:
+        if done is None:
+            return (
+                f"`{c.value}` took longer than {RUN_TIMEOUT:g}s, so alpha stopped it. "
+                "If it waits for input, make it run without asking; otherwise find "
+                "out why it's slow."
+            )
+        if done.code == 0:
             return None
-        tail = "\n".join((done.stdout + done.stderr).strip().splitlines()[-20:])
-        return f"`{c.value}` failed (exit {done.returncode}):\n{tail}"
+        tail = "\n".join(done.out.strip().splitlines()[-20:])
+        return f"`{c.value}` failed (exit {done.code}):\n{tail}"
     if c.kind == "recipe":
         name, _, field_ = c.value.partition(".")
         comp = next((x for x in a.components if x.name == name), None)

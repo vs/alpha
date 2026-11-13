@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
-import _common  # noqa: E402
-import review  # noqa: E402
+import _common
+import review
 
 HOOKS_PATH = ".claude/alpha/githooks"
 
@@ -24,7 +24,7 @@ def git_out(root: Path, *args: str) -> str | None:
 
 
 def principles_problem(path: Path) -> str | None:
-    import tomllib  # lazy: absent on 3.9, and main() has returned by then
+    import tomllib  # noqa: PLC0415 - absent on 3.9; main() has returned by then
 
     try:
         with path.open("rb") as f:
@@ -66,7 +66,7 @@ CHAINED = 'sh .claude/alpha/githooks/commit-msg "$1"'
 def _lenient_principles(root: Path) -> dict[str, Any]:
     """The principles file, or {} when it doesn't load: principles_problem
     reports that, and this check must not stop the hook first."""
-    import tomllib  # lazy: absent on 3.9, and the version check has passed
+    import tomllib  # noqa: PLC0415 - absent on 3.9; the version check has passed
 
     try:
         with (root / _common.PRINCIPLES).open("rb") as f:

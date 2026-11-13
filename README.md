@@ -83,4 +83,15 @@ uv run pytest -m slow   # also bootstraps real projects; needs uv, pnpm, network
 bin/alpha-evals run   # real interviews; spends tokens
 ```
 
+## Setup and test
+
+### alpha (`./`)
+
+```sh
+uv sync
+uv run pytest
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before your first commit.
+
 Design: [docs/superpowers/specs/2026-10-19-project-kit-design.md](docs/superpowers/specs/2026-10-19-project-kit-design.md)

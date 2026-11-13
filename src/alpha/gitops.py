@@ -9,6 +9,7 @@ from alpha.baseline import BASELINE_DIR
 from alpha.generate import GenerateError, digest
 from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
 from alpha.render.tooling import BETTERLEAKS, LYCHEE, MISE, RUMDL, TYPOS
+from alpha.shell import GIT_TIMEOUT
 
 HOOKS_PATH = ".claude/alpha/githooks"
 _DOCS = [
@@ -51,12 +52,60 @@ def _git(
 ) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
-            ["git", *args], cwd=target, capture_output=True, text=True
+            ["git", *args],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT,
         )
     except OSError as e:
         raise GenerateError(
             f'Cannot run git ({e}). Install git, then rerun "alpha {command} {target}".'
         ) from e
+    except subprocess.TimeoutExpired:
+        raise GenerateError(
+            f"git {args[0]} took longer than {GIT_TIMEOUT:g}s in {target}, so alpha "
+            f'stopped it. Run it yourself to see what it waits for, then rerun "alpha '
+            f'{command} {target}".'
+        ) from None
+
+
+def status_paths(
+    target: Path, *paths: str, command: str, untracked: str = "all"
+) -> list[str]:
+    """The paths `git status` lists, limited to `paths` when given, with
+    untracked files shown as `untracked` says (normal: folders, all: every
+    file)."""
+    done = _git(
+        target,
+        "status",
+        "--porcelain",
+        "-z",
+        f"-u{untracked}",
+        "--",
+        *paths,
+        command=command,
+    )
+    if done.returncode != 0:
+        raise GenerateError(
+            f"git status failed in {target} ({done.stderr.strip()}), so alpha "
+            "can't tell uncommitted edits from its own files. Fix that (is it a "
+            f'git repository with a readable index?), then rerun "alpha {command} '
+            f'{target}".'
+        )
+    # Unstripped: each entry starts with its status column, often a space.
+    fields = done.stdout.split("\0")
+    found: list[str] = []
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if not entry:
+            continue
+        found.append(entry[3:])
+        if entry[0] in "RC":  # a rename or copy: its source path comes next
+            i += 1
+    return found
 
 
 def _check(target: Path, *args: str, command: str = "commit-skeleton") -> str:

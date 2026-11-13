@@ -1,0 +1,2 @@
+# A fake password the stop-check test plants to prove the secret check catches it (review 2027-05-12)
+tests/integration/hooks/test_stop_checks.py:generic-password:64

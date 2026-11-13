@@ -5,14 +5,18 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import generate, load_project_principles
 from alpha.gitops import commit_skeleton
+from alpha.recipes import recipe_hash
+
+GenerateScenario = Callable[[Path, str], list[str]]
 
 SCENARIOS = PLUGIN_ROOT / "evals" / "scenarios"
 SHIM = PLUGIN_ROOT / "bin" / "alpha"
@@ -53,14 +57,15 @@ def clone_component(data: dict[str, Any], source: str, name: str, path: str) -> 
     comp = next(c for c in data["components"] if c["name"] == source)
     data["components"].append({**copy.deepcopy(comp), "name": name, "path": path})
     for section in data.values():
-        if not isinstance(section, dict) or not isinstance(
-            section.get("components"), list
-        ):
+        if not isinstance(section, dict):
             continue
-        entries: list[Any] = section["components"]
-        for entry in list(entries):
-            if isinstance(entry, dict) and entry.get("name") == source:
-                entries.append({**copy.deepcopy(entry), "name": name})
+        entries: object = cast(dict[str, Any], section).get("components")
+        if not isinstance(entries, list):
+            continue
+        listed = cast(list[dict[str, Any]], entries)
+        for entry in list(listed):
+            if entry.get("name") == source:
+                listed.append({**copy.deepcopy(entry), "name": name})
     if name not in data["git"]["scopes"]:
         data["git"]["scopes"].append(name)
     data["layout"] = "monorepo"
@@ -184,8 +189,6 @@ def shell_recipe() -> dict[str, Any]:
 
 
 def proven(recipe: dict[str, Any]) -> dict[str, Any]:
-    from alpha.recipes import recipe_hash
-
     return {**recipe, "proven_hash": recipe_hash(recipe)}
 
 
