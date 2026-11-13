@@ -2,6 +2,7 @@ from typing import Any, cast
 
 from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
 from alpha.baseline import BASELINE_GLOB, ratchet_command
+from alpha.core_areas import TEST_RUNS
 from alpha.recipes import RecipeBook
 from alpha.records import Records, record_paths
 from alpha.registry import Registry, default_registry
@@ -95,6 +96,21 @@ def exhaustive_testing(a: Answers, defaults: dict[str, Any]) -> bool:
     if a.testing is not None and a.testing.exhaustive is not None:
         return a.testing.exhaustive
     return defaults.get("testing", {}).get("exhaustive") is True
+
+
+def _test_run(a: Answers, defaults: dict[str, Any]) -> str:
+    """When the hooks run the full test suite: the answer when the interview
+    set one, else the kit's default. Defaults from before the setting keep
+    the suite at Stop."""
+    if a.testing is not None and a.testing.run is not None:
+        return a.testing.run
+    value = defaults.get("testing", {}).get("run", "at-stop")
+    if value not in TEST_RUNS:
+        raise AnswersError(
+            f"defaults: [testing] run is {value!r}. Use one of: "
+            f"{', '.join(TEST_RUNS)}, in defaults/defaults.toml."
+        )
+    return value
 
 
 def diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
@@ -311,6 +327,7 @@ def build_principles(
         "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
         "testing": {
             "diff_coverage": diff_coverage(a, defaults),
+            "run": _test_run(a, defaults),
             **({"exhaustive": True} if project["exhaustive_testing"] else {}),
         },
         "components": components,

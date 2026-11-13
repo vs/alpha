@@ -37,6 +37,7 @@ ERROR_FORMATS: tuple[str, ...] = (
     "other",
 )
 TEST_LEVELS: tuple[str, ...] = ("unit", "integration", "end-to-end", "contract")
+TEST_RUNS: tuple[str, ...] = ("at-merge", "at-stop")
 UPDATE_TOOLS: tuple[str, ...] = ("dependabot", "manual")
 SCHEDULES: tuple[str, ...] = ("daily", "weekly", "monthly")
 LOG_FORMATS: tuple[str, ...] = ("json", "logfmt")
@@ -98,6 +99,7 @@ class Testing:
     components: tuple[TestPlan, ...]
     diff_coverage: int | None = None
     exhaustive: bool | None = None
+    run: str | None = None
 
 
 @dataclass(frozen=True)
@@ -360,7 +362,8 @@ def testing(raw: object, comps: "Sequence[Component] | None", talk: bool) -> Tes
                 "Use e.g. 80, or 0 for no check; leave the field out for the default",
             )
     exhaustive = boolean(d, "exhaustive", w) if "exhaustive" in d else None
-    return Testing(tuple(entries), diff_coverage, exhaustive)
+    run = choice(d, "run", w, TEST_RUNS) if "run" in d else None
+    return Testing(tuple(entries), diff_coverage, exhaustive, run)
 
 
 def security(raw: object, comps: "Sequence[Component] | None") -> Security:

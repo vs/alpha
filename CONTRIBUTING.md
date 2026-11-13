@@ -68,4 +68,4 @@ The Stop hook blocks a change to these paths that leaves the docs untouched.
 
 Feature branches: short-lived branches merged into main through pull requests, each leaving the checks green. Before opening a pull request, rebase the branch on main into small, ordered commits and push it with --force-with-lease; the hooks block a plain --force and any rewrite of main.
 
-Claude runs the principles reviewer before its work reaches main: a push to main, or merging a pull request. People can push by hand.
+Claude runs the principles reviewer and each changed component's full test suite before its work reaches main: a push to main, or merging a pull request. People can push by hand.

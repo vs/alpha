@@ -74,6 +74,10 @@ def test_merge_checks_the_checkout_that_has_the_branch(project: Project) -> None
         "first (1 file changed since the last review)."
     )
     mark_reviewed(wt)
+    proc = bash(project, "gh pr merge topic --squash")
+    assert proc.returncode == 2
+    assert proc.stderr.startswith("Nothing reaches main untested: the tests of api ")
+    assert project.run_tests(cwd=wt).returncode == 0
     assert bash(project, "gh pr merge topic --squash").returncode == 0
     assert bash(project, "gh pr merge --squash", cwd=wt).returncode == 0
 

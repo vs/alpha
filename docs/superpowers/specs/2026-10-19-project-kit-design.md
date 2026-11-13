@@ -1,7 +1,7 @@
 # Project kit: design
 
 Date: 2026-10-19
-Status: approved, and built as of alpha 0.5.0 (2026-11-13). §15 lists what
+Status: approved, and built as of alpha 0.6.0 (2026-11-13). §15 lists what
 waits for a later version.
 
 Name: **alpha**, the same as this repo. "Alpha" is the first letter and the first version: where every project starts. Skills are invoked as `/alpha:<skill>` (e.g. `/alpha:new-project`).
@@ -479,7 +479,17 @@ fail-helpfully principle: what's wrong, and how to fix it.
 
 - After edits: format, lint, type-check on touched files (per component's
   stack).
-- Before "done" (Stop): tests for affected components pass.
+- Before "done" (Stop): the type check and structure check of the affected
+  components pass.
+- The full test suite of each changed component passes at one checkpoint,
+  `testing.run` (user decision, 2026-11-13, decision 0024). `at-merge`, the
+  default: before Claude's work reaches main (a push to main, or a pull
+  request merge). Claude runs `python3 .claude/alpha/hooks/stop_checks.py
+  tests`, which remembers a pass while the component's files stay the same,
+  and the command guard blocks the push or merge without one. `at-stop`: at
+  every Stop, as before; for suites that take seconds. A project whose
+  principles file has no `testing.run` keeps `at-stop` until `alpha update`
+  upgrades it.
 - Code changed with no test changes → flag.
 - Public behavior changed (per the doc-mapping in the principles file) with
   no doc changes → flag.

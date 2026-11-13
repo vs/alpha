@@ -3,7 +3,7 @@
 # hooks and reviewers read this file.
 
 schema = 1
-kit_version = "0.5.0"
+kit_version = "0.6.0"
 
 [project]
 name = "alpha"
@@ -40,6 +40,7 @@ squawk_paths = []
 
 [testing]
 diff_coverage = 80
+run = "at-merge"
 
 [[components]]
 name = "alpha"

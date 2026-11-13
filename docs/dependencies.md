@@ -14,3 +14,4 @@ Log every dependency added, with the reason.
 |---|---|---|---|
 | deptry (dev) | alpha | The structure check: finds unused, missing and transitive dependencies, as alpha's Python recipe does | 2026-11-12 |
 | pytest-cov (dev) | alpha | Writes the coverage report the recipe's coverage command reads, as alpha's Python recipe does | 2026-11-12 |
+| pytest-xdist (dev) | alpha | Runs the test suite on 4 workers, so the fast suite takes a few minutes instead of 8 | 2026-11-13 |

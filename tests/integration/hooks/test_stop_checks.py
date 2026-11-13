@@ -20,6 +20,16 @@ AWS_KEY = "AKIA" + "A" * 16
 PASSWORD = "hunter2" * 2
 
 
+@pytest.fixture(autouse=True)
+def tests_at_stop(project: Project) -> None:
+    """This file covers what a Stop checks with the test suite among it; the
+    tests of `at-merge` set that mode themselves."""
+    project.set_test_run("at-stop")
+
+
+EVERY_STEP = tuple(stop_checks.COMMAND_PRINCIPLES)
+
+
 def marker_cmd(name: str) -> str:
     return f"python3 -c \"open('{name}', 'a').write('x')\""
 
@@ -458,7 +468,7 @@ def test_budget_exhausted_skips_steps(project: Project, monkeypatch: Any) -> Non
     data = project.principles()
     monkeypatch.setattr(stop_checks, "BUDGET", 0)
     problems = stop_checks.command_problems(
-        data["components"][0], data, project.root, 0.0
+        data["components"][0], data, project.root, 0.0, EVERY_STEP
     )
     assert len(problems) == 2
     assert (
@@ -1228,7 +1238,7 @@ def test_slot_wait_past_deadline_is_a_problem_and_not_cached(
     project.set_commands("api", typecheck=STUB, structure="", test="")
     data = project.principles()
     problems = stop_checks.command_problems(
-        data["components"][0], data, project.root, time.monotonic() + 100
+        data["components"][0], data, project.root, time.monotonic() + 100, EVERY_STEP
     )
     assert len(problems) == 1
     assert (
@@ -1248,3 +1258,106 @@ def test_heavy_step_uses_slots_under_the_test_home(
     (project.root / "api" / "app" / "x.py").write_text("x = 1\n")
     project.run_hook("stop_checks.py", {"cwd": str(project.root)})
     assert (isolated_home / ".cache" / "alpha" / "slots" / "0.lock").is_file()
+
+
+def marks(project: Project, rel: str) -> int:
+    path = project.root / rel
+    return path.stat().st_size if path.exists() else 0
+
+
+def test_at_merge_a_stop_leaves_the_test_suite_alone(project: Project) -> None:
+    project.set_test_run("at-merge")
+    project.set_commands("api", typecheck=marker_cmd("tc.marker"), test=FAIL)
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+    assert marks(project, "api/tc.marker") == 1
+
+
+def test_principles_from_before_the_setting_test_at_stop(project: Project) -> None:
+    data = project.principles()
+    del data["testing"]["run"]
+    project.write_principles(data)
+    project.set_commands("api", test=FAIL)
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    project.write("api/tests/test_a.py", "x\n")
+    assert "api: test failed" in reason(run(project))
+
+
+def test_tests_command_runs_the_changed_components_once_per_tree(
+    project: Project,
+) -> None:
+    project.set_test_run("at-merge")
+    project.set_commands("api", test=marker_cmd("../t.marker"))
+    project.set_commands("web", test=marker_cmd("../w.marker"))
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    proc = project.run_tests()
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "tests passed: api\n"
+    assert marks(project, "t.marker") == 1
+    assert marks(project, "w.marker") == 0
+    assert project.run_tests().returncode == 0
+    assert marks(project, "t.marker") == 1  # the same files: not run again
+    project.write("api/src/a.py", "y\n")
+    assert project.run_tests().returncode == 0
+    assert marks(project, "t.marker") == 2
+
+
+def test_tests_command_fails_with_the_suites_output(project: Project) -> None:
+    project.set_test_run("at-merge")
+    project.set_commands("api", test=FAIL)
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    proc = project.run_tests()
+    assert proc.returncode == 1
+    assert "api: test failed (python3 -c" in proc.stderr
+    assert "boom" in proc.stderr
+
+
+def test_tests_command_with_nothing_changed_says_so(project: Project) -> None:
+    project.set_test_run("at-merge")
+    commit_all(project)
+    proc = project.run_tests()
+    assert proc.returncode == 0
+    assert proc.stdout == "tests passed: no component changed\n"
+
+
+def test_a_failed_tests_run_is_tried_again_on_the_same_files(project: Project) -> None:
+    project.set_test_run("at-merge")
+    flaky = (
+        'python3 -c "import os, sys; '
+        "sys.exit(0 if os.path.exists('../service-up') else 1)\""
+    )
+    project.set_commands("api", test=flaky)
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    assert project.run_tests().returncode == 1
+    project.write("service-up")  # outside every component: the files are the same
+    assert project.run_tests().returncode == 0
+
+
+def test_tests_command_is_not_held_to_the_stop_limits(
+    project: Project, monkeypatch: Any
+) -> None:
+    project.set_test_run("at-merge")
+    data = project.principles()
+    limits: list[float] = []
+
+    def record(command: str, cwd: Any, limit: float) -> tuple[int, str]:
+        limits.append(limit)
+        return 0, ""
+
+    monkeypatch.setattr(_common, "run_command", record)
+    deadline = time.monotonic() + stop_checks.TESTS_LIMIT
+    comp = data["components"][0]
+    assert (
+        stop_checks.command_problems(
+            comp, data, project.root, deadline, stop_checks.TESTS
+        )
+        == []
+    )
+    assert limits and limits[0] > stop_checks.TIMEOUT

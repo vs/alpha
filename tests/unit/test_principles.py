@@ -446,6 +446,9 @@ def test_components_carry_their_stacks_rules_with_prefixed_ids():
     assert out["components"][0]["rules"] == comps["api"]["rules"]
 
 
+RUN = {"run": "at-merge"}
+
+
 def _defaults_with(**testing: Any) -> dict[str, Any]:
     d = copy.deepcopy(D)
     d.pop("testing", None)
@@ -459,7 +462,7 @@ def test_diff_coverage_answer_overrides_the_default(tmp_path: Path):
         data["testing"]["diff_coverage"] = 55
 
     out = build_principles(D, variant(tmp_path, mutate), "0.1.0")
-    assert out["testing"] == {"diff_coverage": 55}
+    assert out["testing"] == {"diff_coverage": 55, **RUN}
 
 
 def test_diff_coverage_zero_answer_beats_the_default(tmp_path: Path):
@@ -467,13 +470,16 @@ def test_diff_coverage_zero_answer_beats_the_default(tmp_path: Path):
         data["testing"]["diff_coverage"] = 0
 
     out = build_principles(D, variant(tmp_path, mutate), "0.1.0")
-    assert out["testing"] == {"diff_coverage": 0}
+    assert out["testing"] == {"diff_coverage": 0, **RUN}
 
 
 def test_diff_coverage_defaults_when_not_answered():
     assert A.testing is not None and A.testing.diff_coverage is None
     out = build_principles(D, A, "0.1.0")
-    assert out["testing"] == {"diff_coverage": D["testing"]["diff_coverage"]}
+    assert out["testing"] == {
+        "diff_coverage": D["testing"]["diff_coverage"],
+        **RUN,
+    }
 
 
 def test_diff_coverage_missing_from_defaults_says_how_to_fix():
@@ -515,21 +521,21 @@ def test_exhaustive_answer_switches_the_principle_on(tmp_path: Path):
     on = principle(out, "exhaustive-testing")
     assert on["active"] is True
     assert on["components"] == [c["name"] for c in out["components"]]
-    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True}
+    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True, **RUN}
 
 
 def test_exhaustive_default_applies_until_the_answer_says_no(tmp_path: Path):
-    defaults = _defaults_with(diff_coverage=80, exhaustive=True)
+    defaults = _defaults_with(diff_coverage=80, exhaustive=True, **RUN)
     out = build_principles(defaults, A, "0.1.0")
     assert principle(out, "exhaustive-testing")["active"] is True
-    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True}
+    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True, **RUN}
 
     def standard(data: dict[str, Any]) -> None:
         data["testing"]["exhaustive"] = False
 
     out = build_principles(defaults, variant(tmp_path, standard), "0.1.0")
     assert principle(out, "exhaustive-testing")["active"] is False
-    assert out["testing"] == {"diff_coverage": 80}
+    assert out["testing"] == {"diff_coverage": 80, **RUN}
 
 
 def test_exhaustive_refuses_a_lower_diff_coverage(tmp_path: Path):
@@ -556,4 +562,26 @@ def test_exhaustive_accepts_a_diff_coverage_of_100(tmp_path: Path):
         data["testing"] |= {"diff_coverage": 100, "exhaustive": True}
 
     out = build_principles(D, variant(tmp_path, full), "0.1.0")
-    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True}
+    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True, **RUN}
+
+
+def test_the_suite_runs_at_merge_unless_the_answer_says_at_stop(tmp_path: Path):
+    assert build_principles(D, A, "0.1.0")["testing"]["run"] == "at-merge"
+
+    def at_stop(data: dict[str, Any]) -> None:
+        data["testing"]["run"] = "at-stop"
+
+    out = build_principles(D, variant(tmp_path, at_stop), "0.1.0")
+    assert out["testing"]["run"] == "at-stop"
+
+
+def test_defaults_from_before_the_setting_keep_the_suite_at_stop():
+    out = build_principles(_defaults_with(diff_coverage=80), A, "0.1.0")
+    assert out["testing"]["run"] == "at-stop"
+
+
+def test_an_unknown_default_test_run_says_how_to_fix():
+    defaults = _defaults_with(diff_coverage=80, run="sometimes")
+    with pytest.raises(AnswersError) as e:
+        build_principles(defaults, A, "0.1.0")
+    assert "[testing] run is 'sometimes'. Use one of: at-merge, at-stop" in str(e.value)

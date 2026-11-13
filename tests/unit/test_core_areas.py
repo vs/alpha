@@ -572,3 +572,14 @@ def test_exhaustive_answer_must_be_a_boolean(tmp_path: Path):
     d["testing"]["exhaustive"] = "yes"
     with pytest.raises(AnswersError, match=r"testing\.exhaustive: must be true or"):
         check(tmp_path, d)
+
+
+def test_test_run_answer_is_optional_and_checked(tmp_path: Path):
+    d = valid()
+    assert check(tmp_path, d).testing.run is None  # type: ignore[union-attr]
+    for value in ("at-merge", "at-stop"):
+        d["testing"]["run"] = value
+        assert check(tmp_path, d).testing.run == value  # type: ignore[union-attr]
+    d["testing"]["run"] = "nightly"
+    with pytest.raises(AnswersError, match=r"testing\.run: .*at-merge, at-stop"):
+        check(tmp_path, d)

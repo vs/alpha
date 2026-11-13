@@ -59,6 +59,20 @@ class Project:
                 comp["commands"].update(commands)
         self.write_principles(data)
 
+    def set_test_run(self, run: str) -> None:
+        data = self.principles()
+        data["testing"]["run"] = run
+        self.write_principles(data)
+
+    def run_tests(self, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        """`stop_checks.py tests`, as Claude runs it before a merge."""
+        return subprocess.run(
+            [sys.executable, str(HOOKS / "stop_checks.py"), "tests"],
+            cwd=cwd or self.root,
+            capture_output=True,
+            text=True,
+        )
+
     def drop_principle(self, principle: str, component: str | None = None) -> None:
         data = self.principles()
         found = [p for p in data["principles"] if p["id"] == principle]

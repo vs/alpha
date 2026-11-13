@@ -55,9 +55,12 @@ ml = ["unit", "integration"]
 # diff_coverage: the share of the lines a pull request changes that its tests
 # must cover; 0 is off. exhaustive: switch on the exhaustive-testing principle,
 # under which a pull request covers every line and branch it changes.
+# run: when the hooks run a component's full test suite. "at-merge": once,
+# before the work reaches main; "at-stop": each time Claude finishes a turn.
 [testing]
 diff_coverage = 80
 exhaustive = false
+run = "at-merge"
 
 [documentation]
 external = "readme"
