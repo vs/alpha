@@ -44,7 +44,7 @@ run = [
 ]
 
 [tasks."check:secrets"]
-run = "betterleaks dir . --no-banner --no-color --config .betterleaks.toml"
+run = "python3 .claude/alpha/checks/secret_scan.py betterleaks dir --no-banner --no-color --config .betterleaks.toml"
 
 [tasks."check:vulns"]
 run = "osv-scanner scan source -r ."
