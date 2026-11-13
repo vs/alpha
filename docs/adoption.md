@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 4 | 4 |
-| P4 Rework | 12 | 14 |
+| P4 Rework | 13 | 14 |
 | P6 Traceability | 1 | 1 |
 
 ## P2 Close tool gaps
@@ -76,7 +76,7 @@ Done when:
 | `p4-one-git-status-parser` | alpha | done |
 | `p4-suppression-reasons` | alpha | done |
 | `p4-shortcuts-skip-strings` | alpha | done |
-| `p4-betterleaks-nested-ignores` | alpha | pending |
+| `p4-betterleaks-nested-ignores` | alpha | done |
 | `p4-no-ci-wording` | alpha | done |
 | `p4-tests-by-level` | alpha | done |
 | `p4-startup-budget-test` | alpha | done |
@@ -172,15 +172,15 @@ Done when:
 
 - `uv run pytest -k test_a_shortcut_inside_a_string_is_not_a_comment` passes
 
-### `p4-betterleaks-nested-ignores`: Allowlist folders that nested gitignores skip
+### `p4-betterleaks-nested-ignores`: Scan only the files git does not ignore for secrets
 
-The generated .betterleaks.toml lists only the root .gitignore, so a folder ignored by its own .gitignore (here .superpowers/) is scanned; it was added to the allowlist by hand.
+betterleaks dir reads every file, and the generated .betterleaks.toml allowlists only the root .gitignore, so a folder ignored by its own .gitignore (here .superpowers/) is scanned; it was added to the generated file by hand.
 
 Serves `fix-at-the-root`, `no-secrets`.
 
 Done when:
 
-- `uv run pytest -k test_betterleaks_allowlist_covers_nested_gitignores` passes
+- `uv run pytest -k test_secret_scan_skips_nested_gitignores` passes
 
 ### `p4-no-ci-wording`: Drop CI wording when CI is none
 
