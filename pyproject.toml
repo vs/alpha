@@ -39,7 +39,14 @@ extend-exclude = ["docs", ".superpowers"]
 
 [tool.deptry]
 # The kit's packages, and the hook and check modules that import each other.
-known_first_party = ["alpha", "alpha_evals", "_common", "review", "ratchet"]
+known_first_party = [
+    "alpha",
+    "alpha_evals",
+    "_common",
+    "review",
+    "ratchet",
+    "stop_checks",
+]
 
 [tool.coverage.run]
 source = ["src", "project-files"]
