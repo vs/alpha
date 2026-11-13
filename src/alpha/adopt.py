@@ -6,7 +6,6 @@ import posixpath
 import re
 import subprocess
 import tempfile
-from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any, cast
@@ -239,13 +238,6 @@ GITIGNORE = ".gitignore"
 SETTINGS = ".claude/settings.json"
 
 
-@dataclass(frozen=True)
-class AdoptionPlan:
-    update: UpdatePlan
-    notes: tuple[str, ...]  # what the settings merge kept of the repo's
-    copies: dict[str, Path]  # copied files, whose mode is kept
-
-
 def _answers(target: Path) -> dict[str, Any]:
     path = target / PROJECT_JSON
     try:
@@ -330,7 +322,7 @@ def _change(path: str, after: str, disk: str | None, notes: list[str]) -> Change
 
 def plan_adoption(
     target: Path, plugin_root: Path, source: Source, today: date
-) -> AdoptionPlan:
+) -> UpdatePlan:
     _refuse_alpha(target)
     _repo(target)
     top = _answers(target)
@@ -402,14 +394,15 @@ def plan_adoption(
         "records": records.to_json(),
         "added": {name: day.isoformat() for name, day in added.items()},
     }
-    plan = UpdatePlan(
+    return UpdatePlan(
         changes=tuple(changes),
         new_components=(),  # adopted components are the app: never committed whole
         groups={p: commit_group(p, rendered.component_of) for p in writes},
         manifest=manifest,
         answers=top,
+        notes=tuple(notes),
+        copies=copies,
     )
-    return AdoptionPlan(plan, tuple(notes), copies)
 
 
 def _branch(target: Path) -> str:
@@ -436,20 +429,14 @@ def _branch(target: Path) -> str:
     return ADOPT_BRANCH
 
 
-def apply_adoption(target: Path, adoption: AdoptionPlan) -> list[str]:
+def apply_adoption(target: Path, adoption: UpdatePlan) -> list[str]:
     branch = _branch(target)
-    apply_update(target, adoption.update)
-    for rel, src in adoption.copies.items():
-        path = target / rel
-        if path.is_file() and any(
-            c.path == rel and c.kind == "new" for c in adoption.update.changes
-        ):
-            path.chmod(src.stat().st_mode & 0o777)
+    apply_update(target, adoption)
     state_path = target / UPDATE_STATE
     state = json.loads(state_path.read_text(encoding="utf-8"))
     write_json(state_path, {**state, "kind": "adopt"})
-    notes = [f"On branch {branch}.", *adoption.notes]
-    adopting = cast(dict[str, Any], adoption.update.answers["adoption"])
+    notes = [f"On branch {branch}."]
+    adopting = cast(dict[str, Any], adoption.answers["adoption"])
     if adopting.get("git_hooks") == "alpha":
         done = run_git(target, "config", "core.hooksPath", HOOKS_PATH)
         if done.returncode != 0:

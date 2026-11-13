@@ -195,6 +195,15 @@ switch on an area that didn't apply before, or revisit an area's decisions.
   configs is in scope; writing its code is not.
 - On a folder the kit didn't generate or adopt, refuse and point to `adopt`
   (§5b).
+- **Kit upgrades** (decision 0022). When the manifest's `kit_version` is
+  older than the running alpha, `alpha update` also brings the project to
+  this kit, copied files (hooks, checks, skills, agents, the git hook)
+  included. The base of each three-way merge is what the older kit wrote,
+  rendered by that kit's own code from the answers it set the project up
+  from; alpha finds it in the manifest's kit folder, the recorded commit of
+  a checkout, the plugin cache, or this checkout's `v<version>` tag, and
+  stops with where to put it otherwise. A project from a newer alpha is
+  refused.
 
 ## 5b. Adopting an existing project
 
@@ -278,8 +287,8 @@ generated or adopted the folder (use `extend`).
 
 After adoption, the project is a kit project like any other: `extend` and
 `alpha update` work on it, and §11 still holds. Adoption opts a project into
-the kit's gates as they are on the day it's adopted; later kit changes don't
-reach it.
+the kit's gates as they are on the day it's adopted; later kit versions
+reach it through `alpha update` (§5a).
 
 ## 6. The principles catalog
 
@@ -509,12 +518,10 @@ Decisions:
   answers. There are two new tunables, each offered inside an existing round
   with a recommended default: `dependencies.cooldown_days` (7) and
   `testing.diff_coverage` (80). No new area. This keeps interview cost flat.
-- **D4 Existing projects stay as they are.** `alpha update` renders before and
-  after with the current kit, so kit changes cancel out and old projects
-  don't gain these gates. This matches §11. Opting an old project in is out
-  of scope. When an older kit generated the project (no `[[repo_checks]]` in
-  its principles), the overlaps can be kit changes, so `alpha update` says so,
-  and lists the newer kit's files as left out, not as deleted.
+- **D4 Existing projects gain them through `alpha update`** (decision 0022,
+  2026-11-13; it replaces "existing projects stay as they are"). When an
+  older kit set the project up, `alpha update` upgrades it to the current
+  kit, gates included; see §5a.
 - **D5 Python import rules aren't generated.** import-linter needs packages a
   skeleton doesn't have. The Python recipe gains a reviewer-checked rule to
   add contracts once packages exist. TypeScript gets dependency-cruiser with
@@ -752,9 +759,9 @@ CLAUDE.md, where the commit skill already looks.
   so the next project starts from it. No → the override stays in the
   project's decision log only. Changing the kit's own defaults is ordinary
   work on this repo, released by pushing it and updating the plugin.
-- Existing projects never change when kit defaults change. A project can be
-  compared with current kit defaults only on request (that skill can be added
-  later; v1 only needs to record the kit version and defaults used).
+- Existing projects change with the kit only through `alpha update`, which
+  upgrades a project an older kit set up (decision 0022, §5a). The manifest
+  records the kit version and defaults used.
 
 ## 12. The kit's own quality
 
@@ -797,6 +804,3 @@ The kit follows its own principles:
 
 ## 15. Later (not v1)
 
-- Re-syncing a project with newer kit defaults.
-- Opting a kit project into newer kit gates (see §8a, D4). Adoption (§5b)
-  covers repos the kit never touched, not older kit projects.

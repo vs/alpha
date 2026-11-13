@@ -1,13 +1,20 @@
 import difflib
+import io
 import json
 import os
+import re
 import subprocess
-import tomllib
-from dataclasses import dataclass
+import sys
+import tarfile
+import tempfile
+from collections.abc import Callable, Generator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
+from alpha import VERSION
 from alpha.answers import (
     PROJECT_JSON,
     Answers,
@@ -19,12 +26,13 @@ from alpha.answers import (
 )
 from alpha.defaults import Source, load_defaults
 from alpha.generate import (
-    PRINCIPLES_TOML,
     GenerateError,
     Rendered,
+    copied_files,
     digest,
     file_hashes,
     render_project,
+    source_info,
 )
 from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group, status_paths
 from alpha.merge import Change, classify
@@ -35,6 +43,7 @@ from alpha.validate import AnswersError
 _WRITES = ("new", "change", "merge", "conflict")
 _ORDER = ("new", "change", "merge", "conflict", "stale", "skipped")
 REVIEW = ".claude/alpha/hooks/review.py"
+_RENDER_TIMEOUT = 120.0  # seconds for the old kit to render the old answers
 REVIEW_NOTE = "The reviewer will look at alpha's changes at the next Stop."
 _NOTES = {
     "merge": " (your edits kept)",
@@ -42,17 +51,6 @@ _NOTES = {
     "stale": " (alpha no longer generates it: delete it if you don't need it)",
     "skipped": " (you deleted it: alpha's change to it is left out)",
 }
-# When the kit changed since generation, both renders carry the new kit, so
-# its changes show up as overlaps with "your edits" the user never made.
-_KIT_NOTES = {
-    "merge": " (alpha's change merged in; the rest of the file is kept)",
-    "conflict": " (overlaps alpha's change, which may include kit changes since "
-    "the project was generated: merge by hand, keeping your side for anything "
-    "the requested change doesn't need)",
-}
-_NEWER_KIT = (
-    " (alpha's newer kit adds it; this project doesn't have it, so it's left out)"
-)
 
 
 @dataclass(frozen=True)
@@ -62,7 +60,9 @@ class UpdatePlan:
     groups: dict[str, str]
     manifest: dict[str, Any]
     answers: dict[str, Any]
-    kit_changed: bool = False
+    notes: tuple[str, ...] = ()  # what adopt's settings merge kept of the repo's
+    copies: Mapping[str, Path] = field(default_factory=dict[str, Path])
+    upgraded_from: str | None = None  # the kit version the project had
 
 
 def _read(path: Path) -> str | None:
@@ -192,26 +192,191 @@ def _moved_from(path: str, old: str, new: str) -> str:
     return (PurePosixPath(old) / PurePosixPath(path).relative_to(new)).as_posix()
 
 
-def _before_text(
-    path: str, before: Rendered, after: Rendered, moves: dict[str, tuple[str, str]]
-) -> str | None:
+def _written_as(path: str, after: Rendered, moves: dict[str, tuple[str, str]]) -> str:
+    """Where alpha wrote `path` before: its old place when its component moved."""
     name = after.component_of.get(path)
-    if name in moves:
-        return before.texts.get(_moved_from(path, *moves[name]))
-    return before.texts.get(path)
+    return _moved_from(path, *moves[name]) if name in moves else path
 
 
-def _older_kit(target: Path) -> bool:
-    """Whether an older kit generated the project: its principles file has no
-    [[repo_checks]] (or doesn't load)."""
+def _changes(
+    target: Path,
+    before: Mapping[str, str],
+    after: Mapping[str, str],
+    written_as: Callable[[str], str],
+) -> list[Change]:
+    """Each file three ways: what alpha wrote (`before`), the user's copy on
+    disk, and what alpha writes now."""
+    changes: list[Change] = []
+    for path in sorted({*before, *after}):
+        disk = _read(target / path)
+        change = classify(path, before.get(written_as(path)), after.get(path), disk)
+        if change is not None and (change.text is None or change.text != disk):
+            changes.append(change)
+    return changes
+
+
+def _version(text: object) -> tuple[int, ...] | None:
+    if not isinstance(text, str):
+        return None
     try:
-        data = tomllib.loads((target / PRINCIPLES_TOML).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
-        return True
-    return "repo_checks" not in data
+        return tuple(int(part) for part in text.split("."))
+    except ValueError:
+        return None
 
 
-def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
+def _upgrade_from(target: Path, manifest: dict[str, Any]) -> str | None:
+    """The older kit version that set the project up, or None for this kit's."""
+    old: object = manifest.get("kit_version")
+    was, now = _version(old), _version(VERSION)
+    if was is None or now is None or was == now:
+        return None
+    if was > now:
+        raise GenerateError(
+            f"{target} was set up by alpha {old}, newer than this alpha "
+            f"({VERSION}). Update alpha (claude plugin update alpha@alpha), then "
+            f"run alpha update {target} again."
+        )
+    return cast(str, old)
+
+
+def _kit_version(kit: Path) -> str | None:
+    try:
+        text = (kit / "src/alpha/__init__.py").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    found = re.search(r'^VERSION(?::\s*str)?\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    return found.group(1) if found else None
+
+
+def _git_archive(repo: Path, ref: str, into: Path) -> bool:
+    """Write the tree of `ref` in `repo` into the new folder `into`."""
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(repo), "archive", "--format=tar", ref],
+            capture_output=True,
+            timeout=_RENDER_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if done.returncode != 0:
+        return False
+    with tarfile.open(fileobj=io.BytesIO(done.stdout)) as tar:
+        tar.extractall(into, filter="data")
+    return True
+
+
+@contextmanager
+def _old_kit(
+    manifest: dict[str, Any], plugin_root: Path, old: str
+) -> Generator[Path | None]:
+    """A folder holding kit `old`: the one the manifest names, the recorded
+    commit of a checkout, the plugin cache's copy, or this checkout's tag."""
+    raw: object = manifest.get("defaults")
+    defaults = cast(dict[str, object], raw) if isinstance(raw, dict) else {}
+    named = defaults.get("path")
+    recorded = Path(named).expanduser() if isinstance(named, str) else None
+    commit = defaults.get("commit")
+    for kit in (recorded, plugin_root.parent / old):
+        if kit is not None and _kit_version(kit) == old:
+            yield kit
+            return
+    refs = [
+        (recorded, commit) if recorded and isinstance(commit, str) else None,
+        (plugin_root, f"v{old}"),
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        for i, (repo, ref) in enumerate(r for r in refs if r is not None):
+            kit = Path(tmp, str(i))
+            if _git_archive(repo, ref, kit) and _kit_version(kit) == old:
+                yield kit
+                return
+        yield None
+
+
+# Runs inside the old kit, so it uses only what every kit since 0.1.0 has:
+# render_project, which took a registry from 0.2.0 on, and the copied files,
+# named _copies before 0.2.0.
+_RENDER_OLD = """
+import inspect, json, os, sys
+from datetime import date
+from pathlib import Path
+kit, target = Path(sys.argv[1]), Path(sys.argv[2])
+today = date.fromisoformat(sys.argv[3])
+sys.path.insert(0, str(kit / "src"))
+from alpha import answers, defaults, generate
+from alpha.records import Records
+data = json.loads((target / ".claude/alpha/project.json").read_text(encoding="utf-8"))
+manifest = data["manifest"]
+applied = manifest["applied"]
+source = defaults.locate_source(kit, os.environ, Path.home())
+was = answers.parse_answers(
+    applied, target, generated=True, former=answers.generated_components(applied)
+)
+extra = {}
+if "registry" in inspect.signature(generate.render_project).parameters:
+    from alpha.registry import load_registry
+    extra["registry"] = load_registry(source)
+texts = generate.render_project(
+    target,
+    was,
+    defaults.load_defaults(source),
+    date.fromisoformat(manifest["generated_at"]).year,
+    today,
+    Records.from_json(manifest["records"]),
+    {name: date.fromisoformat(day) for name, day in manifest["added"].items()},
+    **extra,
+).texts
+copies = getattr(generate, "copied_files", None) or generate._copies
+texts.update({rel: src.read_text(encoding="utf-8") for rel, src in copies(kit).items()})
+json.dump(texts, sys.stdout)
+"""
+
+
+def _old_kit_texts(
+    target: Path, plugin_root: Path, manifest: dict[str, Any], old: str, today: date
+) -> dict[str, str]:
+    """Every file kit `old` writes from the answers it set the project up
+    from, rendered by that kit itself: the base of a kit upgrade."""
+    with _old_kit(manifest, plugin_root, old) as kit:
+        if kit is None:
+            raise GenerateError(
+                f"alpha {old} set {target} up, and that kit isn't on this machine, "
+                "so alpha can't tell its text from your edits. Put it at "
+                f"{plugin_root.parent / old} (git clone --branch v{old} "
+                f"https://github.com/vs/alpha {plugin_root.parent / old}), then "
+                f"run alpha update {target} again."
+            )
+        render = [sys.executable, "-I", "-c", _RENDER_OLD, str(kit), str(target)]
+        try:
+            done = subprocess.run(
+                [*render, today.isoformat()],
+                capture_output=True,
+                text=True,
+                timeout=_RENDER_TIMEOUT,
+                # Every kit reads its recipes and defaults from here.
+                env={**os.environ, "ALPHA_SOURCE": str(kit)},
+            )
+        except (OSError, subprocess.TimeoutExpired) as e:
+            done = e
+    if not isinstance(done, subprocess.CompletedProcess) or done.returncode != 0:
+        why = (
+            done.stderr.strip().splitlines()[-1:]
+            if isinstance(done, subprocess.CompletedProcess)
+            else [str(done)]
+        )
+        raise GenerateError(
+            f"alpha {old}'s kit couldn't render the answers it set {target} up "
+            f"from ({' '.join(why)}), so alpha can't upgrade it. Instead, {_BY_HAND}"
+        )
+    return cast(dict[str, str], json.loads(done.stdout))
+
+
+def plan_update(
+    target: Path, plugin_root: Path, source: Source, today: date
+) -> UpdatePlan:
+    """The changes that bring the project to its answers. When an older kit set
+    it up, also to this kit, copied files included: each file then merges
+    against what that kit wrote, rendered by that kit (spec §5a)."""
     top, manifest = _load(target)
     records, added, year = _baseline(target, manifest)
     if (target / UPDATE_STATE).exists():
@@ -247,14 +412,18 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
         target, now, defaults, year, today, new_records, dates, registry=registry
     )
     moves = _moves(target, was, now, (before, after))
-    changes: list[Change] = []
-    for path in sorted({*before.texts, *after.texts}):
-        disk = _read(target / path)
-        change = classify(
-            path, _before_text(path, before, after, moves), after.texts.get(path), disk
-        )
-        if change is not None and (change.text is None or change.text != disk):
-            changes.append(change)
+    upgraded_from = _upgrade_from(target, manifest)
+    copies = copied_files(plugin_root) if upgraded_from else {}
+    wrote = (
+        _old_kit_texts(target, plugin_root, manifest, upgraded_from, today)
+        if upgraded_from
+        else before.texts
+    )
+    texts = {**after.texts}
+    texts.update({rel: src.read_text(encoding="utf-8") for rel, src in copies.items()})
+    changes = _changes(
+        target, wrote, texts, lambda path: _written_as(path, after, moves)
+    )
     touched = [c.path for c in changes if c.kind in _WRITES]
     dirty = status_paths(target, *touched, command="update") if touched else []
     if dirty:
@@ -282,9 +451,15 @@ def plan_update(target: Path, source: Source, today: date) -> UpdatePlan:
             "records": new_records.to_json(),
             "added": {name: day.isoformat() for name, day in dates.items()},
             "updated_at": today.isoformat(),
+            **(
+                {"kit_version": VERSION, "defaults": source_info(source)}
+                if upgraded_from
+                else {}
+            ),
         },
         answers=top,
-        kit_changed=_older_kit(target),
+        copies=copies,
+        upgraded_from=upgraded_from,
     )
 
 
@@ -325,6 +500,8 @@ def apply_update(target: Path, plan: UpdatePlan) -> list[str]:
             _write(target / PROPOSALS / c.path, c.text)
         elif c.kind in _WRITES:
             _write(target / c.path, c.text)
+        if c.kind == "new" and c.path in plan.copies:  # the git hook runs as is
+            (target / c.path).chmod(plan.copies[c.path].stat().st_mode & 0o777)
     manifest = dict(plan.manifest)
     old: object = manifest.get("files")
     kept = list(cast(dict[str, object], old)) if isinstance(old, dict) else []
@@ -361,16 +538,11 @@ def describe(plan: UpdatePlan, target: Path) -> str:
     count = sum(c.kind in _WRITES for c in plan.changes)
     if not plan.changes and not plan.new_components:
         return "alpha update: nothing to change"
-    lines = [f"alpha update: {count} file{'' if count == 1 else 's'} to change"]
-    old: object = plan.manifest.get("files")
-    generated = cast(dict[str, object], old) if isinstance(old, dict) else None
+    kit = f" (kit {plan.upgraded_from} to {VERSION})" if plan.upgraded_from else ""
+    lines = [f"alpha update{kit}: {count} file{'' if count == 1 else 's'} to change"]
     for c in sorted(plan.changes, key=lambda c: (_ORDER.index(c.kind), c.path)):
-        note = _NOTES.get(c.kind, "")
-        if plan.kit_changed:
-            note = _KIT_NOTES.get(c.kind, note)
-        if c.kind == "skipped" and generated is not None and c.path not in generated:
-            note = _NEWER_KIT  # alpha never wrote it here, so nobody deleted it
-        lines.append(f"  {c.kind:<10}{c.path}{note}")
+        lines.append(f"  {c.kind:<10}{c.path}{_NOTES.get(c.kind, '')}")
+    lines += [f"  {note}" for note in plan.notes]
     if plan.new_components:
         flags = " ".join(f"--component {n}" for n in plan.new_components)
         lines.append(

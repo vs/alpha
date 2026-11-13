@@ -2,17 +2,18 @@
 
 import json
 import os
+import shutil
 from datetime import date
 from pathlib import Path
 
 import pytest
 from helpers import EXISTING, PLUGIN_ROOT, adoption_answers, existing_repo, git, run_cli
 
-from alpha.adopt import AdoptError, AdoptionPlan, apply_adoption, plan_adoption
+from alpha.adopt import AdoptError, apply_adoption, plan_adoption
 from alpha.defaults import Source
 from alpha.generate import GenerateError, load_project_principles
 from alpha.gitops import PROPOSALS, commit_update
-from alpha.update import apply_update, describe, plan_update
+from alpha.update import UpdatePlan, apply_update, describe, plan_update
 
 SOURCE = Source(PLUGIN_ROOT, True)
 TODAY = date(2026, 11, 11)
@@ -26,12 +27,12 @@ def repo(tmp_path: Path, git_env: None) -> Path:
     return root
 
 
-def _plan(root: Path) -> AdoptionPlan:
+def _plan(root: Path) -> UpdatePlan:
     return plan_adoption(root, PLUGIN_ROOT, SOURCE, TODAY)
 
 
 def _kinds(root: Path) -> dict[str, str]:
-    return {c.path: c.kind for c in _plan(root).update.changes}
+    return {c.path: c.kind for c in _plan(root).changes}
 
 
 def _answers(root: Path, data: dict[str, object]) -> None:
@@ -69,7 +70,7 @@ def test_apply_never_loses_a_repo_line(repo: Path):
 
 
 def test_records_follow_the_repos(repo: Path):
-    records = _plan(repo).update.manifest["records"]["decisions"]
+    records = _plan(repo).manifest["records"]["decisions"]
     assert records[0].startswith("docs/decisions/0002-")
 
 
@@ -137,7 +138,9 @@ def test_apply_writes_a_manifest_update_can_use(repo: Path):
     state = json.loads((repo / ".claude/alpha/state/update.json").read_text())
     assert state["kind"] == "adopt" and state["new_components"] == []
     with pytest.raises(GenerateError, match="waiting to be committed"):
-        plan_update(repo, SOURCE, TODAY)  # like any update, until commit-update
+        plan_update(
+            repo, PLUGIN_ROOT, SOURCE, TODAY
+        )  # like any update, until commit-update
 
 
 def test_copied_hook_stays_executable(repo: Path):
@@ -174,9 +177,9 @@ def test_git_hooks_answer_validated(repo: Path):
         _plan(repo)
 
 
-def _resolve(root: Path, plan: AdoptionPlan) -> None:
+def _resolve(root: Path, plan: UpdatePlan) -> None:
     """A stand-in for Claude's hand merge: the repo's file, then alpha's."""
-    for c in plan.update.changes:
+    for c in plan.changes:
         if c.kind == "conflict":
             rendered = (root / PROPOSALS / c.path).read_text()
             (root / c.path).write_text(EXISTING[c.path] + "\n" + rendered)
@@ -225,7 +228,7 @@ def _adopted(repo: Path) -> None:
 
 def test_update_after_adoption(repo: Path):
     _adopted(repo)
-    assert describe(plan_update(repo, SOURCE, TODAY), repo) == (
+    assert describe(plan_update(repo, PLUGIN_ROOT, SOURCE, TODAY), repo) == (
         "alpha update: nothing to change"
     )
     path = repo / ".claude/alpha/project.json"
@@ -236,7 +239,7 @@ def test_update_after_adoption(repo: Path):
     path.write_text(json.dumps(data, indent=2))
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "--no-verify", "-m", "chore: Change the changelog")
-    plan = plan_update(repo, SOURCE, TODAY)
+    plan = plan_update(repo, PLUGIN_ROOT, SOURCE, TODAY)
     kinds = {c.path: c.kind for c in plan.changes}
     assert "conflict" not in kinds.values(), kinds
     if "README.md" in kinds:
@@ -245,10 +248,67 @@ def test_update_after_adoption(repo: Path):
         assert EXISTING["README.md"].strip() in readme  # the repo's lines stay
 
 
+def _older_kit(folder: Path, version: str) -> Path:
+    """A copy of this kit that calls itself `version`, as an older alpha."""
+    for part in ("src", "defaults", "recipes", "registry", "project-files"):
+        shutil.copytree(
+            PLUGIN_ROOT / part,
+            folder / part,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
+    (folder / "src/alpha/__init__.py").write_text(f'VERSION: str = "{version}"\n')
+    return folder
+
+
+def test_kit_upgrade_brings_the_kits_changes_and_keeps_the_repos(
+    repo: Path, tmp_path: Path
+):
+    """Spec §5a: the older kit renders what it wrote, so only its changes
+    come through, and the repo's lines and edits stay."""
+    _adopted(repo)
+    kit = _older_kit(tmp_path / "old-kit", "0.0.1")
+    rel = ".claude/alpha/hooks/guard_bash.py"
+    current = (PLUGIN_ROOT / "project-files/hooks/guard_bash.py").read_text()
+    older = current + "# written by the older kit\n"
+    (kit / "project-files/hooks/guard_bash.py").write_text(older)
+    (repo / rel).write_text(older)  # as that kit wrote it
+    path = repo / ".claude/alpha/project.json"
+    data = json.loads(path.read_text())
+    data["manifest"]["kit_version"] = "0.0.1"
+    data["manifest"]["defaults"] = {"path": str(kit), "live": True, "commit": None}
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    record = repo / data["manifest"]["records"]["decisions"][0]
+    record.write_text(
+        record.read_text().replace("Status: accepted", "Status: superseded by 0099")
+    )
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "chore: As the older kit left it")
+    plan = plan_update(repo, PLUGIN_ROOT, SOURCE, TODAY)
+    assert {c.path: c.kind for c in plan.changes} == {rel: "change"}
+    assert describe(plan, repo).startswith("alpha update (kit 0.0.1 to ")
+    apply_update(repo, plan)
+    assert (repo / rel).read_text() == current
+    assert "Status: superseded by 0099" in record.read_text()
+    assert EXISTING["README.md"].strip() in (repo / "README.md").read_text()
+    assert json.loads(path.read_text())["manifest"]["kit_version"] != "0.0.1"
+
+
+def test_kit_upgrade_without_the_older_kit_says_where_to_put_it(repo: Path):
+    _adopted(repo)
+    path = repo / ".claude/alpha/project.json"
+    data = json.loads(path.read_text())
+    data["manifest"]["kit_version"] = "0.0.1"
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "chore: As an older kit left it")
+    with pytest.raises(GenerateError, match=r"alpha 0\.0\.1 set .* that kit isn't"):
+        plan_update(repo, PLUGIN_ROOT, SOURCE, TODAY)
+
+
 def test_update_refusal_points_to_adopt(tmp_path: Path, git_env: None):
     root = existing_repo(tmp_path / "plain")
     with pytest.raises(GenerateError, match="/alpha:adopt"):
-        plan_update(root, SOURCE, TODAY)
+        plan_update(root, PLUGIN_ROOT, SOURCE, TODAY)
 
 
 def test_apply_refuses_a_repo_that_ignores_alphas_files(repo: Path):

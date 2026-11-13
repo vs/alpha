@@ -105,7 +105,7 @@ def test_adopt_a_real_repo(tmp_path: Path, git_env: None):
 
     plan = plan_adoption(root, PLUGIN_ROOT, SOURCE, TODAY)
     apply_adoption(root, plan)
-    for c in plan.update.changes:
+    for c in plan.changes:
         if c.kind == "conflict":
             (root / c.path).write_text(
                 _resolve((root / PROPOSALS / c.path).read_text())
@@ -138,5 +138,5 @@ def test_adopt_a_real_repo(tmp_path: Path, git_env: None):
     assert "reportReturnType: 2 now, 1 in the baseline" in done.stdout + done.stderr
     core.write_text(APP["src/legacy/core.py"])
 
-    update = plan_update(root, SOURCE, TODAY)
+    update = plan_update(root, PLUGIN_ROOT, SOURCE, TODAY)
     assert describe(update, root) == "alpha update: nothing to change"
