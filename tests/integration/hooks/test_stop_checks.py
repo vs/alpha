@@ -223,6 +223,25 @@ def test_a_lockfile_change_beyond_the_own_version_needs_an_entry(
     assert "Dependencies changed (api/uv.lock)" in reason(run(project))
 
 
+def test_a_dependency_logged_before_the_last_clean_stop_is_not_asked_for_again(
+    project: Project,
+) -> None:
+    project.write("api/uv.lock", uv_lock())
+    commit_all(project)
+    start = project.git("rev-parse", "HEAD").stdout.strip()
+    project.write(".claude/alpha/state/session-start", start + "\n")
+    with_httpx = '{ name = "httpx" }'
+    project.write("api/uv.lock", uv_lock(deps=with_httpx))
+    project.write("docs/dependencies.md", "- httpx\n")
+    commit_all(project)
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+    project.write("api/uv.lock", uv_lock(own="0.2.0", deps=with_httpx))
+    assert "Dependencies changed" not in run(project).stdout
+    project.write("api/uv.lock", uv_lock(own="0.2.0", httpx="0.28.0", deps=with_httpx))
+    assert "Dependencies changed (api/uv.lock)" in reason(run(project))
+
+
 def test_own_version_bump_in_cargo_lock_needs_no_dependency_entry(
     project: Project,
 ) -> None:

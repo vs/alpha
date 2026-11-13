@@ -720,7 +720,7 @@ def find_problems(
             )
 
     if DEPENDENCY_LOG not in changed:
-        since = session_start(root, base)
+        since = base or head_sha(root)
         for comp in components:
             name = str(comp.get("name"))
             if not _common.principle_applies(principles, "dependency-reasons", name):
