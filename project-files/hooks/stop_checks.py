@@ -720,8 +720,6 @@ def find_problems(
             )
 
     if DEPENDENCY_LOG not in changed:
-        # The lockfile is compared with where `changed` starts, so an entry
-        # logged before then isn't asked for again.
         since = base or head_sha(root)
         for comp in components:
             name = str(comp.get("name"))
