@@ -1324,3 +1324,40 @@ def test_tests_command_with_nothing_changed_says_so(project: Project) -> None:
     proc = project.run_tests()
     assert proc.returncode == 0
     assert proc.stdout == "tests passed: no component changed\n"
+
+
+def test_a_failed_tests_run_is_tried_again_on_the_same_files(project: Project) -> None:
+    project.set_test_run("at-merge")
+    flaky = (
+        'python3 -c "import os, sys; '
+        "sys.exit(0 if os.path.exists('../service-up') else 1)\""
+    )
+    project.set_commands("api", test=flaky)
+    commit_all(project)
+    project.write("api/src/a.py", "x\n")
+    assert project.run_tests().returncode == 1
+    project.write("service-up")  # outside every component: the files are the same
+    assert project.run_tests().returncode == 0
+
+
+def test_tests_command_is_not_held_to_the_stop_limits(
+    project: Project, monkeypatch: Any
+) -> None:
+    project.set_test_run("at-merge")
+    data = project.principles()
+    limits: list[float] = []
+
+    def record(command: str, cwd: Any, limit: float) -> tuple[int, str]:
+        limits.append(limit)
+        return 0, ""
+
+    monkeypatch.setattr(_common, "run_command", record)
+    deadline = time.monotonic() + stop_checks.TESTS_LIMIT
+    comp = data["components"][0]
+    assert (
+        stop_checks.command_problems(
+            comp, data, project.root, deadline, stop_checks.TESTS
+        )
+        == []
+    )
+    assert limits and limits[0] > stop_checks.TIMEOUT

@@ -36,8 +36,10 @@ is `at-merge`.
   merge`), the command guard requires that the test suite of every component
   the checkout changed since it left main has passed on the files as they
   are now. `python3 .claude/alpha/hooks/stop_checks.py tests` runs those
-  suites and remembers each result until the component's files, its test
-  command or its baselines change.
+  suites and remembers a pass until the component's files, its test
+  command or its baselines change. A failure isn't remembered, so the next
+  run tries again, and the command isn't held to the Stop hook's time
+  limits.
 - `at-stop`: the Stop hook runs the suite at every turn's end, as before,
   and there is no gate at the merge.
 

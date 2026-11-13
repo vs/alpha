@@ -253,6 +253,9 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 TESTS = ("test",)
+# `stop_checks.py tests` is a command Claude runs, not a hook: the suite gets
+# a day, not the Stop hook's limits.
+TESTS_LIMIT = 24 * 3600
 TESTS_COMMAND = "python3 .claude/alpha/hooks/stop_checks.py tests"
 
 
@@ -317,7 +320,9 @@ def command_problems(
 ) -> list[str]:
     """Run the component's steps named by `keys`, reusing the last result
     while its files and commands are unchanged. The test suite on its own
-    (`TESTS`) is remembered apart from the Stop checks."""
+    (`TESTS`) is remembered apart from the Stop checks, and only when it
+    passed: a failure can come from outside the files (a service that was
+    down), so the next run tries again."""
     steps = step_commands(comp, principles, keys)
     if not steps:
         return []
@@ -327,8 +332,11 @@ def command_problems(
     cached = cached_problems(root, slot, key)
     if cached is not None:
         return cached
-    problems, complete = run_steps(comp, steps, root, deadline)
-    if key is not None and complete:
+    alone = keys == TESTS
+    problems, complete = run_steps(
+        comp, steps, root, deadline, TESTS_LIMIT if alone else TIMEOUT
+    )
+    if key is not None and complete and not (alone and problems):
         cache_path = _common.state_path(root, "stop-cache.json")
         cache = read_json(cache_path)
         cache[slot] = {"key": key, "problems": problems}
@@ -395,7 +403,7 @@ def run_tests() -> NoReturn:
             file=sys.stderr,
         )
         sys.exit(1)
-    deadline = time.monotonic() + BUDGET
+    deadline = time.monotonic() + TESTS_LIMIT
     problems: list[str] = []
     names: list[str] = []
     for comp in components_to_test(root, principles):
@@ -409,7 +417,11 @@ def run_tests() -> NoReturn:
 
 
 def run_steps(
-    comp: dict[str, Any], steps: dict[str, str], root: Path, deadline: float
+    comp: dict[str, Any],
+    steps: dict[str, str],
+    root: Path,
+    deadline: float,
+    limit: float,
 ) -> tuple[list[str], bool]:
     commands: dict[str, Any] = comp.get("commands", {})
     base = str(comp.get("path", ".")).strip("/")
@@ -426,7 +438,7 @@ def run_steps(
                 f"out. Run it by hand: {command}"
             )
             continue
-        timeout = min(TIMEOUT, remaining)
+        timeout = min(limit, remaining)
         status, output = run_step(command, cwd, timeout, deadline)
         if status == "ok":
             continue
