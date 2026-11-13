@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 4 | 4 |
-| P4 Rework | 13 | 14 |
+| P4 Rework | 14 | 14 |
 | P6 Traceability | 1 | 1 |
 
 ## P2 Close tool gaps
@@ -80,7 +80,7 @@ Done when:
 | `p4-no-ci-wording` | alpha | done |
 | `p4-tests-by-level` | alpha | done |
 | `p4-startup-budget-test` | alpha | done |
-| `p4-missing-releases` | - | pending |
+| `p4-missing-releases` | - | done |
 
 ### `p4-guard-hook-bypasses`: Block every way to skip the commit hooks
 
