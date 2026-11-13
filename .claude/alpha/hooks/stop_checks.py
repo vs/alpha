@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -251,36 +252,160 @@ def read_json(path: Path) -> dict[str, Any]:
     return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
 
 
-def command_problems(
-    comp: dict[str, Any], principles: dict[str, Any], root: Path, deadline: float
-) -> list[str]:
+TESTS = ("test",)
+TESTS_COMMAND = "python3 .claude/alpha/hooks/stop_checks.py tests"
+
+
+def tests_at_merge(principles: dict[str, Any]) -> bool:
+    """Whether the full test suite waits for the checkpoint before main, not
+    for every Stop. A principles file from before the setting runs it at Stop."""
+    testing: object = principles.get("testing")
+    return (
+        isinstance(testing, dict)
+        and cast("dict[str, Any]", testing).get("run") == "at-merge"
+    )
+
+
+def component_label(comp: dict[str, Any]) -> str:
+    return str(comp.get("name", comp.get("path", ".")))
+
+
+def step_commands(
+    comp: dict[str, Any], principles: dict[str, Any], keys: tuple[str, ...]
+) -> dict[str, str]:
     commands: dict[str, Any] = comp.get("commands", {})
-    name = str(comp.get("name", comp.get("path", ".")))
-    steps = {
+    name = component_label(comp)
+    return {
         key: command
-        for key, principle in COMMAND_PRINCIPLES.items()
-        if _common.principle_applies(principles, principle, name)
+        for key in keys
+        if _common.principle_applies(principles, COMMAND_PRINCIPLES[key], name)
         and isinstance(command := commands.get(key), str)
         and command
     }
+
+
+def steps_key(
+    root: Path, comp: dict[str, Any], principles: dict[str, Any], steps: dict[str, str]
+) -> str | None:
+    """What a result of these steps holds for: the component's files and the
+    commands (and the baselines, when the project has any)."""
+    files = tree_hash(root, comp)
+    if files is None:
+        return None
+    key = json.dumps([files, steps], sort_keys=True)
+    if principles.get("baselines"):
+        key = json.dumps([key, baselines_hash(root, principles)])
+    return key
+
+
+def cached_problems(root: Path, slot: str, key: str | None) -> list[str] | None:
+    hit: object = read_json(_common.state_path(root, "stop-cache.json")).get(slot)
+    if key is None or not isinstance(hit, dict):
+        return None
+    entry = cast("dict[str, Any]", hit)
+    if entry.get("key") != key or not isinstance(entry.get("problems"), list):
+        return None
+    return [str(p) for p in cast("list[Any]", entry["problems"])]
+
+
+def command_problems(
+    comp: dict[str, Any],
+    principles: dict[str, Any],
+    root: Path,
+    deadline: float,
+    keys: tuple[str, ...],
+) -> list[str]:
+    """Run the component's steps named by `keys`, reusing the last result
+    while its files and commands are unchanged. The test suite on its own
+    (`TESTS`) is remembered apart from the Stop checks."""
+    steps = step_commands(comp, principles, keys)
     if not steps:
         return []
-    files = tree_hash(root, comp)
-    key = None if files is None else json.dumps([files, steps], sort_keys=True)
-    if key is not None and principles.get("baselines"):
-        key = json.dumps([key, baselines_hash(root, principles)])
-    cache_path = _common.state_path(root, "stop-cache.json")
-    cache = read_json(cache_path)
-    hit: object = cache.get(name)
-    if key is not None and isinstance(hit, dict):
-        entry = cast("dict[str, Any]", hit)
-        if entry.get("key") == key and isinstance(entry.get("problems"), list):
-            return [str(p) for p in cast("list[Any]", entry["problems"])]
+    name = component_label(comp)
+    slot = f"test:{name}" if keys == TESTS else name
+    key = steps_key(root, comp, principles, steps)
+    cached = cached_problems(root, slot, key)
+    if cached is not None:
+        return cached
     problems, complete = run_steps(comp, steps, root, deadline)
     if key is not None and complete:
-        cache[name] = {"key": key, "problems": problems}
+        cache_path = _common.state_path(root, "stop-cache.json")
+        cache = read_json(cache_path)
+        cache[slot] = {"key": key, "problems": problems}
         cache_path.write_text(json.dumps(cache))
     return problems
+
+
+def runs_commands(comp: dict[str, Any], files: list[str]) -> bool:
+    """Whether a change to these files of the component can change what its
+    checks say: source, tests or a manifest."""
+    manifests = [str(m) for m in comp.get("manifests", [])]
+    return any(
+        _common.is_source(f, comp)
+        or _common.is_test(f, comp)
+        or _common.matches(f, manifests)
+        for f in files
+    )
+
+
+def components_to_test(root: Path, principles: dict[str, Any]) -> list[dict[str, Any]]:
+    """The components this checkout changed since it left main."""
+    by_comp: dict[str, list[str]] = {}
+    found: dict[str, dict[str, Any]] = {}
+    for rel in changed_since(root, review.main_base(root)):
+        comp = _common.component_for(rel, principles)
+        if comp is not None:
+            name = component_label(comp)
+            found[name] = comp
+            by_comp.setdefault(name, []).append(rel)
+    return [c for name, c in found.items() if runs_commands(c, by_comp[name])]
+
+
+def untested_blocker(root: Path, principles: dict[str, Any]) -> str | None:
+    """Why this checkout's work can't reach main yet: a changed component's
+    test suite hasn't passed on the files as they are now."""
+    if not tests_at_merge(principles):
+        return None
+    waiting: list[str] = []
+    for comp in components_to_test(root, principles):
+        steps = step_commands(comp, principles, TESTS)
+        key = steps_key(root, comp, principles, steps)
+        slot = f"test:{component_label(comp)}"
+        if steps and cached_problems(root, slot, key) != []:
+            waiting.append(component_label(comp))
+    if not waiting:
+        return None
+    return (
+        f"Nothing reaches main untested: the tests of {', '.join(waiting)} haven't "
+        f"passed on the files as they are now. Run {TESTS_COMMAND} from the "
+        "project root (it runs each changed component's full test suite and "
+        "remembers a pass), fix what fails, then retry."
+    )
+
+
+def run_tests() -> NoReturn:
+    """`stop_checks.py tests`: run each changed component's test suite and
+    remember the result for the checkpoint before main."""
+    root = _common.project_root({"cwd": os.getcwd()})
+    principles = _common.load_principles(root)
+    if principles is None:
+        print(
+            "stop_checks.py: no docs/principles.toml here. Run it from the "
+            "project root.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    deadline = time.monotonic() + BUDGET
+    problems: list[str] = []
+    names: list[str] = []
+    for comp in components_to_test(root, principles):
+        names.append(component_label(comp))
+        problems += command_problems(comp, principles, root, deadline, TESTS)
+    if problems:
+        print("\n".join(problems), file=sys.stderr)
+        sys.exit(1)
+    print(f"tests passed: {', '.join(names) or 'no component changed'}")
+    sys.exit(0)
 
 
 def run_steps(
@@ -623,15 +748,14 @@ def find_problems(
     if not run_commands:
         return problems
     deadline = time.monotonic() + BUDGET
+    keys = tuple(
+        key
+        for key in COMMAND_PRINCIPLES
+        if key not in TESTS or not tests_at_merge(principles)
+    )
     for comp in components:
-        manifests = [str(m) for m in comp.get("manifests", [])]
-        if any(
-            _common.is_source(f, comp)
-            or _common.is_test(f, comp)
-            or _common.matches(f, manifests)
-            for f in by_comp[str(comp.get("name"))]
-        ):
-            problems.extend(command_problems(comp, principles, root, deadline))
+        if runs_commands(comp, by_comp[str(comp.get("name"))]):
+            problems.extend(command_problems(comp, principles, root, deadline, keys))
     problems += repo_check_problems(root, principles, changed, deadline)
     return problems
 
@@ -732,6 +856,8 @@ def review_or_flag(
 
 def main() -> None:
     _common.check_python()
+    if sys.argv[1:] == ["tests"]:
+        run_tests()
     inp = _common.read_input()
     root = _common.project_root(inp)
     principles = _common.load_principles(root)

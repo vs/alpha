@@ -107,6 +107,8 @@ Code: `**/*.py`. Tests: `tests/**/*.py`, `**/test_*.py`, `**/*_test.py`, `**/con
 
 Run every check: `mise run check`.
 
+The hooks leave the full test suites to one checkpoint: before your work reaches main (a push to main, or merging a pull request), run `python3 .claude/alpha/hooks/stop_checks.py tests`. It runs the suite of each component you changed and remembers a pass until those files change. While you work, run the tests your change touches.
+
 ## Definition of done
 
 1. Tests written and passing.

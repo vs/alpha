@@ -832,11 +832,11 @@
     "extra_risk_paths": []
   },
   "manifest": {
-    "kit_version": "0.5.0",
+    "kit_version": "0.6.0",
     "generated_at": "2026-11-12",
     "adopted_at": "2026-11-12",
     "defaults": {
-      "path": "~/workspace/alpha",
+      "path": "~/workspace/alpha/.claude/worktrees/tests-at-merge",
       "live": false,
       "commit": null
     },
@@ -1702,7 +1702,7 @@
       "alpha": "2026-11-12"
     },
     "files": {
-      ".betterleaks.toml": "sha256:277a6d453dca13ec70f5f64ac966dbe5efb93f9a3f75f0e6721b5b4f317ad89c",
+      ".betterleaks.toml": "sha256:73c6df4257f10e5f06679d8a2d4cd67056a41dbe5acd646cf525b0582d05b6a8",
       ".claude/agents/committer.md": "sha256:388deb1b7b411facea05ca55825a1d5de3419c103665f2781e7c94199c9150d8",
       ".claude/agents/principles-reviewer.md": "sha256:220729dcb5713f14eb59a2ee1741794a51fa19d9775d403ead8dc79cf6a32712",
       ".claude/alpha/checks/diff_checks.py": "sha256:6fa961651fcb634468c1cea4b6a071855a8b3cf1708bf08e79fff50a68701c4b",
@@ -1713,13 +1713,13 @@
       ".claude/alpha/githooks/commit-msg": "sha256:cf04bd88851198263c0dd79b1eb4b8833a195ac1163db0888bb986d2fa8bd60c",
       ".claude/alpha/hooks/_common.py": "sha256:8ddcb9d59d2d28db05bef2fdd1ddf590aa607e253cb69702eb53641fe8140bbd",
       ".claude/alpha/hooks/commit_msg.py": "sha256:35ab2b248f2939272ea9abb414cd1bf601650fcccd24dca774744cba9d4f8dae",
-      ".claude/alpha/hooks/guard_bash.py": "sha256:b75f8fab8e31f2f5ccdc011ffcffc363b237f5569bbbb04a04286ce4fdfa2b2d",
+      ".claude/alpha/hooks/guard_bash.py": "sha256:9c28dbe45067488fc4f197b09574b7b899a0585020bff64249e2be5025a7de72",
       ".claude/alpha/hooks/guard_paths.py": "sha256:69e3daca0f32574d1d3a669dff1586814ae5c6140235f2da7170b900c5f30fd4",
       ".claude/alpha/hooks/post_edit.py": "sha256:7942ac13f8cc87d29998b1551afba5cb8e686c1e4e488580d1ea56b8b887dd93",
-      ".claude/alpha/hooks/review.py": "sha256:e3d0de6e6d0f2329b3234e09bb50bd02ead198c7301c47a5ffa4c2570ba26b9b",
+      ".claude/alpha/hooks/review.py": "sha256:cf3e1be196cad00b612cc932d7449adea1bf92863ab32300da65777721b08ce4",
       ".claude/alpha/hooks/review_record.py": "sha256:ed811c19bcd9e72beaa591c5d9389900ec0213c20d3dae488fb9bb5c4fca14fb",
       ".claude/alpha/hooks/session_start.py": "sha256:54d572b1cc0585b8fcc12fb344c3abc6536b58987cd53d4ac3771710e292bc99",
-      ".claude/alpha/hooks/stop_checks.py": "sha256:7da888252763f7a5dfd7a65fe21031e052d62fa6ef6b8ef349eda7bc4dc04688",
+      ".claude/alpha/hooks/stop_checks.py": "sha256:41d272b8ea7bad23e025c2cf5217258d3eeee075861942886dbc85901c876a91",
       ".claude/alpha/hooks/subagent_start.py": "sha256:c65b7861fcb08685626c2a48c95b5f19bbba5b0d90f192af1f1964920c742039",
       ".claude/alpha/hooks/user_prompt.py": "sha256:36ca81b355e43d6d45b19d1974136740ef946c37fd9828830c5a71b1e67b0608",
       ".claude/settings.json": "sha256:8470c8cc20b63aa4a32a10cbfa3a772388e9c445d5dab3b6dd9fbfc1f7f400a6",
@@ -1729,11 +1729,11 @@
       ".claude/skills/decision/SKILL.md": "sha256:21bd8dfc679706dea21ca35992641cba84017d3adde9afcc3db3f2462a52bb30",
       ".claude/skills/review-change/SKILL.md": "sha256:030a78de6260b37987fb01b508dc3f5c2fd082ae665dbb55f312db85d2b2b158",
       ".gitignore": "sha256:e1f166fb62f35ad82fc9f7f0f56d9c45de7732c87312030d0762c9af88b9b712",
-      ".rumdl.toml": "sha256:0b2cb9228e9e7c88b4f46f14e9dffc561cf241b7a8f502076f933d8f05f1a389",
-      "CLAUDE.md": "sha256:362f69b46bdc86101750941b3e3d1cddc6ae16004d03985d5741884e930497b5",
-      "CONTRIBUTING.md": "sha256:347821163280866bfe9065e0e56d9b41c9f3afdb8e22283efeaadccc57e91817",
-      "README.md": "sha256:39f7d7b7f584592767fe8fd7ff66cad56c667211393bd650814c0c01554d712c",
-      "_typos.toml": "sha256:8c1d7a0673f71fe186099c95af72f8f870c893418f2951ab6092793e1f3dc637",
+      ".rumdl.toml": "sha256:9382fe071cf76551d8127b9b9652a9ff23591b30870d610b89165da4c972f512",
+      "CLAUDE.md": "sha256:eeeedc078751b023ad9e06a1d675e046a8bdf10e43a843a44b92b93151edb6f0",
+      "CONTRIBUTING.md": "sha256:b498c36d56c1f427268bb1931d3031ced30b8605b62f0b362360f8e5aae3a726",
+      "README.md": "sha256:43e60726b931c62c28385152ce93807c0768da0b1240d77e66781ac00129ffc9",
+      "_typos.toml": "sha256:3dde33ae6acb93d91ec5a95bd5d60c3a7f8363f329abb4998e83cd1900d0e106",
       "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
       "docs/build.md": "sha256:1989a6f6d23296f92d8e9e68401b43f5e07f865e5ca5ba5b93b04d0201dce55e",
@@ -1756,15 +1756,15 @@
       "docs/decisions/0016-conventional-commits-on-feature-branches.md": "sha256:2d1e9b729d9ad2778a83ca33069b2de472ab98b92807eeaff2a27d5290b93912",
       "docs/decisions/0017-review-at-merge.md": "sha256:29c2e0e1b5f1af4983ead8fa0aed8fcffed4bfa4caa7b233b37a7e944c7ff43d",
       "docs/decisions/0018-override-build-hosting-upfront.md": "sha256:be025c90f01b359d304ce147af26b9e6d0713de21cbcead8d050252b4026b61e",
-      "docs/dependencies.md": "sha256:3945f392a93f931046693bc8002104ecda504ba22ecefcaa7b037f0eef5cef87",
+      "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
       "docs/glossary.md": "sha256:7eaea5016c5a9318a97987c96e106c512186c8ec02a779a73a2105719a3bd5cd",
       "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
-      "docs/principles.toml": "sha256:8872c1fda7eaf41552e3a36cd543a4a77a5decb5b975067f420ed9c1ee329ca2",
+      "docs/principles.toml": "sha256:7410360f9e9d25fed55e713b22ade43d8fa312bf77b8c7ed1d102e46b5b1d0bf",
       "docs/product.md": "sha256:f16cf2fdf4b69e188970efff2396c3dbfed048821621887a097fdafe091b1165",
       "docs/releases.md": "sha256:f87fe7b35dd5a3b79159c751d5074fdd42d8e1aa9105c2a475c3df4cd45afd11",
       "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
       "lychee.toml": "sha256:be7ab01eb157c56d4687f0c6a728e1ea98582d1c81b45980d920d1fedce9b138",
-      "mise.toml": "sha256:3cd93403ac70da31893570a60343339affedfc9ffeda066026eb3b1f2173f802"
+      "mise.toml": "sha256:ae3d7d2ba5d34b2da806ed752c4683a643052d8aa3396b29cdca0cd8f90a23b0"
     },
     "updated_at": "2026-11-13"
   }
