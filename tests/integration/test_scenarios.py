@@ -379,10 +379,20 @@ def test_generated_hooks_enforce_the_generated_principles(
     assert ran == [
         "api: uv run pyright",
         "api: uv run deptry .",
-        "api: uv run pytest",
         "web: pnpm tsc --noEmit",
         "web: pnpm knip",
         "web: pnpm depcruise --config .dependency-cruiser.cjs .",
+    ]
+    tests = subprocess.run(
+        "python3 .claude/alpha/hooks/stop_checks.py tests",
+        shell=True,
+        cwd=target,
+        capture_output=True,
+        text=True,
+    )
+    assert tests.returncode == 0, tests.stderr
+    assert log.read_text().splitlines()[9:] == [
+        "api: uv run pytest",
         "web: pnpm vitest run",
     ]
 

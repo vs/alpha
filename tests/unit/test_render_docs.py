@@ -375,8 +375,31 @@ def test_contributing_names_the_review_checkpoint(tmp_path: Path):
     text = render(load(tmp_path))["CONTRIBUTING.md"]
     branching = text.split("## Branching\n")[1]
     assert (
+        "Claude runs the principles reviewer and each changed component's full "
+        "test suite before its work reaches main: a push to main, or merging a "
+        "pull request. People can push by hand." in branching
+    )
+
+
+def test_docs_say_when_the_full_test_suite_runs(tmp_path: Path):
+    def at_stop(data: dict[str, Any]) -> None:
+        data["testing"]["run"] = "at-stop"
+
+    at_merge = render(load(tmp_path / "merge"))
+    assert (
+        "before your work reaches main (a push to main, or merging a pull "
+        "request), run `python3 .claude/alpha/hooks/stop_checks.py tests`."
+        in at_merge["CLAUDE.md"]
+    )
+    stop = render(load(tmp_path / "stop", at_stop))
+    assert "stop_checks.py tests" not in stop["CLAUDE.md"]
+    assert (
+        "The Stop hook runs the full test suite of each component you changed "
+        "every time you finish a turn." in stop["CLAUDE.md"]
+    )
+    assert (
         "Claude runs the principles reviewer before its work reaches main: a "
-        "push to main, or merging a pull request. People can push by hand." in branching
+        "push to main" in stop["CONTRIBUTING.md"]
     )
 
 

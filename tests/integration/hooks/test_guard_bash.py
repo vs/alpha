@@ -538,6 +538,43 @@ def test_push_allowed_right_after_a_clean_review(project: Project) -> None:
     committed(project)
     project.write("api/src/x.py", "x = 1\n")
     mark_reviewed(project)
+    assert project.run_tests().returncode == 0
+    assert bash(project, "git push").returncode == 0
+
+
+def test_a_push_to_main_waits_for_the_tests(project: Project) -> None:
+    committed(project)
+    project.write("api/src/x.py", "x = 1\n")
+    mark_reviewed(project)
+    proc = bash(project, "git push")
+    assert proc.returncode == 2
+    assert proc.stderr.startswith(
+        "Nothing reaches main untested: the tests of api haven't passed on the "
+        "files as they are now. Run python3 .claude/alpha/hooks/stop_checks.py tests"
+    )
+    assert project.run_tests().returncode == 0
+    assert bash(project, "git push").returncode == 0
+    project.write("api/src/x.py", "x = 2\n")
+    mark_reviewed(project)
+    assert bash(project, "git push").returncode == 2  # tested files changed
+
+
+def test_a_failing_suite_keeps_main_closed(project: Project) -> None:
+    project.set_commands("api", test="python3 -c 'raise SystemExit(1)'")
+    committed(project)
+    project.write("api/src/x.py", "x = 1\n")
+    mark_reviewed(project)
+    assert project.run_tests().returncode == 1
+    proc = bash(project, "git push")
+    assert proc.returncode == 2
+    assert "Nothing reaches main untested" in proc.stderr
+
+
+def test_a_project_that_tests_at_stop_has_no_test_gate(project: Project) -> None:
+    project.set_test_run("at-stop")
+    committed(project)
+    project.write("api/src/x.py", "x = 1\n")
+    mark_reviewed(project)
     assert bash(project, "git push").returncode == 0
 
 

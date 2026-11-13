@@ -143,7 +143,7 @@ MAIN_REFS = (
 )
 
 
-def _base(root: Path) -> str | None:
+def main_base(root: Path) -> str | None:
     """Where this checkout's own work leaves main. A pushed feature branch isn't
     reviewed work, so the branch's upstream doesn't count."""
     for ref in MAIN_REFS:
@@ -162,7 +162,7 @@ def _tree(root: Path, commit: str | None) -> str:
 
 def ensure_state(root: Path) -> dict[str, Any]:
     state = load_state(root)
-    base = _base(root)
+    base = main_base(root)
     if not isinstance(state.get("reviewed_tree"), str):
         fresh: dict[str, Any] = {
             "reviewed_tree": _tree(root, base),

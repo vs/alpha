@@ -28,6 +28,7 @@ A project that must not fail (a library or tool others build on, a data store, a
 - `testing.components[].levels` - from `unit`, `integration`, `end-to-end`, `contract`; always includes `unit`, each level once.
 - `testing.diff_coverage` - optional whole percentage, 0 to 100: the share of the lines a pull request changes that its tests must cover (0 turns the check off). Leave it out to take `defaults.testing.diff_coverage`. Only components whose recipe has a `coverage` command are checked.
 - `testing.exhaustive` - optional `true` or `false`: whether the project is tested exhaustively. Leave it out to take `defaults.testing.exhaustive`. When it is on, the diff coverage check is 100% of changed lines and branches, so leave `diff_coverage` out.
+- `testing.run` - optional, `"at-merge"` or `"at-stop"`: when alpha's hooks run a component's full test suite. `at-merge`: once, before Claude's work reaches main (a push to main, or merging a pull request). `at-stop`: every time Claude finishes a turn in which the component changed, which suits a suite that takes seconds. Leave it out to take `defaults.testing.run`.
 - `areas.testing` - `"in_progress"` while you work, `"done"` at the end.
 - `decisions[]` - one entry with `"area": "testing"`.
 
@@ -43,8 +44,9 @@ Run this with the `alpha:grilling` skill (invoke it with the Skill tool and foll
   Explain each level in a few words: `unit` (one piece, no I/O), `integration` (with its real database, files or services), `end-to-end` (a whole user flow), `contract` (both sides keep to the contract file). Restate the acceptance convention in one line.
 - **Exhaustive testing** - ask whether to test this project exhaustively, with one line on what it demands and what it costs (see Purpose). Recommend `defaults.testing.exhaustive`, or yes when the user already asked for it (e.g. "extremely well tested", "tested like SQLite").
 - **Diff coverage** - say in one line that pull requests must cover at least `diff_coverage`% of the lines they change (0 turns this off), and recommend `defaults.testing.diff_coverage`. Ask it in the same round, as the threshold that holds if exhaustive testing stays off; when the user turns exhaustive testing on, pull requests must cover every line and branch they change, and `diff_coverage` isn't saved.
+- **When the full suite runs** - say in one line that alpha's hooks run the full test suite once, before Claude's work reaches main, and that `at-stop` runs it after every turn instead (worth it only while the suite takes seconds). Recommend `defaults.testing.run`.
 
-When a kind's levels differ from the default (not just this project's additions above), follow the grilling skill's override protocol (key `testing.levels.<kind>`, e.g. `testing.levels.backend`). An answer for `diff_coverage` or `exhaustive` that differs from the default goes through it too, with key `testing.diff_coverage` or `testing.exhaustive`.
+When a kind's levels differ from the default (not just this project's additions above), follow the grilling skill's override protocol (key `testing.levels.<kind>`, e.g. `testing.levels.backend`). An answer for `diff_coverage`, `exhaustive` or `run` that differs from the default goes through it too, with key `testing.diff_coverage`, `testing.exhaustive` or `testing.run`.
 
 ## Writing the answers
 
@@ -56,7 +58,7 @@ Each top-level key you send replaces that key in project.json; the others stay a
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `testing` set to `"in_progress"`.
-3. When the user confirms the area, save the `testing` object `{"components": [{"name", "levels"}]}`, with one entry per component, plus `"diff_coverage": <0-100>` and `"exhaustive": <true|false>`, each only when the user chose a value other than the default. Keep the exact field names.
+3. When the user confirms the area, save the `testing` object `{"components": [{"name", "levels"}]}`, with one entry per component, plus `"diff_coverage": <0-100>`, `"exhaustive": <true|false>` and `"run": "<at-merge|at-stop>"`, each only when the user chose a value other than the default. Keep the exact field names.
 4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "testing"`:
    `{"area": "testing", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the levels (e.g. "Unit, integration and end-to-end tests"); `context` is where the risk is; `decision` gives each component's levels and says whether testing is exhaustive; `consequences` says how tests trace to requirements, plus any defaults wish from the override protocol.
 5. In the same call, save `areas` with `testing` set to `"done"`.
