@@ -169,6 +169,65 @@ def test_lockfile_without_dependency_log_blocks(project: Project) -> None:
     assert counter(project) == 0
 
 
+UV_LOCK = """version = 1
+
+[[package]]
+name = "api"
+version = "{own}"
+source = {{ editable = "." }}
+dependencies = [{deps}]
+
+[[package]]
+name = "httpx"
+version = "{httpx}"
+source = {{ registry = "https://pypi.org/simple" }}
+"""
+
+
+def uv_lock(own: str = "0.1.0", httpx: str = "0.27.0", deps: str = "") -> str:
+    return UV_LOCK.format(own=own, httpx=httpx, deps=deps)
+
+
+def test_own_version_bump_in_a_lockfile_needs_no_dependency_entry(
+    project: Project,
+) -> None:
+    project.write("api/uv.lock", uv_lock())
+    commit_all(project)
+    project.write("api/uv.lock", uv_lock(own="0.2.0"))
+    assert "Dependencies changed" not in run(project).stdout
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"httpx": "0.28.0"},  # a pin moves
+        {"deps": '{ name = "httpx" }'},  # a direct dependency, already pinned
+    ],
+)
+def test_a_lockfile_change_beyond_the_own_version_needs_an_entry(
+    project: Project, changed: dict[str, str]
+) -> None:
+    project.write("api/uv.lock", uv_lock())
+    commit_all(project)
+    project.write("api/uv.lock", uv_lock(own="0.2.0", **changed))
+    assert "Dependencies changed (api/uv.lock)" in reason(run(project))
+
+
+def test_own_version_bump_in_cargo_lock_needs_no_dependency_entry(
+    project: Project,
+) -> None:
+    lock = 'version = 4\n\n[[package]]\nname = "api"\nversion = "{}"\n'
+    project.write("api/Cargo.lock", lock.format("0.1.0"))
+    data = project.principles()
+    next(c for c in data["components"] if c["name"] == "api")["lockfiles"] = [
+        "api/Cargo.lock"
+    ]
+    project.write_principles(data)
+    commit_all(project)
+    project.write("api/Cargo.lock", lock.format("0.2.0"))
+    assert "Dependencies changed" not in run(project).stdout
+
+
 def test_manifest_config_change_needs_no_dependency_entry(project: Project) -> None:
     commit_all(project)
     project.write(

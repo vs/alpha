@@ -20,6 +20,8 @@ MAX_BLOCKS = 3
 MAX_SCAN_BYTES = 1_000_000
 SNIFF_BYTES = 8192
 DEPENDENCY_LOG = "docs/dependencies.md"
+# Lockfiles that also hold the project's own version, which a release bumps.
+SELF_VERSIONED = ("uv.lock", "Cargo.lock")
 HASH_CONTENT_BYTES = 1_000_000
 BASELINE_DIR = _common.BASELINE_DIR
 SECRET_PATTERNS = [
@@ -489,6 +491,52 @@ def migration_problems(
     return problems
 
 
+def _own(package: dict[str, Any]) -> bool:
+    """The project's own package: uv marks it virtual or editable, Cargo
+    gives workspace members no source."""
+    source: object = package.get("source")
+    if source is None:
+        return True
+    if not isinstance(source, dict):
+        return False
+    return bool({"virtual", "editable"} & set(cast("dict[str, Any]", source)))
+
+
+def _unversioned(package: object) -> object:
+    if not isinstance(package, dict):
+        return package
+    entry = cast("dict[str, Any]", package)
+    return {k: v for k, v in entry.items() if k != "version"} if _own(entry) else entry
+
+
+def _pinned(text: str) -> object:
+    """The lockfile with the project's own versions left out, or the text
+    itself when it doesn't parse."""
+    import tomllib  # noqa: PLC0415 - absent on 3.9; check_python() has exited by then
+
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return text
+    packages: object = data.get("package")
+    if isinstance(packages, list):
+        data["package"] = [_unversioned(p) for p in cast("list[object]", packages)]
+    return data
+
+
+def dependencies_changed(root: Path, ref: str | None, rel: str) -> bool:
+    """Whether a lockfile change touches a dependency: bumping the project's
+    own version in uv.lock or Cargo.lock doesn't."""
+    if ref is None or Path(rel).name not in SELF_VERSIONED:
+        return True
+    before = git_lines(root, "show", f"{ref}:{rel}")
+    try:
+        now = (root / rel).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return True
+    return before is None or _pinned("\n".join(before)) != _pinned(now)
+
+
 def is_behavior(rel: str, principles: dict[str, Any], docs: list[str]) -> bool:
     if _common.matches(rel, docs):
         return False
@@ -535,15 +583,16 @@ def find_problems(
             )
 
     if DEPENDENCY_LOG not in changed:
+        since = session_start(root, base)
         for comp in components:
             name = str(comp.get("name"))
             if not _common.principle_applies(principles, "dependency-reasons", name):
                 continue
-            # A lockfile changes exactly when dependencies do; a manifest also
-            # holds tool settings, whose edits need no log entry.
+            # Only lockfiles count: a manifest also holds tool settings, whose
+            # edits need no log entry.
             lockfiles = [str(lock) for lock in comp.get("lockfiles", [])]
             for rel in by_comp[str(comp.get("name"))]:
-                if rel in lockfiles:
+                if rel in lockfiles and dependencies_changed(root, since, rel):
                     problems.append(
                         f"Dependencies changed ({rel}) without an entry in "
                         f"{DEPENDENCY_LOG}. Record what was added and why."
