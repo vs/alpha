@@ -693,6 +693,10 @@
       {
         "term": "adoption step",
         "meaning": "One item of an adopted repo's compliance plan, done only when its acceptance conditions hold."
+      },
+      {
+        "term": "design language",
+        "meaning": "The one look a project declares for all its visuals (diagrams, charts, images, UI): optional, and enforced by the reviewer only when defined."
       }
     ]
   },
@@ -1535,6 +1539,10 @@
           {
             "term": "adoption step",
             "meaning": "One item of an adopted repo's compliance plan, done only when its acceptance conditions hold."
+          },
+          {
+            "term": "design language",
+            "meaning": "The one look a project declares for all its visuals (diagrams, charts, images, UI): optional, and enforced by the reviewer only when defined."
           }
         ]
       },
@@ -1732,7 +1740,7 @@
       ".rumdl.toml": "sha256:9382fe071cf76551d8127b9b9652a9ff23591b30870d610b89165da4c972f512",
       "CLAUDE.md": "sha256:eeeedc078751b023ad9e06a1d675e046a8bdf10e43a843a44b92b93151edb6f0",
       "CONTRIBUTING.md": "sha256:b498c36d56c1f427268bb1931d3031ced30b8605b62f0b362360f8e5aae3a726",
-      "README.md": "sha256:43e60726b931c62c28385152ce93807c0768da0b1240d77e66781ac00129ffc9",
+      "README.md": "sha256:6789bb851509030c228173ea54fc382541a22edd2ff63bfdc180b0c2582ffda9",
       "_typos.toml": "sha256:3dde33ae6acb93d91ec5a95bd5d60c3a7f8363f329abb4998e83cd1900d0e106",
       "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
@@ -1757,7 +1765,7 @@
       "docs/decisions/0017-review-at-merge.md": "sha256:29c2e0e1b5f1af4983ead8fa0aed8fcffed4bfa4caa7b233b37a7e944c7ff43d",
       "docs/decisions/0018-override-build-hosting-upfront.md": "sha256:be025c90f01b359d304ce147af26b9e6d0713de21cbcead8d050252b4026b61e",
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
-      "docs/glossary.md": "sha256:7eaea5016c5a9318a97987c96e106c512186c8ec02a779a73a2105719a3bd5cd",
+      "docs/glossary.md": "sha256:14ceb0d991632e981a8bee3a1209ce754752ed3922a9ccd2cdae2bec27d8655e",
       "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
       "docs/principles.toml": "sha256:c2972ff85f943941876e5509492ad59504ad6a26002fc8d4c2bc70c2ce246a7c",
       "docs/product.md": "sha256:f16cf2fdf4b69e188970efff2396c3dbfed048821621887a097fdafe091b1165",
@@ -1766,6 +1774,6 @@
       "lychee.toml": "sha256:be7ab01eb157c56d4687f0c6a728e1ea98582d1c81b45980d920d1fedce9b138",
       "mise.toml": "sha256:ae3d7d2ba5d34b2da806ed752c4683a643052d8aa3396b29cdca0cd8f90a23b0"
     },
-    "updated_at": "2026-11-13"
+    "updated_at": "2026-11-14"
   }
 }
