@@ -220,7 +220,7 @@ def test_review_settings_come_from_answers(tmp_path: Path):
 
 
 def test_facts():
-    facts = compute_facts(A)
+    facts = compute_facts(A, D)
     assert facts["has_ui"] and facts["communicating_components"]
     assert facts["budgets_set"] and not facts["ml"]
 
@@ -336,12 +336,12 @@ def test_perf_budgets_apply_where_budgets_are_set(tmp_path: Path):
 
     out = build_principles(D, variant(tmp_path, no_web_budgets), "0.1.0")
     assert principle(out, "perf-budgets")["components"] == ["api"]
-    assert compute_facts(variant(tmp_path / "b", no_web_budgets))["budgets_set"]
+    assert compute_facts(variant(tmp_path / "b", no_web_budgets), D)["budgets_set"]
 
 
 def test_no_budgets_turn_perf_budgets_off(tmp_path: Path):
     a = scenario_answers(tmp_path, "python-ml-single")
-    assert not compute_facts(a)["budgets_set"]
+    assert not compute_facts(a, D)["budgets_set"]
     p = principle(build_principles(D, a, "0.1.0"), "perf-budgets")
     assert p["active"] is False and p["components"] == []
 
@@ -497,3 +497,63 @@ def test_ci_checks_reach_the_built_principles():
     assert "ci:tree" in by_id["generated-from-source"]["checked_by"]
     assert "ci:migrations" in by_id["safe-migrations"]["checked_by"]
     assert "ci:" not in "".join(by_id["dependency-reasons"]["checked_by"])
+
+
+def _exhaustive(data: dict[str, Any]) -> None:
+    data["testing"]["exhaustive"] = True
+
+
+def test_exhaustive_testing_is_off_unless_asked_for():
+    out = build_principles(D, A, "0.1.0")
+    off = principle(out, "exhaustive-testing")
+    assert off["active"] is False and off["components"] == []
+    assert "exhaustive" not in out["testing"]
+
+
+def test_exhaustive_answer_switches_the_principle_on(tmp_path: Path):
+    out = build_principles(D, variant(tmp_path, _exhaustive), "0.1.0")
+    on = principle(out, "exhaustive-testing")
+    assert on["active"] is True
+    assert on["components"] == [c["name"] for c in out["components"]]
+    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True}
+
+
+def test_exhaustive_default_applies_until_the_answer_says_no(tmp_path: Path):
+    defaults = _defaults_with(diff_coverage=80, exhaustive=True)
+    out = build_principles(defaults, A, "0.1.0")
+    assert principle(out, "exhaustive-testing")["active"] is True
+    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True}
+
+    def standard(data: dict[str, Any]) -> None:
+        data["testing"]["exhaustive"] = False
+
+    out = build_principles(defaults, variant(tmp_path, standard), "0.1.0")
+    assert principle(out, "exhaustive-testing")["active"] is False
+    assert out["testing"] == {"diff_coverage": 80}
+
+
+def test_exhaustive_refuses_a_lower_diff_coverage(tmp_path: Path):
+    def lower(data: dict[str, Any]) -> None:
+        data["testing"]["diff_coverage"] = 60
+
+    def lower_and_exhaustive(data: dict[str, Any]) -> None:
+        data["testing"] |= {"diff_coverage": 60, "exhaustive": True}
+
+    by_default = _defaults_with(diff_coverage=80, exhaustive=True)
+    for defaults, a in (
+        (D, variant(tmp_path / "answer", lower_and_exhaustive)),
+        (by_default, variant(tmp_path / "default", lower)),
+    ):
+        with pytest.raises(AnswersError) as e:
+            build_principles(defaults, a, "0.1.0")
+        assert "testing.diff_coverage: is 60 but exhaustive testing" in str(e.value)
+        assert 'set "exhaustive": false' in str(e.value)
+        assert e.value.where == "testing.diff_coverage"
+
+
+def test_exhaustive_accepts_a_diff_coverage_of_100(tmp_path: Path):
+    def full(data: dict[str, Any]) -> None:
+        data["testing"] |= {"diff_coverage": 100, "exhaustive": True}
+
+    out = build_principles(D, variant(tmp_path, full), "0.1.0")
+    assert out["testing"] == {"diff_coverage": 100, "exhaustive": True}

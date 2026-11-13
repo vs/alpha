@@ -97,6 +97,7 @@ class TestPlan:
 class Testing:
     components: tuple[TestPlan, ...]
     diff_coverage: int | None = None
+    exhaustive: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -358,7 +359,8 @@ def testing(raw: object, comps: "Sequence[Component] | None", talk: bool) -> Tes
                 f"is {diff_coverage!r}, not a whole percentage from 0 to 100",
                 "Use e.g. 80, or 0 for no check; leave the field out for the default",
             )
-    return Testing(tuple(entries), diff_coverage)
+    exhaustive = boolean(d, "exhaustive", w) if "exhaustive" in d else None
+    return Testing(tuple(entries), diff_coverage, exhaustive)
 
 
 def security(raw: object, comps: "Sequence[Component] | None") -> Security:

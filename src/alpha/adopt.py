@@ -31,6 +31,7 @@ from alpha.defaults import Source, load_defaults, load_survey
 from alpha.generate import copied_files, render_project, source_info
 from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group, status_paths
 from alpha.merge import Change, classify, merge_json, union_lines
+from alpha.principles import diff_coverage
 from alpha.recipes import RecipeBook, matches
 from alpha.records import record_paths, taken_numbers
 from alpha.registry import load_registry
@@ -504,11 +505,7 @@ def gaps(a: Answers, defaults: dict[str, Any]) -> list[dict[str, Any]]:
                 [{"commit_hook": True}],
             )
         )
-    threshold = (
-        a.testing.diff_coverage
-        if a.testing is not None and a.testing.diff_coverage is not None
-        else int(defaults.get("testing", {}).get("diff_coverage", 0))
-    )
+    threshold = diff_coverage(a, defaults)
     book = a.book()
     formatted: set[str] = set()
     for c in a.components:

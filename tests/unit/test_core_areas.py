@@ -557,3 +557,18 @@ def test_diff_coverage_answer_is_optional(tmp_path: Path):
     for value in (0, 100):
         d["testing"]["diff_coverage"] = value
         assert check(tmp_path, d).testing.diff_coverage == value  # type: ignore[union-attr]
+
+
+def test_exhaustive_answer_is_optional(tmp_path: Path):
+    d = valid()
+    assert check(tmp_path, d).testing.exhaustive is None  # type: ignore[union-attr]
+    for value in (True, False):
+        d["testing"]["exhaustive"] = value
+        assert check(tmp_path, d).testing.exhaustive is value  # type: ignore[union-attr]
+
+
+def test_exhaustive_answer_must_be_a_boolean(tmp_path: Path):
+    d = valid()
+    d["testing"]["exhaustive"] = "yes"
+    with pytest.raises(AnswersError, match=r"testing\.exhaustive: must be true or"):
+        check(tmp_path, d)

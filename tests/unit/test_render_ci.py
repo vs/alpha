@@ -310,3 +310,18 @@ def test_drafted_recipe_without_coverage(tmp_path: Path):
     assert "fetch-depth" not in job["steps"][0]["with"]
     test = next(s for s in job["steps"] if s.get("name") == "test")
     assert "if" not in test
+
+
+def test_exhaustive_testing_gates_every_changed_line_and_branch():
+    principles = _pr_principles(100)
+    principles["testing"]["exhaustive"] = True
+    jobs = workflow(principles)["jobs"]
+    for name in ("api", "web"):
+        steps = {s.get("name"): s for s in jobs[name]["steps"]}
+        assert steps["diff coverage"]["run"].endswith(
+            "--fail-under=100 --branch-coverage"
+        )
+    api = {s.get("name"): s for s in jobs["api"]["steps"]}
+    assert "--cov-branch" in api["test with coverage"]["run"]
+    standard = workflow(_pr_principles(100))["jobs"]["api"]["steps"]
+    assert all("--branch-coverage" not in s.get("run", "") for s in standard)

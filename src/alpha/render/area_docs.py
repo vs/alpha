@@ -77,7 +77,31 @@ def glossary(a: Answers, principles: dict[str, Any]) -> str | None:
     return "\n".join(lines) + "\n"
 
 
-def testing_section(a: Answers) -> list[str]:
+_EXHAUSTIVE_TESTING = [
+    "### Exhaustive testing",
+    "",
+    "This project is tested exhaustively, on the model of "
+    "[SQLite's testing](https://www.sqlite.org/testing.html). The reviewer "
+    "holds every change to it, and a pull request must cover every line and "
+    "branch it changes.",
+    "",
+    "- **Every branch, both ways.** Delete a branch no test can reach, or "
+    "replace it with an assertion.",
+    "- **Every failure, forced.** Inject the failure in a test: a failed "
+    "allocation, read or write, a timeout, a crash between two writes.",
+    "- **Outside input is fuzzed.** Whatever parses input from outside gets a "
+    "fuzz or property-based test.",
+    "- **Limits on both sides.** Test each limit at, just below and just above "
+    "its value.",
+    "- **A bug fix starts with its test.** Write the test that fails without "
+    "the fix first.",
+    "- **Invariants are asserted** in the code, not only in tests.",
+    "- **Test what ships.** Run the tests on the build users get.",
+    "",
+]
+
+
+def testing_section(a: Answers, principles: dict[str, Any]) -> list[str]:
     assert a.testing is not None
     lines = ["## Testing", "", "| Component | Levels |", "|---|---|"]
     lines += [row(c.name, ", ".join(c.levels)) for c in a.testing.components]
@@ -89,6 +113,8 @@ def testing_section(a: Answers) -> list[str]:
         "`R1`) in its name, so each check in docs/product.md traces to a test.",
         "",
     ]
+    if _active(principles, "exhaustive-testing"):
+        lines += _EXHAUSTIVE_TESTING
     return lines
 
 

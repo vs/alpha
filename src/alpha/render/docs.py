@@ -420,7 +420,7 @@ def _contributing(
         "period; it may start lowercase, e.g. with the symbol it changes.",
         "- Body lines wrap at 72 characters.",
         "",
-        *area_docs.testing_section(a),
+        *area_docs.testing_section(a, principles),
         *_docs_section(_documentation(a)),
         "## Branching",
         "",

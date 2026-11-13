@@ -76,7 +76,8 @@ def _job(
     }
     if recipe.ci.env:
         job["env"] = dict(recipe.ci.env)
-    threshold = principles.get("testing", {}).get("diff_coverage", 0)
+    testing = principles.get("testing", {})
+    threshold = testing.get("diff_coverage", 0)
     gated = bool(recipe.coverage) and threshold > 0
     # The jobs only read the repository, so the token isn't left on disk.
     # diff-cover compares against the base branch, so it needs the history.
@@ -107,6 +108,7 @@ def _job(
                     f"{recipe.coverage_report} "
                     '--compare-branch="origin/${BASE_REF}" '
                     f"--fail-under={threshold}"
+                    + (" --branch-coverage" if testing.get("exhaustive") else "")
                 ),
             },
         ]

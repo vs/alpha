@@ -3,7 +3,9 @@ proven = true
 bootstrap = ["uv add --dev pytest pytest-cov ruff pyright deptry"]
 lockfiles = ["uv.lock"]
 ignores = [".venv/", "__pycache__/", ".pytest_cache/", "coverage.xml", ".coverage"]
-coverage = "uv run pytest --cov --cov-report=xml:coverage.xml"
+# --cov-branch records each branch's two sides, which the diff coverage check
+# of a project with exhaustive testing reads.
+coverage = "uv run pytest --cov --cov-branch --cov-report=xml:coverage.xml"
 coverage_report = "coverage.xml"
 dependabot = "uv"
 manifests = ["pyproject.toml"]
