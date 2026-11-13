@@ -106,3 +106,10 @@ The kit now has a Rust recipe (`recipes/rust.toml`), and the `rust-cli` scenario
 - cargo-llvm-cov asks before installing `llvm-tools-preview` and then waits on the terminal, so bootstrap adds the toolchain components first. `cargo install` of a version that's already installed does nothing in about 0.1 s.
 - On this machine the global mise config sets `RUSTUP_TOOLCHAIN`, which overrides a project's `rust-toolchain.toml`.
 - Not done: baseline readers for an adopted Rust repo. Clippy and cargo print findings as one JSON object per line, which the ratchet doesn't read yet. Not verified: the workflow on GitHub.
+
+## Exhaustive testing gate (2026-11-13)
+
+The slow test `test_exhaustive_gate_catches_a_half_tested_branch` generated, bootstrapped and committed `web-ts-plus-python-api` with `testing.exhaustive` on, then ran the workflow's own coverage and diff coverage commands in `api` (pytest-cov) and `web` (vitest) with diff-cover 11.0.1.
+
+- A new function whose `if` only one test side reached had every line covered: the gate passed without `--branch-coverage` and failed with it, naming the file. With both sides tested it passed.
+- Not verified: a Rust component (stable Rust reports no branch data, so its gate is lines only), and the workflow on GitHub.

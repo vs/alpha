@@ -363,6 +363,88 @@ def test_diff_cover_catches_untested_typescript_line(
     assert git(tmp_path, "status", "--porcelain") == ""
 
 
+_HALF_TESTED_BRANCH = {
+    "api": (
+        "app/clamp.py",
+        "def clamp(n: int) -> int:\n"
+        "    total = n\n"
+        "    if n < 0:\n"
+        "        total = 0\n"
+        "    return total\n",
+        "tests/test_clamp.py",
+        "import sys\nfrom pathlib import Path\n\n"
+        "sys.path.insert(0, str(Path(__file__).parents[1]))\n"
+        "from app.clamp import clamp\n\n\n"
+        "def test_clamp() -> None:\n    assert clamp(-1) == 0\n",
+        "\n\ndef test_clamp_keeps() -> None:\n    assert clamp(2) == 2\n",
+    ),
+    "web": (
+        "src/clamp.ts",
+        "export function clamp(n: number): number {\n"
+        "  let total = n;\n"
+        "  if (n < 0) {\n"
+        "    total = 0;\n"
+        "  }\n"
+        "  return total;\n"
+        "}\n",
+        "tests/clamp.test.ts",
+        'import { expect, test } from "vitest";\n'
+        'import { clamp } from "../src/clamp.js";\n\n'
+        'test("clamp", () => {\n  expect(clamp(-1)).toBe(0);\n});\n',
+        '\ntest("clamp keeps", () => {\n  expect(clamp(2)).toBe(2);\n});\n',
+    ),
+}
+
+
+@pytest.mark.slow
+def test_exhaustive_gate_catches_a_half_tested_branch(tmp_path: Path, git_env: None):
+    answers = place_answers(tmp_path, "web-ts-plus-python-api")
+    data = json.loads(answers.read_text())
+    data["testing"]["exhaustive"] = True
+    answers.write_text(json.dumps(data))
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    commit_skeleton(tmp_path, principles, [])
+    git(tmp_path, "branch", "-M", "main")
+    git(tmp_path, "switch", "-c", "feature")
+    workflow = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
+    diff_env = {**os.environ, "BASE_REF": "main"}
+
+    for name, (source, code, test, one_side, other_side) in _HALF_TESTED_BRANCH.items():
+        steps = {s.get("name"): s for s in workflow["jobs"][name]["steps"]}
+        coverage = steps["test with coverage"]["run"]
+        assert steps["diff coverage"]["run"].endswith("--branch-coverage")
+        diff = (
+            steps["diff coverage"]["run"]
+            .replace("pipx run", "uvx")
+            .replace("origin/${BASE_REF}", "${BASE_REF}")
+        )
+        folder = tmp_path / name
+        (folder / source).parent.mkdir(exist_ok=True)
+        (folder / source).write_text(code)
+        (folder / test).write_text(one_side)
+        git(tmp_path, "add", f"{name}/{source}", f"{name}/{test}")
+        git(tmp_path, "commit", "-m", f"feat({name}): Add clamp", "--no-verify")
+
+        done = _sh(coverage, folder)
+        assert done.returncode == 0, done.stdout + done.stderr
+        # Every line ran, so only the untaken side of the `if` fails the gate.
+        lines_only = _sh(diff.removesuffix(" --branch-coverage"), folder, diff_env)
+        assert lines_only.returncode == 0, lines_only.stdout + lines_only.stderr
+        done = _sh(diff, folder, diff_env)
+        output = done.stdout + done.stderr
+        assert done.returncode != 0, output
+        assert "clamp" in output, output
+
+        (folder / test).write_text(one_side + other_side)
+        git(tmp_path, "add", f"{name}/{test}")
+        git(tmp_path, "commit", "-m", f"test({name}): Cover both sides", "--no-verify")
+        assert _sh(coverage, folder).returncode == 0
+        done = _sh(diff, folder, diff_env)
+        assert done.returncode == 0, done.stdout + done.stderr
+
+
 @pytest.mark.slow
 @NEEDS_CARGO
 def test_rust_checks_fail_on_their_violations(
