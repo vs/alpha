@@ -17,6 +17,7 @@ from .conftest import HOOKS, STUB, Project
 FAIL = "python3 -c \"import sys; print('boom'); sys.exit(1)\""
 PAYLOAD: dict[str, Any] = {"hook_event_name": "Stop", "stop_hook_active": False}
 AWS_KEY = "AKIA" + "A" * 16
+PASSWORD = "hunter2" * 2
 
 
 def marker_cmd(name: str) -> str:
@@ -61,7 +62,7 @@ def test_secret_in_new_file_blocks_without_value(project: Project) -> None:
 def test_secret_in_added_line_of_tracked_file(project: Project) -> None:
     project.write("a.txt", "x\n")
     commit_all(project)
-    project.write("a.txt", "x\npassword = 'hunter2hunter2'\n")
+    project.write("a.txt", f"x\npassword = '{PASSWORD}'\n")
     text = reason(run(project))
     assert "a.txt:2" in text
     assert "hunter2" not in text
