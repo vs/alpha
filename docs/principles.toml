@@ -3,7 +3,7 @@
 # hooks and reviewers read this file.
 
 schema = 1
-kit_version = "0.6.0"
+kit_version = "0.6.1"
 
 [project]
 name = "alpha"
