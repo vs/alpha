@@ -372,12 +372,12 @@ def test_update_refreshes_the_doc(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, [ok("p2-a"), ok("p2-b")])
     plan = plan_adoption(root, PLUGIN_ROOT, SOURCE, TODAY)
     apply_adoption(root, plan)
-    for c in plan.update.changes:
+    for c in plan.changes:
         if c.kind == "conflict":
             (root / c.path).write_text((root / PROPOSALS / c.path).read_text())
     commit_update(root, load_project_principles(root), [])
     done(root, "p2-a")
-    update = plan_update(root, SOURCE, TODAY)
+    update = plan_update(root, PLUGIN_ROOT, SOURCE, TODAY)
     assert [c.path for c in update.changes] == ["docs/adoption.md"]
     apply_update(root, update)
     assert "| `p2-a` | ml | done |" in (root / "docs/adoption.md").read_text()

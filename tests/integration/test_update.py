@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import date
@@ -20,10 +21,16 @@ from helpers import (
     shell_recipe,
 )
 
+from alpha import VERSION
 from alpha.answers import PROJECT_JSON, answers_snapshot, write_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import GenerateError, generate, load_project_principles
+from alpha.generate import (
+    GenerateError,
+    copied_files,
+    generate,
+    load_project_principles,
+)
 from alpha.gitops import commit_group, commit_update
 from alpha.render.ci import DEPENDABOT, WORKFLOW
 from alpha.update import (
@@ -56,7 +63,7 @@ def save(target: Path, data: dict[str, Any]) -> None:
 
 
 def plan(target: Path) -> UpdatePlan:
-    return plan_update(target, SOURCE, TODAY)
+    return plan_update(target, PLUGIN_ROOT, SOURCE, TODAY)
 
 
 def kinds(p: UpdatePlan) -> dict[str, str]:
@@ -826,28 +833,27 @@ TOOLING = (
 )
 
 
-@pytest.fixture
-def pre_branch_project(tmp_path: Path, git_env: None) -> Path:
-    """The web+API scenario, generated and committed by the pre-branch kit."""
+def project_from_kit(tmp_path: Path, ref: str) -> tuple[Path, Path]:
+    """The web+API scenario, generated and committed by the kit at `ref`;
+    also the folder that kit was unpacked to."""
     known = subprocess.run(
-        ["git", "cat-file", "-e", f"{PRE_BRANCH}^{{commit}}"],
+        ["git", "cat-file", "-e", f"{ref}^{{commit}}"],
         cwd=PLUGIN_ROOT,
         capture_output=True,
     )
     if known.returncode != 0:
-        pytest.skip(f"needs the kit's history up to {PRE_BRANCH} (fetch-depth: 0)")
+        pytest.skip(f"needs the kit's history up to {ref} (fetch-depth: 0)")
     kit = tmp_path / "old-kit"
     kit.mkdir()
     archive = subprocess.run(
-        ["git", "archive", PRE_BRANCH], cwd=PLUGIN_ROOT, capture_output=True, check=True
+        ["git", "archive", ref], cwd=PLUGIN_ROOT, capture_output=True, check=True
     )
     subprocess.run(["tar", "-x", "-C", str(kit)], input=archive.stdout, check=True)
     target = tmp_path / "project"
     answers_file = target / PROJECT_JSON
     answers_file.parent.mkdir(parents=True)
-    answers_file.write_bytes(
-        (kit / "evals/scenarios" / f"{SCENARIO}.json").read_bytes()
-    )
+    scenario = kit / "evals/scenarios" / f"{SCENARIO}.json"
+    answers_file.write_bytes(scenario.read_bytes())
     subprocess.run(
         [sys.executable, str(kit / "bin/alpha"), "generate", str(target)],
         env={**os.environ, "ALPHA_SOURCE": str(kit)},
@@ -856,43 +862,61 @@ def pre_branch_project(tmp_path: Path, git_env: None) -> Path:
     )
     git(target, "init", "-q", "-b", "main")
     commit(target, "chore: Generate the skeleton")
-    return target
+    return target, kit
 
 
-def test_update_of_a_pre_branch_project_blames_kit_changes(pre_branch_project: Path):
+@pytest.fixture
+def pre_branch_project(tmp_path: Path, git_env: None) -> Path:
+    """The web+API scenario, generated and committed by the pre-branch kit."""
+    return project_from_kit(tmp_path, PRE_BRANCH)[0]
+
+
+def test_update_of_an_older_kit_project_upgrades_it(pre_branch_project: Path):
+    """Spec §5a: alpha update brings a project an older kit set up to this
+    kit, each file merged against what that kit wrote there."""
     target = pre_branch_project
     assert not (target / "mise.toml").exists()
+    claude = target / "CLAUDE.md"
+    claude.write_text(claude.read_text() + "\nOur own rule.\n")
+    record = target / "docs/decisions/0001-product-identity.md"
+    dated = next(line for line in record.read_text().splitlines() if "Date:" in line)
     add_worker(target)
     commit(target, "chore: Add a worker to the answers")
     p = plan(target)
     found = kinds(p)
-    # The kit's newer files: the project never had them, so nobody deleted them.
-    for path in TOOLING:
-        assert found[path] == "skipped"
-    conflicts = [path for path, kind in found.items() if kind == "conflict"]
-    assert ".github/workflows/ci.yml" in conflicts
-    assert "docs/principles.toml" in conflicts
-    out = describe(p, target)
-    assert "you deleted it" not in out
-    for path in TOOLING:
-        assert (
-            f"  skipped   {path} (alpha's newer kit adds it; this project doesn't "
-            "have it, so it's left out)"
-        ) in out
-    for path in conflicts:
-        assert (
-            f"  conflict  {path} (overlaps alpha's change, which may include kit "
-            "changes since the project was generated: merge by hand, keeping your "
-            "side for anything the requested change doesn't need)"
-        ) in out
-    committed = {path: (target / path).read_bytes() for path in conflicts}
+    for path in (*TOOLING, ".claude/alpha/checks/secret_scan.py"):
+        assert found[path] == "new"
+    assert found[".claude/alpha/hooks/guard_bash.py"] == "change"
+    assert found["CLAUDE.md"] == "merge"
+    assert describe(p, target).startswith(f"alpha update (kit 0.1.0 to {VERSION}): ")
     apply_update(target, p)
-    for path in TOOLING:
-        assert not (target / path).exists()
-    for path in conflicts:  # nothing applied silently: alpha's side is a proposal
-        assert (target / path).read_bytes() == committed[path]
-        assert (target / PROPOSALS / path).is_file()
-    assert (target / "worker/pyproject.toml").is_file()
+    for rel, src in copied_files(PLUGIN_ROOT).items():
+        assert (target / rel).read_bytes() == src.read_bytes(), rel
+        assert (target / rel).stat().st_mode & 0o777 == src.stat().st_mode & 0o777
+    assert claude.read_text().endswith("Our own rule.\n")
+    assert "Kind: product" in record.read_text()
+    assert dated in record.read_text()  # history keeps its date
+    assert answers(target)["manifest"]["kit_version"] == VERSION
+    commit_the_update(target)
+    assert describe(plan(target), target) == "alpha update: nothing to change"
+
+
+def test_kit_upgrade_finds_a_released_kit_by_its_tag(tmp_path: Path, git_env: None):
+    target, kit = project_from_kit(tmp_path, "v0.4.2")
+    shutil.rmtree(kit)  # gone from the folder the manifest names
+    found = kinds(plan(target))
+    assert found[".claude/alpha/checks/secret_scan.py"] == "new"
+    assert found[".claude/alpha/hooks/guard_bash.py"] == "change"
+    assert "conflict" not in found.values(), found
+
+
+def test_update_refuses_a_project_from_a_newer_alpha(tmp_path: Path, git_env: None):
+    target = generated_repo(tmp_path, SCENARIO)
+    data = answers(target)
+    data["manifest"]["kit_version"] = "99.0.0"
+    (target / PROJECT_JSON).write_text(json.dumps(data))
+    with pytest.raises(GenerateError, match=r"set up by alpha 99\.0\.0, newer than"):
+        plan(target)
 
 
 def test_update_of_a_current_project_keeps_the_plain_notes(
@@ -917,7 +941,7 @@ def test_update_of_a_current_project_keeps_the_plain_notes(
         "merge by hand)"
     ) in out
     assert "  skipped   docs/build.md (you deleted it: alpha's change to it is " in out
-    assert "kit changes" not in out
+    assert "(kit " not in out
 
 
 def test_a_failed_git_status_says_to_rerun_the_update(tmp_path: Path, git_env: None):
@@ -927,4 +951,4 @@ def test_a_failed_git_status_says_to_rerun_the_update(tmp_path: Path, git_env: N
     data["git"]["scopes"].append("docs")
     (target / ".claude/alpha/project.json").write_text(json.dumps(data))
     with pytest.raises(GenerateError, match=r'then rerun "alpha update'):
-        plan_update(target, SOURCE, TODAY)
+        plan_update(target, PLUGIN_ROOT, SOURCE, TODAY)

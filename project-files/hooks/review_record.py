@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
@@ -23,6 +24,11 @@ CONTRACT = (
 _BLOCK = re.compile(r"```json[ \t]*\n(.*?)```", re.S)
 _TREE = re.compile(r"[0-9a-f]{40}")
 _TEXT_KEYS = ("principle", "file", "problem", "fix")
+# Claude Code may still be appending the reviewer's last entry to its
+# transcript when the hook starts, so a report not there yet is looked for
+# again this many times, this many seconds apart.
+TRANSCRIPT_TRIES = 5
+TRANSCRIPT_WAIT = 0.25
 
 
 def send_back(problem: str) -> NoReturn:
@@ -43,6 +49,62 @@ def is_tree(root: Path, sha: str) -> bool:
 def finding_id(f: dict[str, Any]) -> str:
     key = f"{f['principle']}|{f['file']}|{f['problem']}"
     return "F-" + hashlib.sha1(key.encode()).hexdigest()[:6]
+
+
+def _is_prompt(entry: dict[str, Any]) -> bool:
+    """A message the reviewer was sent: its task, or a later request."""
+    if entry.get("type") != "user" or entry.get("isMeta"):
+        return False
+    content: object = cast("dict[str, Any]", entry.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return True
+    blocks = cast("list[object]", content) if isinstance(content, list) else []
+    return not any(
+        cast("dict[str, Any]", b).get("type") == "tool_result"
+        for b in blocks
+        if isinstance(b, dict)
+    )
+
+
+def _said(entry: dict[str, Any]) -> list[str]:
+    """What an assistant entry says: its text, and the text its tool calls
+    carry, such as the report of a hand-back."""
+    content: object = cast("dict[str, Any]", entry.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return [content]
+    said: list[str] = []
+    for raw in cast("list[object]", content) if isinstance(content, list) else []:
+        block = cast("dict[str, Any]", raw) if isinstance(raw, dict) else {}
+        if block.get("type") == "text":
+            said.append(str(block.get("text", "")))
+        elif block.get("type") == "tool_use" and isinstance(block.get("input"), dict):
+            values = cast("dict[str, object]", block["input"]).values()
+            said += [v for v in values if isinstance(v, str)]
+    return said
+
+
+def latest_turn(path: object) -> str:
+    """What the reviewer said since it was last asked, from its transcript:
+    the report can end in a hand-back instead of a last message."""
+    if not isinstance(path, str):
+        return ""
+    try:
+        # A line still being written may end mid-character, and won't parse.
+        lines = Path(path).read_bytes().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return ""
+    said: list[str] = []
+    for line in lines:
+        try:
+            raw: object = json.loads(line)
+        except ValueError:
+            continue
+        entry = cast("dict[str, Any]", raw) if isinstance(raw, dict) else {}
+        if _is_prompt(entry):
+            said = []
+        elif entry.get("type") == "assistant":
+            said += _said(entry)
+    return "\n".join(said)
 
 
 def parse(root: Path, message: str) -> tuple[str, list[dict[str, Any]]]:
@@ -94,7 +156,14 @@ def main() -> None:
     if _common.load_principles(root) is None:
         sys.exit(0)
     message = inp.get("last_assistant_message")
-    tree, findings = parse(root, message if isinstance(message, str) else "")
+    text = message if isinstance(message, str) else ""
+    for attempt in range(TRANSCRIPT_TRIES):
+        if _BLOCK.search(text):
+            break
+        if attempt:
+            time.sleep(TRANSCRIPT_WAIT)
+        text = latest_turn(inp.get("agent_transcript_path")) or text
+    tree, findings = parse(root, text)
     state = review.ensure_state(root)
     accepted = {
         str(f.get("id")) for f in state.get("findings", []) if f.get("accepted")

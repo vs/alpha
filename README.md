@@ -68,6 +68,13 @@ claude plugin marketplace update alpha
 claude plugin update alpha@alpha
 ```
 
+Your projects move to the new kit with the plugin's `bin/alpha update
+<project>` (try `--dry-run` first), then `bin/alpha commit-update <project>`;
+Claude finds `bin/alpha` for you if you ask it to update the project to the
+new alpha. alpha merges its
+newer hooks, checks and files into yours and keeps your edits; where they
+overlap, it leaves a proposal for you to merge by hand.
+
 When you override a default, alpha asks whether to keep it for your next
 projects. A yes goes to `~/.config/alpha/overrides.toml`, a recipe drafted in
 an interview to `~/.config/alpha/recipes/`. Both apply on top of the installed

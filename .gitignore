@@ -9,6 +9,7 @@ __pycache__/
 .claude/worktrees/
 .DS_Store
 .claude/alpha/hooks/__pycache__/
+.claude/alpha/checks/__pycache__/
 .env
 .env.*
 **/.env

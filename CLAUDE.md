@@ -8,7 +8,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - `uv run pytest`
 - `uv run ruff check` and `uv run ruff format`
 - `uv run pyright`
-- `bin/alpha generate|bootstrap|commit-skeleton <folder>`: a new project from finished answers (`answers check` first; `answers write <target> --json '…'` saves an area). `bin/alpha update <project> [--dry-run]`, then `bin/alpha commit-update <project>`, merges changed answers into a generated or adopted project (spec §5a).
+- `bin/alpha generate|bootstrap|commit-skeleton <folder>`: a new project from finished answers (`answers check` first; `answers write <target> --json '…'` saves an area). `bin/alpha update <project> [--dry-run]`, then `bin/alpha commit-update <project>`, merges changed answers into a generated or adopted project, and upgrades one an older kit set up to this kit (spec §5a, decision 0022).
 - `bin/alpha recipe list|check|try|save`, `bin/alpha registry list|show|stale` and `bin/alpha defaults show|set`: the kit's stacks and drafted recipes, the reviewed tool registry (`stale` names tools not reviewed in 180 days) and the merged defaults.
 - `bin/alpha adopt survey <repo> [--save]`: what an existing repo already has, in facts (spec §5b): candidate components from the recipes' `[detect]` markers, the files `defaults/survey.toml` names, branch, clean tree and commit convention. An adopted recipe (`"adopted": true`, optionally `"extends": "<kit stack>"`) runs the repo's own tools; `alpha recipe try` proves it on a throwaway worktree of the repo's HEAD, where a failing check passes only if its baseline reader reads its findings.
 - `bin/alpha adopt apply <repo> [--dry-run]`: with finished adoption answers, writes alpha's files onto the repo on `alpha/adopt` (from the default branch): new files, a mechanical merge of `.gitignore` and `.claude/settings.json`, and a two-sided proposal for every other file the repo already has, merged by hand as `/alpha:extend` does. Then `alpha bootstrap <repo> --capture-baselines` and `alpha commit-update`. `adoption.git_hooks` is `alpha` (alpha sets `core.hooksPath`) or `chain` (the repo's hook manager calls alpha's commit-msg check). A kit recipe's `[adopt]` table holds the command variants an adopted recipe uses, so a root component's tools skip `.claude/`.
@@ -68,7 +68,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - Subagents work under the same principles, decisions and checks.
 - Before you report work as done, re-read every changed file top to bottom as a stranger would.
 - At the end of a planned piece of work, run the principles-reviewer agent.
-- When you add a code generator, add a `generate` task to `mise.toml` and to the `ci` task's `depends`; CI fails when checks change tracked files.
+- When you add a code generator, add a `generate` task to `mise.toml` and to the `ci` task's `depends`; commit what it regenerates with the change.
 - Never disable a lint rule to pass; an exception names one path and one rule, and a decision record that names that path gives the reason.
 - A security suppression (osv-scanner, betterleaks) needs a reason and a review date: in the `osv-scanner.toml` next to the lockfile it applies to, `ignoreUntil` and `reason`; in `.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly above the entry.
 
@@ -105,7 +105,7 @@ Code: `**/*.py`. Tests: `tests/**/*.py`, `**/test_*.py`, `**/*_test.py`, `**/con
 | structure | `uv run deptry . --extend-exclude .claude` |
 | run | add when the entry point exists |
 
-Run every check: `mise run check` (CI runs the same checks).
+Run every check: `mise run check`.
 
 ## Definition of done
 

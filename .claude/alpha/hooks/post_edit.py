@@ -3,10 +3,10 @@ from __future__ import annotations
 import shlex
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
-import _common  # noqa: E402
+import _common
 
 TOOLS = {"Edit", "Write", "MultiEdit"}
 TIMEOUT = 60
@@ -25,7 +25,7 @@ def main() -> None:
     tool_input: object = inp.get("tool_input")
     if tool not in TOOLS or not isinstance(tool_input, dict):
         sys.exit(0)
-    args: dict[str, Any] = tool_input  # pyright: ignore[reportUnknownVariableType]
+    args = cast("dict[str, Any]", tool_input)
     file_path = args.get("file_path")
     if not isinstance(file_path, str) or not file_path:
         sys.exit(0)

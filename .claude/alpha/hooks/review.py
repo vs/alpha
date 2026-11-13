@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
-import _common  # noqa: E402
+import _common
 
 STATE = "review.json"
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"

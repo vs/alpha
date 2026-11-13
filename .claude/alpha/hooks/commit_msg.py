@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import _common  # noqa: E402
+import _common
 
 DEFAULT_TYPES = [
     "feat",

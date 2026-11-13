@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import _common  # noqa: E402
-import review  # noqa: E402
+import _common
+import review
 
 _COMMAND = re.compile(r"accept\s+(F-[0-9a-f]{6}(?:[\s,]+F-[0-9a-f]{6})*)", re.I)
 _ID = re.compile(r"F-[0-9a-f]{6}", re.I)

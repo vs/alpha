@@ -96,4 +96,4 @@ Write a short summary for the reader, then end your reply with exactly one fence
 }
 ```
 
-Use `"findings": []` when the changes comply. The `tree` must be the brief's `Tree:` value, or the review isn't recorded.
+Use `"findings": []` when the changes comply. The `tree` must be the brief's `Tree:` value, or the review isn't recorded. If you hand your report back to the agent that started you instead of replying, the report you hand back ends with that same json block.

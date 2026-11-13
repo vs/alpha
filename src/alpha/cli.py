@@ -295,15 +295,13 @@ def _registry(args: argparse.Namespace) -> int:
 
 def _adopt_apply(target: Path, dry_run: bool, source: defaults.Source) -> None:
     plan = adopt.plan_adoption(target, PLUGIN_ROOT, source, date.today())
-    print(describe(plan.update, target))
-    for note in plan.notes:
-        print(f"  {note}")
+    print(describe(plan, target))
     if dry_run:
-        print(plan_diff(plan.update, target), end="")
+        print(plan_diff(plan, target), end="")
         return
     for note in adopt.apply_adoption(target, plan):
         print(note)
-    for c in plan.update.changes:
+    for c in plan.changes:
         if c.kind == "conflict":
             print(f"{c.path}: merge by hand; proposal: {PROPOSALS}/{c.path}")
 
@@ -457,7 +455,7 @@ def _commit_update(target: Path, trailers: list[str]) -> None:
 
 def _update(target: Path, dry_run: bool) -> None:
     source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
-    plan = plan_update(target, source, date.today())
+    plan = plan_update(target, PLUGIN_ROOT, source, date.today())
     if dry_run:
         print(describe(plan, target))
         print(plan_diff(plan, target), end="")

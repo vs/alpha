@@ -45,13 +45,13 @@ Go on when it lists the changes with no problem.
 
 ## 4. Show and confirm
 
-Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the docs, and say which files will need a hand merge (the dry run shows each as `conflict  <path> (your edits overlap alpha's change: merge by hand)`). When the project came from an older alpha, a conflict says instead that it may include kit changes since the project was generated, and the files the newer kit adds (such as `mise.toml`) show as `skipped` and are left out: tell the user those overlaps aren't necessarily their edits, and that alpha won't add the newer kit's files in this update. Write nothing to generated files (CLAUDE.md, docs, principles, component configs) until the user confirms; the answers in project.json are already saved.
+Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the docs, and say which files will need a hand merge (the dry run shows each as `conflict  <path> (your edits overlap alpha's change: merge by hand)`). When the project came from an older alpha, its first line names the upgrade, such as `(kit 0.4.2 to 0.4.3)`: the update also brings the project to this kit, so it lists files the requested change doesn't touch (copied hooks and checks, the newer kit's files as `new`). Tell the user so before they confirm. Write nothing to generated files (CLAUDE.md, docs, principles, component configs) until the user confirms; the answers in project.json are already saved.
 
 ## 5. Apply
 
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`. If it prints that the reviewer will look at alpha's changes at the next Stop, tell the user.
 
-- For each conflict (printed as `<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`), read that proposal. It holds the user's version, the version before, and alpha's. Edit the real file so it keeps the user's edits and adds alpha's change, never just alpha's side, and show the user the result. When the conflict note says it may include kit changes, alpha's side also carries what the newer kit writes differently (for example a `repo` CI job that runs `mise run ci`, when the project has no mise.toml): keep the user's side for anything the requested change doesn't need, and add only what the change needs.
+- For each conflict (printed as `<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`), read that proposal. It holds the user's version, the version before, and alpha's. Edit the real file so it keeps the user's edits and adds alpha's change, never just alpha's side, and show the user the result.
 - Stale files: ask before deleting any. commit-update commits only alpha's writes, so `git rm` each one the user lets go and commit the deletion yourself after step 7: a conventional message (e.g. `docs: Remove CHANGELOG.md`; description at most 50 chars, imperative, capitalized, no trailing period; body lines at most 72 chars), ending with the same attribution lines as step 7, as trailer lines.
 
 ## 6. Bootstrap
