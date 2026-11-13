@@ -1,7 +1,7 @@
 # Project kit: design
 
 Date: 2026-10-19
-Status: approved, and built as of alpha 0.5.0 (2026-11-13). §15 lists what
+Status: approved, and built as of alpha 0.6.0 (2026-11-13). §15 lists what
 waits for a later version.
 
 Name: **alpha**, the same as this repo. "Alpha" is the first letter and the first version: where every project starts. Skills are invoked as `/alpha:<skill>` (e.g. `/alpha:new-project`).
