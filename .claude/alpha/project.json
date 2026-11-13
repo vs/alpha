@@ -832,11 +832,11 @@
     "extra_risk_paths": []
   },
   "manifest": {
-    "kit_version": "0.6.0",
+    "kit_version": "0.6.1",
     "generated_at": "2026-11-12",
     "adopted_at": "2026-11-12",
     "defaults": {
-      "path": "~/workspace/alpha/.claude/worktrees/tests-at-merge",
+      "path": "~/workspace/alpha/.claude/worktrees/release-0.6.1",
       "live": false,
       "commit": null
     },
@@ -1759,7 +1759,7 @@
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
       "docs/glossary.md": "sha256:7eaea5016c5a9318a97987c96e106c512186c8ec02a779a73a2105719a3bd5cd",
       "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
-      "docs/principles.toml": "sha256:7410360f9e9d25fed55e713b22ade43d8fa312bf77b8c7ed1d102e46b5b1d0bf",
+      "docs/principles.toml": "sha256:aa85e07116151bf4e5022c6fe74da126836aaf049bba88e49dc22ad4f4fb852f",
       "docs/product.md": "sha256:f16cf2fdf4b69e188970efff2396c3dbfed048821621887a097fdafe091b1165",
       "docs/releases.md": "sha256:f87fe7b35dd5a3b79159c751d5074fdd42d8e1aa9105c2a475c3df4cd45afd11",
       "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
