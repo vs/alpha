@@ -40,7 +40,17 @@ def test_secret_scan_skips_nested_gitignores(tmp_path: Path, git_env: None) -> N
     write(root / "scratch/notes.md")
     done = run(root, *PRINT_PATHS)
     assert done.returncode == 0, done.stdout
-    assert set(done.stdout.split()) == {"tracked.md", "new.md", ".gitignore"}
+    assert set(done.stdout.split()) == {"--", "tracked.md", "new.md", ".gitignore"}
+
+
+def test_secret_scan_passes_a_dash_name_as_a_path(
+    tmp_path: Path, git_env: None
+) -> None:
+    # Read as a flag, this name would make betterleaks pass despite a leak.
+    root = repo(tmp_path / "repo")
+    write(root / "--exit-code=0")
+    done = run(root, *PRINT_PATHS)
+    assert done.stdout.split() == ["--", "--exit-code=0"]
 
 
 def test_secret_scan_keeps_a_failing_batch(

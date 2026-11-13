@@ -42,7 +42,8 @@ def main(command: list[str]) -> int:
         return 0
     worst = 0
     for start in range(0, len(files), BATCH):
-        code = subprocess.run([*command, *files[start : start + BATCH]]).returncode
+        batch = files[start : start + BATCH]
+        code = subprocess.run([*command, "--", *batch]).returncode
         worst = worst or code
     return worst
 
