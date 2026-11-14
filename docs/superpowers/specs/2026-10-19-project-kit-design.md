@@ -614,7 +614,7 @@ where CI runs it: `pr`, `schedule`, or `both`.
 |---|---|---|---|---|---|---|
 | actions | jactionlint | lint `.github/` | `.github/**` | yes | pr | `build.ci == "github-actions"` |
 | secrets | betterleaks | `secret_scan.py`: scan the files git doesn't ignore, `--config .betterleaks.toml` | `**` | no | pr | always |
-| vulns | osv-scanner | scan source recursively | lockfiles | no | both | any component has lockfiles |
+| vulns | osv-scanner | `scan source --no-ignore` on each lockfile's folder, not below it (decision 0025) | lockfiles | no | both | any component has lockfiles |
 | typos | typos | `typos` | `**` | yes | pr | always |
 | markdown | rumdl | `rumdl check .` | `**/*.md` | yes | pr | always |
 | links | lychee | `lychee --offline --no-progress .` | `**/*.md` | yes | pr | always |

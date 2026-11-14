@@ -136,11 +136,25 @@ def test_checks_use_the_registry_commands(tmp_path: Path):
     principles = build_principles(D, a, "0.1.0", registry=REGISTRY)
     checks = {c.id: c for c in repo_checks(a, principles, REGISTRY)}
     for check in checks.values():
-        if check.tool and check.id not in ("squawk", "links-online", "secrets"):
+        if check.tool and check.id not in (
+            "squawk",
+            "links-online",
+            "secrets",
+            "vulns",
+        ):
             pin = REGISTRY.tool(check.tool).pin
             assert pin is not None
             assert check.command == pin.command
     assert checks["links-online"].command == "lychee --no-progress ."
+    vulns = REGISTRY.tool("osv-scanner").pin
+    assert vulns is not None
+    assert checks["vulns"].command == f"{vulns.command} api web"
+    root, _ = scenario(tmp_path / "root", "rust-cli")
+    at_root = build_principles(D, root, "0.1.0", registry=REGISTRY)
+    assert [c["lockfiles"] for c in at_root["components"]] == [["Cargo.lock"]]
+    assert f"{vulns.command} ." in [
+        c.command for c in repo_checks(root, at_root, REGISTRY)
+    ]
     secrets = REGISTRY.tool("betterleaks").pin
     assert secrets is not None
     assert checks["secrets"].command == (

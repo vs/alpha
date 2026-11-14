@@ -248,12 +248,12 @@ repo = "google/osv-scanner"
 category = "Vulnerabilities"
 stacks = []
 rationale = "known vulnerabilities in lockfiles and SBOMs across many ecosystems, with call analysis to reduce noise."
-limitations = "not an image scanner; if you scan container images use Trivy (never `trivy-action` by tag, pin to a version or digest after the March 2026 compromise) or Grype. Verified in alpha: `scan source -r .` walks the folder recursively and reads lockfiles and manifests such as requirements.txt, uv.lock and pnpm-lock.yaml. Exit 1 on known vulnerabilities, 128 when it finds no package sources at all (so a project without a lockfile fails; skip it until one exists). Needs network access to osv.dev. Config: `osv-scanner.toml`."
-last_reviewed = 2026-11-09
+limitations = "not an image scanner; if you scan container images use Trivy (never `trivy-action` by tag, pin to a version or digest after the March 2026 compromise) or Grype. Verified in alpha: `scan source <folder>...` reads the lockfiles and manifests directly in each folder, such as uv.lock, pnpm-lock.yaml, Cargo.lock, go.mod and requirements.txt; `-r` also walks the folders below. It skips what .gitignore ignores, and reads the .gitignore of an enclosing repo too: in a git worktree under an ignored folder (Claude Code's `.claude/worktrees/`) it visits nothing and exits 128 with `No package sources found`. So alpha scans with `--no-ignore`, and without `-r` so that `node_modules`, `.venv` and other worktrees stay unread. `-L <lockfile>` scans one named file, but can't read go.sum. Exit 1 on known vulnerabilities, 128 when the folders hold no package sources at all (so a project without a lockfile fails; skip it until one exists), 127 when a folder is missing. Needs network access to osv.dev. Config: `osv-scanner.toml` next to each lockfile."
+last_reviewed = 2026-11-14
 [tools.osv-scanner.pin]
 mise = "osv-scanner"
 version = "2.7.0"
-command = "osv-scanner scan source -r ."
+command = "osv-scanner scan source --no-ignore"
 fails_with = 1
 
 [tools.renovate]
