@@ -267,15 +267,7 @@ def test_same_glob_in_two_mappings_merges_docs(tmp_path: Path):
 
 @pytest.mark.parametrize(
     "area",
-    [
-        "documentation",
-        "build",
-        "ui",
-        "releases",
-        "data",
-        "accessibility",
-        "performance",
-    ],
+    ["documentation", "build", "releases", "security", "git"],
 )
 def test_principles_need_documentation_and_build(tmp_path: Path, area: str):
     data = json.loads(FIXTURE.read_text())
@@ -285,6 +277,53 @@ def test_principles_need_documentation_and_build(tmp_path: Path, area: str):
     a = load_answers(path, ["identity"])
     with pytest.raises(AnswersError, match=area):
         build_principles(D, a, "0.1.0")
+
+
+GATED = {
+    "visual-system": "ui",
+    "accessibility": "accessibility",
+    "observability": "observability",
+    "safe-migrations": "data",
+    "contracts": "architecture",
+    "one-vocabulary": "architecture",
+    "design-language": "design_language",
+    "perf-budgets": "performance",
+}
+
+
+def open_areas(*areas: str) -> Any:
+    def mutate(data: dict[str, Any]) -> None:
+        for area in areas:
+            data["areas"][area] = "open"
+            del data[area]
+        data["decisions"] = [d for d in data["decisions"] if d["area"] not in areas]
+
+    return mutate
+
+
+def test_open_areas_keep_their_principles_off(tmp_path: Path):
+    """F5: a principle waits for the open area that holds its parameters."""
+    done = build_principles(D, A, "0.1.0")
+    assert all(principle(done, pid)["active"] for pid in GATED)
+    a = variant(tmp_path, open_areas(*sorted(set(GATED.values()))))
+    out = build_principles(D, a, "0.1.0")
+    for pid in GATED:
+        assert principle(out, pid)["active"] is False, pid
+        assert principle(out, pid)["components"] == [], pid
+    assert out["data"] == {"migration_paths": [], "squawk_paths": []}
+    assert principle(out, "visual-system")["component_params"] == {}
+    assert principle(out, "perf-budgets")["component_params"] == {}
+
+
+def test_every_gate_in_the_catalog_names_a_spec_area():
+    gates = {p["id"]: p["settled_by"] for p in D["principles"] if "settled_by" in p}
+    assert gates == GATED
+
+
+def test_a_gate_on_a_setup_area_is_refused():
+    bad = {**D, "principles": [{**D["principles"][0], "settled_by": "git"}]}
+    with pytest.raises(AnswersError, match=r'settled_by "git".*spec area'):
+        build_principles(bad, A, "0.1.0")
 
 
 def test_extra_protected_and_contract_paths_reach_the_principles():

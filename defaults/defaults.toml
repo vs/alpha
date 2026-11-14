@@ -255,6 +255,7 @@ title = "A deliberate visual system"
 statement = "The UI is built from the declared set of visual tools, not ad-hoc styles."
 rationale = "A declared set of tokens and components keeps the interface consistent and cheap to change."
 applies = ["has_ui"]
+settled_by = "ui"
 checked_by = ["reviewer"]
 core = false
 
@@ -264,6 +265,7 @@ title = "One design language"
 statement = "Every visual the project makes (a diagram, a chart, an image, the UI) is built from the design language in docs/design-language.md: read it before making or changing one. A visual may step outside it for a stated reason; it may not drift from it."
 rationale = "Visuals made one at a time drift apart; one declared language keeps the docs and the product looking like the same thing, and makes a restyle one decision."
 applies = ["design_language"]
+settled_by = "design_language"
 checked_by = ["reviewer"]
 core = false
 
@@ -345,6 +347,7 @@ title = "Contracts are the source of truth"
 statement = "Interfaces are defined once (OpenAPI/JSON Schema/protobuf). Clients and checks are generated from them."
 rationale = "A single contract prevents components from drifting apart, and generated clients cannot disagree with it."
 applies = ["communicating_components"]
+settled_by = "architecture"
 checked_by = ["reviewer"]
 core = false
 
@@ -354,6 +357,7 @@ title = "One vocabulary"
 statement = "A glossary, and consistent names across code, docs, and UI."
 rationale = "The same concept under different names causes misunderstandings between components, people, and agents."
 applies = ["multi_component", "domain_jargon"]
+settled_by = "architecture"
 checked_by = ["reviewer"]
 core = false
 
@@ -399,6 +403,7 @@ title = "Observability"
 statement = "Structured logs, correlated across components."
 rationale = "Deployed systems fail where nobody is watching, so they must explain themselves through logs that can be followed across components."
 applies = ["deployed"]
+settled_by = "observability"
 checked_by = ["reviewer"]
 core = false
 
@@ -408,6 +413,7 @@ title = "Performance budgets"
 statement = "Performance budgets set in the interview are enforced."
 rationale = "A budget that is written down and checked stops slow regressions from accumulating unnoticed."
 applies = ["budgets_set"]
+settled_by = "performance"
 checked_by = ["reviewer"]
 core = false
 
@@ -417,6 +423,7 @@ title = "Accessibility"
 statement = "Every UI is usable with keyboard and assistive technology."
 rationale = "Accessibility is far cheaper to build in from the start than to retrofit, and it widens who can use the product."
 applies = ["has_ui"]
+settled_by = "accessibility"
 checked_by = ["reviewer"]
 core = false
 
@@ -426,6 +433,7 @@ title = "Safe migrations"
 statement = "Every schema change is a migration, reversible where possible."
 rationale = "Persisted data outlives code, so changes to it must be repeatable and recoverable."
 applies = ["persisted_data"]
+settled_by = "data"
 checked_by = ["reviewer", "hook:stop_checks", "ci:migrations"]
 core = false
 
