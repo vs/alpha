@@ -95,6 +95,23 @@ time, each step done only when its check passes.
 
 It asks again only what the change affects, and merges into files you edited.
 
+## Work in it
+
+```text
+/alpha:go add CSV export to the report command
+```
+
+alpha picks a playbook for the task (investigation, feature, bug fix,
+refactoring, perf, prototype, session pickup or pause) and follows it step
+by step, keeping the project's principles, decision records and checks. A
+feature starts with research and questions, then a spec in
+`docs/specs/<date>-<feature>.md` that names a test for each acceptance
+check. Nothing is built until you approve it and choose how: native, where
+Claude builds every task, or with subagents, where a fresh one builds each
+task and another reviews it. Each task's tests are written first and fail
+before the code makes them pass. Work can run in its own git worktree. The
+playbooks live in the plugin, not in your project.
+
 ## Update
 
 ```sh

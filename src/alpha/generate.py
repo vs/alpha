@@ -73,6 +73,7 @@ def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
     # modules they import (diff_checks.py imports ratchet.py).
     lines = [
         ".claude/alpha/state/",
+        ".claude/alpha/notes/",
         ".claude/settings.local.json",
         ".claude/worktrees/",
         ".DS_Store",

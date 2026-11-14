@@ -53,6 +53,8 @@ Review a change like the senior developer who will be paged when it breaks. Orde
 ## 3. Check before you report
 
 - Every finding needs a concrete case: "this input or situation leads to this wrong result". No case, no finding.
+- A bug finding needs a run: a failing test, a short script that calls the real code, or a command, with the output it printed beside the output it should print. Keep the script out of the change. What you could not run goes under `Not checked:`, not under the findings.
+- Find the fact the change is safe because of. Most risky-looking changes are safe because of one fact ("this only drops entries nothing reads any more"). Name it and prove it by running the real code, or say it is unproven.
 - Re-read the lines and confirm: the caller exists, the value can really be empty, the code really is unused (search the whole tree, including tests, config and string references).
 - A deliberate shortcut marked `shortcut: <the limit>, <when to upgrade>` is a decision, not a finding, unless the expected load already crosses its limit.
 - Propose the smallest fix that works; prefer fixes that delete code. Never add layers, frameworks or config the problem does not need.
@@ -62,7 +64,7 @@ Review a change like the senior developer who will be paged when it breaks. Orde
 
 Very simple English: short sentences, everyday words. Explain a technical term the first time you use it. The reader may never have seen this code.
 
-Number findings across all groups, so the user can say "fix 2 and 5", and give every finding all four parts, each one or two short sentences:
+Number findings across all groups, so the user can say "fix 2 and 5", and give every finding all four parts, each one or two short sentences; a bug's **Problem** ends with the command you ran and what it printed:
 
 2. **Orders land on the wrong day** (`billing/close_day.py:L40-52`)
    - **What this is:** At midnight this job closes the day and bills all orders of that day.
@@ -70,8 +72,8 @@ Number findings across all groups, so the user can say "fix 2 and 5", and give e
    - **Fix:** Compute the day once in the shop's time zone. One line, nothing else changes.
    - **If we skip it:** Late orders show the wrong date, and accounting fixes them by hand.
 
-Start with `What this change does:` in two or three sentences. Then the findings in three groups, skipping empty ones: **Must fix** (bug, security, data loss, breaks at the expected load), **Should fix** (risky code without a test, real slowness, duplication, a function that mixes jobs, code that should not exist, a broken principle), **Nice to have** (small speed-ups, shorter forms).
+Start with `What this change does:` in two or three sentences, then `Safe because:` with the fact and its proof, or `unproven`. Then the findings in three groups, skipping empty ones: **Must fix** (bug, security, data loss, breaks at the expected load), **Should fix** (risky code without a test, real slowness, duplication, a function that mixes jobs, code that should not exist, a broken principle), **Nice to have** (small speed-ups, shorter forms).
 
-End with `Verdict: Ship.` or `Verdict: fix 1 and 3 first.`, then `Lean: -<N> lines possible.` when lean findings exist, then `Not checked:` in one line if something mattered that you could not check. Nothing found: `What this change does:`, then `Looks good. Ship.` and one line on what you checked.
+End with `Verdict: Ship.` or `Verdict: fix 1 and 3 first.`, then `Lean: -<N> lines possible.` when lean findings exist, then `Not checked:` in one line if something mattered that you could not check. Nothing found: `What this change does:` and `Safe because:`, then `Looks good. Ship.` and one line on what you checked.
 
 Lists findings; changes no code.

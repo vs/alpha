@@ -604,6 +604,11 @@
         "id": "R7",
         "text": "Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates.",
         "acceptance": "Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults."
+      },
+      {
+        "id": "R8",
+        "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, decision records and checks; a feature is built from a spec with its tests that the user approves.",
+        "acceptance": "Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end."
       }
     ],
     "license": "MIT",
@@ -697,6 +702,14 @@
       {
         "term": "design language",
         "meaning": "The one look a project declares for all its visuals (diagrams, charts, images, UI): optional, and enforced by the reviewer only when defined."
+      },
+      {
+        "term": "playbook",
+        "meaning": "The steps /alpha:go follows for one kind of task (feature, bug fix, refactoring, ...), kept in the plugin, not copied into projects."
+      },
+      {
+        "term": "feature spec",
+        "meaning": "A feature's requirements, the test that proves each acceptance check, and its plan, in docs/specs/; the user approves it before any code. Not the kit's design spec in docs/superpowers/specs/."
       }
     ]
   },
@@ -749,7 +762,8 @@
         "paths": [
           "skills/new-project/**",
           "skills/adopt/**",
-          "skills/extend/**"
+          "skills/extend/**",
+          "skills/go/**"
         ],
         "docs": [
           "README.md"
@@ -1450,6 +1464,11 @@
             "id": "R7",
             "text": "Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates.",
             "acceptance": "Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults."
+          },
+          {
+            "id": "R8",
+            "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, decision records and checks; a feature is built from a spec with its tests that the user approves.",
+            "acceptance": "Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end."
           }
         ],
         "license": "MIT",
@@ -1543,6 +1562,14 @@
           {
             "term": "design language",
             "meaning": "The one look a project declares for all its visuals (diagrams, charts, images, UI): optional, and enforced by the reviewer only when defined."
+          },
+          {
+            "term": "playbook",
+            "meaning": "The steps /alpha:go follows for one kind of task (feature, bug fix, refactoring, ...), kept in the plugin, not copied into projects."
+          },
+          {
+            "term": "feature spec",
+            "meaning": "A feature's requirements, the test that proves each acceptance check, and its plan, in docs/specs/; the user approves it before any code. Not the kit's design spec in docs/superpowers/specs/."
           }
         ]
       },
@@ -1595,7 +1622,8 @@
             "paths": [
               "skills/new-project/**",
               "skills/adopt/**",
-              "skills/extend/**"
+              "skills/extend/**",
+              "skills/go/**"
             ],
             "docs": [
               "README.md"
@@ -1739,9 +1767,9 @@
       ".claude/skills/review-change/SKILL.md": "sha256:030a78de6260b37987fb01b508dc3f5c2fd082ae665dbb55f312db85d2b2b158",
       ".gitignore": "sha256:e1f166fb62f35ad82fc9f7f0f56d9c45de7732c87312030d0762c9af88b9b712",
       ".rumdl.toml": "sha256:9382fe071cf76551d8127b9b9652a9ff23591b30870d610b89165da4c972f512",
-      "CLAUDE.md": "sha256:eeeedc078751b023ad9e06a1d675e046a8bdf10e43a843a44b92b93151edb6f0",
-      "CONTRIBUTING.md": "sha256:b498c36d56c1f427268bb1931d3031ced30b8605b62f0b362360f8e5aae3a726",
-      "README.md": "sha256:b3f82a32c46770f7a8c61a1190abd4bfb0c44c73ec00af72ccf571cdaf7deeba",
+      "CLAUDE.md": "sha256:02bd0784bf4a42048b4f41461aefaf83552b35ccd2a5b61f79355cf2a990e49d",
+      "CONTRIBUTING.md": "sha256:83cf965209184e7a650f4274359b9a12b5ee036215db3953612da017d005b89b",
+      "README.md": "sha256:77adf447ccef5c8ff32d293657894d1ee3d3a0c114b0b53221921c0eec93a23b",
       "_typos.toml": "sha256:3dde33ae6acb93d91ec5a95bd5d60c3a7f8363f329abb4998e83cd1900d0e106",
       "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
@@ -1766,10 +1794,10 @@
       "docs/decisions/0017-review-at-merge.md": "sha256:29c2e0e1b5f1af4983ead8fa0aed8fcffed4bfa4caa7b233b37a7e944c7ff43d",
       "docs/decisions/0018-override-build-hosting-upfront.md": "sha256:be025c90f01b359d304ce147af26b9e6d0713de21cbcead8d050252b4026b61e",
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
-      "docs/glossary.md": "sha256:14ceb0d991632e981a8bee3a1209ce754752ed3922a9ccd2cdae2bec27d8655e",
+      "docs/glossary.md": "sha256:4a9b4de214e6e55f5861f1cc2da60dd4e44a6b3d1b3b93325e293e25c2686919",
       "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
-      "docs/principles.toml": "sha256:8e824cda359a1052ea7f1f679a3f257170d2131af04f265517969bb2d3439e1c",
-      "docs/product.md": "sha256:f16cf2fdf4b69e188970efff2396c3dbfed048821621887a097fdafe091b1165",
+      "docs/principles.toml": "sha256:0e4d3d76a5225e0318bb20eba01ac0b9e822e16881defa63f3424477c884250f",
+      "docs/product.md": "sha256:851186f823f0709e025914e5a725c90c48762f1da14d0bbb5078dd174b3f259d",
       "docs/releases.md": "sha256:f87fe7b35dd5a3b79159c751d5074fdd42d8e1aa9105c2a475c3df4cd45afd11",
       "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
       "lychee.toml": "sha256:be7ab01eb157c56d4687f0c6a728e1ea98582d1c81b45980d920d1fedce9b138",

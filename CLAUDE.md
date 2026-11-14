@@ -150,6 +150,8 @@ To bring an existing repo in, run `/alpha:adopt ~/code/that-repo` (clean tree, c
 
 To change a project alpha generated (add a component, revisit an area's decisions), run `/alpha:extend <what to change>` from inside it. It re-asks only what the change affects, merges alpha's files without overwriting your edits, and commits.
 
+To work a task in a generated or adopted project, run `/alpha:go <task>`. It follows a playbook from `skills/go/playbooks/` (decision 0031); a feature goes through a spec in `docs/specs/` that the user approves before any code.
+
 Optional: to stop Claude Code asking before each alpha CLI call during the interview, add `"Bash(<alpha checkout>/bin/alpha *)"` with the absolute path of this checkout to `permissions.allow` in `~/.claude/settings.json` (for an installed plugin, use the `bin/alpha` path the prompt shows).
 
 Install it for every session from GitHub with `claude plugin marketplace add vs/alpha`, then `claude plugin install alpha@alpha`; update with `claude plugin marketplace update alpha` and `claude plugin update alpha@alpha`. `claude plugin validate .claude-plugin/marketplace.json` checks the manifests.
