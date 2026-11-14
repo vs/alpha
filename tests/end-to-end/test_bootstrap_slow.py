@@ -546,3 +546,92 @@ def test_diff_cover_catches_untested_rust_line(
         done = _sh(command, tmp_path)
         assert done.returncode == 0, f"{step}: {done.stdout}{done.stderr}"
     assert git(tmp_path, "status", "--porcelain") == ""
+
+
+_SIDE = (
+    "//! Sides of zero.\n\n"
+    "/// Which side of zero `n` is on: -1 below it, 1 at or above it.\n"
+    "#[must_use]\n"
+    "pub fn side(n: i32) -> i32 {\n"
+    "    if n < 0 { -1 } else { 1 }\n"
+    "}\n\n"
+    "#[cfg(test)]\nmod tests;\n"
+)
+_SIDE_BELOW = (
+    "use super::side;\n\n#[test]\nfn below() {\n    assert_eq!(side(-1), -1);\n}\n"
+)
+_SIDE_AT = "\n#[test]\nfn at() {\n    assert_eq!(side(0), 1);\n}\n"
+
+
+def _ci_steps(project: Path, job: str) -> dict[str, str]:
+    """The pull-request steps of a component's CI job as local commands: the
+    pinned diff-cover through `uvx`, and the base as a local branch."""
+    workflow = yaml.safe_load((project / ".github/workflows/ci.yml").read_text())
+    return {
+        s["name"]: s["run"]
+        .replace("pipx run", "uvx")
+        .replace("origin/${BASE_REF}", "${BASE_REF}")
+        for s in workflow["jobs"][job]["steps"]
+        if "name" in s
+    }
+
+
+def _commit(project: Path, message: str, *paths: str) -> None:
+    git(project, "add", *paths)
+    git(project, "commit", "-m", message, "--no-verify")
+
+
+def _add_side(crate: Path) -> None:
+    """A module whose `if` only one test side reaches, on one line: every
+    line runs, and the mutant `<` as `<=` survives."""
+    (crate / "src/side").mkdir(parents=True)
+    (crate / "src/lib.rs").write_text("//! Tidy.\n\npub mod side;\n")
+    (crate / "src/side.rs").write_text(_SIDE)
+    (crate / "src/side/tests.rs").write_text(_SIDE_BELOW)
+
+
+@pytest.mark.slow
+@NEEDS_CARGO
+def test_exhaustive_gate_catches_a_half_tested_rust_branch(
+    tmp_path: Path, git_env: None
+):
+    """Decision 0028: diff-cover reads the branches cargo-llvm-cov records
+    on the recipe's nightly."""
+    answers = place_answers(tmp_path, "rust-cli")
+    data = json.loads(answers.read_text())
+    data["testing"]["exhaustive"] = True
+    answers.write_text(json.dumps(data))
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    commit_skeleton(tmp_path, principles, [])
+    git(tmp_path, "branch", "-M", "main")
+    git(tmp_path, "switch", "-c", "feature")
+    steps = _ci_steps(tmp_path, "cli")
+    coverage, diff = steps["test with coverage"], steps["diff coverage"]
+    assert diff.endswith("--branch-coverage")
+    env = {**os.environ, "BASE_REF": "main"}
+
+    _add_side(tmp_path)
+    _commit(tmp_path, "feat(cli): Add side", "src")
+    done = _sh(coverage, tmp_path)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "condition-coverage" in (tmp_path / "coverage.xml").read_text()
+    # Every line ran, so only the untaken side of the `if` fails the gate.
+    lines_only = _sh(diff.removesuffix(" --branch-coverage"), tmp_path, env)
+    assert lines_only.returncode == 0, lines_only.stdout + lines_only.stderr
+    done = _sh(diff, tmp_path, env)
+    output = done.stdout + done.stderr
+    assert done.returncode != 0, output
+    assert "side.rs" in output, output
+
+    (tmp_path / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT)
+    _commit(tmp_path, "test(cli): Cover both sides", "src")
+    assert _sh(coverage, tmp_path).returncode == 0
+    done = _sh(diff, tmp_path, env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    for step in ("format_check", "lint", "test"):
+        command = principles["components"][0]["commands"][step]
+        done = _sh(command, tmp_path)
+        assert done.returncode == 0, f"{step}: {done.stdout}{done.stderr}"
+    assert git(tmp_path, "status", "--porcelain") == ""

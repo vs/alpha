@@ -1,16 +1,20 @@
 stack = "rust"
 proven = true
 # The toolchain comes from rust-toolchain.toml (rustup installs it on first
-# use); these add its components and the two cargo subcommands the checks run.
-# `cargo install` of an installed version does nothing.
+# use); these add its components, the nightly of the coverage run and the
+# cargo subcommands the checks run. `cargo install` of an installed version
+# does nothing.
 bootstrap = [
   "rustup component add rustfmt clippy llvm-tools-preview",
+  "rustup toolchain install ${coverage_toolchain} --profile minimal --component llvm-tools-preview",
   "cargo install --locked cargo-llvm-cov@0.9.1 cargo-machete@0.9.2",
 ]
 lockfiles = ["Cargo.lock"]
 ignores = ["target/", "coverage.xml"]
-# cargo-llvm-cov leaves test files (tests/, tests.rs) out of the report.
-coverage = "cargo llvm-cov --cobertura --output-path coverage.xml"
+# Only this command runs on the nightly: stable Rust records no branches
+# (decision 0028). cargo-llvm-cov leaves test files (tests/, tests.rs) out of
+# the report.
+coverage = "cargo +${coverage_toolchain} llvm-cov --branch --cobertura --output-path coverage.xml"
 coverage_report = "coverage.xml"
 dependabot = "cargo"
 manifests = ["Cargo.toml"]
@@ -30,6 +34,13 @@ allow = [
   "Bash(cargo add:*)",
   "Bash(rustfmt --edition:*)",
 ]
+
+# The dated nightly of the coverage run, written here and nowhere else. To move
+# it: pick a newer date, rerun the slow tests (`uv run pytest -m slow -k rust`
+# proves that `--branch` still reaches diff-cover) and release the kit;
+# `alpha update` then carries the date into each project's CI workflow.
+[vars]
+coverage_toolchain = "nightly-2026-11-10"
 
 # The files whose folder `alpha adopt survey` lists as a candidate component.
 [detect]
@@ -58,7 +69,7 @@ lint_file = ""
 [why]
 rustfmt = "Formatting (a toolchain component)"
 clippy = "Linting, with the pedantic group (a toolchain component)"
-cargo-llvm-cov = "Coverage of the lines a pull request changes"
+cargo-llvm-cov = "Coverage of the lines and branches a pull request changes, run on the dated nightly the kit pins (a kit release moves the date, and `alpha update` brings it in)"
 cargo-machete = "Unused dependencies"
 
 [ci]
@@ -66,7 +77,13 @@ env = {}
 
 # Pinned to commit SHAs, as registry/actions.toml has them; `version` is the tag.
 # setup-rust-toolchain installs the toolchain rust-toolchain.toml names, with
-# its components, and caches target/ and the cargo registry.
+# its components, and caches target/ and the cargo registry. Its first use
+# installs the coverage nightly beside it, without making it the default.
+[[ci.steps]]
+uses = "actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30"
+version = "v2.0.1"
+with = { toolchain = "${coverage_toolchain}", components = "llvm-tools-preview", override = "false", cache = "false" }
+
 [[ci.steps]]
 uses = "actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30"
 version = "v2.0.1"

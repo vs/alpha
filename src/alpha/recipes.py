@@ -93,6 +93,7 @@ _RECIPE_KEYS = frozenset(
         "rules",
         "coverage",
         "coverage_report",
+        "vars",
         "baseline",
         "detect",
         "adopted",
@@ -145,6 +146,10 @@ _ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@(v\d+(\.\d+){0,2}|[0-9a-f]{40
 _SHA_ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40}")
 _RULE_ID = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 _TEMPLATE_VALUE = re.compile(r"(?<!\$)\$(?:\{(name|slug)\}|(name|slug)\b)")
+_VAR = re.compile(r"\$\{([a-z][a-z0-9_]*)\}")
+_VAR_NAME = re.compile(r"[a-z][a-z0-9_]*")
+# `${dir}` is the component's folder in a CI step; the rest fill templates.
+_RESERVED_VARS = frozenset({"dir", "name", "slug"})
 
 
 def matches(path: str, globs: list[str]) -> bool:
@@ -289,6 +294,34 @@ def _baselines(
 _GLOB_CHARS = frozenset("*?[]{}")
 
 
+def _expanded(data: Mapping[str, Any], where: str) -> Mapping[str, Any]:
+    """The recipe with each `${name}` of its `vars` table filled in, so a
+    value several commands share (a dated toolchain) is written once."""
+    if "vars" not in data:
+        return data
+    names = _mapping(data["vars"], f"{where}.vars")
+    for name, text in names.items():
+        if not _VAR_NAME.fullmatch(name) or name in _RESERVED_VARS:
+            raise _fail(
+                f"{where}.vars",
+                f"{name!r} isn't a free lowercase name",
+                "Use lowercase letters, digits and underscores, and none of: "
+                f"{', '.join(sorted(_RESERVED_VARS))}",
+            )
+        _one_line(text, f"{where}.vars.{name}")
+
+    def fill(value: object) -> object:
+        if isinstance(value, str):
+            return _VAR.sub(lambda m: names.get(m.group(1), m.group(0)), value)
+        if isinstance(value, list):
+            return [fill(v) for v in cast("list[object]", value)]
+        if isinstance(value, dict):
+            return {k: fill(v) for k, v in cast("dict[str, object]", value).items()}
+        return value
+
+    return {k: v if k == "vars" else fill(v) for k, v in data.items()}
+
+
 def _detect(value: object, where: str) -> tuple[str, ...]:
     if not isinstance(value, dict):
         raise _fail(where, "must be an object", 'Write {"markers": ["Cargo.toml"]}')
@@ -316,6 +349,7 @@ def recipe_from_data(
 ) -> Recipe:
 
     _unknown(data, _RECIPE_KEYS, where)
+    data = _expanded(data, where)
 
     def get(key: str) -> object:
         if key not in data:
@@ -550,6 +584,7 @@ def recipe_from_data(
 # installs or writes into the repo (bootstrap and its reasons, templates) nor
 # coverage, which needs a plugin the repo may not have.
 _INHERITED = (
+    "vars",
     "lockfiles",
     "manifests",
     "source_globs",

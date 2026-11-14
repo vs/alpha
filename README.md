@@ -57,8 +57,10 @@ every branch taken both ways, every failure forced by injecting it, fuzz or
 property-based tests for outside input, limits tested on both sides, a
 failing test before each bug fix, invariants asserted in the code. The
 reviewer holds every change to it, and CI fails a pull request that leaves a
-changed line or branch uncovered (lines only for Rust, whose stable toolchain
-reports no branches). It is off by default.
+changed line or branch uncovered. It is off by default.
+
+Rust coverage records branches too: only the coverage run uses a pinned,
+dated nightly, since stable Rust reports none.
 
 ## Needs
 

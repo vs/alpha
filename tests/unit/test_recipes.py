@@ -16,6 +16,7 @@ from alpha.recipes import (
     CHECK_STEPS,
     RecipeBook,
     RecipeError,
+    adopted_data,
     check_commands,
     load_recipe,
     recipe_from_data,
@@ -554,3 +555,35 @@ def test_detect_must_be_file_names(marker: str):
     raw["detect"] = {"markers": [marker]}
     with pytest.raises(RecipeError, match=r"detect\.markers\[0\].*plain file name"):
         recipe_from_data("sh", raw, "recipe", None)
+
+
+def test_vars_fill_every_value_that_names_them():
+    raw = shell_recipe()
+    raw["vars"] = {"pin": "tool-2026-11-10"}
+    raw["bootstrap"] = ["sh install ${pin}"]
+    raw["commands"]["test"] = "sh +${pin} test ${other}"
+    step = {"uses": "a/b@v1", "with": {"version": "${pin}", "path": "${dir}."}}
+    raw["ci"]["steps"] = [step]
+    recipe = recipe_from_data("shellish", raw, "recipes.shellish", None, generated=True)
+    assert recipe.bootstrap == ["sh install tool-2026-11-10"]
+    # A name the table doesn't hold stays as written, as `${dir}` must.
+    assert recipe.commands["test"] == "sh +tool-2026-11-10 test ${other}"
+    assert recipe.ci.steps[0]["with"] == {
+        "version": "tool-2026-11-10",
+        "path": "${dir}.",
+    }
+
+
+@pytest.mark.parametrize("name", ["dir", "name", "Pin", "a-b"])
+def test_vars_refuse_a_reserved_or_malformed_name(name: str):
+    raw = shell_recipe()
+    raw["vars"] = {name: "x"}
+    with pytest.raises(RecipeError, match=r"vars: .* isn't a free lowercase name"):
+        recipe_from_data("shellish", raw, "recipes.shellish", None, generated=True)
+
+
+def test_adopted_recipe_inherits_the_kit_s_vars():
+    kit = RecipeBook().data("rust")
+    merged = adopted_data({"adopted": True, "extends": "rust"}, kit)
+    recipe = recipe_from_data("api-rust", merged, "recipes.api-rust", None)
+    assert "${coverage_toolchain}" not in json.dumps(recipe.ci.steps)

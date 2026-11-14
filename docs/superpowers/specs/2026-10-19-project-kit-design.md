@@ -639,11 +639,15 @@ Recipe commands. A stack recipe may add two commands to the ones in §3:
   --cov-report=xml:coverage.xml`, report
   `coverage.xml`. TypeScript: `pnpm vitest run --coverage
   --coverage.reporter=cobertura`, report `coverage/cobertura-coverage.xml`.
-  Rust: `cargo llvm-cov --cobertura --output-path coverage.xml`, report
-  `coverage.xml`. With exhaustive testing (§6) the gate is
-  `--fail-under=100 --branch-coverage`: a changed branch with one side
-  untested fails too, where the report has branch data (Python and
-  TypeScript; stable Rust reports lines only).
+  Rust: `cargo +nightly-YYYY-MM-DD llvm-cov --branch --cobertura
+  --output-path coverage.xml`, report `coverage.xml`; stable Rust records no
+  branches, so only this command runs on a dated nightly, which the recipe
+  names once under `[vars]` (decision 0028). With exhaustive testing (§6) the
+  gate is `--fail-under=100 --branch-coverage`: a changed branch with one
+  side untested fails too.
+
+A recipe's `[vars]` table names values several of its commands share; each
+`${name}` in the recipe is filled from it.
 
 The registry (`registry/` in the kit) has one entry per repo-check tool. An
 entry holds the tool's pinned version and `pin.command`, the command that

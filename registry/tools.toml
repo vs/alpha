@@ -393,8 +393,8 @@ repo = "taiki-e/cargo-llvm-cov"
 category = "Rust"
 stacks = ["rust"]
 rationale = "source-based coverage from LLVM for `cargo test`, with a Cobertura report (`--cobertura`) that diff-cover reads; test files (`tests/`, `tests.rs`) stay out of the report."
-limitations = "alpha's pick that DQG doesn't list (DQG covers tests only through diff-cover). Needs the `llvm-tools-preview` toolchain component; without it, it asks to install it and waits on a terminal. A file outside the module tree isn't compiled, so it is missing from the report rather than uncovered. Verified in alpha: 0.9.1 on Rust 1.99.1, 2026-11-11."
-last_reviewed = 2026-11-11
+limitations = "alpha's pick that DQG doesn't list (DQG covers tests only through diff-cover). Needs the `llvm-tools-preview` toolchain component; without it, it asks to install it and waits on a terminal. A file outside the module tree isn't compiled, so it is missing from the report rather than uncovered. Verified in alpha: 0.9.1 on Rust 1.99.1, 2026-11-11. Branches: stable Rust records none, so alpha runs only the coverage command as `cargo +nightly-YYYY-MM-DD llvm-cov --branch --cobertura`; on nightly-2026-11-10 the Cobertura report marks a branch line `branch=\"true\" condition-coverage=\"50% (1/2)\"`, which diff-cover 11.0.1 `--branch-coverage` fails (2026-11-14)."
+last_reviewed = 2026-11-14
 
 [tools.cargo-deny]
 name = "cargo-deny"

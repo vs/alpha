@@ -113,3 +113,10 @@ The slow test `test_exhaustive_gate_catches_a_half_tested_branch` generated, boo
 
 - A new function whose `if` only one test side reached had every line covered: the gate passed without `--branch-coverage` and failed with it, naming the file. With both sides tested it passed.
 - Not verified: a Rust component (stable Rust reports no branch data, so its gate is lines only), and the workflow on GitHub.
+
+## Rust branch coverage (2026-11-14)
+
+The slow test `test_exhaustive_gate_catches_a_half_tested_rust_branch` generated, bootstrapped and committed `rust-cli` with `testing.exhaustive` on, then ran the workflow's own coverage and diff coverage commands with Rust 1.99.1, nightly-2026-11-10 for the coverage run only, cargo-llvm-cov 0.9.1 and diff-cover 11.0.1 (decision 0028).
+
+- `cargo +nightly-2026-11-10 llvm-cov --branch --cobertura` wrote `condition-coverage` for an `if` on one line. With one side tested every line was covered: the gate passed without `--branch-coverage` and failed with it; with both sides tested it passed.
+- Not verified: the workflow on GitHub (the second toolchain install).
