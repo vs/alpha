@@ -24,7 +24,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 
 - If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`; an area missing from `areas`, because the interview started on an older alpha, is pending), then continue with the first area in the order below that isn't done.
 - Otherwise create it:
-  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "pending", "errors": "pending", "testing": "pending", "ui": "pending", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "pending", "releases": "pending", "data": "pending", "accessibility": "pending", "performance": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
+  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "pending", "errors": "pending", "testing": "pending", "design_language": "pending", "ui": "pending", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "pending", "releases": "pending", "data": "pending", "accessibility": "pending", "performance": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
 
 ## 3. Load the kit defaults
 
@@ -47,18 +47,19 @@ Run the areas in this order, one at a time, never skipping one and never shortcu
 3. Architecture: `alpha:architecture`
 4. Errors: `alpha:errors`
 5. Testing: `alpha:testing`
-6. UI: `alpha:ui`
-7. Documentation: `alpha:documentation`
-8. Build, CI and hosting: `alpha:build-and-hosting`
-9. Security and secrets: `alpha:security`
-10. Dependencies: `alpha:dependencies`
-11. Observability: `alpha:observability`
-12. Versioning and releases: `alpha:releases`
-13. Data and migrations: `alpha:data`
-14. Accessibility: `alpha:accessibility`
-15. Performance: `alpha:performance`
-16. Git history: `alpha:git-history`
-17. Agent workflow: `alpha:agent-workflow`
+6. Design language: `alpha:design-language` (the user may skip it inside the area; you still run the area)
+7. UI: `alpha:ui`
+8. Documentation: `alpha:documentation`
+9. Build, CI and hosting: `alpha:build-and-hosting`
+10. Security and secrets: `alpha:security`
+11. Dependencies: `alpha:dependencies`
+12. Observability: `alpha:observability`
+13. Versioning and releases: `alpha:releases`
+14. Data and migrations: `alpha:data`
+15. Accessibility: `alpha:accessibility`
+16. Performance: `alpha:performance`
+17. Git history: `alpha:git-history`
+18. Agent workflow: `alpha:agent-workflow`
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 
@@ -66,7 +67,7 @@ Before each area, tell the user in one line which area comes next and what it se
 
 ## 5. Summary and confirmation
 
-Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), architecture (responsibilities, calls, contract, glossary), errors (format per component; categories), testing (levels per component), UI (per UI component: library, tokens, theming, visual regression; or no UI), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, auth, extra protected paths), dependencies (updates and schedule), observability (per deployed component, or not applicable), releases (scheme, changelog, scope, process), data (per component that stores data: storage and migrations; ML data versioning, seeds and tracking; or nothing stored), accessibility (level and checks per UI component, or no UI), performance (budgets per component, or none), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
+Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), architecture (responsibilities, calls, contract, glossary), errors (format per component; categories), testing (levels per component), design language (character, palette, typography and diagram style, how firmly the palette is held, third-party paths; or skipped, so nothing about visuals is enforced), UI (per UI component: library, tokens, theming, visual regression; or no UI), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, auth, extra protected paths), dependencies (updates and schedule), observability (per deployed component, or not applicable), releases (scheme, changelog, scope, process), data (per component that stores data: storage and migrations; ML data versioning, seeds and tracking; or nothing stored), accessibility (level and checks per UI component, or no UI), performance (budgets per component, or none), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
 
 If the user wants a change, save it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` on one line (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
 
@@ -95,6 +96,7 @@ Tell the user, briefly:
   - CI runs every component's checks on each push to main and each pull request (when the user chose CI). Tell the user the workflow runs once they push the repository to GitHub.
   - Dependabot opens update pull requests on the chosen schedule (when chosen), also once the repository is on GitHub.
   - Claude can't push to main or merge a pull request with unreviewed changes or open review findings, and can't finish with open findings (in batched mode, also not with unreviewed changes past the thresholds). Claude may accept a finding it disproves, recorded in the decision log; a finding on a risk path needs your "accept".
+  - The reviewer checks every changed visual (a diagram, a chart, an image, UI styles) against `docs/design-language.md`, letting a deliberate, explained exception through and reporting drift, and a change to that page is reviewed as risky (when the user defined a design language; otherwise say nothing about visuals is enforced). With `palette_check` `advise` the reviewer is shown each color outside the palette; with `enforce`, the `palette` check also fails on one at Stop and in CI.
   - Each session starts with a warning if the project setup is broken.
   - Every `shortcut:` comment names when to upgrade it (the `shortcuts` repository check).
 - **Reports on request:** `/review-change` (a change), `/audit` (the whole repo) and `/debt` (the deliberate shortcuts); each changes no code.

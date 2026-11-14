@@ -104,6 +104,7 @@ def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
         "docs/glossary.md",
         "docs/security.md",
         "docs/observability.md",
+        "docs/design-language.md",
         "docs/ui.md",
         "docs/data.md",
         "docs/releases.md",
@@ -562,3 +563,22 @@ def test_contributing_lists_no_data_checks_without_data(tmp_path: Path):
     section = md[md.index("## Checks") :].split("\n## ")[0]
     assert "| typos |" in section
     assert "| migrations |" not in section and "| squawk |" not in section
+
+
+def test_claude_md_points_visual_work_at_the_design_language(tmp_path: Path):
+    out = render(load(tmp_path))
+    md = out["CLAUDE.md"]
+    assert (
+        "- **One design language**: Every visual the project makes (a diagram, "
+        "a chart, an image, the UI) is built from the design language in "
+        "docs/design-language.md: read it before making or changing one. A "
+        "visual may step outside it for a stated reason; it may not drift "
+        "from it." in md
+    )
+    assert md.count("design-language.md") == 1
+    record = next(
+        text
+        for path, text in out.items()
+        if path.startswith("docs/decisions/") and "design-language" in path
+    )
+    assert "Status: accepted\nKind: product\n" in record

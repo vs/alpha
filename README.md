@@ -31,6 +31,22 @@ claude plugin install alpha@alpha
 | each component | strict lint, types and tests, wired up with no `src/` |
 | `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, typos, markdown, links, action pins, agent config) |
 | `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
+| `docs/design-language.md` | optional: one look for every visual, from diagrams in the docs to the UI, which the reviewer holds each changed visual to |
+
+The design language is yours to skip. Define it in the interview (character,
+palette, typography, shape, imagery, diagram style) and it becomes a principle
+that CLAUDE.md states, and the source of the UI's tokens. Skip it, and alpha
+enforces and recommends nothing about how visuals look. `/alpha:extend define a
+design language` adds one later. Which files count as visuals is the `[visuals]`
+list in `docs/principles.toml` (diagram sources, SVG, styles, tokens, chart
+specs; docs and UI markup when a change touches something visual; images and
+fonts are named but can't be read). The interview asks for the paths of
+third-party assets, such as partner logos, and leaves them out.
+
+It guides; it isn't a wall. A visual may step outside it for a stated reason,
+and only drift is a finding. You choose how firmly colors are held: `advise`
+(the default) shows the reviewer each color outside the palette to judge,
+`enforce` adds a `palette` check that fails on one, `off` does neither.
 
 ## Exhaustive testing, if you ask
 

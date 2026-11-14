@@ -57,7 +57,7 @@ Round 3 (needs the layout):
 
 - **Path per component** - with `single`, the path is `"."` (don't ask). With `monorepo`, recommend the component's name as its folder; folders must not be nested in each other.
 - **Traits per component** - ask all six for each component in one question, recommending answers from its kind and the requirements. Explain each in one sentence:
-  - *Has a UI* - turns on the visual-system and accessibility principles.
+  - *Has a UI* - turns on the visual-system and accessibility principles. (The design language is separate: any project may define one, with or without a UI.)
   - *Deployed* - turns on config from the environment and observability (structured logs).
   - *Makes network calls* - every external call then needs a timeout and a failure path.
   - *Stores data* - every schema change must be a migration, reversible where possible.

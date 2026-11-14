@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -531,3 +532,84 @@ def test_brief_shows_the_tokens_of_a_touched_ui(project: Project) -> None:
     principles = review.brief(project.root).split("## Principles\n")[1]
     line = next(x for x in principles.splitlines() if x.startswith("- visual-system "))
     assert "[web: tokens=web/src/styles/tokens.css]" in line
+
+
+def visuals_brief(project: Project, palette_check: str) -> str:
+    principles = project.principles()
+    principles["visuals"] = {
+        "palette_check": palette_check,
+        "palette": ["#0B5FFF"],
+        "sources": ["**/*.svg", "**/*.css"],
+        "carriers": ["**/*.md", "**/*.tsx"],
+        "opaque": ["**/*.png"],
+        "exclude": ["**/node_modules/**", "**/*-snapshots/**"],
+        "palette_files": ["**/*.svg", "**/*.css", "**/*.md"],
+    }
+    project.write_principles(principles)
+    kit = Path(__file__).parents[3] / "project-files"
+    for rel in ("checks/palette.py", "hooks/_common.py"):
+        project.write(f".claude/alpha/{rel}", (kit / rel).read_text())
+    commit_all(project)
+    review.ensure_state(project.root)
+    project.write("docs/flow.svg", '<svg fill="#0b5fff"/>\n')
+    project.write("web/src/app.css", "a { color: #ff00aa }\n")
+    project.write("web/node_modules/lib/theme.css", "a { color: red }\n")
+    project.write("docs/guide.md", "# Guide\n\nPlain prose about issue #123.\n")
+    project.write(
+        "docs/arch.md", "# Flow\n\n```mermaid\nflowchart LR\n  A --> B\n```\n"
+    )
+    project.write("web/src/Button.tsx", "export const label = 'Save';\n")
+    project.write(
+        "web/src/Card.tsx", "const card = <p style={{color: '#123456'}} />;\n"
+    )
+    project.write("docs/logo.png", "png\n")
+    project.write("web/tests/home.spec.ts-snapshots/home.png", "png\n")
+    project.write("api/src/x.py", "x = 1\n")
+    return review.brief(project.root)
+
+
+def test_brief_names_the_changed_visuals(project: Project) -> None:
+    text = visuals_brief(project, "advise")
+    readable = text.split("## Changed visuals (check each")[1].split("\n## ")[0]
+    assert "- docs/flow.svg" in readable and "- web/src/app.css" in readable
+    assert "node_modules" not in readable and "x.py" not in readable
+    opaque = text.split("## Changed visuals that aren't text")[1].split("\n## ")[0]
+    assert "- docs/logo.png" in opaque and "snapshots" not in opaque
+
+
+def test_brief_lists_a_doc_or_ui_file_only_when_the_change_is_visual(
+    project: Project,
+) -> None:
+    text = visuals_brief(project, "advise")
+    readable = text.split("## Changed visuals (check each")[1].split("\n## ")[0]
+    assert "- docs/arch.md" in readable and "- web/src/Card.tsx" in readable
+    assert "guide.md" not in readable and "Button.tsx" not in readable
+
+
+def test_brief_shows_off_palette_colors_for_the_reviewer_to_judge(
+    project: Project,
+) -> None:
+    text = visuals_brief(project, "advise")
+    judged = text.split("## Colors outside the palette (judge each")[1]
+    judged = judged.split("\n## ")[0]
+    assert "- web/src/app.css:1: #ff00aa isn't in the palette" in judged
+    assert "flow.svg" not in judged and "Card.tsx" not in judged
+
+
+@pytest.mark.parametrize("palette_check", ["off", "enforce"])
+def test_brief_leaves_palette_colors_out_unless_advised(
+    project: Project, palette_check: str
+) -> None:
+    assert "Colors outside the palette" not in visuals_brief(project, palette_check)
+
+
+def test_brief_has_no_visuals_section_without_a_design_language(
+    project: Project,
+) -> None:
+    principles = project.principles()
+    del principles["visuals"]
+    project.write_principles(principles)
+    commit_all(project)
+    review.ensure_state(project.root)
+    project.write("docs/flow.svg", "<svg/>\n")
+    assert "Changed visuals" not in review.brief(project.root)

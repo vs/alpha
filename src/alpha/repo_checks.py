@@ -22,6 +22,8 @@ _REVIEW_DATES = "python3 .claude/alpha/checks/review_dates.py"
 _BASELINES = "python3 .claude/alpha/checks/diff_checks.py baselines"
 _SHORTCUTS = "python3 .claude/alpha/checks/shortcuts.py"
 _SECRET_SCAN = "python3 .claude/alpha/checks/secret_scan.py"
+PALETTE = "palette"
+_PALETTE = "python3 .claude/alpha/checks/palette.py"
 # Exact pins never fall behind their own request, so compare against the
 # newest release (--bump), and only for the project's tools (--no-global).
 TOOLCHAIN = "toolchain"  # CI runs it as its own step, after the weekly scans
@@ -186,6 +188,20 @@ def repo_checks(
         checks.append(
             RepoCheck(
                 "squawk", "squawk", _SQUAWK, (), False, "pr", "Unsafe SQL in migrations"
+            )
+        )
+    visuals: dict[str, Any] = principles.get("visuals", {})
+    if visuals.get("palette_check") == "enforce":
+        checks.append(
+            RepoCheck(
+                PALETTE,
+                None,
+                _PALETTE,
+                tuple(visuals["palette_files"]),
+                True,
+                "pr",
+                "Colors in diagrams, SVG and stylesheets come from the design "
+                "language's palette",
             )
         )
     checks += [

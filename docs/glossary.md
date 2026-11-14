@@ -8,6 +8,7 @@ Use these names in code, docs and UI alike.
 | area | One topic of the interview (identity, components, ...), settled by its own skill and saved in project.json. |
 | baseline | The legacy findings of one check in an adopted repo, per file and rule; only new findings fail and it only shrinks. |
 | component | One part of a project with its own folder, kind, stack and checks; also a commit scope. |
+| design language | The one look a project declares for all its visuals (diagrams, charts, images, UI): optional, and enforced by the reviewer only when defined. |
 | kit | The defaults, recipes, registry and templates alpha ships, which every project starts from. |
 | override | A project's recorded change to a principle (tighten, loosen or drop), with its reason. |
 | principle | A rule in docs/principles.toml, enforced by a hook, a check or the principles reviewer. |

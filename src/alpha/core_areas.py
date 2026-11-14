@@ -44,6 +44,7 @@ LOG_FORMATS: tuple[str, ...] = ("json", "logfmt")
 CORRELATION: tuple[str, ...] = ("traceparent", "request-id", "none")
 TELEMETRY: tuple[str, ...] = ("none", "opentelemetry", "other")
 THEMING: tuple[str, ...] = ("light", "dark", "light-dark", "custom")
+PALETTE_CHECKS: tuple[str, ...] = ("off", "advise", "enforce")
 A11Y_LEVELS: tuple[str, ...] = ("WCAG 2.2 A", "WCAG 2.2 AA", "WCAG 2.2 AAA")
 SCHEMES: tuple[str, ...] = ("semver", "calver", "none")
 CHANGELOGS: tuple[str, ...] = ("file", "github-releases", "none")
@@ -176,6 +177,27 @@ class PerfPlan:
 class Performance:
     components: tuple[PerfPlan, ...]
     expected_load: str | None = None
+
+
+@dataclass(frozen=True)
+class Color:
+    name: str
+    value: str
+    use: str
+
+
+@dataclass(frozen=True)
+class DesignLanguage:
+    defined: bool
+    character: str = ""
+    colors: tuple[Color, ...] = ()
+    typography: str = ""
+    shape: str = ""
+    imagery: str = ""
+    diagrams: str = ""
+    source: str = ""
+    palette_check: str = "off"
+    third_party: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -439,6 +461,54 @@ def observability(raw: object, comps: "Sequence[Component] | None") -> Observabi
                     "followed across components",
                 )
     return Observability(tuple(entries))
+
+
+_DESIGN_TEXTS = ("character", "typography", "shape", "imagery", "diagrams")
+
+
+def design_language(raw: object) -> DesignLanguage:
+    w = "design_language"
+    d = obj(raw, w)
+    if not boolean(d, "defined", w):
+        extra = sorted(k for k in d if k != "defined")
+        if extra:
+            raise fail(
+                f"{w}.{extra[0]}",
+                "is set but defined is false",
+                'Set defined to true, or send only {"defined": false} to skip the '
+                "design language",
+            )
+        return DesignLanguage(False)
+    colors: list[Color] = []
+    seen: set[str] = set()
+    for i, c in enumerate(as_list(get(d, "colors", w), f"{w}.colors")):
+        cw = f"{w}.colors[{i}]"
+        co = obj(c, cw)
+        name = string(co, "name", cw)
+        if name.casefold() in seen:
+            raise fail(f"{cw}.name", f"{name!r} is listed twice", "Keep one entry")
+        seen.add(name.casefold())
+        colors.append(Color(name, string(co, "value", cw), string(co, "use", cw)))
+    if not colors:
+        raise fail(
+            f"{w}.colors",
+            "is empty",
+            'Add the palette, e.g. {"name": "accent", "value": "#0B5FFF", "use": '
+            '"links and primary actions"}, or set defined to false to skip the '
+            "design language",
+        )
+    texts = {key: string(d, key, w) for key in _DESIGN_TEXTS}
+    third_party = strings(d, "third_party", w)
+    for i, glob in enumerate(third_party):
+        relative(glob, f"{w}.third_party[{i}]")
+    return DesignLanguage(
+        True,
+        colors=tuple(colors),
+        source=string(d, "source", w, blank=True),
+        palette_check=choice(d, "palette_check", w, PALETTE_CHECKS),
+        third_party=third_party,
+        **texts,
+    )
 
 
 def _has_ui(c: "Component") -> bool:

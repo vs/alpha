@@ -1,12 +1,19 @@
 from typing import Any, cast
 
-from alpha.answers import AREAS, Answers, AnswersError, Component, Documentation
+from alpha.answers import (
+    AREAS,
+    DESIGN_LANGUAGE_DOC,
+    Answers,
+    AnswersError,
+    Component,
+    Documentation,
+)
 from alpha.baseline import BASELINE_GLOB, ratchet_command
 from alpha.core_areas import TEST_RUNS
 from alpha.recipes import RecipeBook
 from alpha.records import Records, record_paths
 from alpha.registry import Registry, default_registry
-from alpha.repo_checks import RepoCheck, principles_entries, repo_checks
+from alpha.repo_checks import PALETTE, RepoCheck, principles_entries, repo_checks
 from alpha.toml_write import dumps
 from alpha.validate import fail, prefixed
 
@@ -24,7 +31,9 @@ _PROJECT_ONLY = (
     "communicating_components",
     "domain_jargon",
     "exhaustive_testing",
+    "design_language",
 )
+VISUAL_KINDS = ("sources", "carriers", "opaque", "exclude", "palette_files")
 
 _HEADER = """\
 # Single source of truth for this project's principles, review thresholds,
@@ -63,6 +72,7 @@ def compute_facts(a: Answers, defaults: dict[str, Any]) -> dict[str, bool]:
     facts["communicating_components"] = multi and a.components_talk
     facts["domain_jargon"] = a.identity.domain_jargon if a.identity else False
     facts["exhaustive_testing"] = exhaustive_testing(a, defaults)
+    facts["design_language"] = bool(a.design_language and a.design_language.defined)
     return facts
 
 
@@ -183,6 +193,7 @@ def build_principles(
         )
     assert a.git and a.agent_workflow and a.documentation and a.identity
     assert a.security and a.architecture and a.ui and a.data and a.accessibility
+    assert a.design_language
     migration_paths = _dedupe([g for d in a.data.components for g in d.migrations])
     squawk_paths = _dedupe(
         [
@@ -206,6 +217,7 @@ def build_principles(
             *a.architecture.contracts.paths,
             *migration_paths,
             *(p for t in tokens.values() for p in (t, f"{t}/**")),
+            *([DESIGN_LANGUAGE_DOC] if a.design_language.defined else []),
         ]
     )
 
@@ -257,6 +269,26 @@ def build_principles(
     by_id = {p["id"]: p for p in principles}
     if a.accessibility.level:
         by_id["accessibility"]["params"]["level"] = a.accessibility.level
+    visuals: dict[str, Any] = {}
+    language = a.design_language
+    if language.defined:
+        listed = defaults.get("design_language", {}).get("visuals")
+        if "design-language" not in by_id or listed is None:
+            raise AnswersError(
+                "defaults: the design-language principle or its "
+                "[design_language.visuals] list is missing (the defaults checkout "
+                "is older than this kit). Update the checkout, or unset "
+                "ALPHA_SOURCE to use the installed kit's defaults."
+            )
+        by_id["design-language"]["params"]["language"] = DESIGN_LANGUAGE_DOC
+        visuals = {
+            "palette_check": language.palette_check,
+            "palette": [c.value for c in language.colors],
+            **{kind: list(listed[kind]) for kind in VISUAL_KINDS},
+        }
+        visuals["exclude"] = _dedupe([*visuals["exclude"], *language.third_party])
+        if language.palette_check == "enforce":
+            by_id["design-language"]["checked_by"].append(f"ci:{PALETTE}")
     by_id["perf-budgets"]["component_params"].update(
         {name: {"budgets": b} for name, b in _budgets(a).items()}
     )
@@ -333,6 +365,8 @@ def build_principles(
         "components": components,
         "principles": principles,
     }
+    if visuals:
+        out["visuals"] = visuals
     pins = registry or default_registry()
     checks = repo_checks(a, out, pins)
     out["repo_checks"] = principles_entries(checks)

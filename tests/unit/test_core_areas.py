@@ -7,6 +7,7 @@ import pytest
 from helpers import SCENARIOS, single_component
 
 from alpha.answers import AnswersError, load_answers
+from alpha.core_areas import DesignLanguage
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
 
@@ -582,4 +583,78 @@ def test_test_run_answer_is_optional_and_checked(tmp_path: Path):
         assert check(tmp_path, d).testing.run == value  # type: ignore[union-attr]
     d["testing"]["run"] = "nightly"
     with pytest.raises(AnswersError, match=r"testing\.run: .*at-merge, at-stop"):
+        check(tmp_path, d)
+
+
+def test_fixture_loads_the_design_language():
+    language = load_answers(FIXTURE).design_language
+    assert language and language.defined
+    assert [c.name for c in language.colors] == ["surface", "text", "accent", "danger"]
+    assert language.colors[2].value == "#0B5FFF"
+    assert language.diagrams.startswith("Mermaid in Markdown")
+    assert language.source == ""
+
+
+def test_a_skipped_design_language_holds_nothing_else(tmp_path: Path):
+    d = valid()
+    d["design_language"] = {"defined": False}
+    assert check(tmp_path, d).design_language == DesignLanguage(defined=False)
+    d["design_language"] = {"defined": False, "typography": "Inter"}
+    with pytest.raises(
+        AnswersError,
+        match=r"design_language\.typography: is set but defined is false.*to skip",
+    ):
+        check(tmp_path, d)
+
+
+@pytest.mark.parametrize(
+    "field", ["character", "typography", "shape", "imagery", "diagrams"]
+)
+def test_a_defined_design_language_needs_every_part(tmp_path: Path, field: str):
+    d = valid()
+    d["design_language"][field] = " "
+    with pytest.raises(
+        AnswersError, match=rf"design_language\.{field}: must be a non-empty string"
+    ):
+        check(tmp_path, d)
+
+
+def test_a_defined_design_language_needs_a_palette(tmp_path: Path):
+    d = valid()
+    d["design_language"]["colors"] = []
+    with pytest.raises(
+        AnswersError,
+        match=r"design_language\.colors: is empty.*set defined to false to skip",
+    ):
+        check(tmp_path, d)
+
+
+def test_palette_colors_are_named_once(tmp_path: Path):
+    d = valid()
+    d["design_language"]["colors"].append(
+        {"name": "Accent", "value": "#FF00AA", "use": "badges"}
+    )
+    with pytest.raises(
+        AnswersError,
+        match=r"design_language\.colors\[4\]\.name: 'Accent' is listed twice",
+    ):
+        check(tmp_path, d)
+
+
+def test_the_palette_check_is_one_of_three_strengths(tmp_path: Path):
+    d = valid()
+    d["design_language"]["palette_check"] = "strict"
+    with pytest.raises(
+        AnswersError,
+        match=r"design_language\.palette_check: 'strict' is not allowed.*advise",
+    ):
+        check(tmp_path, d)
+
+
+def test_third_party_visuals_are_paths_inside_the_project(tmp_path: Path):
+    d = valid()
+    language = check(tmp_path, d).design_language
+    assert language and language.third_party == ("docs/partners/**",)
+    d["design_language"]["third_party"] = ["/Users/me/logos"]
+    with pytest.raises(AnswersError, match=r"design_language\.third_party\[0\]"):
         check(tmp_path, d)

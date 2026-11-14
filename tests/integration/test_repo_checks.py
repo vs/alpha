@@ -180,3 +180,13 @@ def test_principles_file_round_trips_repo_checks(tmp_path: Path):
     read = tomllib.loads(render_principles(principles))
     assert read["repo_checks"] == principles["repo_checks"]
     assert read["data"] == principles["data"]
+
+
+def test_palette_check_joins_the_catalog_only_when_enforced(tmp_path: Path):
+    def enforce(data: dict[str, Any]) -> None:
+        data["design_language"]["palette_check"] = "enforce"
+
+    assert "palette" not in ids(tmp_path / "a", "web-ts-plus-python-api")
+    assert "palette" not in ids(tmp_path / "b", "rust-cli")
+    got = ids(tmp_path / "c", "web-ts-plus-python-api", enforce)
+    assert got.index("palette") == got.index("shortcuts") - 1

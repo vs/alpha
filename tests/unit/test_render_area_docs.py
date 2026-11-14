@@ -352,3 +352,54 @@ def test_claude_md_links_the_new_docs(tmp_path: Path):
     rust = render(scenario(tmp_path / "r", "rust-cli"))["CLAUDE.md"]
     assert "docs/ui.md" not in rust and "docs/data.md" not in rust
     assert "- [Releases](docs/releases.md)" in rust
+
+
+def skip_design_language(data: dict[str, Any]) -> None:
+    data["design_language"] = {"defined": False}
+
+
+def test_design_language_doc_declares_every_part(tmp_path: Path):
+    out = render(load(tmp_path))
+    doc = out["docs/design-language.md"]
+    assert doc.startswith("# Design language\n")
+    assert "It guides; it isn't a wall." in doc
+    assert "a deliberate exception passes, drift is a finding" in doc
+    assert "mise run check:palette" not in doc
+    assert "Calm and technical" in section(doc, "Character")
+    assert (
+        "| accent | `#0B5FFF` | links, primary actions and the highlighted path in "
+        "a diagram |" in section(doc, "Colors")
+    )
+    assert "Inter for text and labels" in section(doc, "Typography")
+    assert "4 px grid" in section(doc, "Shape")
+    assert "lucide outline icons" in section(doc, "Icons and imagery")
+    assert "Mermaid in Markdown" in section(doc, "Diagrams and charts")
+    assert "## Source" not in doc
+    assert "[design language](design-language.md)" in section(
+        out["docs/ui.md"], "Visual system"
+    )
+
+
+def test_design_language_doc_names_a_fuller_guide(tmp_path: Path):
+    def with_guide(data: dict[str, Any]) -> None:
+        data["design_language"]["source"] = "docs/brand/guide.pdf"
+
+    doc = render(load(tmp_path, mutate=with_guide))["docs/design-language.md"]
+    assert "The full guide: docs/brand/guide.pdf." in section(doc, "Source")
+
+
+def test_a_skipped_design_language_writes_nothing_about_visuals(tmp_path: Path):
+    out = render(load(tmp_path, mutate=skip_design_language))
+    assert "docs/design-language.md" not in out
+    assert "design language" not in out["docs/ui.md"]
+    claude = out["CLAUDE.md"]
+    assert "design language" not in claude.lower()
+    assert "design-language" not in claude
+
+
+def test_design_language_doc_says_when_the_palette_is_enforced(tmp_path: Path):
+    def enforce(data: dict[str, Any]) -> None:
+        data["design_language"]["palette_check"] = "enforce"
+
+    doc = render(load(tmp_path, mutate=enforce))["docs/design-language.md"]
+    assert "the `palette` check (`mise run check:palette`) fails on a color" in doc
