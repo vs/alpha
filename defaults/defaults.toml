@@ -28,6 +28,13 @@ mobile = "typescript"
 library = "python"
 worker = "python"
 
+# workspace: in a monorepo, the components of a stack whose recipe has a
+# workspace share it (Rust: one Cargo workspace at the repository root, with
+# one Cargo.lock, toolchain and target/). The components answer
+# `"workspace": false` keeps each one a package of its own.
+[components]
+workspace = true
+
 [architecture]
 contract_format = "openapi"
 
@@ -55,11 +62,15 @@ ml = ["unit", "integration"]
 # diff_coverage: the share of the lines a pull request changes that its tests
 # must cover; 0 is off. exhaustive: switch on the exhaustive-testing principle,
 # under which a pull request covers every line and branch it changes.
+# mutants: under exhaustive testing, a component whose recipe has a
+# mutation-testing command (Rust: cargo-mutants) also fails a pull request
+# that leaves a mutant of a changed line uncaught.
 # run: when the hooks run a component's full test suite. "at-merge": once,
 # before the work reaches main; "at-stop": each time Claude finishes a turn.
 [testing]
 diff_coverage = 80
 exhaustive = false
+mutants = true
 run = "at-merge"
 
 [documentation]
@@ -232,10 +243,10 @@ core = true
 [[principles]]
 id = "exhaustive-testing"
 title = "Exhaustive testing"
-statement = "Tests take every branch both ways: a change's lines and branches are all covered, and a branch no test can reach is deleted or replaced by an assertion. Every failure path is forced in a test by injecting the failure (a failed allocation, read or write, a timeout, a crash between two writes). Everything that reads outside input has a fuzz or property-based test, and every limit is tested at, just below and just above its value. A bug fix starts with a test that fails without it. Invariants are asserted in the code, and the tests run on the build that ships."
+statement = "Tests take every branch both ways: a change's lines and branches are all covered, and a branch no test can reach is deleted or replaced by an assertion. Every failure path is forced in a test by injecting the failure (a failed allocation, read or write, a timeout, a crash between two writes). Everything that reads outside input has a fuzz or property-based test, and every limit is tested at, just below and just above its value. A bug fix starts with a test that fails without it. Every changed line's mutants are caught by a test. Invariants are asserted in the code, and the tests run on the build that ships."
 rationale = "SQLite is trusted on billions of devices because its tests take every branch and force every failure; tests of the expected path miss the bugs that live in error handling and odd input."
 applies = ["exhaustive_testing"]
-checked_by = ["reviewer", "ci:diff-coverage"]
+checked_by = ["reviewer", "ci:diff-coverage", "ci:mutants"]
 core = false
 
 [[principles]]

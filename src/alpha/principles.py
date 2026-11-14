@@ -108,6 +108,41 @@ def exhaustive_testing(a: Answers, defaults: dict[str, Any]) -> bool:
     return defaults.get("testing", {}).get("exhaustive") is True
 
 
+def mutation_testing(a: Answers, defaults: dict[str, Any]) -> bool:
+    """Whether exhaustive testing also runs each recipe's mutation-testing
+    gate (decision 0029): the answer when the interview set one, else the
+    kit's default. It is part of exhaustive testing, never on without it."""
+    answer = a.testing.mutants if a.testing is not None else None
+    if not exhaustive_testing(a, defaults):
+        if answer:
+            raise fail(
+                "testing.mutants",
+                "is true but mutation testing is part of exhaustive testing",
+                'Set "exhaustive": true in testing, or leave mutants out',
+            )
+        return False
+    if answer is not None:
+        return answer
+    return defaults.get("testing", {}).get("mutants") is True
+
+
+def workspace_members(a: Answers, defaults: dict[str, Any]) -> frozenset[str]:
+    """The components that share their stack's workspace at the repository
+    root (decision 0027): in a monorepo, those whose recipe has one, unless
+    the answers or the kit's default switch it off."""
+    on = a.workspace
+    if on is None:
+        on = defaults.get("components", {}).get("workspace") is True
+    if not on or a.layout != "monorepo":
+        return frozenset()
+    book = a.book()
+    return frozenset(
+        c.name
+        for c in a.components
+        if c.path != "." and book.get(c.stack).workspace is not None
+    )
+
+
 def _test_run(a: Answers, defaults: dict[str, Any]) -> str:
     """When the hooks run the full test suite: the answer when the interview
     set one, else the kit's default. Defaults from before the setting keep
@@ -224,24 +259,43 @@ def build_principles(
     components: list[dict[str, Any]] = []
     protected = list(defaults["protected"]["paths"])
     book = a.book()
+    members = workspace_members(a, defaults)
+    mutants = mutation_testing(a, defaults)
     for c in a.components:
         recipe = book.get(c.stack)
-        protected += [prefixed(c.path, lock) for lock in recipe.lockfiles]
+        member = c.name in members
+        # A workspace's lockfile and its own manifest are at the repository
+        # root, shared by every member.
+        lockfiles = [prefixed("." if member else c.path, x) for x in recipe.lockfiles]
+        manifests = [prefixed(c.path, m) for m in recipe.manifests]
+        rules = {r.id: r.rule for r in recipe.rules}
+        shared: list[str] = []
+        if member:
+            assert recipe.workspace is not None  # workspace_members checked it
+            manifests += recipe.manifests
+            rules.update({r.id: r.rule for r in recipe.workspace.rules})
+            shared = sorted(recipe.workspace.root_templates)
+        protected += lockfiles
         components.append(
             {
                 "name": c.name,
                 "path": c.path,
                 "kind": c.kind,
                 "stack": c.stack,
-                "manifests": [prefixed(c.path, m) for m in recipe.manifests],
-                "lockfiles": [prefixed(c.path, lock) for lock in recipe.lockfiles],
+                "manifests": manifests,
+                "lockfiles": lockfiles,
                 "source_globs": [prefixed(c.path, g) for g in recipe.source_globs],
                 "test_globs": [prefixed(c.path, g) for g in recipe.test_globs],
                 "exclude_globs": [prefixed(c.path, g) for g in recipe.exclude_globs],
                 "commands": dict(recipe.commands),
                 "rules": [
-                    {"id": f"{c.stack}:{r.id}", "rule": r.rule} for r in recipe.rules
+                    {"id": f"{c.stack}:{rule_id}", "rule": rule}
+                    for rule_id, rule in rules.items()
                 ],
+                # The files at the repository root that alpha writes for the
+                # workspace this component is a member of.
+                **({"workspace": shared} if member else {}),
+                **({"mutants": recipe.mutants} if mutants and recipe.mutants else {}),
             }
         )
 

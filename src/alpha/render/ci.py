@@ -2,7 +2,7 @@ import re
 from typing import Any, cast
 
 from alpha.baseline import ratchet_command
-from alpha.recipes import RecipeBook, check_commands
+from alpha.recipes import RecipeBook, check_commands, mutants_run
 from alpha.registry import Registry, default_registry
 from alpha.repo_checks import TOOLCHAIN
 from alpha.yaml_write import Commented, dumps
@@ -68,7 +68,8 @@ def _job(
 ) -> dict[str, object]:
     recipe = book.get(component["stack"])
     path = component["path"]
-    folder = "" if path == "." else f"{path}/"
+    # A workspace member's toolchain file and build cache are at the root.
+    folder = "" if path == "." or component.get("workspace") else f"{path}/"
     job: dict[str, object] = {
         "runs-on": "ubuntu-latest",
         "timeout-minutes": _TIMEOUT_MINUTES,
@@ -79,9 +80,11 @@ def _job(
     testing = principles.get("testing", {})
     threshold = testing.get("diff_coverage", 0)
     gated = bool(recipe.coverage) and threshold > 0
+    mutants: str = component.get("mutants", "")
     # The jobs only read the repository, so the token isn't left on disk.
-    # diff-cover compares against the base branch, so it needs the history.
-    steps: list[object] = [_checkout(registry, full_history=gated)]
+    # diff-cover and the mutants' diff compare against the base branch, so
+    # they need the history.
+    steps: list[object] = [_checkout(registry, full_history=gated or bool(mutants))]
     steps += [_step(step, folder) for step in recipe.ci.steps]
     for step, command in check_commands(component["commands"]):
         entry: dict[str, object] = {"name": step, "run": command}
@@ -112,6 +115,15 @@ def _job(
                 ),
             },
         ]
+    if mutants:
+        steps.append(
+            {
+                "name": "mutants",
+                "if": _PULL_REQUEST,
+                "env": {"BASE_REF": "${{ github.base_ref }}"},
+                "run": mutants_run('"origin/${BASE_REF}"', component),
+            }
+        )
     steps.append(dict(_TREE_STEP))
     job["steps"] = steps
     return job
@@ -244,15 +256,21 @@ def render_dependabot(
     interval = {"interval": schedule}
     book = book or RecipeBook()
     cooldown = {"cooldown": {"default-days": cooldown_days}} if cooldown_days else {}
+    # A workspace's members share one entry, at the root that holds their
+    # lockfile.
+    folders = dict.fromkeys(
+        (ecosystem, "/" if c["path"] == "." or c.get("workspace") else f"/{c['path']}")
+        for c in principles["components"]
+        if (ecosystem := book.get(c["stack"]).dependabot)
+    )
     entries: list[object] = [
         {
             "package-ecosystem": ecosystem,
-            "directory": "/" if c["path"] == "." else f"/{c['path']}",
+            "directory": directory,
             "schedule": interval,
             **cooldown,
         }
-        for c in principles["components"]
-        if (ecosystem := book.get(c["stack"]).dependabot)
+        for ecosystem, directory in folders
     ]
     if ci == "github-actions":
         entries.append(

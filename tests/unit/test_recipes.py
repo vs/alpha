@@ -16,12 +16,14 @@ from alpha.recipes import (
     CHECK_STEPS,
     RecipeBook,
     RecipeError,
+    adopted_data,
     check_commands,
     load_recipe,
     recipe_from_data,
     recipe_hash,
     render_component,
     render_template,
+    render_workspace,
 )
 from alpha.registry import BUNDLED, load_registry
 
@@ -239,6 +241,7 @@ def test_kit_recipes_carry_stack_rules():
     ]
     assert [r.id for r in load_recipe("rust").rules] == [
         "cargo-for-dependencies",
+        "mutants-skips",
         "typed-boundaries",
         "errors-with-context",
         "tests-beside-code",
@@ -346,11 +349,16 @@ def test_drafted_recipe_sha_needs_a_version():
         recipe_from_data("shell", data, "recipes.shell", None)
 
 
-def test_render_template_substitutes_only_name_and_slug():
-    text = "$name $slug $HOME ${name} $$x $name_y ${slug}-z"
+def test_render_template_substitutes_only_the_values_it_is_given():
+    text = "$name $slug $HOME ${name} $$x $name_y ${slug}-z $root $members"
+    values = {"name": "api", "slug": "pico"}
     assert (
-        render_template(text, "api", "pico") == "api pico $HOME api $$x $name_y pico-z"
+        render_template(text, values)
+        == "api pico $HOME api $$x $name_y pico-z $root $members"
     )
+    assert render_template(
+        "../$root/x [$members]", {"root": "..", "members": '"a"'}
+    ) == ('../../x ["a"]')
 
 
 def test_a_drafted_recipe_cannot_claim_to_be_proven():
@@ -554,3 +562,55 @@ def test_detect_must_be_file_names(marker: str):
     raw["detect"] = {"markers": [marker]}
     with pytest.raises(RecipeError, match=r"detect\.markers\[0\].*plain file name"):
         recipe_from_data("sh", raw, "recipe", None)
+
+
+def test_vars_fill_every_value_that_names_them():
+    raw = shell_recipe()
+    raw["vars"] = {"pin": "tool-2026-11-10"}
+    raw["bootstrap"] = ["sh install ${pin}"]
+    raw["commands"]["test"] = "sh +${pin} test ${other}"
+    step = {"uses": "a/b@v1", "with": {"version": "${pin}", "path": "${dir}."}}
+    raw["ci"]["steps"] = [step]
+    recipe = recipe_from_data("shellish", raw, "recipes.shellish", None, generated=True)
+    assert recipe.bootstrap == ["sh install tool-2026-11-10"]
+    # A name the table doesn't hold stays as written, as `${dir}` must.
+    assert recipe.commands["test"] == "sh +tool-2026-11-10 test ${other}"
+    assert recipe.ci.steps[0]["with"] == {
+        "version": "tool-2026-11-10",
+        "path": "${dir}.",
+    }
+
+
+@pytest.mark.parametrize("name", ["dir", "name", "root", "Pin", "a-b"])
+def test_vars_refuse_a_reserved_or_malformed_name(name: str):
+    raw = shell_recipe()
+    raw["vars"] = {name: "x"}
+    with pytest.raises(RecipeError, match=r"vars: .* isn't a free lowercase name"):
+        recipe_from_data("shellish", raw, "recipes.shellish", None, generated=True)
+
+
+def test_drafted_recipe_cannot_define_a_workspace():
+    raw = shell_recipe()
+    raw["workspace"] = {"files": {}, "member_files": {}}
+    with pytest.raises(RecipeError, match="only a kit recipe shares a workspace"):
+        recipe_from_data("shellish", raw, "recipes.shellish", None, generated=True)
+
+
+def test_rust_workspace_member_files():
+    recipe = load_recipe("rust")
+    nested = _component("rust", "library", "core", "crates/core")
+    files = render_component(nested, "pico", recipe, member=True)
+    assert set(files) == {"crates/core/Cargo.toml", "crates/core/tests/setup.rs"}
+    # The setup test reads the root manifest from wherever the member is.
+    assert 'include_str!("../../../Cargo.toml")' in files["crates/core/tests/setup.rs"]
+    root = render_workspace(recipe, ["crates/core", "cli"], "pico")
+    assert set(root) == {"Cargo.toml", "clippy.toml", "rust-toolchain.toml"}
+    members = tomllib.loads(root["Cargo.toml"])["workspace"]["members"]
+    assert members == ["crates/core", "cli"]
+
+
+def test_adopted_recipe_inherits_the_kit_s_vars():
+    kit = RecipeBook().data("rust")
+    merged = adopted_data({"adopted": True, "extends": "rust"}, kit)
+    recipe = recipe_from_data("api-rust", merged, "recipes.api-rust", None)
+    assert "${coverage_toolchain}" not in json.dumps(recipe.ci.steps)

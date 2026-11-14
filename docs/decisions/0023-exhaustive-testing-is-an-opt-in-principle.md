@@ -1,7 +1,7 @@
 # 0023. Exhaustive testing is an opt-in principle
 
 Date: 2026-11-13
-Status: accepted
+Status: superseded by 0028
 Kind: product
 
 ## Context

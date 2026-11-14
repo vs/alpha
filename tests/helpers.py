@@ -71,6 +71,25 @@ def clone_component(data: dict[str, Any], source: str, name: str, path: str) -> 
     data["layout"] = "monorepo"
 
 
+def place_rust_monorepo(
+    target: Path, workspace: bool | None = None, **testing: object
+) -> Path:
+    """The rust-cli scenario as a monorepo: the Rust components `cli` and
+    `core`, and the Python component `api`. `workspace` sets the components
+    answer of that name; `testing` sets answers of the testing area."""
+    answers = place_answers(target, "rust-cli")
+    data = json.loads(answers.read_text())
+    data["components"][0]["path"] = "cli"
+    clone_component(data, "cli", "core", "core")
+    clone_component(data, "cli", "api", "api")
+    data["components"][2]["stack"] = "python"
+    data["testing"].update(testing)
+    if workspace is not None:
+        data["workspace"] = workspace
+    answers.write_text(json.dumps(data))
+    return answers
+
+
 def old_python() -> str | None:
     for candidate in ("/usr/bin/python3", "python3.9", "python3.10"):
         exe = shutil.which(candidate)

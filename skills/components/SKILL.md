@@ -25,6 +25,7 @@ Any stack works. The kit has proven recipes for some (`"${CLAUDE_PLUGIN_ROOT}/bi
 ## Fields this area settles
 
 - `layout` - `"single"` (one component at the project root) or `"monorepo"` (each component in its own folder).
+- `workspace` - optional `true` or `false`, for a monorepo: whether the components of a stack whose recipe has a workspace share it. Leave it out to take `defaults.components.workspace` (on). Today that is Rust: its components form one Cargo workspace at the repository root, with one `Cargo.lock`, toolchain and `target/`; `false` keeps each a crate of its own.
 - `components_talk` - `true` when components call each other (HTTP, messages, shared files).
 - `components[].name` - lowercase letters, digits and hyphens, e.g. `api`; also the commit scope.
 - `components[].path` - the component's folder relative to the root.
@@ -55,6 +56,7 @@ Round 2 (needs the component list):
 
 Round 3 (needs the layout):
 
+- **Workspace** - only when a `monorepo` has a Rust component: say in one line that its Rust components form one Cargo workspace at the root (one lockfile, toolchain and build folder, dependencies pinned once), and recommend it. Save `"workspace": false` only when the user wants separate crates, through the grilling skill's override protocol (key `components.workspace`).
 - **Path per component** - with `single`, the path is `"."` (don't ask). With `monorepo`, recommend the component's name as its folder; folders must not be nested in each other.
 - **Traits per component** - ask all six for each component in one question, recommending answers from its kind and the requirements. Explain each in one sentence:
   - *Has a UI* - turns on the visual-system and accessibility principles. (The design language is separate: any project may define one, with or without a UI.)
@@ -76,7 +78,7 @@ Each top-level key you send replaces that key in project.json; the others stay a
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `components` set to `"in_progress"`.
-3. When the user confirms the area, save `layout`, `components_talk` and the `components` list. Each component is `{"name", "path", "kind", "stack", "traits": {"has_ui", "deployed", "network_calls", "persisted_data", "ml", "nontrivial_logic"}}`, with every trait `true` or `false`. Keep the exact field names.
+3. When the user confirms the area, save `layout`, `components_talk` and the `components` list, plus `"workspace": false` only when the user declined the workspace. Each component is `{"name", "path", "kind", "stack", "traits": {"has_ui", "deployed", "network_calls", "persisted_data", "ml", "nontrivial_logic"}}`, with every trait `true` or `false`. Keep the exact field names.
 4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "components"`:
    `{"area": "components", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the shape (e.g. "Python api plus TypeScript web"); `context` is why these parts; `decision` lists the components with their stacks and the layout; `consequences` names the toolchains to maintain and the integration points, plus any defaults wish from the override protocol.
 5. For each stack that `recipe list` doesn't name, invoke `alpha:stack-recipe` with the Skill tool for it before marking the area done.

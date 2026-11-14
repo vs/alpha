@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import TODAY, GenerateScenario, git, place_answers
+from helpers import (
+    TODAY,
+    GenerateScenario,
+    git,
+    place_answers,
+    place_rust_monorepo,
+)
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
@@ -545,4 +551,312 @@ def test_diff_cover_catches_untested_rust_line(
         command = principles["components"][0]["commands"][step]
         done = _sh(command, tmp_path)
         assert done.returncode == 0, f"{step}: {done.stdout}{done.stderr}"
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+
+_SIDE = (
+    "//! Sides of zero.\n\n"
+    "/// Which side of zero `n` is on: -1 below it, 1 at or above it.\n"
+    "#[must_use]\n"
+    "pub fn side(n: i32) -> i32 {\n"
+    "    if n < 0 { -1 } else { 1 }\n"
+    "}\n\n"
+    "#[cfg(test)]\nmod tests;\n"
+)
+_SIDE_BELOW = (
+    "use super::side;\n\n#[test]\nfn below() {\n    assert_eq!(side(-1), -1);\n}\n"
+)
+_SIDE_AT = "\n#[test]\nfn at() {\n    assert_eq!(side(0), 1);\n}\n"
+_SIDE_FAR = (
+    "\n#[test]\nfn far() {\n"
+    "    assert_eq!(side(100), 1);\n    assert_eq!(side(101), 2);\n}\n"
+)
+_TWICE = (
+    "//! Doubling.\n\n"
+    "/// Twice the side of zero `n` is on.\n"
+    "#[must_use]\n"
+    "pub fn twice(n: i32) -> i32 {\n"
+    "    tidy_core::side::side(n) * 2\n"
+    "}\n\n"
+    "#[cfg(test)]\nmod tests;\n"
+)
+_TWICE_TEST = (
+    "use super::twice;\n\n#[test]\nfn doubles() {\n    assert_eq!(twice(-1), -2);\n}\n"
+)
+
+
+def _ci_steps(project: Path, job: str) -> dict[str, str]:
+    """The pull-request steps of a component's CI job as local commands: the
+    pinned diff-cover through `uvx`, and the base as a local branch."""
+    workflow = yaml.safe_load((project / ".github/workflows/ci.yml").read_text())
+    return {
+        s["name"]: s["run"]
+        .replace("pipx run", "uvx")
+        .replace("origin/${BASE_REF}", "${BASE_REF}")
+        for s in workflow["jobs"][job]["steps"]
+        if "name" in s
+    }
+
+
+def _commit(project: Path, message: str, *paths: str) -> None:
+    git(project, "add", *paths)
+    git(project, "commit", "-m", message, "--no-verify")
+
+
+def _add_side(crate: Path) -> None:
+    """A module whose `if` only one test side reaches, on one line: every
+    line runs, and the mutant `<` as `<=` survives."""
+    (crate / "src/side").mkdir(parents=True)
+    (crate / "src/lib.rs").write_text("//! Tidy.\n\npub mod side;\n")
+    (crate / "src/side.rs").write_text(_SIDE)
+    (crate / "src/side/tests.rs").write_text(_SIDE_BELOW)
+
+
+@pytest.mark.slow
+@NEEDS_CARGO
+def test_exhaustive_gate_catches_a_half_tested_rust_branch(
+    tmp_path: Path, git_env: None
+):
+    """Decision 0028: diff-cover reads the branches cargo-llvm-cov records
+    on the recipe's nightly."""
+    answers = place_answers(tmp_path, "rust-cli")
+    data = json.loads(answers.read_text())
+    data["testing"]["exhaustive"] = True
+    answers.write_text(json.dumps(data))
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)
+    commit_skeleton(tmp_path, principles, [])
+    git(tmp_path, "branch", "-M", "main")
+    git(tmp_path, "switch", "-c", "feature")
+    steps = _ci_steps(tmp_path, "cli")
+    coverage, diff = steps["test with coverage"], steps["diff coverage"]
+    assert diff.endswith("--branch-coverage")
+    env = {**os.environ, "BASE_REF": "main"}
+
+    _add_side(tmp_path)
+    _commit(tmp_path, "feat(cli): Add side", "src")
+    done = _sh(coverage, tmp_path)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "condition-coverage" in (tmp_path / "coverage.xml").read_text()
+    # Every line ran, so only the untaken side of the `if` fails the gate.
+    lines_only = _sh(diff.removesuffix(" --branch-coverage"), tmp_path, env)
+    assert lines_only.returncode == 0, lines_only.stdout + lines_only.stderr
+    done = _sh(diff, tmp_path, env)
+    output = done.stdout + done.stderr
+    assert done.returncode != 0, output
+    assert "side.rs" in output, output
+
+    (tmp_path / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT)
+    _commit(tmp_path, "test(cli): Cover both sides", "src")
+    assert _sh(coverage, tmp_path).returncode == 0
+    done = _sh(diff, tmp_path, env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    for step in ("format_check", "lint", "test"):
+        command = principles["components"][0]["commands"][step]
+        done = _sh(command, tmp_path)
+        assert done.returncode == 0, f"{step}: {done.stdout}{done.stderr}"
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+
+@pytest.mark.slow
+@NEEDS_CARGO
+def test_mutants_gate_catches_a_surviving_mutant(tmp_path: Path, git_env: None):
+    """Decision 0029, for a crate of its own in a monorepo's subfolder: the
+    diff must name files from that crate's root, or the gate checks nothing."""
+    place_rust_monorepo(tmp_path, workspace=False, exhaustive=True)
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles, only=["core"])
+    commit_skeleton(tmp_path, principles, [])
+    git(tmp_path, "branch", "-M", "main")
+    git(tmp_path, "switch", "-c", "feature")
+    core = tmp_path / "core"
+    mutants = _ci_steps(tmp_path, "core")["mutants"]
+    env = {**os.environ, "BASE_REF": "main"}
+    env.pop("CI", None)  # the mise task leaves the gate to CI's own job there
+
+    _add_side(core)
+    _commit(tmp_path, "feat(core): Add side", "core/src")
+    done = _sh(mutants, core, env)
+    assert done.returncode != 0, done.stdout + done.stderr
+    assert "MISSED" in done.stdout and "replace < with <=" in done.stdout, done.stdout
+    local = subprocess.run(
+        ["mise", "run", "check:mutants:core"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env={**env, "ALPHA_BASE": "main"},
+    )
+    assert local.returncode != 0 and "MISSED" in local.stdout + local.stderr
+    skipped = subprocess.run(
+        ["mise", "run", "check:mutants:core"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert skipped.returncode == 0 and "mutants skipped" in skipped.stdout
+
+    (core / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT)
+    _commit(tmp_path, "test(core): Cover the boundary", "core/src")
+    done = _sh(mutants, core, env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    # The diff and cargo-mutants' output are ignored: CI's tree check passes.
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+
+@pytest.mark.slow
+@NEEDS_CARGO
+def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
+    """Decisions 0027 to 0029 on real tools: two Rust components in one Cargo
+    workspace beside a Python one, with exhaustive testing."""
+    place_rust_monorepo(tmp_path, exhaustive=True)
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles)  # every component's commands, from cargo fetch
+    commit_skeleton(tmp_path, principles, [])
+    assert git(tmp_path, "status", "--porcelain") == ""
+    tracked = git(tmp_path, "ls-files").splitlines()
+    assert {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml"} <= set(tracked)
+    assert not [f for f in tracked if f.startswith(("target/", "mutants.out"))]
+    for member in ("cli", "core"):
+        assert not (tmp_path / member / "Cargo.lock").exists()
+        assert not (tmp_path / member / "target").exists()
+        assert not (tmp_path / member / "rust-toolchain.toml").exists()
+    by_name = {c["name"]: c for c in principles["components"]}
+    cli, core = tmp_path / "cli", tmp_path / "core"
+    env = {**os.environ, "BASE_REF": "main"}
+    env.pop("CI", None)  # the mise task leaves the gate to CI's own job there
+    git(tmp_path, "branch", "-M", "main")
+    git(tmp_path, "switch", "-c", "feature")
+
+    def passes(name: str, step: str) -> None:
+        command = by_name[name]["commands"][step]
+        done = _sh(command, tmp_path / name)
+        assert done.returncode == 0, f"{name} {step}: {done.stdout}{done.stderr}"
+
+    def fails(name: str, step: str) -> str:
+        done = _sh(by_name[name]["commands"][step], tmp_path / name)
+        output = done.stdout + done.stderr
+        assert done.returncode != 0, f"{name} {step}: {output}"
+        return output
+
+    # A branch covered on one side only fails the exhaustive gate.
+    steps = _ci_steps(tmp_path, "core")
+    coverage, diff, mutants = (
+        steps["test with coverage"],
+        steps["diff coverage"],
+        steps["mutants"],
+    )
+    assert diff.endswith("--branch-coverage")
+    (core / "src/side").mkdir(parents=True)
+    (core / "src/lib.rs").write_text("//! Tidy's core.\n\npub mod side;\n")
+    (core / "src/side.rs").write_text(_SIDE)
+    (core / "src/side/tests.rs").write_text(_SIDE_BELOW)
+    _commit(tmp_path, "feat(core): Add side", "core/src")
+    done = _sh(coverage, core)
+    assert done.returncode == 0, done.stdout + done.stderr
+    report = (core / "coverage.xml").read_text()
+    assert 'filename="core/src/side.rs"' in report  # paths from the repo root
+    assert "condition-coverage" in report  # the nightly recorded branches
+    # Every line ran, so only the untaken side of the `if` fails the gate.
+    lines_only = _sh(diff.removesuffix(" --branch-coverage"), core, env)
+    assert lines_only.returncode == 0, lines_only.stdout + lines_only.stderr
+    done = _sh(diff, core, env)
+    assert done.returncode != 0, done.stdout + done.stderr
+    assert "side.rs" in done.stdout + done.stderr
+    # ... and its surviving mutant (`<` as `<=`) fails the mutants gate.
+    done = _sh(mutants, core, env)
+    assert done.returncode != 0 and "MISSED" in done.stdout, done.stdout + done.stderr
+
+    (core / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT)
+    _commit(tmp_path, "test(core): Cover both sides", "core/src")
+    assert _sh(coverage, core).returncode == 0
+    done = _sh(diff, core, env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    done = _sh(mutants, core, env)
+    assert done.returncode == 0, done.stdout + done.stderr
+
+    # One component depends on the other; every command still passes from
+    # each folder, and the report of one leaves the other's files out.
+    manifest = (cli / "Cargo.toml").read_text()
+    assert "[dependencies]\n" in manifest
+    (cli / "Cargo.toml").write_text(
+        manifest.replace(
+            "[dependencies]\n", '[dependencies]\ntidy-core = { path = "../core" }\n'
+        )
+    )
+    (cli / "src/twice").mkdir(parents=True)
+    (cli / "src/lib.rs").write_text("//! Tidy's command line.\n\npub mod twice;\n")
+    (cli / "src/twice.rs").write_text(_TWICE)
+    (cli / "src/twice/tests.rs").write_text(_TWICE_TEST)
+    assert _sh(by_name["cli"]["commands"]["setup"], cli).returncode == 0
+    _commit(tmp_path, "feat(cli): Add twice", "cli", "Cargo.lock")
+    for name in ("cli", "core", "api"):
+        for step in ("format_check", "lint", "typecheck", "structure", "test"):
+            passes(name, step)
+    steps = _ci_steps(tmp_path, "cli")
+    assert _sh(steps["test with coverage"], cli).returncode == 0
+    assert "core/src" not in (cli / "coverage.xml").read_text()
+    for step in ("diff coverage", "mutants"):
+        done = _sh(steps[step], cli, env)
+        assert done.returncode == 0, f"{step}: {done.stdout}{done.stderr}"
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+    # Each command covers only the member it runs in.
+    saved = {f: f.read_bytes() for f in (core / "Cargo.toml", tmp_path / "Cargo.lock")}
+    side = (core / "src/side.rs").read_text()
+    (core / "src/side.rs").write_text(side.replace("pub fn side(", "pub fn  side("))
+    fails("core", "format_check")
+    passes("cli", "format_check")
+    (core / "src/side.rs").write_text(
+        side
+        + '\n/// One.\n#[must_use]\npub fn one() -> u8 {\n    "1".parse().unwrap()\n}\n'
+    )
+    assert "clippy::unwrap_used" in fails("core", "lint")
+    passes("cli", "lint")
+    (core / "src/side.rs").write_text(side)
+    assert _sh("cargo add itoa@1", core).returncode == 0
+    assert "itoa" in fails("core", "structure")
+    passes("cli", "structure")
+    for f, data in saved.items():
+        f.write_bytes(data)
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+    # A test-free change to an `if` gets a missed mutant and fails the check,
+    # in CI's step and in `mise run ci` on a diff.
+    git(tmp_path, "switch", "main")
+    git(tmp_path, "merge", "-q", "--ff-only", "feature")
+    git(tmp_path, "switch", "-c", "untested")
+    (core / "src/side.rs").write_text(
+        side.replace(
+            "if n < 0 { -1 } else { 1 }",
+            "if n < 0 {\n        -1\n    } else if n > 100 {\n        2\n"
+            "    } else {\n        1\n    }",
+        )
+    )
+    passes("core", "format_check")
+    passes("core", "test")
+    _commit(tmp_path, "feat(core): Add a far side", "core/src")
+    done = _sh(mutants, core, env)
+    assert done.returncode != 0, done.stdout + done.stderr
+    assert "MISSED" in done.stdout and "side.rs" in done.stdout, done.stdout
+    local = subprocess.run(
+        ["mise", "run", "check:mutants:core"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env={**env, "ALPHA_BASE": "main"},
+    )
+    assert local.returncode != 0 and "MISSED" in local.stdout + local.stderr
+    cli_mutants = _sh(_ci_steps(tmp_path, "cli")["mutants"], cli, env)
+    assert cli_mutants.returncode == 0, cli_mutants.stdout  # not its change
+
+    (core / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT + _SIDE_FAR)
+    _commit(tmp_path, "test(core): Cover the far side", "core/src")
+    done = _sh(mutants, core, env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    # The reports, the diff and cargo-mutants' output are ignored, so CI's
+    # tree check still passes.
     assert git(tmp_path, "status", "--porcelain") == ""

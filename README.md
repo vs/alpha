@@ -28,7 +28,7 @@ claude plugin install alpha@alpha
 | `docs/principles.toml` | the one file CLAUDE.md, hooks and reviewer read |
 | `docs/decisions/` | a record per interview area and per override |
 | `.claude/` | permissions, hooks, the principles reviewer, skills to commit, record a decision, and review a change, the whole repo or its `shortcut:` ledger |
-| each component | strict lint, types and tests, wired up with no `src/` |
+| each component | strict lint, types and tests, wired up with no `src/`; a monorepo's Rust components form one Cargo workspace at the root |
 | `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, typos, markdown, links, action pins, agent config) |
 | `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
 | `docs/design-language.md` | optional: one look for every visual, from diagrams in the docs to the UI, which the reviewer holds each changed visual to |
@@ -57,8 +57,12 @@ every branch taken both ways, every failure forced by injecting it, fuzz or
 property-based tests for outside input, limits tested on both sides, a
 failing test before each bug fix, invariants asserted in the code. The
 reviewer holds every change to it, and CI fails a pull request that leaves a
-changed line or branch uncovered (lines only for Rust, whose stable toolchain
-reports no branches). It is off by default.
+changed line or branch uncovered. It is off by default.
+
+Rust coverage records branches too: only the coverage run uses a pinned,
+dated nightly, since stable Rust reports none. An exhaustive Rust component
+also gets a mutation-testing gate (cargo-mutants): a mutant of a changed
+line that no test catches fails the pull request.
 
 ## Needs
 

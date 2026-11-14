@@ -101,6 +101,15 @@ _EXHAUSTIVE_TESTING = [
 ]
 
 
+_MUTANTS = (
+    "- **Mutants are caught.** In {names}, a pull request fails when a mutant "
+    "of a line it changes survives the tests; one whose tests time out counts "
+    "as caught. `ALPHA_BASE=main mise run ci` runs the same gate here. A "
+    "skipped mutant needs its reason in a comment, which the reviewer checks "
+    "like any suppression."
+)
+
+
 def testing_section(a: Answers, principles: dict[str, Any]) -> list[str]:
     assert a.testing is not None
     lines = ["## Testing", "", "| Component | Levels |", "|---|---|"]
@@ -115,6 +124,9 @@ def testing_section(a: Answers, principles: dict[str, Any]) -> list[str]:
     ]
     if _active(principles, "exhaustive-testing"):
         lines += _EXHAUSTIVE_TESTING
+        gated = [c["name"] for c in principles["components"] if c.get("mutants")]
+        if gated:
+            lines[-1:] = [_MUTANTS.format(names=", ".join(gated)), ""]
     return lines
 
 

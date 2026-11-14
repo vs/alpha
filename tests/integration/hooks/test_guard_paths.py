@@ -51,6 +51,23 @@ def test_lockfile_blocked_with_component_setup_command(project: Project) -> None
     assert "Secrets" not in proc.stderr
 
 
+def test_workspace_lockfile_at_the_root_is_blocked_as_a_lockfile(
+    project: Project,
+) -> None:
+    data = project.principles()
+    for comp in data["components"]:
+        comp["lockfiles"] = ["shared.lock"]
+    data["protected"]["paths"].append("shared.lock")
+    project.write_principles(data)
+    project.set_commands("api", setup="cargo fetch")
+    proc = run(project, "Write", {"file_path": str(project.root / "shared.lock")})
+    assert proc.returncode == 2
+    assert "Lockfiles change only through the package manager (e.g. cargo fetch)." in (
+        proc.stderr
+    )
+    assert "Secrets" not in proc.stderr
+
+
 def test_env_local_blocked_as_a_secret(project: Project) -> None:
     proc = run(project, "Write", {"file_path": str(project.root / ".env.local")})
     assert proc.returncode == 2
