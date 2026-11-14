@@ -11,6 +11,8 @@ Take an empty folder to a committed, enforced project skeleton: interview the us
 
 Folder argument: `$ARGUMENTS`
 
+Ask every question that has answers you can offer (a choice, a yes or no, a confirmation) with the `AskUserQuestion` tool when it's in your tool list, as the `alpha:grilling` skill's "In the dialog" says; otherwise in plain text.
+
 ## 1. Resolve the target folder
 
 1. If a folder was given above, use it (expand `~`, resolve to an absolute path, and create it if it doesn't exist). If nothing was given, use the current working directory. Call it `<target>` from here on.

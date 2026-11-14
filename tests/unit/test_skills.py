@@ -206,6 +206,24 @@ def test_grilling_credits_its_source_with_the_full_license():
 EMOJI = re.compile("[\U0001f000-\U0001faff☀-➿⬀-⯿️]")
 
 
+def test_grilling_asks_in_the_dialog_within_its_limits():
+    rounds = _section("grilling", "Rounds")
+    dialog, plain = rounds.split("### In the dialog")[1].split("### In plain text")
+    assert "When the `AskUserQuestion` tool is in your tool list" in dialog
+    for limit in ("at most 4 questions", "2 to 4 options", "at most 12 characters"):
+        assert limit in dialog
+    assert '" (Recommended)"' in dialog and 'Never add an "Other" option' in dialog
+    assert plain.lstrip().startswith("Without the tool")
+
+
+@pytest.mark.parametrize("skill", ["new-project", "adopt", "extend", "go"])
+def test_entry_skills_ask_through_the_dialog(skill: str):
+    assert (
+        "with the `AskUserQuestion` tool when it's in your tool list, as the"
+        ' `alpha:grilling` skill\'s "In the dialog" says; otherwise in plain text'
+    ) in _text(skill)
+
+
 def test_grilling_rounds_are_compact_plain_text():
     rounds = _section("grilling", "Rounds")
     template = re.search(r"```text\n(.*?)```", rounds, re.S)

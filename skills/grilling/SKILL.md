@@ -36,9 +36,23 @@ Interview the user until you reach a shared understanding. Map the decisions as 
 
 ## Rounds
 
-Work the tree in **rounds**. The **frontier** is every decision whose prerequisites are already settled: the questions you can ask _now_ without guessing at answers you haven't heard yet. Ask the whole frontier in one round: number each question and give your recommended answer. Then wait for the user's answers before the next round.
+Work the tree in **rounds**. The **frontier** is every decision whose prerequisites are already settled: the questions you can ask _now_ without guessing at answers you haven't heard yet. Ask the whole frontier in one round, with your recommended answer for each question. Then wait for the user's answers before the next round.
 
-Format a round like so:
+### In the dialog
+
+When the `AskUserQuestion` tool is in your tool list, ask every question that has answers you can offer with it, never as plain text: the user picks an option in a dialog instead of typing a reply.
+
+- One call holds at most 4 questions. Ask a bigger frontier in several calls, one after another, in the same round.
+- Give each question 2 to 4 options, each a few words with a one-line `description` of what it means or costs. Put your recommended option first, its label ending in " (Recommended)", its description saying why when that isn't obvious. Never add an "Other" option: the dialog adds one for a typed answer.
+- `header` names the topic in at most 12 characters ("License", "Review mode").
+- Set `multiSelect: true` when the user may pick several options (a component's traits).
+- The dialog can hide the text above it, so each question names what it's about.
+- A question with no fixed choices (a name, the requirements) still goes in the dialog with your draft as the recommended option and one to three other drafts, each draft's full text in its `preview` when it is longer than a label. Ask in plain text only what you can't draft an answer to (what the project does, when the user hasn't said), after the dialog returns.
+- A yes-or-no question (confirming a summary, saving a default) gets the options Yes and No, the recommended one first.
+
+### In plain text
+
+Without the tool (Claude Code runs headless, as in the evals), format a round like so:
 
 <!-- rumdl-disable MD013 -->
 <!-- The template's long lines are literal text Claude copies. -->
@@ -63,6 +77,8 @@ Keep a round compact and plain:
 - At most one line before the first question (the area it's about), and nothing after the last one.
 
 Word each question so "yes" accepts your recommended answer. Number questions across the whole interview (Q1, Q2, … keep counting in later rounds).
+
+### Next round
 
 Each answer reshapes the tree: settled decisions push the frontier outward and unblock the questions that depended on them. Recompute the frontier and ask the next round. A question whose answer depends on another question still open in this round belongs to a _later_ round.
 
