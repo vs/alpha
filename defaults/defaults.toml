@@ -28,6 +28,13 @@ mobile = "typescript"
 library = "python"
 worker = "python"
 
+# workspace: in a monorepo, the components of a stack whose recipe has a
+# workspace share it (Rust: one Cargo workspace at the repository root, with
+# one Cargo.lock, toolchain and target/). The components answer
+# `"workspace": false` keeps each one a package of its own.
+[components]
+workspace = true
+
 [architecture]
 contract_format = "openapi"
 

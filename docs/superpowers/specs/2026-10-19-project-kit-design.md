@@ -499,7 +499,11 @@ the builder's, with these constraints:
   decision).** Everything alpha owns (hooks, git hooks, interview answers,
   manifest, local state) lives under `.claude/alpha/`. Components get only
   their manifests, lockfiles, tool configs, and a setup test, with no `src/`
-  files until real code is written.
+  files until real code is written. In a monorepo, the components of a stack
+  whose recipe has a `[workspace]` share it at the repository root (Rust: one
+  Cargo workspace with one `Cargo.lock`, toolchain, `clippy.toml` and
+  `target/`; decision 0027); the components answer `"workspace": false`
+  keeps each a package of its own.
 - **Kit metadata**: which kit version generated the project, and the
   interview state, so the project can be compared with later kit defaults
   on request.
@@ -655,7 +659,7 @@ Recipe commands. A stack recipe may add these commands to the ones in §3:
   out counts as caught. CI runs it as the `mutants` step of the component's
   pull-request job; `ALPHA_BASE=<base> mise run ci` runs it locally. The
   diff is `git diff --relative`, so it names files from the component's
-  folder.
+  folder, except for a workspace member, whose tree starts at the root.
 
 A recipe's `[vars]` table names values several of its commands share; each
 `${name}` in the recipe is filled from it.

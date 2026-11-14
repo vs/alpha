@@ -87,7 +87,9 @@ def repo_checks(
     a: "Answers", principles: dict[str, Any], registry: Registry
 ) -> list[RepoCheck]:
     """The project's repository checks, in the catalog's order."""
-    lockfiles = tuple(lock for c in principles["components"] for lock in c["lockfiles"])
+    lockfiles = tuple(
+        dict.fromkeys(lock for c in principles["components"] for lock in c["lockfiles"])
+    )
     data = principles["data"]
     lychee = _command(registry, "lychee")
     checks: list[RepoCheck] = []

@@ -481,7 +481,8 @@ def _product(a: Answers) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _architecture(a: Answers) -> str:
+def _architecture(a: Answers, principles: dict[str, Any]) -> str:
+    members = [c for c in principles["components"] if c.get("workspace")]
     lines = [
         "# Architecture",
         "",
@@ -507,6 +508,15 @@ def _architecture(a: Answers) -> str:
         tools = ", ".join(recipe.why) or "the stack's own toolchain"
         commands = [recipe.commands[s] for s in _STEPS if recipe.commands.get(s)]
         line = f"- {stack}: {tools}. Commands: " + ", ".join(f"`{c}`" for c in commands)
+        shared = [
+            f"`{f}`" for c in members if c["stack"] == stack for f in c["workspace"]
+        ]
+        if shared:
+            line += (
+                ". Its components form one workspace at the repository root "
+                f"({', '.join(dict.fromkeys(shared))}, one lockfile); each "
+                "command covers the component it runs in"
+            )
         if not recipe.proven:
             line += " (less proven: recipe drafted for this project)"
         lines.append(line)
@@ -570,7 +580,7 @@ def render_docs(
         "CONTRIBUTING.md": _contributing(a, principles, checks),
         "CLAUDE.md": _claude_md(a, principles),
         "docs/product.md": _product(a),
-        "docs/architecture.md": _architecture(a),
+        "docs/architecture.md": _architecture(a, principles),
         "docs/dependencies.md": _dependencies(a, today, added or {}),
         "docs/build.md": _build(a, principles, records),
         "docs/security.md": area_docs.security_doc(a, principles),

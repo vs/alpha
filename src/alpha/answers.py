@@ -82,7 +82,7 @@ AREAS: tuple[str, ...] = (
     "agent_workflow",
 )
 _DESIGN = "design_language"
-_COMPONENTS_FIELDS = ("layout", "components_talk", "components", "recipes")
+_COMPONENTS_FIELDS = ("layout", "workspace", "components_talk", "components", "recipes")
 
 
 def area_of(where: str) -> str | None:
@@ -127,6 +127,7 @@ _TOP_KEYS = frozenset(
         "areas",
         "identity",
         "layout",
+        "workspace",
         "components_talk",
         "components",
         "git",
@@ -356,6 +357,9 @@ class Answers:
     hook_files: tuple[str, ...] = ()
     # The compliance plan of an adopted repo, in order.
     steps: tuple["Step", ...] = ()
+    # Whether a monorepo's components of a stack whose recipe has a workspace
+    # share it (decision 0027); None takes `defaults.components.workspace`.
+    workspace: bool | None = None
 
     def book(self) -> RecipeBook:
         return RecipeBook(self.recipes)
@@ -1250,6 +1254,7 @@ def parse_answers(
         _git_hooks(top.get("adoption", {})),
         _hook_files(top.get("adoption", {})),
         _steps(top.get("adoption", {}), comps_or_none, RecipeBook(drafted)),
+        boolean(top, "workspace", "") if "workspace" in top else None,
     )
 
 

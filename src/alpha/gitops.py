@@ -162,7 +162,18 @@ def commit_skeleton(
         (_TOOLING_SUBJECT, _TOOLING),
     ]
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
+    workspaces: dict[str, list[str]] = {}
     for c in principles["components"]:
+        if c.get("workspace"):
+            # One commit per workspace: its root files and its members pass
+            # their checks only together.
+            stack = c["stack"]
+            if stack not in workspaces:
+                workspaces[stack] = [*c["workspace"], *c["lockfiles"]]
+                subject = f"build: Set up the {stack} workspace and tests"
+                groups.append((subject, workspaces[stack]))
+            workspaces[stack].append(c["path"])
+            continue
         paths = [c["path"]]
         if c["path"] == ".":
             paths.append(f":(exclude){_CI}")
@@ -259,19 +270,22 @@ def commit_update(
     ]
     notes: list[str] = []
     for c in principles["components"]:
+        own = paths_of(f"build:{c['name']}")
+        # When the update changed a workspace's root files, the setup command
+        # rewrote its lockfile, which is outside the members' folders.
+        if set(own) & set(c.get("workspace", [])):
+            own += [lock for lock in c["lockfiles"] if lock not in own]
         if c["name"] in new_components and c["path"] == ".":
-            groups.append((_build_subject(c, scopes), paths_of(f"build:{c['name']}")))
+            groups.append((_build_subject(c, scopes), own))
             notes.append(
                 f"{c['name']} is at the project root, so only alpha's files were "
                 "committed; commit any files its bootstrap made (such as "
                 "lockfiles) yourself."
             )
         elif c["name"] in new_components:
-            groups.append((_build_subject(c, scopes), [c["path"]]))
+            groups.append((_build_subject(c, scopes), [c["path"], *own]))
         else:
-            groups.append(
-                (_update_subject(c["name"], scopes), paths_of(f"build:{c['name']}"))
-            )
+            groups.append((_update_subject(c["name"], scopes), own))
     groups += [
         (_CI_SUBJECT if adopting else "ci: Update the CI checks", paths_of("ci")),
         (

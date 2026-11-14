@@ -28,7 +28,7 @@ claude plugin install alpha@alpha
 | `docs/principles.toml` | the one file CLAUDE.md, hooks and reviewer read |
 | `docs/decisions/` | a record per interview area and per override |
 | `.claude/` | permissions, hooks, the principles reviewer, skills to commit, record a decision, and review a change, the whole repo or its `shortcut:` ledger |
-| each component | strict lint, types and tests, wired up with no `src/` |
+| each component | strict lint, types and tests, wired up with no `src/`; a monorepo's Rust components form one Cargo workspace at the root |
 | `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, typos, markdown, links, action pins, agent config) |
 | `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
 | `docs/design-language.md` | optional: one look for every visual, from diagrams in the docs to the UI, which the reviewer holds each changed visual to |

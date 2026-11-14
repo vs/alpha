@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -26,6 +27,7 @@ from alpha.answers import (
 )
 from alpha.defaults import Source, load_defaults
 from alpha.generate import (
+    PRINCIPLES_TOML,
     GenerateError,
     Rendered,
     copied_files,
@@ -371,6 +373,40 @@ def _old_kit_texts(
     return cast(dict[str, str], json.loads(done.stdout))
 
 
+def _moved_lockfiles(
+    target: Path, wrote: Mapping[str, str], after: Rendered
+) -> tuple[str, ...]:
+    """A note for each lockfile on disk that the components stop using, as
+    when separate packages become one workspace: the package manager wrote
+    it, so alpha leaves deleting it to the user."""
+    old = tomllib.loads(wrote.get(PRINCIPLES_TOML, ""))
+    used = {lock for c in after.principles["components"] for lock in c["lockfiles"]}
+    setups = {
+        lock: c["commands"]["setup"]
+        for c in after.principles["components"]
+        for lock in c["lockfiles"]
+    }
+    notes: list[str] = []
+    for c in cast(list[dict[str, Any]], old.get("components", [])):
+        now = next(
+            (n for n in after.principles["components"] if n["name"] == c.get("name")),
+            None,
+        )
+        for lock in cast(list[str], c.get("lockfiles", [])):
+            if now is None or lock in used or not (target / lock).is_file():
+                continue
+            new = ", ".join(now["lockfiles"])
+            notes.append(
+                f"{'stale':<10}{lock} ({c['name']} now locks its dependencies in "
+                f"{new}: delete this file and the build output beside it; "
+                f"`{setups[now['lockfiles'][0]]}` writes {new})"
+                if now["lockfiles"]
+                else f"{'stale':<10}{lock} ({c['name']} has no lockfile any "
+                "more: delete it)"
+            )
+    return tuple(notes)
+
+
 def plan_update(
     target: Path, plugin_root: Path, source: Source, today: date
 ) -> UpdatePlan:
@@ -458,6 +494,7 @@ def plan_update(
             ),
         },
         answers=top,
+        notes=_moved_lockfiles(target, wrote, after),
         copies=copies,
         upgraded_from=upgraded_from,
     )

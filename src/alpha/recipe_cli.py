@@ -305,7 +305,7 @@ def try_recipe(target: Path, stack: str, report: list[str] | None = None) -> str
         for rel, text in recipe.templates.items():
             path = root / rel
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(render_template(text, stack, "try"))
+            path.write_text(render_template(text, {"name": stack, "slug": "try"}))
         steps = [("bootstrap", c) for c in recipe.bootstrap]
         steps += check_commands(recipe.commands)
         for step, command in steps:

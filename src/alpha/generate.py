@@ -24,7 +24,12 @@ from alpha.baseline import BaselineError, baseline_file
 from alpha.baseline import capture as capture_baseline
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
-from alpha.recipes import RecipeBook, check_commands, render_component
+from alpha.recipes import (
+    RecipeBook,
+    check_commands,
+    render_component,
+    render_workspace,
+)
 from alpha.records import Records, record_paths
 from alpha.registry import Registry, default_registry, load_registry
 from alpha.render.ci import render_ci, render_dependabot
@@ -80,10 +85,17 @@ def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
         "!.env.example",
     ]
     for c in principles["components"]:
-        for entry in book.get(c["stack"]).ignores:
+        recipe = book.get(c["stack"])
+        entries = recipe.ignores
+        if c.get("workspace"):
+            assert recipe.workspace is not None  # only its members are marked
+            # What the members share is at the repository root, and only there.
+            lines += [f"/{entry}" for entry in recipe.workspace.root_ignores]
+            entries = recipe.workspace.member_ignores
+        for entry in entries:
             # "**/" keeps the any-depth match the unprefixed pattern has.
             lines.append(entry if c["path"] == "." else f"{c['path']}/**/{entry}")
-    return lines
+    return list(dict.fromkeys(lines))
 
 
 def copied_files(plugin_root: Path) -> dict[str, Path]:
@@ -180,9 +192,19 @@ def render_project(
         )
     )
     component_files: dict[str, tuple[str, str]] = {}
+    slug = principles["project"]["slug"]
+    members = {c["name"] for c in principles["components"] if c.get("workspace")}
     for c in a.components:
-        files = render_component(c, principles["project"]["slug"], book.get(c.stack))
+        recipe = book.get(c.stack)
+        files = render_component(c, slug, recipe, member=c.name in members)
         component_files.update({rel: (text, c.name) for rel, text in files.items()})
+    for stack in dict.fromkeys(c.stack for c in a.components if c.name in members):
+        shared = [c for c in a.components if c.stack == stack and c.name in members]
+        files = render_workspace(book.get(stack), [c.path for c in shared], slug)
+        # Named after its first member, for a collision's message.
+        component_files.update(
+            {rel: (text, shared[0].name) for rel, text in files.items()}
+        )
     texts[".claude/settings.json"] = (
         json.dumps(render_settings(principles, book), indent=2) + "\n"
     )

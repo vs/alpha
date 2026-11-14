@@ -72,14 +72,17 @@ def _part(part: str) -> str:
 
 def _glob_body(glob: str) -> str:
     """A glob as a regular expression up to its end (see glob_regex)."""
-    parts = glob.rstrip("/").split("/")
+    # A leading "/" is the repository root only; lychee names the files it
+    # walks from there "./<path>".
+    anchored = glob.startswith("/")
+    parts = glob.strip("/").split("/")
     out: list[str] = []
     for i, part in enumerate(parts):
         if part == "**":
             out.append("(?:.*/)?")
             continue
         out.append(_part(part) if i == len(parts) - 1 else f"{_part(part)}/")
-    return "(?:^|/)" + "".join(out)
+    return (r"^(?:\./)?" if anchored else "(?:^|/)") + "".join(out)
 
 
 def glob_regex(glob: str) -> str:
@@ -113,11 +116,19 @@ def _mise(
             "run": [command for _, command in check_commands(c["commands"])],
         }
     gated = [c for c in components if c.get("mutants")]
+    last_member: dict[str, str] = {}
     for c in gated:
-        tasks[f"check:mutants:{c['name']}"] = {
+        name = f"check:mutants:{c['name']}"
+        tasks[name] = {
             "dir": c["path"],
             "run": _MUTANTS.format(run=mutants_run('"$ALPHA_BASE"', c)),
         }
+        if c.get("workspace"):
+            # Members are mutated in place in one tree, with one output
+            # folder: one run at a time, each after the member before it.
+            if c["stack"] in last_member:
+                tasks[name]["depends"] = [last_member[c["stack"]]]
+            last_member[c["stack"]] = name
     tasks["ci"] = {
         "description": "Run the repository checks CI runs on a pull request"
         if ci

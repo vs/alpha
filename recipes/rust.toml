@@ -53,11 +53,13 @@ markers = ["Cargo.toml"]
 
 # cargo fetch writes Cargo.lock if it's missing and never updates a current
 # one; in CI a stale lockfile changes and the unchanged-tree step fails.
-# Clippy can't lint a single file, so lint_file is empty.
+# Clippy can't lint a single file, so lint_file is empty. In a workspace each
+# command covers the member it runs in; clippy also lints the sibling members
+# that member depends on unless told `--no-deps`.
 [commands]
 setup = "cargo fetch"
 test = "cargo test"
-lint = "cargo clippy --all-targets -- -D warnings"
+lint = "cargo clippy --all-targets --no-deps -- -D warnings"
 format = "cargo fmt"
 format_check = "cargo fmt --check"
 typecheck = "cargo check --all-targets"
@@ -71,6 +73,26 @@ lint_file = ""
 "rust-toolchain.toml" = "rust-toolchain.toml.tmpl"
 "tests/setup.rs" = "setup.rs.tmpl"
 
+# In a monorepo the Rust components form one Cargo workspace at the repository
+# root (decision 0027): one Cargo.lock, toolchain, clippy.toml and target/.
+# `layout = "single"` keeps the [files] above.
+[workspace]
+root_ignores = ["target/", "mutants.out*/"]
+member_ignores = ["coverage.xml", "pr.diff"]
+
+[workspace.files]
+"Cargo.toml" = "workspace/Cargo.toml.tmpl"
+"clippy.toml" = "clippy.toml.tmpl"
+"rust-toolchain.toml" = "rust-toolchain.toml.tmpl"
+
+[workspace.member_files]
+"Cargo.toml" = "workspace/member.Cargo.toml.tmpl"
+"tests/setup.rs" = "workspace/setup.rs.tmpl"
+
+[[workspace.rules]]
+id = "cargo-for-dependencies"
+rule = "Declare each dependency once, in `[workspace.dependencies]` of the root Cargo.toml, and name it in a member with `foo.workspace = true`; add and remove them with cargo commands where cargo supports it, never by copying versions into a member."
+
 [why]
 rustfmt = "Formatting (a toolchain component)"
 clippy = "Linting, with the pedantic group (a toolchain component)"
@@ -83,8 +105,10 @@ env = {}
 
 # Pinned to commit SHAs, as registry/actions.toml has them; `version` is the tag.
 # setup-rust-toolchain installs the toolchain rust-toolchain.toml names, with
-# its components, and caches target/ and the cargo registry. Its first use
-# installs the coverage nightly beside it, without making it the default.
+# its components, and caches target/ and the cargo registry. `${dir}` is the
+# folder that holds rust-toolchain.toml: the component's, or the repository
+# root for a workspace member. Its first use installs the coverage nightly
+# beside it, without making it the default.
 [[ci.steps]]
 uses = "actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30"
 version = "v2.0.1"

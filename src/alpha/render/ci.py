@@ -68,7 +68,8 @@ def _job(
 ) -> dict[str, object]:
     recipe = book.get(component["stack"])
     path = component["path"]
-    folder = "" if path == "." else f"{path}/"
+    # A workspace member's toolchain file and build cache are at the root.
+    folder = "" if path == "." or component.get("workspace") else f"{path}/"
     job: dict[str, object] = {
         "runs-on": "ubuntu-latest",
         "timeout-minutes": _TIMEOUT_MINUTES,
@@ -255,15 +256,21 @@ def render_dependabot(
     interval = {"interval": schedule}
     book = book or RecipeBook()
     cooldown = {"cooldown": {"default-days": cooldown_days}} if cooldown_days else {}
+    # A workspace's members share one entry, at the root that holds their
+    # lockfile.
+    folders = dict.fromkeys(
+        (ecosystem, "/" if c["path"] == "." or c.get("workspace") else f"/{c['path']}")
+        for c in principles["components"]
+        if (ecosystem := book.get(c["stack"]).dependabot)
+    )
     entries: list[object] = [
         {
             "package-ecosystem": ecosystem,
-            "directory": "/" if c["path"] == "." else f"/{c['path']}",
+            "directory": directory,
             "schedule": interval,
             **cooldown,
         }
-        for c in principles["components"]
-        if (ecosystem := book.get(c["stack"]).dependabot)
+        for ecosystem, directory in folders
     ]
     if ci == "github-actions":
         entries.append(

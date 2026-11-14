@@ -36,6 +36,19 @@ class StackRule:
 
 
 @dataclass(frozen=True)
+class Workspace:
+    """What a stack's components share in a monorepo (decision 0027): files
+    at the repository root, written once, and each member's own files."""
+
+    root_templates: dict[str, str]
+    member_templates: dict[str, str]
+    root_ignores: list[str]
+    member_ignores: list[str]
+    # A rule here replaces the recipe's rule of the same id for a member.
+    rules: list[StackRule]
+
+
+@dataclass(frozen=True)
 class Recipe:
     stack: str
     bootstrap: list[str]
@@ -60,6 +73,7 @@ class Recipe:
     # Optional: the mutation-testing gate of an exhaustively tested project
     # (decision 0029), run in the component folder on the diff in MUTANTS_DIFF.
     mutants: str = ""
+    workspace: Workspace | None = None
     # How each step's findings read, for a baseline (spec §8b); keyed by step.
     baselines: Mapping[str, Baseline] = field(default_factory=lambda: {})
     # File names whose folder the adoption survey lists as a candidate.
@@ -98,6 +112,7 @@ _RECIPE_KEYS = frozenset(
         "coverage_report",
         "mutants",
         "vars",
+        "workspace",
         "baseline",
         "detect",
         "adopted",
@@ -149,14 +164,17 @@ _ALLOW = re.compile(r"Bash\(([A-Za-z0-9_.-]+)((?: [A-Za-z0-9_.=/-]+)*):\*\)")
 _ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@(v\d+(\.\d+){0,2}|[0-9a-f]{40})")
 _SHA_ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40}")
 _RULE_ID = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
-_TEMPLATE_VALUE = re.compile(r"(?<!\$)\$(?:\{(name|slug)\}|(name|slug)\b)")
+_TEMPLATE_NAMES = "name|slug|members|root"
+_TEMPLATE_VALUE = re.compile(
+    rf"(?<!\$)\$(?:\{{({_TEMPLATE_NAMES})\}}|({_TEMPLATE_NAMES})\b)"
+)
 # The file a mutation-testing command reads the pull request's diff from,
 # in the component folder.
 MUTANTS_DIFF = "pr.diff"
 _VAR = re.compile(r"\$\{([a-z][a-z0-9_]*)\}")
 _VAR_NAME = re.compile(r"[a-z][a-z0-9_]*")
 # `${dir}` is the component's folder in a CI step; the rest fill templates.
-_RESERVED_VARS = frozenset({"dir", "name", "slug"})
+_RESERVED_VARS = frozenset({"dir", *_TEMPLATE_NAMES.split("|")})
 
 
 def matches(path: str, globs: list[str]) -> bool:
@@ -327,6 +345,60 @@ def _expanded(data: Mapping[str, Any], where: str) -> Mapping[str, Any]:
         return value
 
     return {k: v if k == "vars" else fill(v) for k, v in data.items()}
+
+
+def _template_paths(templates: Mapping[str, str], where: str) -> None:
+    for rel in templates:
+        if unmatchable(rel):
+            raise _fail(
+                where,
+                f"{rel!r} isn't a path inside the component",
+                'Use relative paths like "tests/setup.sh"',
+            )
+        if rel.split("/")[0] in _RESERVED:
+            raise _fail(
+                where,
+                f"{rel!r} is inside {rel.split('/')[0]}/, which belongs to git, "
+                "alpha or its CI",
+                "Leave it out; alpha writes those files itself",
+            )
+
+
+def _workspace(
+    value: object, where: str, stack: str, template_dir: Path | None
+) -> Workspace:
+    if template_dir is None:
+        raise _fail(
+            where,
+            "is set, but only a kit recipe shares a workspace",
+            "Remove it; each component of a drafted recipe is a package of its own",
+        )
+    if not isinstance(value, dict):
+        raise _fail(where, "must be a table", "Give files and member_files")
+    data = cast("dict[str, object]", value)
+    keys = ("files", "member_files", "root_ignores", "member_ignores", "rules")
+    _unknown(data, keys, where)
+    read: dict[str, dict[str, str]] = {}
+    for key in ("files", "member_files"):
+        if key not in data:
+            raise _fail(f"{where}.{key}", "is missing", f'Add "{key}"')
+        names = _mapping(data[key], f"{where}.{key}")
+        read[key] = {
+            rel: (template_dir / stack / name).read_text()
+            for rel, name in names.items()
+        }
+        if not read[key]:
+            raise _fail(f"{where}.{key}", "is empty", "Name its templates")
+        _template_paths(read[key], f"{where}.{key}")
+    return Workspace(
+        root_templates=read["files"],
+        member_templates=read["member_files"],
+        root_ignores=_texts(data.get("root_ignores", []), f"{where}.root_ignores"),
+        member_ignores=_texts(
+            data.get("member_ignores", []), f"{where}.member_ignores"
+        ),
+        rules=_rules(data.get("rules", []), f"{where}.rules"),
+    )
 
 
 def _detect(value: object, where: str) -> tuple[str, ...]:
@@ -535,20 +607,20 @@ def recipe_from_data(
         raise _fail(
             f"{where}.templates", "is empty", "Give the manifest and a setup test"
         )
-    for rel in templates:
-        if unmatchable(rel):
-            raise _fail(
-                f"{where}.templates",
-                f"{rel!r} isn't a path inside the component",
-                'Use relative paths like "tests/setup.sh"',
-            )
-        if rel.split("/")[0] in _RESERVED:
-            raise _fail(
-                f"{where}.templates",
-                f"{rel!r} is inside {rel.split('/')[0]}/, which belongs to git, "
-                "alpha or its CI",
-                "Leave it out; alpha writes those files itself",
-            )
+    _template_paths(templates, f"{where}.templates")
+    workspace = (
+        _workspace(data["workspace"], f"{where}.workspace", stack, template_dir)
+        if "workspace" in data
+        else None
+    )
+    if workspace is not None and not any(
+        matches(rel, lists["test_globs"]) for rel in workspace.member_templates
+    ):
+        raise _fail(
+            f"{where}.workspace.member_files",
+            "has no setup test (no template matches test_globs)",
+            "Add a test that checks the toolchain itself, e.g. tests/setup.<ext>",
+        )
     if not adopted and not any(matches(rel, lists["test_globs"]) for rel in templates):
         raise _fail(
             f"{where}.templates",
@@ -587,6 +659,7 @@ def recipe_from_data(
         coverage=coverage,
         coverage_report=coverage_report,
         mutants=mutants,
+        workspace=workspace,
         baselines=_baselines(data.get("baseline", {}), f"{where}.baseline", commands),
         detect=_detect(data.get("detect", {}), f"{where}.detect"),
         adopted=adopted,
@@ -719,19 +792,23 @@ def load_recipe(stack: str) -> Recipe:
     return RecipeBook().get(stack)
 
 
-def render_template(text: str, name: str, slug: str) -> str:
-    values = {"name": name, "slug": slug}
-    return _TEMPLATE_VALUE.sub(lambda m: values[m.group(1) or m.group(2)], text)
+def render_template(text: str, values: Mapping[str, str]) -> str:
+    """The template with `$name`, `$slug`, `$members` and `$root` filled in;
+    one the caller has no value for stays as written."""
+    return _TEMPLATE_VALUE.sub(
+        lambda m: values.get(m.group(1) or m.group(2), m.group(0)), text
+    )
 
 
 def mutants_run(base: str, component: Mapping[str, Any]) -> str:
     """The component's mutation-testing gate on what the branch changed since
     `base` (a shell word), run in its folder. The diff names files from the
-    component's folder, the root of the tree the tool mutates: a diff from
-    the repository root matches nothing there, and the gate would pass
-    unchecked."""
+    root of the tree the tool mutates: the component's folder, or the
+    repository's for a workspace member. A diff from the wrong root matches
+    nothing, and the gate would pass unchecked."""
+    relative = "" if component.get("workspace") else " --relative"
     return (
-        f"git diff --relative {base}...HEAD > {MUTANTS_DIFF} && {component['mutants']}"
+        f"git diff{relative} {base}...HEAD > {MUTANTS_DIFF} && {component['mutants']}"
     )
 
 
@@ -740,13 +817,39 @@ def check_commands(commands: Mapping[str, str]) -> list[tuple[str, str]]:
 
 
 def render_component(
-    component: Component, project_slug: str, recipe: Recipe | None = None
+    component: Component,
+    project_slug: str,
+    recipe: Recipe | None = None,
+    *,
+    member: bool = False,
 ) -> dict[str, str]:
+    """The component's own files; `member` when it shares its stack's
+    workspace, whose root is the repository's."""
     recipe = recipe or load_recipe(component.stack)
     base = Path(component.path)
+    templates = recipe.templates
+    values = {"name": component.name, "slug": project_slug}
+    if member:
+        assert recipe.workspace is not None  # only its members are rendered so
+        templates = recipe.workspace.member_templates
+        values["root"] = "/".join(".." for _ in base.parts)
     return {
-        (base / relpath).as_posix(): render_template(text, component.name, project_slug)
-        for relpath, text in recipe.templates.items()
+        (base / relpath).as_posix(): render_template(text, values)
+        for relpath, text in templates.items()
+    }
+
+
+def render_workspace(
+    recipe: Recipe, members: list[str], project_slug: str
+) -> dict[str, str]:
+    """The files at the repository root that the stack's members share;
+    `members` are their folders."""
+    assert recipe.workspace is not None  # only a stack with members gets here
+    listed = ", ".join(json.dumps(path) for path in members)
+    values = {"slug": project_slug, "members": listed}
+    return {
+        relpath: render_template(text, values)
+        for relpath, text in recipe.workspace.root_templates.items()
     }
 
 
