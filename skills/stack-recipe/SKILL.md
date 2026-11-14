@@ -12,6 +12,7 @@ You need `<target>` (the folder the interview is setting up) and `<stack>` (the 
 
 - No project.json: tell the user to start with `/alpha:new-project`, and stop.
 - `alpha:adopt` sent you for a component of an existing repo: draft an adopted recipe as "Adopting a repo's tools" below says, whether or not the kit has the stack.
+- `alpha:adopt` sent you for a component with no project structure yet: there are no tools to adopt. Go on as for a new project: the next line, then the steps below.
 - Otherwise, `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe list` names the stack: the kit already has a recipe; use it, and stop.
 
 ## Purpose

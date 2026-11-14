@@ -1,5 +1,6 @@
 import json
 import subprocess
+from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -149,6 +150,10 @@ def _build_subject(component: dict[str, Any], scopes: list[str]) -> str:
     return f"build: {description}"
 
 
+def _workspace_subject(stack: str) -> str:
+    return f"build: Set up the {stack} workspace and tests"
+
+
 def commit_skeleton(
     target: Path, principles: dict[str, Any], trailers: list[str]
 ) -> list[str]:
@@ -170,8 +175,7 @@ def commit_skeleton(
             stack = c["stack"]
             if stack not in workspaces:
                 workspaces[stack] = [*c["workspace"], *c["lockfiles"]]
-                subject = f"build: Set up the {stack} workspace and tests"
-                groups.append((subject, workspaces[stack]))
+                groups.append((_workspace_subject(stack), workspaces[stack]))
             workspaces[stack].append(c["path"])
             continue
         paths = [c["path"]]
@@ -269,6 +273,12 @@ def commit_update(
         (_TOOLING_SUBJECT, paths_of("tooling")),
     ]
     notes: list[str] = []
+    new_members = Counter(
+        c["stack"]
+        for c in principles["components"]
+        if c["name"] in new_components and c.get("workspace")
+    )
+    workspaces: dict[str, list[str]] = {}
     for c in principles["components"]:
         own = paths_of(f"build:{c['name']}")
         # When the update changed a workspace's root files, the setup command
@@ -276,12 +286,20 @@ def commit_update(
         if set(own) & set(c.get("workspace", [])):
             own += [lock for lock in c["lockfiles"] if lock not in own]
         if c["name"] in new_components and c["path"] == ".":
-            groups.append((_build_subject(c, scopes), own))
+            groups.append((_build_subject(c, scopes), [*own, *c["lockfiles"]]))
             notes.append(
-                f"{c['name']} is at the project root, so only alpha's files were "
-                "committed; commit any files its bootstrap made (such as "
-                "lockfiles) yourself."
+                f"{c['name']} is at the project root, so only alpha's files and "
+                "its lockfile were committed; commit any other files its "
+                "bootstrap made yourself."
             )
+        elif new_members[c["stack"]] > 1 and c["name"] in new_components:
+            # One commit, as in commit_skeleton: the workspace's root files
+            # list every member, so they pass their checks only together.
+            stack = c["stack"]
+            if stack not in workspaces:
+                workspaces[stack] = []
+                groups.append((_workspace_subject(stack), workspaces[stack]))
+            workspaces[stack] += [c["path"], *own]
         elif c["name"] in new_components:
             groups.append((_build_subject(c, scopes), [c["path"], *own]))
         else:

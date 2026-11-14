@@ -79,7 +79,9 @@ component on another stack (Go, say) needs its own toolchain installed too.
 
 alpha surveys the repo and interviews you with what it already does as the
 recommendations. Then it installs the same enforcement on a branch,
-`alpha/adopt`, keeping the repo's own tools where they meet the principles.
+`alpha/adopt`, keeping the repo's own tools where they meet the principles. A
+part that has docs but no build files yet gets the skeleton a new project
+would, after one question.
 Today's lint, type, test and docs findings are baselined, so only new ones
 fail, and a baseline only shrinks. What's left is a compliance plan in
 `docs/adoption.md`: run `/alpha:adopt` again to work through it one step at a

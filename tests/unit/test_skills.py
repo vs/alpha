@@ -750,6 +750,22 @@ def test_adopt_installs_in_order():
     assert "--capture-baselines" in text
 
 
+def test_adopt_generates_a_component_with_no_project_structure():
+    interview = _text("adopt").split("## 4. Interview", 1)[1].split("## 5.", 1)[0]
+    for needed in (
+        "A component whose folder holds code gets an adopted recipe",
+        "its folder is missing or holds only docs",
+        "A component with no project structure yet",
+        "Don't stop the interview over it, and never write its files yourself",
+        "ask one question for each, recommending yes",
+        "It gets no adopted recipe and no baselines",
+    ):
+        assert needed in interview, needed
+    assert "the `New components` line" in _text("adopt").split("## 6.", 1)[1]
+    start = _section("stack-recipe", "Before you start")
+    assert "a component with no project structure yet" in start
+
+
 def test_adopt_marks_steps_only_through_the_cli():
     plan = _text("adopt").split("## 9. The plan", 1)[1]
     for command in ("adopt next", "adopt start", "adopt done", "adopt drop"):
