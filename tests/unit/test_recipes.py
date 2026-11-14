@@ -240,6 +240,7 @@ def test_kit_recipes_carry_stack_rules():
     ]
     assert [r.id for r in load_recipe("rust").rules] == [
         "cargo-for-dependencies",
+        "mutants-skips",
         "typed-boundaries",
         "errors-with-context",
         "tests-beside-code",

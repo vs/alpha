@@ -120,3 +120,12 @@ The slow test `test_exhaustive_gate_catches_a_half_tested_rust_branch` generated
 
 - `cargo +nightly-2026-11-10 llvm-cov --branch --cobertura` wrote `condition-coverage` for an `if` on one line. With one side tested every line was covered: the gate passed without `--branch-coverage` and failed with it; with both sides tested it passed.
 - Not verified: the workflow on GitHub (the second toolchain install).
+
+## Rust mutants gate (2026-11-14)
+
+The slow test `test_mutants_gate_catches_a_surviving_mutant` generated a monorepo of two Rust crates and a Python component with `testing.exhaustive` on, bootstrapped `core` and ran the workflow's own `mutants` step there with cargo-mutants 27.1.0 (decision 0029).
+
+- With the boundary of an `if` untested, cargo-mutants reported `MISSED` (`<` as `<=`) and the step failed; with it tested, the step passed. `mise run check:mutants:core` failed the same way with `ALPHA_BASE=main` and was skipped without it.
+- The diff must name files from the crate's own folder. With a plain `git diff`, cargo-mutants in `core/` matched no file and exited 0 with two mutants unchecked; the principles reviewer found this from the code. The step now writes the diff with `git diff --relative`.
+- In a scratch crate, a mutant that made a loop endless timed out and cargo-mutants exited 3, which the command counts as caught.
+- Not verified: the step on GitHub.

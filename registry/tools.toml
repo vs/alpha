@@ -396,6 +396,15 @@ rationale = "source-based coverage from LLVM for `cargo test`, with a Cobertura 
 limitations = "alpha's pick that DQG doesn't list (DQG covers tests only through diff-cover). Needs the `llvm-tools-preview` toolchain component; without it, it asks to install it and waits on a terminal. A file outside the module tree isn't compiled, so it is missing from the report rather than uncovered. Verified in alpha: 0.9.1 on Rust 1.99.1, 2026-11-11. Branches: stable Rust records none, so alpha runs only the coverage command as `cargo +nightly-YYYY-MM-DD llvm-cov --branch --cobertura`; on nightly-2026-11-10 the Cobertura report marks a branch line `branch=\"true\" condition-coverage=\"50% (1/2)\"`, which diff-cover 11.0.1 `--branch-coverage` fails (2026-11-14)."
 last_reviewed = 2026-11-14
 
+[tools.cargo-mutants]
+name = "cargo-mutants"
+repo = "sourcefrog/cargo-mutants"
+category = "Rust"
+stacks = ["rust"]
+rationale = "mutation testing for Rust: changes one expression or function body at a time and reruns the tests, so a mutant that survives shows code no test checks. `--in-diff` limits it to the lines a pull request changes."
+limitations = "alpha's pick that DQG doesn't list. Slow on a whole crate, so alpha runs it only on a pull request's diff, and only for projects tested exhaustively. An equivalent mutant (one that changes no behavior) can't be caught: skip it with `#[mutants::skip]` from the `mutants` crate and say why. Verified in alpha: 27.1.0 on Rust 1.99.1, 2026-11-14. Exit 0 when every mutant is caught or the diff has none in the package, 2 when one is missed, 3 when one timed out and none was missed; alpha counts a timeout as caught. `--in-diff` matches the diff's paths from the root of the tree it mutates: for a crate in a subfolder of the repository a plain `git diff` matches nothing and it exits 0 (`No mutants to filter`), so alpha writes the diff with `git diff --relative`. `--in-place` mutates the working tree and restores it."
+last_reviewed = 2026-11-14
+
 [tools.cargo-deny]
 name = "cargo-deny"
 repo = "EmbarkStudios/cargo-deny"

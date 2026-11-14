@@ -7,15 +7,19 @@ proven = true
 bootstrap = [
   "rustup component add rustfmt clippy llvm-tools-preview",
   "rustup toolchain install ${coverage_toolchain} --profile minimal --component llvm-tools-preview",
-  "cargo install --locked cargo-llvm-cov@0.9.1 cargo-machete@0.9.2",
+  "cargo install --locked cargo-llvm-cov@0.9.1 cargo-machete@0.9.2 cargo-mutants@27.1.0",
 ]
 lockfiles = ["Cargo.lock"]
-ignores = ["target/", "coverage.xml"]
+ignores = ["target/", "mutants.out*/", "coverage.xml", "pr.diff"]
 # Only this command runs on the nightly: stable Rust records no branches
 # (decision 0028). cargo-llvm-cov leaves test files (tests/, tests.rs) out of
 # the report.
 coverage = "cargo +${coverage_toolchain} llvm-cov --branch --cobertura --output-path coverage.xml"
 coverage_report = "coverage.xml"
+# Runs when the project is tested exhaustively (decision 0029), on the pull
+# request's diff in pr.diff. Exit 2 is a mutant no test caught, which fails;
+# exit 3 is a mutant whose tests timed out, which counts as caught.
+mutants = "cargo mutants --in-diff pr.diff --in-place --timeout-multiplier 3 || [ $? -eq 3 ]"
 dependabot = "cargo"
 manifests = ["Cargo.toml"]
 source_globs = ["**/*.rs"]
@@ -31,6 +35,7 @@ allow = [
   "Bash(cargo check:*)",
   "Bash(cargo machete:*)",
   "Bash(cargo llvm-cov:*)",
+  "Bash(cargo mutants:*)",
   "Bash(cargo add:*)",
   "Bash(rustfmt --edition:*)",
 ]
@@ -70,6 +75,7 @@ lint_file = ""
 rustfmt = "Formatting (a toolchain component)"
 clippy = "Linting, with the pedantic group (a toolchain component)"
 cargo-llvm-cov = "Coverage of the lines and branches a pull request changes, run on the dated nightly the kit pins (a kit release moves the date, and `alpha update` brings it in)"
+cargo-mutants = "Mutation testing of the lines a pull request changes, when the project is tested exhaustively"
 cargo-machete = "Unused dependencies"
 
 [ci]
@@ -92,11 +98,15 @@ with = { rust-src-dir = "${dir}.", cache-workspaces = "${dir}." }
 [[ci.steps]]
 uses = "taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39"
 version = "v2.90.3"
-with = { tool = "cargo-llvm-cov@0.9.1,cargo-machete@0.9.2" }
+with = { tool = "cargo-llvm-cov@0.9.1,cargo-machete@0.9.2,cargo-mutants@27.1.0" }
 
 [[rules]]
 id = "cargo-for-dependencies"
 rule = "Add and remove dependencies with `cargo add` and `cargo remove`, never by editing `[dependencies]` in `Cargo.toml` by hand."
+
+[[rules]]
+id = "mutants-skips"
+rule = "When the project is tested exhaustively, a mutant that can't be killed on purpose is skipped with `#[mutants::skip]` (the `mutants` crate), with the reason in a comment above it."
 
 [[rules]]
 id = "typed-boundaries"

@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import TODAY, GenerateScenario, git, place_answers
+from helpers import (
+    TODAY,
+    GenerateScenario,
+    git,
+    place_answers,
+    place_rust_monorepo,
+)
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
@@ -634,4 +640,51 @@ def test_exhaustive_gate_catches_a_half_tested_rust_branch(
         command = principles["components"][0]["commands"][step]
         done = _sh(command, tmp_path)
         assert done.returncode == 0, f"{step}: {done.stdout}{done.stderr}"
+    assert git(tmp_path, "status", "--porcelain") == ""
+
+
+@pytest.mark.slow
+@NEEDS_CARGO
+def test_mutants_gate_catches_a_surviving_mutant(tmp_path: Path, git_env: None):
+    """Decision 0029, for a crate of its own in a monorepo's subfolder: the
+    diff must name files from that crate's root, or the gate checks nothing."""
+    place_rust_monorepo(tmp_path, exhaustive=True)
+    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    bootstrap(tmp_path, principles, only=["core"])
+    commit_skeleton(tmp_path, principles, [])
+    git(tmp_path, "branch", "-M", "main")
+    git(tmp_path, "switch", "-c", "feature")
+    core = tmp_path / "core"
+    mutants = _ci_steps(tmp_path, "core")["mutants"]
+    env = {**os.environ, "BASE_REF": "main"}
+    env.pop("CI", None)  # the mise task leaves the gate to CI's own job there
+
+    _add_side(core)
+    _commit(tmp_path, "feat(core): Add side", "core/src")
+    done = _sh(mutants, core, env)
+    assert done.returncode != 0, done.stdout + done.stderr
+    assert "MISSED" in done.stdout and "replace < with <=" in done.stdout, done.stdout
+    local = subprocess.run(
+        ["mise", "run", "check:mutants:core"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env={**env, "ALPHA_BASE": "main"},
+    )
+    assert local.returncode != 0 and "MISSED" in local.stdout + local.stderr
+    skipped = subprocess.run(
+        ["mise", "run", "check:mutants:core"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert skipped.returncode == 0 and "mutants skipped" in skipped.stdout
+
+    (core / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT)
+    _commit(tmp_path, "test(core): Cover the boundary", "core/src")
+    done = _sh(mutants, core, env)
+    assert done.returncode == 0, done.stdout + done.stderr
+    # The diff and cargo-mutants' output are ignored: CI's tree check passes.
     assert git(tmp_path, "status", "--porcelain") == ""

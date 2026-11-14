@@ -108,6 +108,24 @@ def exhaustive_testing(a: Answers, defaults: dict[str, Any]) -> bool:
     return defaults.get("testing", {}).get("exhaustive") is True
 
 
+def mutation_testing(a: Answers, defaults: dict[str, Any]) -> bool:
+    """Whether exhaustive testing also runs each recipe's mutation-testing
+    gate (decision 0029): the answer when the interview set one, else the
+    kit's default. It is part of exhaustive testing, never on without it."""
+    answer = a.testing.mutants if a.testing is not None else None
+    if not exhaustive_testing(a, defaults):
+        if answer:
+            raise fail(
+                "testing.mutants",
+                "is true but mutation testing is part of exhaustive testing",
+                'Set "exhaustive": true in testing, or leave mutants out',
+            )
+        return False
+    if answer is not None:
+        return answer
+    return defaults.get("testing", {}).get("mutants") is True
+
+
 def _test_run(a: Answers, defaults: dict[str, Any]) -> str:
     """When the hooks run the full test suite: the answer when the interview
     set one, else the kit's default. Defaults from before the setting keep
@@ -224,6 +242,7 @@ def build_principles(
     components: list[dict[str, Any]] = []
     protected = list(defaults["protected"]["paths"])
     book = a.book()
+    mutants = mutation_testing(a, defaults)
     for c in a.components:
         recipe = book.get(c.stack)
         protected += [prefixed(c.path, lock) for lock in recipe.lockfiles]
@@ -242,6 +261,7 @@ def build_principles(
                 "rules": [
                     {"id": f"{c.stack}:{r.id}", "rule": r.rule} for r in recipe.rules
                 ],
+                **({"mutants": recipe.mutants} if mutants and recipe.mutants else {}),
             }
         )
 

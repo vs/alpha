@@ -2,7 +2,7 @@ import re
 from typing import Any, cast
 
 from alpha.baseline import ratchet_command
-from alpha.recipes import RecipeBook, check_commands
+from alpha.recipes import RecipeBook, check_commands, mutants_run
 from alpha.registry import Registry, default_registry
 from alpha.repo_checks import TOOLCHAIN
 from alpha.yaml_write import Commented, dumps
@@ -79,9 +79,11 @@ def _job(
     testing = principles.get("testing", {})
     threshold = testing.get("diff_coverage", 0)
     gated = bool(recipe.coverage) and threshold > 0
+    mutants: str = component.get("mutants", "")
     # The jobs only read the repository, so the token isn't left on disk.
-    # diff-cover compares against the base branch, so it needs the history.
-    steps: list[object] = [_checkout(registry, full_history=gated)]
+    # diff-cover and the mutants' diff compare against the base branch, so
+    # they need the history.
+    steps: list[object] = [_checkout(registry, full_history=gated or bool(mutants))]
     steps += [_step(step, folder) for step in recipe.ci.steps]
     for step, command in check_commands(component["commands"]):
         entry: dict[str, object] = {"name": step, "run": command}
@@ -112,6 +114,15 @@ def _job(
                 ),
             },
         ]
+    if mutants:
+        steps.append(
+            {
+                "name": "mutants",
+                "if": _PULL_REQUEST,
+                "env": {"BASE_REF": "${{ github.base_ref }}"},
+                "run": mutants_run('"origin/${BASE_REF}"', component),
+            }
+        )
     steps.append(dict(_TREE_STEP))
     job["steps"] = steps
     return job

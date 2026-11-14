@@ -60,7 +60,9 @@ reviewer holds every change to it, and CI fails a pull request that leaves a
 changed line or branch uncovered. It is off by default.
 
 Rust coverage records branches too: only the coverage run uses a pinned,
-dated nightly, since stable Rust reports none.
+dated nightly, since stable Rust reports none. An exhaustive Rust component
+also gets a mutation-testing gate (cargo-mutants): a mutant of a changed
+line that no test catches fails the pull request.
 
 ## Needs
 

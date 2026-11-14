@@ -57,6 +57,9 @@ class Recipe:
     # (relative to the component). A stack with both gets a diff coverage check.
     coverage: str = ""
     coverage_report: str = ""
+    # Optional: the mutation-testing gate of an exhaustively tested project
+    # (decision 0029), run in the component folder on the diff in MUTANTS_DIFF.
+    mutants: str = ""
     # How each step's findings read, for a baseline (spec §8b); keyed by step.
     baselines: Mapping[str, Baseline] = field(default_factory=lambda: {})
     # File names whose folder the adoption survey lists as a candidate.
@@ -93,6 +96,7 @@ _RECIPE_KEYS = frozenset(
         "rules",
         "coverage",
         "coverage_report",
+        "mutants",
         "vars",
         "baseline",
         "detect",
@@ -146,6 +150,9 @@ _ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@(v\d+(\.\d+){0,2}|[0-9a-f]{40
 _SHA_ACTION = re.compile(r"[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40}")
 _RULE_ID = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 _TEMPLATE_VALUE = re.compile(r"(?<!\$)\$(?:\{(name|slug)\}|(name|slug)\b)")
+# The file a mutation-testing command reads the pull request's diff from,
+# in the component folder.
+MUTANTS_DIFF = "pr.diff"
 _VAR = re.compile(r"\$\{([a-z][a-z0-9_]*)\}")
 _VAR_NAME = re.compile(r"[a-z][a-z0-9_]*")
 # `${dir}` is the component's folder in a CI step; the rest fill templates.
@@ -488,7 +495,12 @@ def recipe_from_data(
         )
     coverage = data.get("coverage", "")
     coverage_report = data.get("coverage_report", "")
-    for key, value in (("coverage", coverage), ("coverage_report", coverage_report)):
+    mutants = data.get("mutants", "")
+    for key, value in (
+        ("coverage", coverage),
+        ("coverage_report", coverage_report),
+        ("mutants", mutants),
+    ):
         if not isinstance(value, str):
             raise _fail(f"{where}.{key}", "must be text", 'Write it, or "" for none')
         _one_line(value, f"{where}.{key}")
@@ -543,7 +555,7 @@ def recipe_from_data(
             "has no setup test (no template matches test_globs)",
             "Add a test that checks the toolchain itself, e.g. tests/setup.<ext>",
         )
-    tools = {_first_word(c) for c in [*bootstrap, *commands.values()] if c}
+    tools = {_first_word(c) for c in [*bootstrap, *commands.values(), mutants] if c}
     for i, rule in enumerate(lists["allow"]):
         found = _ALLOW.fullmatch(rule)
         if found is None or found.group(1) not in tools:
@@ -574,6 +586,7 @@ def recipe_from_data(
         rules=_rules(data.get("rules", []), f"{where}.rules"),
         coverage=coverage,
         coverage_report=coverage_report,
+        mutants=mutants,
         baselines=_baselines(data.get("baseline", {}), f"{where}.baseline", commands),
         detect=_detect(data.get("detect", {}), f"{where}.detect"),
         adopted=adopted,
@@ -709,6 +722,17 @@ def load_recipe(stack: str) -> Recipe:
 def render_template(text: str, name: str, slug: str) -> str:
     values = {"name": name, "slug": slug}
     return _TEMPLATE_VALUE.sub(lambda m: values[m.group(1) or m.group(2)], text)
+
+
+def mutants_run(base: str, component: Mapping[str, Any]) -> str:
+    """The component's mutation-testing gate on what the branch changed since
+    `base` (a shell word), run in its folder. The diff names files from the
+    component's folder, the root of the tree the tool mutates: a diff from
+    the repository root matches nothing there, and the gate would pass
+    unchecked."""
+    return (
+        f"git diff --relative {base}...HEAD > {MUTANTS_DIFF} && {component['mutants']}"
+    )
 
 
 def check_commands(commands: Mapping[str, str]) -> list[tuple[str, str]]:

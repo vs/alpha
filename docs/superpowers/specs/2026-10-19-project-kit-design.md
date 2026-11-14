@@ -345,8 +345,10 @@ both), and any parameters.
   ships. Off by default (`defaults.testing.exhaustive`), since it takes
   several times more test code than product code. The reviewer checks it,
   and the diff-coverage gate (§8a) becomes every changed line and branch.
-  The fuzzing, property-testing and mutation-testing tools aren't picked by
-  the recipes; a project adds each when its first test needs it.
+  The fuzzing and property-testing tools aren't picked by the recipes; a
+  project adds each when its first test needs it. Mutation testing is gated
+  where the recipe has a `mutants` command (Rust: cargo-mutants, decision
+  0029; §8a).
 - **A deliberate visual system.** *When: a component has a UI.* The UI is
   built from the declared set of visual tools, not ad-hoc styles.
 - **One design language.** *When: the user defined a design language.* Every
@@ -574,7 +576,8 @@ Decisions:
   with a recommended default: `dependencies.cooldown_days` (7) and
   `testing.diff_coverage` (80). No new area. This keeps interview cost flat.
   `testing.exhaustive` (off, 2026-11-13) joins the testing round the same
-  way.
+  way, and `testing.mutants` (on, 2026-11-14) only decides whether an
+  exhaustive project also gets the mutants gate.
 - **D4 Existing projects gain them through `alpha update`** (decision 0022,
   2026-11-13; it replaces "existing projects stay as they are"). When an
   older kit set the project up, `alpha update` upgrades it to the current
@@ -627,7 +630,7 @@ where CI runs it: `pr`, `schedule`, or `both`.
 | review-dates | none | `python3 .claude/alpha/checks/review_dates.py` | none | no | both | always |
 | toolchain | none | `mise outdated --no-global --bump --json \| python3 -c "…"`: prints the outdated tools and, if any, the `mise upgrade --bump --no-global` fix, then exits 1 | none | no | schedule (own step) | always |
 
-Recipe commands. A stack recipe may add two commands to the ones in §3:
+Recipe commands. A stack recipe may add these commands to the ones in §3:
 
 - `structure`: checks the component's dependency structure. Python:
   `uv run deptry .`. TypeScript: `pnpm knip && pnpm depcruise --config
@@ -645,6 +648,14 @@ Recipe commands. A stack recipe may add two commands to the ones in §3:
   names once under `[vars]` (decision 0028). With exhaustive testing (§6) the
   gate is `--fail-under=100 --branch-coverage`: a changed branch with one
   side untested fails too.
+- `mutants`: the mutation-testing gate of an exhaustive project (decision
+  0029), run in the component folder on the pull request's diff in
+  `pr.diff`. Rust: `cargo mutants --in-diff pr.diff --in-place
+  --timeout-multiplier 3`; a surviving mutant fails, one whose tests time
+  out counts as caught. CI runs it as the `mutants` step of the component's
+  pull-request job; `ALPHA_BASE=<base> mise run ci` runs it locally. The
+  diff is `git diff --relative`, so it names files from the component's
+  folder.
 
 A recipe's `[vars]` table names values several of its commands share; each
 `${name}` in the recipe is filled from it.

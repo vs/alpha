@@ -60,6 +60,11 @@ CI_STEPS = {
         "a pull request's job fails when its tests cover less of the changed "
         "lines than `testing.diff_coverage`"
     ),
+    "mutants": (
+        "under exhaustive testing, a pull request's job fails when a mutant of "
+        "a changed line survives the tests, in a component whose stack has a "
+        "mutation-testing tool (Rust: cargo-mutants)"
+    ),
 }
 
 

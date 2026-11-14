@@ -654,3 +654,16 @@ def test_defaults_without_the_visuals_list_say_how_to_proceed():
         AnswersError, match=r"\[design_language.visuals\] list is missing"
     ):
         build_principles(older, A, "0.1.0")
+
+
+def test_mutants_answer_needs_exhaustive_testing(tmp_path: Path):
+    def alone(data: dict[str, Any]) -> None:
+        data["testing"]["mutants"] = True
+
+    with pytest.raises(AnswersError, match=r"testing\.mutants: is true but"):
+        build_principles(D, variant(tmp_path, alone), "0.1.0")
+
+
+def test_a_stack_without_a_mutants_command_gets_no_gate(tmp_path: Path):
+    out = build_principles(D, variant(tmp_path, _exhaustive), "0.1.0")
+    assert all("mutants" not in c and "workspace" not in c for c in out["components"])
