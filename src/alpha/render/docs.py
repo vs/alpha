@@ -470,14 +470,35 @@ def _product(a: Answers) -> str:
         "",
         "## Target users",
         "",
-        ident.target_users,
+        ident.target_users
+        or "Not settled yet: `/alpha:go settle the target users` settles them.",
         "",
         "## Requirements",
         "",
-        "| ID | Requirement | Acceptance check |",
-        "|---|---|---|",
     ]
-    lines += [row(r.id, r.text, r.acceptance) for r in ident.requirements]
+    if ident.requirements:
+        lines += ["| ID | Requirement | Acceptance check |", "|---|---|---|"]
+        lines += [row(r.id, r.text, r.acceptance) for r in ident.requirements]
+    else:
+        lines.append(
+            "None yet: each feature built with `/alpha:go` adds the requirements "
+            "it serves, with their acceptance checks."
+        )
+    open_areas = [
+        (title, request)
+        for area, (title, request) in area_docs.SETTLE_REQUESTS.items()
+        if a.areas[area] == "open" and area_docs.could_apply(area, a)
+    ]
+    if open_areas:
+        lines += [
+            "",
+            "## Not settled yet",
+            "",
+            "These parts of the specification are left for when the work needs "
+            "them. Until then their principles are off.",
+            "",
+        ]
+        lines += [f"- {title}: `/alpha:go {request}`" for title, request in open_areas]
     return "\n".join(lines) + "\n"
 
 

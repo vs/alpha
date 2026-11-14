@@ -1,6 +1,7 @@
 from typing import Any
 
 from alpha.answers import Answers, describe_condition
+from alpha.core_areas import Architecture
 from alpha.render.markdown import row
 
 _ERROR_FORMATS = {
@@ -19,32 +20,46 @@ def _active(principles: dict[str, Any], principle_id: str) -> bool:
     )
 
 
+# What to ask /alpha:go for to settle each open spec area (decision 0032).
+SETTLE_REQUESTS: dict[str, tuple[str, str]] = {
+    "architecture": ("Architecture", "settle the architecture"),
+    "errors": ("Errors", "settle the error handling"),
+    "design_language": ("Design language", "settle the design language"),
+    "ui": ("UI", "settle the UI"),
+    "observability": ("Observability", "settle the observability"),
+    "data": ("Data", "settle the data and migrations"),
+    "accessibility": ("Accessibility", "settle the accessibility target"),
+    "performance": ("Performance", "settle the performance budgets"),
+}
+
+
+def could_apply(area: str, a: Answers) -> bool:
+    """Whether an open area can matter for these components: a UI area needs a
+    component with a UI, observability a deployed one, data one that stores
+    data or does ML. The rest apply to any project."""
+    if area in ("ui", "accessibility"):
+        return any(c.has_ui for c in a.components)
+    if area == "observability":
+        return any(c.traits.deployed for c in a.components)
+    if area == "data":
+        return any(c.traits.persisted_data or c.traits.ml for c in a.components)
+    return True
+
+
+def not_settled(area: str) -> str:
+    _, request = SETTLE_REQUESTS[area]
+    return f"Not settled yet: `/alpha:go {request}` settles it when the work needs it."
+
+
 def architecture_sections(a: Answers) -> list[str]:
-    assert a.architecture is not None and a.errors is not None
-    lines = [
-        "## Responsibilities",
-        "",
-        "| Component | Responsibility | Calls |",
-        "|---|---|---|",
-    ]
-    lines += [
-        row(c.name, c.responsibility, ", ".join(c.calls) or "-")
-        for c in a.architecture.components
-    ]
-    lines += ["", "## Contracts", ""]
-    contracts = a.architecture.contracts
-    if contracts.format == "none":
-        lines.append("No contracts: components don't call each other.")
+    if a.architecture is None:
+        lines = ["## Responsibilities and contracts", "", not_settled("architecture")]
     else:
-        lines.append(
-            f"Interfaces between components are defined once, as {contracts.format}, "
-            f"in {', '.join(f'`{p}`' for p in contracts.paths)}. Changes there are "
-            "reviewed as risky."
-        )
+        lines = _responsibilities(a.architecture)
+    lines += ["", "## Errors", ""]
+    if a.errors is None:
+        return [*lines, not_settled("errors")]
     lines += [
-        "",
-        "## Errors",
-        "",
         "Every error a user sees says what went wrong and how to fix it.",
         "",
         "| Component | Format | Meaning |",
@@ -58,8 +73,33 @@ def architecture_sections(a: Answers) -> list[str]:
     return lines
 
 
+def _responsibilities(architecture: Architecture) -> list[str]:
+    lines = [
+        "## Responsibilities",
+        "",
+        "| Component | Responsibility | Calls |",
+        "|---|---|---|",
+    ]
+    lines += [
+        row(c.name, c.responsibility, ", ".join(c.calls) or "-")
+        for c in architecture.components
+    ]
+    lines += ["", "## Contracts", ""]
+    contracts = architecture.contracts
+    if contracts.format == "none":
+        lines.append("No contracts: components don't call each other.")
+    else:
+        lines.append(
+            f"Interfaces between components are defined once, as {contracts.format}, "
+            f"in {', '.join(f'`{p}`' for p in contracts.paths)}. Changes there are "
+            "reviewed as risky."
+        )
+    return lines
+
+
 def glossary(a: Answers, principles: dict[str, Any]) -> str | None:
-    assert a.architecture is not None
+    if a.architecture is None:
+        return None
     terms = sorted(a.architecture.glossary, key=lambda t: t.term.casefold())
     if not terms and not _active(principles, "one-vocabulary"):
         return None
@@ -133,6 +173,10 @@ def testing_section(a: Answers, principles: dict[str, Any]) -> list[str]:
 def security_doc(a: Answers, principles: dict[str, Any]) -> str:
     assert a.security is not None
     store = a.security.secret_store
+    auth = a.security.auth or (
+        "Not settled yet: `/alpha:go settle the auth` settles it when the work "
+        "needs it."
+    )
     lines = [
         "# Security",
         "",
@@ -146,7 +190,7 @@ def security_doc(a: Answers, principles: dict[str, Any]) -> str:
         "",
         "## Auth",
         "",
-        a.security.auth,
+        auth,
         "",
         "## Protected paths",
         "",
@@ -188,8 +232,7 @@ def dependency_policy(a: Answers) -> list[str]:
 
 
 def observability_doc(a: Answers) -> str | None:
-    assert a.observability is not None
-    if not a.observability.components:
+    if a.observability is None or not a.observability.components:
         return None
     lines = [
         "# Observability",
@@ -221,9 +264,8 @@ _PALETTE_CHECKS = {
 
 
 def design_language_doc(a: Answers) -> str | None:
-    assert a.design_language is not None
     language = a.design_language
-    if not language.defined:
+    if language is None or not language.defined:
         return None
     lines = [
         "# Design language",
@@ -274,8 +316,7 @@ def design_language_doc(a: Answers) -> str | None:
 
 
 def ui_doc(a: Answers) -> str | None:
-    assert a.ui is not None and a.accessibility is not None
-    if not a.ui.components:
+    if a.ui is None or not a.ui.components:
         return None
     lines = [
         "# UI",
@@ -306,15 +347,18 @@ def ui_doc(a: Answers) -> str | None:
         "",
     ]
     lines += [f"- {c.name}: {c.visual_regression}" for c in a.ui.components]
-    lines += ["", "## Accessibility", "", f"Target: {a.accessibility.level}.", ""]
-    lines += [f"- {c.name}: {c.checks}" for c in a.accessibility.components]
-    lines += ["", "Every UI works with a keyboard and a screen reader."]
+    lines += ["", "## Accessibility", ""]
+    if a.accessibility is None:
+        lines.append(not_settled("accessibility"))
+    else:
+        lines += [f"Target: {a.accessibility.level}.", ""]
+        lines += [f"- {c.name}: {c.checks}" for c in a.accessibility.components]
+        lines += ["", "Every UI works with a keyboard and a screen reader."]
     return "\n".join(lines) + "\n"
 
 
 def data_doc(a: Answers, principles: dict[str, Any]) -> str | None:
-    assert a.data is not None
-    if not a.data.components and a.data.ml is None:
+    if a.data is None or (not a.data.components and a.data.ml is None):
         return None
     lines = ["# Data", ""]
     if a.data.components:
@@ -421,7 +465,8 @@ def changelog(a: Answers) -> str | None:
 
 
 def performance_doc(a: Answers) -> str | None:
-    assert a.performance is not None
+    if a.performance is None:
+        return None
     rows = [
         row(c.name, b.metric, b.limit, b.measured_by)
         for c in a.performance.components
