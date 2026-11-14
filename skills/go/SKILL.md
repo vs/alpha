@@ -1,6 +1,6 @@
 ---
 name: go
-description: Do a task in a project alpha generated or adopted, by a playbook that keeps the project's principles, decisions and checks - investigation, feature (research, grill, spec with its tests, approval, tests first, code), bug fix, refactoring, perf, prototype, session pickup, pause. Use for /alpha:go <task>, or when the user asks for rigorous work on a feature, bug, refactor, slowness or question in such a project.
+description: Do a task in a project alpha generated or adopted, by a playbook that keeps the project's principles, decisions and checks - investigation, feature (research, grill, spec with its tests, approval, tests first, code), bug fix, refactoring, perf, specify (settle a spec area left open), prototype, session pickup, pause. Use for /alpha:go <task>, or when the user asks for rigorous work on a feature, bug, refactor, slowness or question in such a project.
 ---
 
 <!--
@@ -43,6 +43,7 @@ Task: `$ARGUMENTS`
 - project.json has `adoption` but no `manifest` key: an adoption is under way. Point to `/alpha:adopt`, and stop.
 - Otherwise, project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`, and stop.
 - With a `manifest`, read before the first step:
+  - project.json's `areas`: a spec area marked `open` isn't settled yet (decision 0032), so its doc is missing and the principles it gates are off; docs/product.md lists them under "Not settled yet".
   - `docs/principles.toml`: the active principles, their parameters and `[review]`. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
   - The decision records in `docs/decisions/` that bear on the task (the session start lists them).
   - CLAUDE.md: each component's commands, the definition of done, the commit convention and how to talk to the user.
@@ -59,6 +60,7 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 | Bug fix | `bug-fix.md` | A defect to reproduce, trace to its root cause and fix with a test that fails without the fix. |
 | Refactoring | `refactoring.md` | A change to structure that keeps behavior: rename, extract, inline, merge, move. |
 | Perf | `perf.md` | A measured slowness, or a push on one metric, against a baseline. |
+| Specify | `specify.md` | Settling a spec area left open, or the target users: on request, or because a task needs it. |
 | Prototype | `prototype.md` | A throwaway sketch to settle a design question by looking at it instead of asking. |
 | Session pickup | `session-pickup.md` | Resuming work an earlier session left: a branch, a resume note, a spec. |
 | Pause | `pause.md` | Stopping work cleanly so a later session can resume it. |
