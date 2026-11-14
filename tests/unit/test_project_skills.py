@@ -85,3 +85,15 @@ def test_reviewer_agent_contract():
     ):
         assert piece in text, piece
     assert len(text.splitlines()) <= 100
+
+
+REVIEW_CHANGE = PLUGIN_ROOT / "project-files" / "skills" / "review-change" / "SKILL.md"
+
+
+def test_review_change_proves_bugs_and_the_safety_fact_by_running_them():
+    text = REVIEW_CHANGE.read_text()
+    check = text.split("## 3. Check before you report")[1].split("\n## ")[0]
+    assert "A bug finding needs a run" in check
+    assert "Not checked:" in check
+    output = text.split("## 4. Output")[1]
+    assert "`Safe because:`" in output and "`unproven`" in output
