@@ -415,6 +415,77 @@ def _diff(root: Path, old: str, new: str, leave_out: list[str]) -> list[str]:
     ]
 
 
+_VISUAL_HINT = re.compile(
+    r"#[0-9a-fA-F]{6}\b|\b(?:rgba?|hsla?|oklch|oklab)\(|style=|<style|<svg"
+    r"|(?:```|~~~)\s*\{?\.?(?:mermaid|d2|plantuml|puml|dot|graphviz)"
+    r"|\.\. (?:mermaid|graphviz|digraph|graph)::"
+    r"|\[(?:mermaid|plantuml|graphviz|d2)\b",
+    re.IGNORECASE,
+)
+_PALETTE_CHECK = ".claude/alpha/checks/palette.py"
+
+
+def _off_palette(root: Path, files: list[str]) -> list[str]:
+    """What the palette check finds in the changed files, without failing."""
+    if not files or not (root / _PALETTE_CHECK).is_file():
+        return []
+    try:
+        done = subprocess.run(
+            [sys.executable, _PALETTE_CHECK, "--advise", *files],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return []
+    return done.stdout.splitlines() if done.returncode == 0 else []
+
+
+def _changed_visuals(
+    root: Path, old: str, new: str, principles: dict[str, Any], files: list[str]
+) -> list[str]:
+    visuals: dict[str, Any] = principles.get("visuals", {})
+
+    def changed(kind: str) -> list[str]:
+        globs = [str(g) for g in visuals.get(kind, [])]
+        excluded = [str(g) for g in visuals.get("exclude", [])]
+        return [
+            path
+            for path in files
+            if _common.matches(path, globs) and not _common.matches(path, excluded)
+        ]
+
+    def touches_a_visual(path: str) -> bool:
+        diff = _git(root, "diff", "--no-renames", "-U15", old, new, "--", path) or ""
+        return any(
+            _VISUAL_HINT.search(line)
+            for line in diff.splitlines()
+            if line[:1] in ("+", " ") and not line.startswith("+++")
+        )
+
+    lines: list[str] = []
+    text = [*changed("sources"), *filter(touches_a_visual, changed("carriers"))]
+    opaque = changed("opaque")
+    if text:
+        lines += ["", "## Changed visuals (check each against the design language)"]
+        lines += ["", *(f"- {path}" for path in text)]
+    if opaque:
+        lines += ["", "## Changed visuals that aren't text (name them; can't be read)"]
+        lines += ["", *(f"- {path}" for path in opaque)]
+    advised = visuals.get("palette_check") == "advise"
+    off_palette = _off_palette(root, files) if advised else []
+    if off_palette:
+        lines += [
+            "",
+            "## Colors outside the palette (judge each: a deliberate exception "
+            "is fine, drift is a finding)",
+            "",
+            *(f"- {found}" for found in off_palette),
+        ]
+    return lines
+
+
 def brief(root: Path) -> str:
     principles = _common.load_principles(root) or {}
     state = ensure_state(root)
@@ -487,6 +558,7 @@ def brief(root: Path) -> str:
         lines += [f"- {path}: {reason}" for path, reason in sorted(untested.items())]
     lines += ["", "## Changed files", ""]
     lines += [f"{count}\t{path}" for count, path in stats]
+    lines += _changed_visuals(root, reviewed, current, principles, files)
     lockfiles = {
         str(lock)
         for comp in principles.get("components", [])
