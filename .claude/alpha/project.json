@@ -836,7 +836,7 @@
     "extra_risk_paths": []
   },
   "manifest": {
-    "kit_version": "0.7.0",
+    "kit_version": "0.8.0",
     "generated_at": "2026-11-12",
     "adopted_at": "2026-11-12",
     "defaults": {
@@ -1712,7 +1712,7 @@
     "files": {
       ".betterleaks.toml": "sha256:73c6df4257f10e5f06679d8a2d4cd67056a41dbe5acd646cf525b0582d05b6a8",
       ".claude/agents/committer.md": "sha256:388deb1b7b411facea05ca55825a1d5de3419c103665f2781e7c94199c9150d8",
-      ".claude/agents/principles-reviewer.md": "sha256:cb3e2a96de5f8d6f0f4174df20a83e7d074fbf84496fcdde1b2362aa16548466",
+      ".claude/agents/principles-reviewer.md": "sha256:5f4b3312528be3cf90ea0bd87a3c3b830a34c54f43e04b28f4823d7f665dae10",
       ".claude/alpha/checks/diff_checks.py": "sha256:6fa961651fcb634468c1cea4b6a071855a8b3cf1708bf08e79fff50a68701c4b",
       ".claude/alpha/checks/palette.py": "sha256:896cfbbb0d0c3afe96c671f575f345fe32706f93fe098032176559595fc2d5ba",
       ".claude/alpha/checks/ratchet.py": "sha256:e20717ddf91eb0fbf750e114ca2997bb7f89e332ad4045c8429140173b4ca833",
@@ -1720,7 +1720,7 @@
       ".claude/alpha/checks/secret_scan.py": "sha256:268876915ead1aad1f6d14e4c9525fba6af267e505ee6590d3ba988e1b860f47",
       ".claude/alpha/checks/shortcuts.py": "sha256:12abd118df3bdd490c40663a6aa79d2b078ea0037bb01a4a158d4d72ef0d708c",
       ".claude/alpha/githooks/commit-msg": "sha256:cf04bd88851198263c0dd79b1eb4b8833a195ac1163db0888bb986d2fa8bd60c",
-      ".claude/alpha/hooks/_common.py": "sha256:8ddcb9d59d2d28db05bef2fdd1ddf590aa607e253cb69702eb53641fe8140bbd",
+      ".claude/alpha/hooks/_common.py": "sha256:74c4f45cf7718d6989ccc83ab27db372cced3609b8ba4e780e77394ad64bc7fb",
       ".claude/alpha/hooks/commit_msg.py": "sha256:35ab2b248f2939272ea9abb414cd1bf601650fcccd24dca774744cba9d4f8dae",
       ".claude/alpha/hooks/guard_bash.py": "sha256:9c28dbe45067488fc4f197b09574b7b899a0585020bff64249e2be5025a7de72",
       ".claude/alpha/hooks/guard_paths.py": "sha256:69e3daca0f32574d1d3a669dff1586814ae5c6140235f2da7170b900c5f30fd4",
@@ -1728,7 +1728,7 @@
       ".claude/alpha/hooks/review.py": "sha256:37c658125b2251da825badb42171de92e500fff54815b59b6fb50b4905d0c82c",
       ".claude/alpha/hooks/review_record.py": "sha256:ed811c19bcd9e72beaa591c5d9389900ec0213c20d3dae488fb9bb5c4fca14fb",
       ".claude/alpha/hooks/session_start.py": "sha256:54d572b1cc0585b8fcc12fb344c3abc6536b58987cd53d4ac3771710e292bc99",
-      ".claude/alpha/hooks/stop_checks.py": "sha256:20c85dc8bb1940b8186d46839536749b084547f08d7015c21d825a6cbe810a5b",
+      ".claude/alpha/hooks/stop_checks.py": "sha256:aa662d5857f4a9ccdd67a19f70c33de8024bb2c09156bf17a145963ace9ffeb8",
       ".claude/alpha/hooks/subagent_start.py": "sha256:c65b7861fcb08685626c2a48c95b5f19bbba5b0d90f192af1f1964920c742039",
       ".claude/alpha/hooks/user_prompt.py": "sha256:36ca81b355e43d6d45b19d1974136740ef946c37fd9828830c5a71b1e67b0608",
       ".claude/settings.json": "sha256:8470c8cc20b63aa4a32a10cbfa3a772388e9c445d5dab3b6dd9fbfc1f7f400a6",
@@ -1741,7 +1741,7 @@
       ".rumdl.toml": "sha256:9382fe071cf76551d8127b9b9652a9ff23591b30870d610b89165da4c972f512",
       "CLAUDE.md": "sha256:eeeedc078751b023ad9e06a1d675e046a8bdf10e43a843a44b92b93151edb6f0",
       "CONTRIBUTING.md": "sha256:b498c36d56c1f427268bb1931d3031ced30b8605b62f0b362360f8e5aae3a726",
-      "README.md": "sha256:8b2851d73fc40074a609531d88169d84c7059f6265372dbecc816c0643e2a858",
+      "README.md": "sha256:b3f82a32c46770f7a8c61a1190abd4bfb0c44c73ec00af72ccf571cdaf7deeba",
       "_typos.toml": "sha256:3dde33ae6acb93d91ec5a95bd5d60c3a7f8363f329abb4998e83cd1900d0e106",
       "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
