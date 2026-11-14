@@ -31,7 +31,9 @@ def git_env(
     tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = tmp_path_factory.mktemp("gitconfig") / "config"
-    config.write_text("")
+    # git packs objects in a detached process after a commit, which deletes
+    # files under .git while a test copies or snapshots the repository.
+    config.write_text("[maintenance]\n\tauto = false\n")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     for role in ("AUTHOR", "COMMITTER"):
