@@ -206,32 +206,48 @@ def test_grilling_credits_its_source_with_the_full_license():
 EMOJI = re.compile("[\U0001f000-\U0001faff☀-➿⬀-⯿️]")
 
 
-def test_grilling_asks_in_the_dialog_within_its_limits():
+def test_grilling_asks_one_question_at_a_time():
     rounds = _section("grilling", "Rounds")
-    dialog, plain = rounds.split("### In the dialog")[1].split("### In plain text")
-    assert "When the `AskUserQuestion` tool is in your tool list" in dialog
-    for limit in ("at most 4 questions", "2 to 4 options", "at most 12 characters"):
+    assert "asked **one question at a time**" in rounds
+    assert (
+        "headless, as in the evals, and no person is waiting),"
+        " ask the whole round in one message" in rounds
+    )
+    dialog, plain = rounds.split("### A choice: in the dialog")[1].split(
+        "### A draft: in plain text"
+    )
+    assert "the `AskUserQuestion` tool is in your tool list" in dialog
+    for limit in ("One question per call.", "2 to 4 options", "at most 12 characters"):
         assert limit in dialog
     assert '" (Recommended)"' in dialog and 'Never add an "Other" option' in dialog
-    assert plain.lstrip().startswith("Without the tool")
+    assert "when the tool isn't in your tool list" in plain
 
 
 @pytest.mark.parametrize("skill", ["new-project", "adopt", "extend", "go"])
-def test_entry_skills_ask_through_the_dialog(skill: str):
+def test_entry_skills_ask_one_question_at_a_time(skill: str):
+    text = _text(skill)
     assert (
-        "with the `AskUserQuestion` tool when it's in your tool list, as the"
-        ' `alpha:grilling` skill\'s "In the dialog" says; otherwise in plain text'
-    ) in _text(skill)
+        'Ask one question at a time, as the `alpha:grilling` skill\'s "Rounds" says:'
+        " a choice, a yes or no or "
+    ) in text
+    assert (
+        " in the `AskUserQuestion` dialog when that tool is in your tool list,"
+        " a draft for the user to edit in plain text."
+    ) in text
 
 
-def test_grilling_rounds_are_compact_plain_text():
+def test_grilling_plain_text_question_ends_with_the_recommendation():
     rounds = _section("grilling", "Rounds")
     template = re.search(r"```text\n(.*?)```", rounds, re.S)
     assert template
+    lines = template.group(1).strip().splitlines()
+    assert len(re.findall(r"\*\*Q\d+\.", template.group(1))) == 1
+    assert lines[-1].startswith("Recommended: ")
+    assert "why" not in lines[-1]
     assert not EMOJI.search(rounds)
     assert "---" not in template.group(1)
-    assert "\n\n\n" not in template.group(1)
-    assert "Recommended:" in template.group(1)
+    assert "\n\n" not in template.group(1).strip()
+    assert "End the question with the `Recommended:` line" in rounds
 
 
 def test_grilling_override_protocol_reads_the_exit_codes():

@@ -1,7 +1,7 @@
 # 0032. alpha asks in the AskUserQuestion dialog
 
 Date: 2026-11-14
-Status: accepted
+Status: superseded by 0033
 Kind: product
 
 ## Context

@@ -21,9 +21,10 @@ claude plugin install alpha@alpha
 /alpha:new-project ~/code/my-app
 ```
 
-Each question comes with a recommended answer. In an interactive session you
-pick answers in Claude Code's question dialog, recommendation first, or type
-your own; run headless, alpha asks in plain text.
+alpha asks one question at a time, each with a recommended answer. A choice
+comes in Claude Code's question dialog, the recommendation first; a draft,
+such as the project's name or requirements, comes as text ending in the
+recommended answer, for you to confirm or rewrite.
 
 ## What you get
 

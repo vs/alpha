@@ -11,7 +11,7 @@ Take an empty folder to a committed, enforced project skeleton: interview the us
 
 Folder argument: `$ARGUMENTS`
 
-Ask every question that has answers you can offer (a choice, a yes or no, a confirmation) with the `AskUserQuestion` tool when it's in your tool list, as the `alpha:grilling` skill's "In the dialog" says; otherwise in plain text.
+Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a choice, a yes or no or a confirmation in the `AskUserQuestion` dialog when that tool is in your tool list, a draft for the user to edit in plain text.
 
 ## 1. Resolve the target folder
 
