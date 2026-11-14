@@ -777,13 +777,14 @@ def test_commit_update_errors_name_commit_update(
     assert "commit-skeleton" not in str(e.value)
 
 
-def test_commit_update_new_root_component_commits_only_alphas_files(
+def test_commit_update_new_root_component_commits_alphas_files_and_the_lockfile(
     tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, "python-ml-single")
     principles = load_project_principles(target)
     name = principles["components"][0]["name"]
     (target / "tool.txt").write_text("alpha\n")
+    (target / "uv.lock").write_text("version = 1\n")  # as uv sync writes
     (target / "notes.txt").write_text("mine\n")
     (target / UPDATE_STATE).parent.mkdir(parents=True, exist_ok=True)
     (target / UPDATE_STATE).write_text(
@@ -799,8 +800,8 @@ def test_commit_update_new_root_component_commits_only_alphas_files(
     _, notes = commit_update(target, principles, [])
     assert git(target, "status", "--porcelain") == "?? notes.txt"
     assert notes[0] == (
-        f"{name} is at the project root, so only alpha's files were committed; "
-        "commit any files its bootstrap made (such as lockfiles) yourself."
+        f"{name} is at the project root, so only alpha's files and its lockfile "
+        "were committed; commit any other files its bootstrap made yourself."
     )
 
 

@@ -321,6 +321,22 @@ def _change(path: str, after: str, disk: str | None, notes: list[str]) -> Change
     return classify(path, None, after, disk)
 
 
+def _new_components(target: Path, a: Answers) -> tuple[str, ...]:
+    """The components alpha writes the skeleton of: on a kit or drafted recipe,
+    with none of its manifests in their folder yet. A component on an adopted
+    recipe is the repo's own code."""
+    book = a.book()
+    return tuple(
+        c.name
+        for c in a.components
+        if not book.get(c.stack).adopted
+        and not any(
+            (target / c.path / manifest).is_file()
+            for manifest in book.get(c.stack).manifests
+        )
+    )
+
+
 def plan_adoption(
     target: Path, plugin_root: Path, source: Source, today: date
 ) -> UpdatePlan:
@@ -397,7 +413,7 @@ def plan_adoption(
     }
     return UpdatePlan(
         changes=tuple(changes),
-        new_components=(),  # adopted components are the app: never committed whole
+        new_components=_new_components(target, a),
         groups={p: commit_group(p, rendered.component_of) for p in writes},
         manifest=manifest,
         answers=top,

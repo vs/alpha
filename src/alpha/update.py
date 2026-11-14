@@ -571,7 +571,9 @@ def apply_update(target: Path, plan: UpdatePlan) -> list[str]:
     return [] if carried else [REVIEW_NOTE]
 
 
-def describe(plan: UpdatePlan, target: Path) -> str:
+def describe(plan: UpdatePlan, target: Path, bootstrap_flags: str = "") -> str:
+    """`bootstrap_flags`: what the bootstrap that follows takes, when it isn't
+    the new components alone."""
     count = sum(c.kind in _WRITES for c in plan.changes)
     if not plan.changes and not plan.new_components:
         return "alpha update: nothing to change"
@@ -581,7 +583,9 @@ def describe(plan: UpdatePlan, target: Path) -> str:
         lines.append(f"  {c.kind:<10}{c.path}{_NOTES.get(c.kind, '')}")
     lines += [f"  {note}" for note in plan.notes]
     if plan.new_components:
-        flags = " ".join(f"--component {n}" for n in plan.new_components)
+        flags = bootstrap_flags or " ".join(
+            f"--component {n}" for n in plan.new_components
+        )
         lines.append(
             f"New components: {', '.join(plan.new_components)}. Then run: "
             f"alpha bootstrap {target} {flags}"

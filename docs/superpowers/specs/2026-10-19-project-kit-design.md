@@ -267,7 +267,11 @@ anything.
 2. **Interview: all areas, in §4's order.** Recommendations come from the
    survey where the repo's practice meets the principle, and from the kit
    defaults otherwise. Nothing the repo already answers is asked. Wherever
-   the repo falls short of an active principle, a **gap** is recorded.
+   the repo falls short of an active principle, a **gap** is recorded. A
+   component the docs describe whose folder is missing or holds only docs
+   has no tools to adopt: the user is asked once whether the kit generates
+   its skeleton, and on yes it takes the kit's recipe (or a drafted one), as
+   in a new project (decision 0030).
 3. **Assessment.** The audit's lenses (§9, on-demand reports), run per
    active principle over the whole repo, find gaps no tool reports: the
    error format, validation at the edges, contracts, config from the
@@ -281,7 +285,9 @@ anything.
    repo already has is merged by hand, keeping the user's side. `.gitignore`
    and `.claude/settings.json` are merged mechanically, the existing LICENSE
    is kept, and component templates are never written over an existing
-   manifest. New decision records are numbered after any already in
+   manifest. A component on a kit or drafted recipe with no manifest in its
+   folder gets that recipe's skeleton, bootstrapped and committed whole as
+   in a new project. New decision records are numbered after any already in
    `docs/decisions/`. Then the baselines are captured, the components are
    bootstrapped green under them, and the result is committed in the
    convention's groups. The user opens the pull request.

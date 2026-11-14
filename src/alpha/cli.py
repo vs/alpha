@@ -295,7 +295,7 @@ def _registry(args: argparse.Namespace) -> int:
 
 def _adopt_apply(target: Path, dry_run: bool, source: defaults.Source) -> None:
     plan = adopt.plan_adoption(target, PLUGIN_ROOT, source, date.today())
-    print(describe(plan, target))
+    print(describe(plan, target, "--capture-baselines"))
     if dry_run:
         print(plan_diff(plan, target), end="")
         return

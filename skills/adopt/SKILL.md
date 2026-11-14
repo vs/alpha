@@ -29,7 +29,7 @@ Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt survey <target> --save`. If it refu
 Then save the start, keeping what the survey saved in `adoption`:
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {…every area as in /alpha:new-project, all "pending"…}, "overrides": [], "decisions": [], "adoption": {…the saved adoption…}}'`
 
-Tell the user in a few lines what the survey found: candidate components and stacks, CI, docs and decision records, hook managers, and how many recent commits follow the convention.
+Tell the user in a few lines what the survey found: candidate components and stacks, CI, docs and decision records, hook managers, and how many recent commits follow the convention. A repo with docs and no code yet has no candidates: say that alpha generates the skeleton of each component the interview settles.
 
 ## 3. Defaults
 
@@ -41,7 +41,8 @@ Run every area in `/alpha:new-project`'s order, invoking each area's skill with 
 
 - Recommend what the repo already does when it meets the principle, else the kit default; say which it is. Never ask what the survey or the repo's files answer: read the README for identity, the manifests, lockfiles and CI for components and build, `LICENSE` for `identity.license_file` (keep the repo's license).
 - Where the repo falls short of an active principle, say so in one line and note it as a gap for step 5. Change no app code during the interview.
-- Components: start from the survey's candidates. Every component gets an adopted recipe drafted with `alpha:stack-recipe` (named `<component>-<stack>`, extending the kit's recipe when the repo's tools are the kit's). Prove each with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <recipe>`; each check it reports with findings goes into `adoption.baselines` as `<step>:<component>`.
+- Components: start from the survey's candidates, and add the parts the repo's docs describe that have no code yet. A component whose folder holds code gets an adopted recipe, with or without a manifest, drafted with `alpha:stack-recipe` (named `<component>-<stack>`, extending the kit's recipe when the repo's tools are the kit's). Prove each with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <recipe>`; each check it reports with findings goes into `adoption.baselines` as `<step>:<component>`.
+- A component with no project structure yet (its folder is missing or holds only docs, so the survey lists no candidate for it) has no tools to adopt. Don't stop the interview over it, and never write its files yourself: alpha generates its skeleton, as `/alpha:new-project` would. In the components round, ask one question for each, recommending yes: "<component> has no project structure yet. Generate alpha's <stack> skeleton for it in <path>?" On yes, set its `stack` to the kit's recipe (`recipe list` names it), or for a stack the kit lacks to one `alpha:stack-recipe` drafts and proves as for a new project. It gets no adopted recipe and no baselines. Step 7 then writes its manifest, strict settings and setup test beside whatever its folder holds, installs its toolchain and commits it. A component at the repository root: after step 7.4, commit what its bootstrap made beyond the lockfile, as that step's note says. On no, leave the component out and tell the user `/alpha:extend` adds it later; if no component is left, say alpha has nothing to enforce there yet, and stop.
 - Git history: set `adoption.git_hooks` to `alpha` when the survey found no hook manager and no `hooks_path`, else `chain` (the repo's manager stays in charge and calls alpha's check). Commits already in history stay as they are.
 - Design language: recommend defining it only when the repo already has one (a brand or style guide, a tokens or theme file, themed diagrams), and read its colors, typefaces and diagram style from there; otherwise recommend skipping. Recommend `palette_check` `advise`, never `enforce`: the palette check has no baseline, so the repo's existing colors would fail it.
 - Documentation: an existing decision-record folder keeps its numbers; alpha's records follow them.
@@ -55,7 +56,7 @@ Group the findings with the gaps from step 4. With `alpha:grilling`, ask the use
 
 ## 6. Preview and confirm
 
-Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json` (must print `ok`) and `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt apply <target> --dry-run`. Show, in plain words: the areas' answers as `/alpha:new-project` step 5 does; the files alpha adds, merges and must merge by hand (each `conflict`); the baselines and their counts from the recipe proofs; and the plan by phase. Ask: "Install alpha on branch alpha/adopt with these answers?" and wait for a clear yes.
+Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json` (must print `ok`) and `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt apply <target> --dry-run`. Show, in plain words: the areas' answers as `/alpha:new-project` step 5 does; the files alpha adds, merges and must merge by hand (each `conflict`); the components whose skeleton it generates (the `New components` line); the baselines and their counts from the recipe proofs; and the plan by phase. Ask: "Install alpha on branch alpha/adopt with these answers?" and wait for a clear yes.
 
 ## 7. Install
 
@@ -63,7 +64,7 @@ In order; if a step fails, show its message, fix the cause with the user, and re
 
 1. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt apply <target>`.
 2. For each `<path>: merge by hand; proposal: …` line, read the proposal (the repo's version and alpha's) and edit the real file to keep every line of the repo's and add alpha's: never just alpha's side. For CI, keep the repo's jobs and add alpha's. Show the user each result.
-3. Tell the user this installs toolchains, records today's findings as baselines and runs every check, then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --capture-baselines`. A secret it finds: ask the user to rotate it and add a P0 step; a false positive goes in `.betterleaksignore`. A known vulnerability: upgrade it, or, with the user's yes, add an `osv-scanner.toml` exception with a reason and a review date.
+3. Tell the user this installs toolchains (a new component's too), records today's findings as baselines and runs every check, then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --capture-baselines`. A secret it finds: ask the user to rotate it and add a P0 step; a false positive goes in `.betterleaksignore`. A known vulnerability: upgrade it, or, with the user's yes, add an `osv-scanner.toml` exception with a reason and a review date.
 4. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-update <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits. Never invent co-author lines.
 
 ## 8. Report

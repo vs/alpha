@@ -7,7 +7,15 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from helpers import EXISTING, PLUGIN_ROOT, adoption_answers, existing_repo, git, run_cli
+from helpers import (
+    EXISTING,
+    PLUGIN_ROOT,
+    adoption_answers,
+    existing_repo,
+    git,
+    place_rust_monorepo,
+    run_cli,
+)
 
 from alpha.adopt import AdoptError, apply_adoption, plan_adoption
 from alpha.defaults import Source
@@ -336,3 +344,125 @@ def test_alpha_mode_refuses_to_replace_the_repos_hooks(repo: Path):
     hook.write_text("#!/bin/sh\nexit 0\n")
     with pytest.raises(AdoptError, match="holds pre-commit"):
         _plan(repo)
+
+
+# --- components with no project structure yet ---
+
+DOCS_ONLY = {
+    "README.md": "# Tool\n\nThe design is in docs/design.md.\n",
+    "docs/design.md": "# Design\n\nA cli and a core in Rust, and a Python api.\n",
+    "core/notes.md": "# Core\n\nWhat the core will own.\n",
+}
+
+
+def _docs_only(root: Path, files: dict[str, str] | None = None) -> Path:
+    """A repo that holds docs and no code: its components (the Rust `cli` and
+    `core`, the Python `api`) are on the kit's recipes."""
+    existing_repo(root, {**DOCS_ONLY, **(files or {})})
+    answers = place_rust_monorepo(root)
+    data = json.loads(answers.read_text())
+    data["adoption"] = {"git_hooks": "alpha"}
+    answers.write_text(json.dumps(data))
+    return root
+
+
+@pytest.fixture
+def docs_only(tmp_path: Path, git_env: None) -> Path:
+    return _docs_only(tmp_path / "docs-only")
+
+
+def test_apply_writes_the_skeleton_of_a_component_with_no_manifest(docs_only: Path):
+    plan = _plan(docs_only)
+    assert plan.new_components == ("cli", "core", "api")
+    kinds = {c.path: c.kind for c in plan.changes}
+    for rel in ("Cargo.toml", "core/Cargo.toml", "cli/tests/setup.rs"):
+        assert kinds[rel] == "new", rel
+    assert kinds["api/pyproject.toml"] == "new"
+    apply_adoption(docs_only, plan)
+    assert (docs_only / "core/Cargo.toml").is_file()
+    assert (docs_only / "core/notes.md").read_text() == DOCS_ONLY["core/notes.md"]
+    state = json.loads((docs_only / ".claude/alpha/state/update.json").read_text())
+    assert state["new_components"] == ["cli", "core", "api"]
+
+
+def test_dry_run_names_the_new_components_and_the_bootstrap(docs_only: Path):
+    done = run_cli("adopt", "apply", str(docs_only), "--dry-run")
+    assert done.returncode == 0, done.stderr
+    assert (
+        f"New components: cli, core, api. Then run: alpha bootstrap {docs_only} "
+        "--capture-baselines"
+    ) in done.stdout
+    assert not (docs_only / "core/Cargo.toml").exists()
+
+
+def test_a_component_whose_manifest_exists_is_not_new(tmp_path: Path, git_env: None):
+    mine = '[project]\nname = "api"\nversion = "1.0"\n'
+    root = _docs_only(tmp_path / "repo", {"api/pyproject.toml": mine})
+    plan = _plan(root)
+    assert plan.new_components == ("cli", "core")
+    kinds = {c.path: c.kind for c in plan.changes}
+    assert kinds["api/pyproject.toml"] == "conflict"
+    apply_adoption(root, plan)
+    assert (root / "api/pyproject.toml").read_text() == mine
+
+
+def _header(line: str) -> tuple[str, str, str]:
+    return line.partition(" ")
+
+
+def test_commit_adoption_commits_each_new_skeleton_whole(docs_only: Path):
+    plan = _plan(docs_only)
+    apply_adoption(docs_only, plan)
+    for c in plan.changes:
+        if c.kind == "conflict":  # Claude's hand merge: the repo's, then alpha's
+            mine = (docs_only / c.path).read_text()
+            alphas = (docs_only / PROPOSALS / c.path).read_text()
+            (docs_only / c.path).write_text(mine + "\n" + alphas)
+    (docs_only / "Cargo.lock").write_text("version = 4\n")  # as cargo fetch writes
+    (docs_only / "api/uv.lock").write_text("version = 1\n")  # as uv sync writes
+    start = git(docs_only, "rev-parse", "HEAD")
+    commit_update(docs_only, load_project_principles(docs_only), [])
+    assert git(docs_only, "status", "--porcelain") == ""
+    log = git(docs_only, "log", "--reverse", "--format=%H %s", f"{start}..HEAD")
+    commits = {subject: sha for sha, _, subject in map(_header, log.splitlines())}
+    assert [s for s in commits if s.startswith("build")] == [
+        "build: Pin the repository's check tools",
+        "build: Set up the rust workspace and tests",
+        "build(api): Set up python toolchain and tests",
+    ]
+
+    def files(subject: str) -> set[str]:
+        shown = git(docs_only, "show", "--name-only", "--format=", commits[subject])
+        return set(shown.splitlines())
+
+    # The workspace's root files list every member, so they pass only together.
+    assert files("build: Set up the rust workspace and tests") == {
+        "Cargo.toml",
+        "Cargo.lock",
+        "clippy.toml",
+        "rust-toolchain.toml",
+        "cli/Cargo.toml",
+        "cli/tests/setup.rs",
+        "core/Cargo.toml",
+        "core/tests/setup.rs",
+    }
+    assert "api/uv.lock" in files("build(api): Set up python toolchain and tests")
+
+
+def test_commit_adoption_of_a_new_root_component_leaves_a_clean_tree(
+    tmp_path: Path, git_env: None
+):
+    root = existing_repo(tmp_path / "single", DOCS_ONLY)
+    data = adoption_answers(root)
+    data["components"][0]["stack"] = "python"
+    data["identity"]["license_file"] = None
+    del data["recipes"]
+    _answers(root, data)
+    plan = _plan(root)
+    assert plan.new_components == ("ml",)
+    apply_adoption(root, plan)
+    (root / "README.md").write_text((root / PROPOSALS / "README.md").read_text())
+    (root / "uv.lock").write_text("version = 1\n")  # as uv sync writes
+    commit_update(root, load_project_principles(root), [])
+    assert git(root, "status", "--porcelain") == ""
+    assert "uv.lock" in git(root, "ls-files").splitlines()

@@ -208,6 +208,19 @@ def test_try_adopted_needs_a_component(tmp_path: Path, git_env: None):
     assert problem is not None and "No component uses the svc-sh recipe" in problem
 
 
+def test_try_adopted_component_without_a_folder(tmp_path: Path, git_env: None):
+    root = _repo_with(tmp_path, {})
+    project = root / ".claude/alpha/project.json"
+    data = json.loads(project.read_text())
+    data["components"][0]["path"] = "planned"
+    project.write_text(json.dumps(data))
+    problem = _try(root)
+    assert problem is not None
+    assert "planned has no committed files, so there are no tools to adopt" in problem
+    assert "alpha adopt apply then writes its skeleton" in problem
+    assert _worktrees(root) == 1
+
+
 def test_try_adopted_removes_its_worktree(
     tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ):
