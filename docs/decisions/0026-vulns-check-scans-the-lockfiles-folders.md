@@ -1,4 +1,4 @@
-# 0025. The vulns check scans the lockfiles' folders
+# 0026. The vulns check scans the lockfiles' folders
 
 Date: 2026-11-14
 Status: accepted

@@ -1,7 +1,7 @@
 # Project kit: design
 
 Date: 2026-10-19
-Status: approved, and built as of alpha 0.6.2 (2026-11-13). §15 lists what
+Status: approved, and built as of alpha 0.7.0 (2026-11-14). §15 lists what
 waits for a later version.
 
 Name: **alpha**, the same as this repo. "Alpha" is the first letter and the first version: where every project starts. Skills are invoked as `/alpha:<skill>` (e.g. `/alpha:new-project`).
@@ -614,7 +614,7 @@ where CI runs it: `pr`, `schedule`, or `both`.
 |---|---|---|---|---|---|---|
 | actions | jactionlint | lint `.github/` | `.github/**` | yes | pr | `build.ci == "github-actions"` |
 | secrets | betterleaks | `secret_scan.py`: scan the files git doesn't ignore, `--config .betterleaks.toml` | `**` | no | pr | always |
-| vulns | osv-scanner | `scan source --no-ignore` on each lockfile's folder, not below it (decision 0025) | lockfiles | no | both | any component has lockfiles |
+| vulns | osv-scanner | `scan source --no-ignore` on each lockfile's folder, not below it (decision 0026) | lockfiles | no | both | any component has lockfiles |
 | typos | typos | `typos` | `**` | yes | pr | always |
 | markdown | rumdl | `rumdl check .` | `**/*.md` | yes | pr | always |
 | links | lychee | `lychee --offline --no-progress .` | `**/*.md` | yes | pr | always |
