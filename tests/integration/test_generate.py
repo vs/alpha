@@ -134,6 +134,7 @@ def test_gitignore_prefixes_component_paths(
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     assert (tmp_path / ".gitignore").read_text() == (
         ".claude/alpha/state/\n"
+        ".claude/alpha/notes/\n"
         ".claude/settings.local.json\n"
         ".claude/worktrees/\n"
         ".DS_Store\n"
@@ -161,6 +162,7 @@ def test_gitignore_for_root_component(
     generate_scenario(tmp_path, "python-ml-single")
     assert (tmp_path / ".gitignore").read_text() == (
         ".claude/alpha/state/\n"
+        ".claude/alpha/notes/\n"
         ".claude/settings.local.json\n"
         ".claude/worktrees/\n"
         ".DS_Store\n"

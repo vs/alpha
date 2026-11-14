@@ -274,3 +274,10 @@ def test_the_review_state_is_not_editable(project: Project) -> None:
     proc = run(project, "Write", {"file_path": path})
     assert proc.returncode == 2
     assert "alpha's hooks keep their state there" in proc.stderr
+
+
+def test_a_resume_note_beside_the_state_is_writable(project: Project) -> None:
+    path = str(project.root / ".claude/alpha/notes/resume-main.md")
+    proc = run(project, "Write", {"file_path": path, "content": "# Resume\n"})
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == ""
