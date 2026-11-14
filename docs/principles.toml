@@ -3,7 +3,7 @@
 # hooks and reviewers read this file.
 
 schema = 1
-kit_version = "0.6.2"
+kit_version = "0.7.0"
 
 [project]
 name = "alpha"
@@ -130,6 +130,22 @@ title = "A deliberate visual system"
 statement = "The UI is built from the declared set of visual tools, not ad-hoc styles."
 rationale = "A declared set of tokens and components keeps the interface consistent and cheap to change."
 applies = ["has_ui"]
+core = false
+checked_by = ["reviewer"]
+active = false
+components = []
+override_decision = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "design-language"
+title = "One design language"
+statement = "Every visual the project makes (a diagram, a chart, an image, the UI) is built from the design language in docs/design-language.md: read it before making or changing one. A visual may step outside it for a stated reason; it may not drift from it."
+rationale = "Visuals made one at a time drift apart; one declared language keeps the docs and the product looking like the same thing, and makes a restyle one decision."
+applies = ["design_language"]
 core = false
 checked_by = ["reviewer"]
 active = false
