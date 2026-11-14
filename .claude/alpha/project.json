@@ -762,7 +762,8 @@
         "paths": [
           "skills/new-project/**",
           "skills/adopt/**",
-          "skills/extend/**"
+          "skills/extend/**",
+          "skills/go/**"
         ],
         "docs": [
           "README.md"
@@ -1621,7 +1622,8 @@
             "paths": [
               "skills/new-project/**",
               "skills/adopt/**",
-              "skills/extend/**"
+              "skills/extend/**",
+              "skills/go/**"
             ],
             "docs": [
               "README.md"
@@ -1766,7 +1768,7 @@
       ".gitignore": "sha256:e1f166fb62f35ad82fc9f7f0f56d9c45de7732c87312030d0762c9af88b9b712",
       ".rumdl.toml": "sha256:9382fe071cf76551d8127b9b9652a9ff23591b30870d610b89165da4c972f512",
       "CLAUDE.md": "sha256:02bd0784bf4a42048b4f41461aefaf83552b35ccd2a5b61f79355cf2a990e49d",
-      "CONTRIBUTING.md": "sha256:b498c36d56c1f427268bb1931d3031ced30b8605b62f0b362360f8e5aae3a726",
+      "CONTRIBUTING.md": "sha256:83cf965209184e7a650f4274359b9a12b5ee036215db3953612da017d005b89b",
       "README.md": "sha256:77adf447ccef5c8ff32d293657894d1ee3d3a0c114b0b53221921c0eec93a23b",
       "_typos.toml": "sha256:3dde33ae6acb93d91ec5a95bd5d60c3a7f8363f329abb4998e83cd1900d0e106",
       "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
@@ -1794,7 +1796,7 @@
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
       "docs/glossary.md": "sha256:4a9b4de214e6e55f5861f1cc2da60dd4e44a6b3d1b3b93325e293e25c2686919",
       "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
-      "docs/principles.toml": "sha256:3e306fa58c1c6cc3b6dfc6241543a069362c496f65a4206da6cfb50ab73efc47",
+      "docs/principles.toml": "sha256:0e4d3d76a5225e0318bb20eba01ac0b9e822e16881defa63f3424477c884250f",
       "docs/product.md": "sha256:851186f823f0709e025914e5a725c90c48762f1da14d0bbb5078dd174b3f259d",
       "docs/releases.md": "sha256:f87fe7b35dd5a3b79159c751d5074fdd42d8e1aa9105c2a475c3df4cd45afd11",
       "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
