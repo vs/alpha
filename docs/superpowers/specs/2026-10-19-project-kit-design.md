@@ -83,6 +83,7 @@ A Claude Code plugin, developed in this repo and installed from GitHub
 | `new-project` skill | User-invoked entry point. Runs the interview across all areas, then generates the skeleton. Resumable. |
 | `adopt` skill | User-invoked entry point for an existing repo. Surveys it, runs the interview with the repo's practice as the recommendations, installs the enforcement with baselines for legacy debt, and writes a compliance plan it then carries out step by step (§5b). Resumable. |
 | `grilling` skill | Shared interview primitive used by `new-project` and every area skill (design tree, rounds, recommended answers; see §4). |
+| `go` skill | Works a task in a generated or adopted project by a playbook that keeps the project's own principles, decisions and checks (§5c). Lives in the plugin, not copied into projects. |
 | Area skills | One per area in §5. Each owns its questions, its principles, and the files it writes. Callable by `new-project` and directly. |
 | Stack recipes | Per-stack data and templates: test runner, linter/formatter, type checker, commands, permission lists, and stack rules. Full for Python, TypeScript and Rust, generic fallback for others. |
 | `registry/` | The repo-check tool registry (§8a): one entry per tool, with its pinned version and the command that runs it. |
@@ -321,6 +322,27 @@ After adoption, the project is a kit project like any other: `extend` and
 `alpha update` work on it, and §11 still holds. Adoption opts a project into
 the kit's gates as they are on the day it's adopted; later kit versions
 reach it through `alpha update` (§5a).
+
+## 5c. Working in a project
+
+User decision (2026-11-14, decision 0031): `/alpha:go <task>` replaces
+pstack's `poteto-mode` for projects the kit generated or adopted. It matches
+the task to a playbook (investigation, feature, bug fix, refactoring, perf,
+prototype, session pickup, pause) and works its steps as a todo list. The
+playbooks live in the plugin (`skills/go/playbooks/`); unlike the
+enforcement (§7), nothing is copied into the project. They read the
+project's principles, decision records and CLAUDE.md at run time, and end
+with the project's definition of done: its checks, `review-change`, the
+`commit` skill and the principles reviewer.
+
+A feature runs research, then the grilling skill over its open decisions,
+then a spec in `docs/specs/<YYYY-MM-DD>-<feature>.md`: requirements, an
+acceptance check per requirement with the test that proves it, the design,
+and a plan of tasks, each one commit. The user approves every spec and
+picks how it is built, native or with a fresh subagent per task and a
+reviewer after each. Each task's tests run red before its code, and the two
+are committed together, so every commit passes the checks. Work may run in
+its own git worktree.
 
 ## 6. The principles catalog
 

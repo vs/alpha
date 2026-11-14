@@ -41,8 +41,9 @@ ALL_SKILLS = [
     "new-project",
     "extend",
     "adopt",
+    "go",
 ]
-CLI_SKILLS = ALL_SKILLS
+CLI_SKILLS = [s for s in ALL_SKILLS if s != "go"]
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 AREA_SECTIONS = [
     "Before you start",
