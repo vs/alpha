@@ -446,7 +446,7 @@ def test_bootstrap_step_times_out_with_a_fix(
     mise.write_text('#!/bin/sh\n[ "$1" = install ] && sleep 30\nexit 0\n')
     mise.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
-    monkeypatch.setattr(generate_module, "STEP_TIMEOUT", 0.5)
+    monkeypatch.setattr(generate_module, "STEP_TIMEOUT", 5)
     started = time.monotonic()
     with pytest.raises(GenerateError) as err:
         bootstrap(
@@ -457,7 +457,7 @@ def test_bootstrap_step_times_out_with_a_fix(
     install = f"mise install {' '.join(tools)}"
     message = str(err.value)
     assert message.startswith(
-        f'"{install}" took longer than 0.5s in {project}, so alpha stopped it. '
+        f'"{install}" took longer than 5s in {project}, so alpha stopped it. '
         "If it waits for input, run it there yourself;"
     )
     assert message.endswith(f'then rerun "alpha bootstrap {project}"')
