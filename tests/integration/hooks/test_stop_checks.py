@@ -1380,3 +1380,39 @@ def test_tests_command_is_not_held_to_the_stop_limits(
         == []
     )
     assert limits and limits[0] > stop_checks.TIMEOUT
+
+
+def share_workspace(project: Project) -> None:
+    """Both components as members of one workspace: its manifest and lockfile
+    are at the root, in neither's folder."""
+    data = project.principles()
+    for comp in data["components"]:
+        comp["manifests"].append("Workspace.toml")
+        comp["lockfiles"] = ["shared.lock"]
+    project.write_principles(data)
+
+
+def test_workspace_manifest_change_runs_every_member_s_checks(project: Project) -> None:
+    share_workspace(project)
+    project.set_commands("api", test=marker_cmd("t.marker"))
+    project.set_commands("web", test=marker_cmd("w.marker"))
+    project.write("api/tests/test_x.py")
+    project.write("web/tests/x.test.ts")
+    commit_all(project)
+    project.write("Workspace.toml", "[workspace]\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
+    assert (project.root / "api" / "t.marker").exists()
+    assert (project.root / "web" / "w.marker").exists()
+
+
+def test_workspace_lockfile_needs_one_dependency_entry(project: Project) -> None:
+    share_workspace(project)
+    commit_all(project)
+    project.write("shared.lock", "version = 1\n")
+    text = reason(run(project))
+    problem = "Dependencies changed (shared.lock) without an entry in"
+    assert text.count(problem) == 1  # once, not once per member
+    project.write("docs/dependencies.md", "- httpx\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""

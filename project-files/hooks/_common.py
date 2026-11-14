@@ -224,6 +224,19 @@ def component_for(rel_path: str, principles: dict[str, Any]) -> dict[str, Any] |
     return best
 
 
+def components_for(rel_path: str, principles: dict[str, Any]) -> list[dict[str, Any]]:
+    """The components a change to the file concerns: the one whose folder
+    holds it, and each that lists it as a manifest or lockfile (the root files
+    of a workspace are every member's)."""
+    own = component_for(rel_path, principles)
+    found = [] if own is None else [own]
+    for comp in principles.get("components", []):
+        shared = [*comp.get("manifests", []), *comp.get("lockfiles", [])]
+        if comp is not own and rel_path in [str(p) for p in shared]:
+            found.append(comp)
+    return found
+
+
 def changed_files(root: Path) -> list[str]:
     fix = "Make sure this is a git repository (git init) and git is installed."
     try:
@@ -553,8 +566,15 @@ def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
     protected = principles.get("protected", {})
     if glob in [str(g) for g in protected.get("extra", [])]:
         return f"{head} Ask the user to change it by hand."
-    comp = component_for(rel, principles)
-    if comp is not None and rel in [str(p) for p in comp.get("lockfiles", [])]:
+    comp = next(
+        (
+            c
+            for c in components_for(rel, principles)
+            if rel in [str(p) for p in c.get("lockfiles", [])]
+        ),
+        None,
+    )
+    if comp is not None:
         setup = comp.get("commands", {}).get("setup")
         hint = setup if isinstance(setup, str) and setup else "your package manager"
         return (
