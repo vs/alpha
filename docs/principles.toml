@@ -33,6 +33,7 @@ branching = "feature-branches"
 "skills/new-project/**" = ["README.md"]
 "skills/adopt/**" = ["README.md"]
 "skills/extend/**" = ["README.md"]
+"skills/go/**" = ["README.md"]
 
 [data]
 migration_paths = []

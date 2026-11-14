@@ -60,7 +60,7 @@ Internal docs (design, decisions, how we work) live in `docs/`. User-facing docu
 | When these change | Update |
 |---|---|
 | `src/alpha/cli.py`, `bin/**` | `README.md`, `CLAUDE.md` |
-| `skills/new-project/**`, `skills/adopt/**`, `skills/extend/**` | `README.md` |
+| `skills/new-project/**`, `skills/adopt/**`, `skills/extend/**`, `skills/go/**` | `README.md` |
 
 The Stop hook blocks a change to these paths that leaves the docs untouched.
 
