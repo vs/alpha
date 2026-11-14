@@ -61,8 +61,9 @@ user's consent each time.
 
 **Anti-goals: failures even if it technically works**
 - **Skipping areas to save time.** The kit is thorough and consistent. If the
-  user stops partway, that's their call; the kit never shortcuts an area on its
-  own. It must be resumable.
+  user stops partway, that's their call; the kit never shortcuts a setup area
+  on its own. It must be resumable. Leaving a spec area open (§4) isn't
+  skipping it: it's settled later, when the work needs it.
 - **Principles that only live in prose.** A principle with no check behind it
   (mechanical or reviewer) is a wish. Every principle names how it's checked.
 - **Principles scattered across files.** Changing a threshold in one place
@@ -80,7 +81,7 @@ A Claude Code plugin, developed in this repo and installed from GitHub
 
 | Part | What it is |
 |---|---|
-| `new-project` skill | User-invoked entry point. Runs the interview across all areas, then generates the skeleton. Resumable. |
+| `new-project` skill | User-invoked entry point. Runs the interview across the setup areas (§4), then generates the skeleton. Resumable. |
 | `adopt` skill | User-invoked entry point for an existing repo. Surveys it, runs the interview with the repo's practice as the recommendations, installs the enforcement with baselines for legacy debt, and writes a compliance plan it then carries out step by step (§5b). Resumable. |
 | `grilling` skill | Shared interview primitive used by `new-project` and every area skill (design tree, rounds, recommended answers; see §4). |
 | `go` skill | Works a task in a generated or adopted project by a playbook that keeps the project's own principles, decisions and checks (§5c). Lives in the plugin, not copied into projects. |
@@ -129,8 +130,22 @@ Modeled on `mattpocock/skills` → `grilling`:
   in the project's decision log *and* asks: "Make this the default for future
   projects too?" (§11).
 
-Order: identity, then components and stacks, then the remaining areas. Every
-later area applies to every component.
+Order: identity, then components and stacks, then the remaining setup areas.
+Every later area applies to every component.
+
+**Setup first, specification later** (user decision 2026-11-15, decision
+0032). The interview settles only the **setup areas**, what alpha needs to
+wire the tooling: identity (name, slug, value proposition, license,
+copyright), components, testing, documentation, build, security,
+dependencies, releases, git and agent workflow. The **spec areas**
+(architecture, errors, design language, UI, observability, data,
+accessibility, performance) describe the product, which the user often can't
+know on day one; they start `open`. An open area needs no decision, writes no
+doc of its own, is listed under "Not settled yet" in docs/product.md, and
+keeps off the principles it gates (each such principle names its area,
+`settled_by`, in the catalog). Requirements, target users and auth may stay
+empty the same way. `/alpha:go` settles them as the work needs them, through
+`extend` (§5c).
 
 ## 5. Areas
 
@@ -271,7 +286,8 @@ anything.
    docs and decision records already there, license, CI provider, git hook
    managers, migration folders, test layout, and how many recent commits
    follow the convention. The survey is kept in the interview state.
-2. **Interview: all areas, in §4's order.** Recommendations come from the
+2. **Interview: the setup areas, in §4's order.** The spec areas stay open,
+   even where the repo's docs describe them. Recommendations come from the
    survey where the repo's practice meets the principle, and from the kit
    defaults otherwise. Nothing the repo already answers is asked. Wherever
    the repo falls short of an active principle, a **gap** is recorded. A
@@ -282,7 +298,10 @@ anything.
 3. **Assessment.** The audit's lenses (§9, on-demand reports), run per
    active principle over the whole repo, find gaps no tool reports: the
    error format, validation at the edges, contracts, config from the
-   environment, timeouts, logs, acceptance checks with no test.
+   environment, timeouts, logs, acceptance checks with no test. Findings
+   about the specification's content (open questions or proposals in the
+   product docs) aren't compliance work: they go into the final report as
+   `/alpha:go` tasks, not into the plan (decision 0032).
 4. **Preview.** Before anything is written: the kit files to add, the
    files to merge (with diffs and conflicts), the baselines to capture
    (counts per check, component and rule), and the plan's steps. The user
@@ -334,7 +353,10 @@ reach it through `alpha update` (§5a).
 User decision (2026-11-14, decision 0031): `/alpha:go <task>` replaces
 pstack's `poteto-mode` for projects the kit generated or adopted. It matches
 the task to a playbook (investigation, feature, bug fix, refactoring, perf,
-prototype, session pickup, pause) and works its steps as a todo list. The
+specify, prototype, session pickup, pause) and works its steps as a todo
+list. Specify settles a spec area left open (§4) through `extend`; a feature
+grills the open areas it needs with its other questions and applies them
+after its spec is approved. The
 playbooks live in the plugin (`skills/go/playbooks/`); unlike the
 enforcement (§7), nothing is copied into the project. They read the
 project's principles, decision records and CLAUDE.md at run time, and end

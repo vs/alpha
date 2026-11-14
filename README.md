@@ -12,6 +12,12 @@ setup per component that passes from the first commit. It writes no app code.
 Each principle is checked, by a hook or by a reviewer agent that must pass
 before a change reaches main.
 
+The interview asks only what alpha needs to set up the tooling: the name,
+license, components and stacks, tests, docs, CI, releases and git. What the
+product does, its architecture, errors, UI, data, budgets and so on, stays
+open until the work needs it; `/alpha:go` settles each part then, and
+`docs/product.md` lists what's still open.
+
 ```sh
 claude plugin marketplace add vs/alpha
 claude plugin install alpha@alpha
@@ -38,11 +44,11 @@ recommended answer, for you to confirm or rewrite.
 | `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
 | `docs/design-language.md` | optional: one look for every visual, from diagrams in the docs to the UI, which the reviewer holds each changed visual to |
 
-The design language is yours to skip. Define it in the interview (character,
-palette, typography, shape, imagery, diagram style) and it becomes a principle
-that CLAUDE.md states, and the source of the UI's tokens. Skip it, and alpha
-enforces and recommends nothing about how visuals look. `/alpha:extend define a
-design language` adds one later. Which files count as visuals is the `[visuals]`
+The design language is yours to skip. Settle it when you need it
+(`/alpha:go settle the design language`: character, palette, typography,
+shape, imagery, diagram style) and it becomes a principle that CLAUDE.md
+states, and the source of the UI's tokens. Until then, alpha enforces and
+recommends nothing about how visuals look. Which files count as visuals is the `[visuals]`
 list in `docs/principles.toml` (diagram sources, SVG, styles, tokens, chart
 specs; docs and UI markup when a change touches something visual; images and
 fonts are named but can't be read). The interview asks for the paths of
@@ -107,9 +113,11 @@ It asks again only what the change affects, and merges into files you edited.
 ```
 
 alpha picks a playbook for the task (investigation, feature, bug fix,
-refactoring, perf, prototype, session pickup or pause) and follows it step
-by step, keeping the project's principles, decision records and checks. A
-feature starts with research and questions, then a spec in
+refactoring, perf, specify, prototype, session pickup or pause) and follows
+it step by step, keeping the project's principles, decision records and
+checks. `/alpha:go settle the performance budgets` settles a part of the
+specification left open, as do `settle the target users` and `settle the
+auth`; a feature that needs one asks about it with its other questions. A feature starts with research and questions, then a spec in
 `docs/specs/<date>-<feature>.md` that names a test for each acceptance
 check. Nothing is built until you approve it and choose how: native, where
 Claude builds every task, or with subagents, where a fresh one builds each
