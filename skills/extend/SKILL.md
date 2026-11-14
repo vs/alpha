@@ -1,6 +1,6 @@
 ---
 name: extend
-description: Change a project alpha generated - add, remove, rename or move a component, switch on an area that didn't apply, or revisit an area's decisions - re-asking only what the change affects and merging the result without overwriting the user's edits. Use when the user asks to change a project alpha generated, or when an alpha area skill sends you here. Run as /alpha:extend [what to change].
+description: Change a project alpha generated - add, remove, rename or move a component, settle a spec area left open, switch on an area that didn't apply, or revisit an area's decisions - re-asking only what the change affects and merging the result without overwriting the user's edits. Use when the user asks to change a project alpha generated, or when an alpha area skill sends you here. Run as /alpha:extend [what to change].
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -29,6 +29,7 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 Take the request from `$ARGUMENTS`, or ask. Pick the area: `components` to add, remove, rename or move a component; otherwise the area that owns the decision. Invoke its skill (`alpha:<area skill>`) with the Skill tool, with `<target>` as its target folder. These rules win over the area skill's own:
 
 - Use the current answers as the recommendations and ask only what the change affects.
+- A spec area left open (`areas.<area>` is `"open"`, usually because `/alpha:go` needs it settled) has no current answers: run its whole area, recommending from the kit defaults and from what the project's code and docs already show, and finish it `"done"` with its decision like any other area.
 - Keep every other answer as it is.
 - Keep every existing entry of `decisions` and `overrides` unchanged, and add one new decision for this change (`area` = the area; the title says what changed; the context says why). This overrides "replacing any earlier one". `answers write` replaces each top-level key, so send the whole `decisions` array: every existing entry verbatim, then the new one. Do the same for `overrides`. An override for a removed or renamed component stops applying; if it should carry over, add a new override for the new name, with its own new decision.
 - Don't tell the user to run `/alpha:new-project` afterwards; when the area skill is done, continue with step 3.

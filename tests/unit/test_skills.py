@@ -345,12 +345,36 @@ def test_area_checks_its_own_area(skill: str):
     assert check in _text(skill)
 
 
-def test_new_project_invokes_the_area_skills_in_order():
+def _setup_skills() -> list[str]:
+    return [s for s, (area, _) in AREA_SKILLS.items() if area in answers.SETUP_AREAS]
+
+
+def _spec_skills() -> list[str]:
+    return [s for s, (area, _) in AREA_SKILLS.items() if area in answers.SPEC_AREAS]
+
+
+def test_new_project_runs_only_the_setup_areas():
+    """F1: the interview invokes the setup areas in order and no spec area."""
     text = _text("new-project")
-    order = [text.index(f"`alpha:{skill}`") for skill in AREA_SKILLS]
+    order = [text.index(f"`alpha:{skill}`") for skill in _setup_skills()]
     assert order == sorted(order)
+    for skill in _spec_skills():
+        assert f"`alpha:{skill}`" not in text, skill
+    assert "/alpha:go" in _section("new-project", "4. Interview, area by area")
     assert "SKILL.md" not in text, "invoke area skills, don't read their files"
     assert "$ARGUMENTS" in text
+
+
+def test_adopt_runs_only_the_setup_areas_and_plans_no_spec_work():
+    """F7: adopt asks the setup areas; specification findings go to /alpha:go."""
+    interview = _section("adopt", "4. Interview")
+    order = [interview.index(f"`alpha:{skill}`") for skill in _setup_skills()]
+    assert order == sorted(order)
+    for skill in _spec_skills():
+        assert f"`alpha:{skill}`" not in interview, skill
+    assessment = _section("adopt", "5. Assessment")
+    assert "Leave out findings about the specification's content" in assessment
+    assert "`/alpha:go` request" in _section("adopt", "8. Report")
 
 
 def test_new_project_saves_through_the_cli_and_says_what_to_approve():
@@ -403,10 +427,12 @@ def test_every_kind_has_public_paths_and_an_artifact():
     assert kit["documentation"]["external"] in answers.EXTERNAL_DOCS
 
 
-def test_new_project_creates_every_area_as_pending():
+def test_new_project_creates_setup_areas_pending_and_spec_areas_open():
     start = _section("new-project", "2. Start or resume")
-    for area in answers.AREAS:
+    for area in answers.SETUP_AREAS:
         assert f'"{area}": "pending"' in start
+    for area in answers.SPEC_AREAS:
+        assert f'"{area}": "open"' in start
     assert "missing from" in start
 
 
@@ -441,12 +467,17 @@ def test_every_update_and_observability_default_is_a_choice():
 
 @pytest.mark.parametrize("skill", AREA_SKILLS)
 def test_area_waits_for_the_area_before_it(skill: str):
+    """A setup area waits for the setup area before it; a spec area, settled
+    later, waits for the whole setup."""
     area = AREA_SKILLS[skill][0]
-    index = answers.AREAS.index(area)
     found = re.findall(
         r"`areas\.(\w+)` isn't `\"done\"`", _section(skill, "Before you start")
     )
-    assert found == ([answers.AREAS[index - 1]] if index else [])
+    if area in answers.SPEC_AREAS:
+        assert found == [answers.SETUP_AREAS[-1]]
+        return
+    index = answers.SETUP_AREAS.index(area)
+    assert found == ([answers.SETUP_AREAS[index - 1]] if index else [])
 
 
 def test_new_project_no_longer_lists_the_core_areas_as_missing():
@@ -552,17 +583,11 @@ def test_areas_that_may_not_apply_ask_nothing(skill: str):
     assert "ask nothing" in questions
 
 
-def test_new_project_summary_covers_the_remaining_areas():
+def test_new_project_summary_covers_the_setup_and_names_the_open_areas():
     summary = _section("new-project", "5. Summary and confirmation")
-    for area in (
-        "design language",
-        "UI",
-        "releases",
-        "data",
-        "accessibility",
-        "performance",
-    ):
+    for area in ("components", "testing", "documentation", "build", "releases"):
         assert area in summary
+    assert "list the open spec areas" in summary and "`/alpha:go`" in summary
 
 
 def test_data_skill_explains_the_append_only_rule():
@@ -764,12 +789,6 @@ def test_stack_recipe_reads_registry():
     assert "not from the registry" in facts
     assert "Spell `<stack>` as the registry" in facts
     assert "ships with the toolchain" not in facts
-
-
-def test_adopt_invokes_the_areas_in_order():
-    text = _text("adopt").split("## 4. Interview", 1)[1].split("## 5.", 1)[0]
-    order = [text.index(f"`alpha:{skill}`") for skill in AREA_SKILLS]
-    assert order == sorted(order)
 
 
 def test_adopt_installs_in_order():
