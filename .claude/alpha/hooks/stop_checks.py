@@ -361,8 +361,7 @@ def components_to_test(root: Path, principles: dict[str, Any]) -> list[dict[str,
     by_comp: dict[str, list[str]] = {}
     found: dict[str, dict[str, Any]] = {}
     for rel in changed_since(root, review.main_base(root)):
-        comp = _common.component_for(rel, principles)
-        if comp is not None:
+        for comp in _common.components_for(rel, principles):
             name = component_label(comp)
             found[name] = comp
             by_comp.setdefault(name, []).append(rel)
@@ -695,13 +694,11 @@ def find_problems(
     components: list[dict[str, Any]] = []
     by_comp: dict[str, list[str]] = {}
     for rel in changed:
-        comp = _common.component_for(rel, principles)
-        if comp is None:
-            continue
-        key = str(comp.get("name"))
-        if key not in by_comp:
-            components.append(comp)
-        by_comp.setdefault(key, []).append(rel)
+        for comp in _common.components_for(rel, principles):
+            key = str(comp.get("name"))
+            if key not in by_comp:
+                components.append(comp)
+            by_comp.setdefault(key, []).append(rel)
 
     noted = review.untested_notes(root)
     for comp in components:
@@ -729,11 +726,17 @@ def find_problems(
             # edits need no log entry.
             lockfiles = [str(lock) for lock in comp.get("lockfiles", [])]
             for rel in by_comp[str(comp.get("name"))]:
-                if rel in lockfiles and dependencies_changed(root, since, rel):
-                    problems.append(
-                        f"Dependencies changed ({rel}) without an entry in "
-                        f"{DEPENDENCY_LOG}. Record what was added and why."
-                    )
+                problem = (
+                    f"Dependencies changed ({rel}) without an entry in "
+                    f"{DEPENDENCY_LOG}. Record what was added and why."
+                )
+                # A workspace's lockfile is every member's: report it once.
+                if (
+                    rel in lockfiles
+                    and problem not in problems
+                    and dependencies_changed(root, since, rel)
+                ):
+                    problems.append(problem)
 
     problems += migration_problems(root, principles, base)
 
