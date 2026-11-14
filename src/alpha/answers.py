@@ -82,6 +82,19 @@ AREAS: tuple[str, ...] = (
     "agent_workflow",
 )
 _DESIGN = "design_language"
+# The areas that describe the product rather than wire its tooling: the
+# interview leaves them open and /alpha:go settles them (decision 0032).
+SPEC_AREAS: tuple[str, ...] = (
+    "architecture",
+    "errors",
+    _DESIGN,
+    "ui",
+    "observability",
+    "data",
+    "accessibility",
+    "performance",
+)
+SETUP_AREAS: tuple[str, ...] = tuple(a for a in AREAS if a not in SPEC_AREAS)
 _COMPONENTS_FIELDS = ("layout", "workspace", "components_talk", "components", "recipes")
 
 
@@ -108,7 +121,7 @@ ARTIFACTS: tuple[str, ...] = (
     "app",
     "other",
 )
-_STATUSES = ("done", "in_progress", "pending")
+_STATUSES = ("done", "in_progress", "pending", "open")
 _LAYOUTS = ("monorepo", "single")
 _CHANGES = ("tighten", "loosen", "drop")
 _REVIEW_MODES = ("at-merge", "batched", "every-task")
@@ -482,12 +495,14 @@ def _identity(raw: object, base: Path) -> Identity:
         name=string(d, "name", where),
         slug=slug,
         value_proposition=string(d, "value_proposition", where),
-        target_users=string(d, "target_users", where),
+        target_users=string(d, "target_users", where, blank=True),
         requirements=tuple(reqs),
         license=license_,
         license_file=license_file,
         copyright_holder=string(d, "copyright_holder", where),
-        domain_jargon=boolean(d, "domain_jargon", where),
+        domain_jargon=boolean(d, "domain_jargon", where)
+        if "domain_jargon" in d
+        else False,
     )
 
 
@@ -1092,8 +1107,16 @@ def parse_answers(
     predates_design_area = _DESIGN not in areas_raw and _DESIGN not in top
     if predates_design_area:
         areas[_DESIGN] = "done"
+    for area, status in areas.items():
+        if status == "open" and area not in SPEC_AREAS:
+            raise fail(
+                f"areas.{area}",
+                "is open, but only a spec area can stay open "
+                f"({', '.join(SPEC_AREAS)}); {area} is part of the setup",
+                f"Finish the {area} part of the interview, then retry",
+            )
     for area in require_areas:
-        if areas[area] != "done":
+        if areas[area] not in ("done", "open"):
             raise fail(
                 f"areas.{area}",
                 f"is {areas[area]}, not done",
@@ -1101,7 +1124,7 @@ def parse_answers(
             )
 
     def active(area: str) -> bool:
-        return area in require_areas or areas[area] == "done"
+        return areas[area] == "done"
 
     drafted = drafted_recipes(
         top.get("recipes", {}),
