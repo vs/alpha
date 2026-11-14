@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 import pytest
-from helpers import SCENARIOS, generated_repo, git
+from helpers import SCENARIOS, generated_repo, git, setup_only
 
 import alpha_evals.__main__ as cli
 from alpha_evals import run
@@ -31,7 +31,11 @@ ORDER = [
 
 
 def fake_interview(fake: FakeClaude, scenario: str) -> None:
-    answers = shlex.quote(str(SCENARIOS / f"{scenario}.json"))
+    data = json.loads((SCENARIOS / f"{scenario}.json").read_text())
+    setup_only(data)
+    source = fake.folder / f"{scenario}-setup.json"
+    source.write_text(json.dumps(data))
+    answers = shlex.quote(str(source))
     fake.reply(
         "Generated and committed.",
         session="s-int",
@@ -55,8 +59,8 @@ def report_of(out: Path, scenario: str) -> dict[str, Any]:
 def test_offline_run_writes_a_passing_report(
     fake: FakeClaude, tmp_path: Path, git_env: None, stub_tools: Path
 ):
-    """R1: an interview that accepts each recommendation leaves every area
-    done and answers check ok."""
+    """R1: an interview that accepts each recommendation leaves every setup
+    area done, every spec area open, and answers check ok."""
     fake_interview(fake, "python-ml-single")
     out = tmp_path / "out"
     assert main(run_args(fake, out, "python-ml-single", "--no-reviewer")) == 0
@@ -181,7 +185,7 @@ def test_unknown_scenario_exits_2(capsys: pytest.CaptureFixture[str]):
 def test_check_subcommand_on_a_generated_project(
     tmp_path: Path, git_env: None, stub_tools: Path, capsys: pytest.CaptureFixture[str]
 ):
-    project = generated_repo(tmp_path / "p", "web-ts-plus-python-api")
+    project = generated_repo(tmp_path / "p", "web-ts-plus-python-api", setup_only)
     assert main(["check", str(project), "web-ts-plus-python-api"]) == 0
     out = capsys.readouterr().out
     assert "answers: pass" in out

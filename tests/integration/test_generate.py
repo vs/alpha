@@ -23,13 +23,14 @@ from helpers import (
     place_answers,
     proven,
     run_cli,
+    setup_only,
     shell_recipe,
     single_component,
 )
 
 from alpha import VERSION
 from alpha import generate as generate_module
-from alpha.answers import SPEC_AREAS, AnswersError
+from alpha.answers import AnswersError
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import GenerateError, bootstrap, generate
@@ -40,23 +41,12 @@ SRC = Source(ROOT, True)
 PROJECT_JSON = ".claude/alpha/project.json"
 
 
-def setup_only_answers(target: Path) -> None:
-    """The web-ts-plus-python-api answers as the setup interview leaves them:
-    every spec area open, no requirements, target users or auth yet."""
-    path = place_answers(target, "web-ts-plus-python-api")
-    data = json.loads(path.read_text())
-    for area in SPEC_AREAS:
-        data["areas"][area] = "open"
-        data.pop(area, None)
-    data["decisions"] = [d for d in data["decisions"] if d["area"] not in SPEC_AREAS]
-    data["identity"].update(requirements=[], target_users="")
-    data["security"]["auth"] = ""
-    path.write_text(json.dumps(data))
-
-
 def test_open_areas_render_as_not_settled(tmp_path: Path):
     """F3, F4: open areas are listed in product.md and get no doc of their own."""
-    setup_only_answers(tmp_path)
+    path = place_answers(tmp_path, "web-ts-plus-python-api")
+    data = json.loads(path.read_text())
+    setup_only(data)
+    path.write_text(json.dumps(data))
     written = generate(tmp_path, ROOT, SRC, 2026, TODAY)
     product = (tmp_path / "docs/product.md").read_text()
     assert "None yet: each feature built with `/alpha:go`" in product

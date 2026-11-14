@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import generated_repo, git
+from helpers import generated_repo, git, setup_only
 
 from alpha_evals.checks import (
     Check,
@@ -28,7 +28,7 @@ def edit_answers(project: Path, change: Callable[[dict[str, Any]], object]) -> N
 
 
 def test_a_fresh_skeleton_passes_every_check(tmp_path: Path, git_env: None):
-    project = generated_repo(tmp_path, WEB)
+    project = generated_repo(tmp_path, WEB, setup_only)
     brief = load_brief(WEB)
     for check in (
         check_answers(project, brief),
@@ -57,11 +57,20 @@ def test_answers_reports_a_missing_value(tmp_path: Path, git_env: None):
 
 
 def test_answers_fails_on_a_pending_area(tmp_path: Path, git_env: None):
-    project = generated_repo(tmp_path, WEB)
-    edit_answers(project, lambda d: d["areas"].update(ui="pending"))
+    project = generated_repo(tmp_path, WEB, setup_only)
+    edit_answers(project, lambda d: d["areas"].update(git="pending"))
     check = check_answers(project, load_brief(WEB))
     assert check.status == "fail"
-    assert "area ui is pending" in check.detail
+    assert "area git is pending, not done" in check.detail
+
+
+def test_answers_fails_when_the_interview_settles_a_spec_area(
+    tmp_path: Path, git_env: None
+):
+    project = generated_repo(tmp_path, WEB)
+    check = check_answers(project, load_brief(WEB))
+    assert check.status == "fail"
+    assert "area architecture is done, not open" in check.detail
 
 
 def test_answers_fails_on_unreadable_answers(tmp_path: Path, git_env: None):

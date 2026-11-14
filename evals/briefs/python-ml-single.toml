@@ -9,9 +9,6 @@ expect = [
   "/agent_workflow/extra_risk_paths",
   "/releases/scheme",
   "/releases/changelog",
-  "~/data/ml/versioning",
-  "~/data/ml/tracking",
-  "/design_language/defined",
 ]
 brief = """
 You are starting a project called Leaf Lens. It spots common houseplant diseases from a single leaf photo. It is for hobby gardeners who want a quick second opinion before treating a plant.
@@ -26,7 +23,6 @@ Layout: a single component named ml, at the root of the repo. It is an ML pipeli
 Git: conventional commits, with ml as the only scope.
 Agent workflow: review after every task, and treat everything under data/ as a risk path (data/**).
 Releases: calendar versioning, with no changelog.
-ML data: version datasets with DVC and track experiments with MLflow.
 
 For anything these notes don't settle, take the recommendation.
 If asked whether to make something a default for future projects, say no.
