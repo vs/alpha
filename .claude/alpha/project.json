@@ -743,7 +743,7 @@
     "method": "none"
   },
   "installed": {
-    "kit_version": "0.8.0",
+    "kit_version": "1.0.0",
     "mode": "adopted",
     "on": "2026-11-12",
     "components": {
