@@ -13,6 +13,8 @@ Folder argument: `$ARGUMENTS`
 
 Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` on one line, the JSON typed straight into the command, never a heredoc or a python3 script. Each top-level key replaces that key in project.json, so send `adoption`, `areas`, `decisions` and `overrides` whole.
 
+Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a choice, a yes or no or a confirmation in the `AskUserQuestion` dialog when that tool is in your tool list, a draft for the user to edit in plain text.
+
 ## 1. Target and mode
 
 `<target>` is the folder given above (expand `~`, resolve it), else the current working directory. Read `<target>/.claude/alpha/project.json`:

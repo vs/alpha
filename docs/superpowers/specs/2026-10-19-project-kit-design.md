@@ -97,12 +97,18 @@ A Claude Code plugin, developed in this repo and installed from GitHub
 Modeled on `mattpocock/skills` → `grilling`:
 
 - Decisions form a **design tree**. The **frontier** is every decision whose
-  prerequisites are settled. Each round asks the whole frontier, numbered, each
-  question with a **recommended answer** worded so "yes" accepts it.
-  Recommendations come from the kit defaults. A round is compact plain text
-  (user decision, 2026-11-11): a bold numbered title and the question, an
-  optional `Options:` line, a `Recommended:` line, and no emoji, rules or
-  background the user didn't ask for.
+  prerequisites are settled. Each round asks the frontier one question at a
+  time, each with a **recommended answer** (decision 0033). Recommendations
+  come from the kit defaults. A question with fixed answers goes in Claude
+  Code's `AskUserQuestion` dialog, the recommended option first. A draft the
+  user would edit (a name, the requirements) is compact plain text. When the
+  tool is absent (headless `claude -p`, as in the evals), no person is
+  waiting, so the whole round goes in one plain-text message. Plain text
+  follows the user decision of 2026-11-11: a bold numbered title and the question,
+  worded so "yes" accepts the recommendation, an optional `Options:` line,
+  and no emoji, rules or background the user didn't ask for. It ends with a
+  `Recommended:` line holding the answer alone, so Claude Code's prompt
+  suggestion can offer it for the user to take with Tab and edit.
 - **Facts are the kit's job, decisions are the user's.** Never ask what can be
   looked up (installed tool versions, whether `gh` is authenticated, the latest
   stable version of a framework).

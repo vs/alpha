@@ -73,6 +73,8 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 
 **Facts are yours, decisions are the user's.** Never ask what you can look up or run. A question whose answer you could observe (behavior, output, timing, layout) goes to the Prototype playbook, not to the user. On reversible work, make the reasonable choice, record it with the `decision` skill and say what you chose (`never-block-on-the-human`). Ask first only about product direction or what can't be undone: deleting data, rewriting main, deploys, messages to people. A change that contradicts an accepted record needs a new record that supersedes it, as the `decision` skill says.
 
+**Questions.** Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a choice, a yes or no or the spec's approval in the `AskUserQuestion` dialog when that tool is in your tool list, a draft for the user to edit in plain text.
+
 **Evidence.** Every claim carries its evidence in the same sentence: you ran it (paste the command and its output), you read it (`file:line`), or it's a guess (say so). Prove a change on the real thing: run the CLI, the test, the app (the component's `run` command in CLAUDE.md), read the actual value. "It compiles" and a subagent's report prove nothing. Never hand the user a check you could run (`evidence-before-done`).
 
 **Two failures, one premise.** When two fixes that share an assumption fail the same check, write the assumption down and test it directly before trying a third.
