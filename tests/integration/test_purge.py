@@ -72,6 +72,7 @@ def test_R3_1_purge_removes_alpha_in_one_commit(project: Path) -> None:
     assert "Reviewed-by: Dana" in git(project, "log", "-1", "--format=%b")
     for gone in (".claude/alpha", "docs/alpha", ".claude/agents", ".claude/skills"):
         assert not (project / gone).exists(), gone
+    assert not (project / ".claude").exists()  # nothing of the user's was in it
     assert not (project / ".claude/settings.json").exists()  # only alpha's entries
     assert hooks_path(project) is None
     assert git(project, "status", "--porcelain") == ""
