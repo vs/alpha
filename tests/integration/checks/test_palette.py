@@ -68,7 +68,12 @@ def test_a_color_outside_the_palette_fails_and_says_how_to_proceed(
     assert "docs/flow.mmd:1: #123456 isn't in the palette" in done.stdout
     assert "#0B5FFF isn't" not in done.stdout
     assert "3 color(s) outside the palette" in done.stdout
-    for way in ("use a palette color", "/alpha:extend", "exclude", '"advise"'):
+    for way in (
+        "use a palette color",
+        "/alpha:specify design language",
+        "exclude",
+        '"advise"',
+    ):
         assert way in done.stdout
 
 
@@ -138,7 +143,8 @@ def test_an_enforced_palette_with_no_readable_color_fails_with_a_fix(
     done = run(root)
     assert done.returncode == 1
     assert "holds no hex, rgb() or hsl() color" in done.stdout
-    assert "/alpha:extend" in done.stdout and '"advise" or "off"' in done.stdout
+    assert "/alpha:specify design language" in done.stdout
+    assert '"advise" or "off"' in done.stdout
     advised = run(root, "--advise")
     assert (advised.returncode, advised.stdout) == (0, "")
 
