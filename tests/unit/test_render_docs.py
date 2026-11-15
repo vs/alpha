@@ -4,9 +4,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import pytest
 from helpers import TODAY, clone_component, single_component
 
-from alpha.answers import Answers, load_answers
+from alpha.answers import Answers, AnswersError, load_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles
@@ -48,7 +49,7 @@ def test_claude_md_lists_only_active_principles(tmp_path: Path):
     md = out["CLAUDE.md"]
     assert "Visual system" not in md
     assert "**Fail fast, fail helpfully**" in md
-    assert "docs/principles.toml" in md
+    assert "docs/alpha/principles.toml" in md
     assert len(md.splitlines()) < 150
 
 
@@ -84,11 +85,10 @@ def test_output_keys_hold_no_decision_records(tmp_path: Path):
         "LICENSE",
         "CONTRIBUTING.md",
         "CLAUDE.md",
-        "docs/specification.md",
-        "docs/dependencies.md",
-        "docs/guide/README.md",
-        "docs/glossary.md",
-        "docs/design-language.md",
+        "docs/alpha/specification.md",
+        "docs/alpha/dependencies.md",
+        "docs/alpha/glossary.md",
+        "docs/alpha/design-language.md",
         "CHANGELOG.md",
     }
 
@@ -152,7 +152,7 @@ def test_apache_and_proprietary_and_custom_license(tmp_path: Path):
 
 
 def test_specification_requirements_table(tmp_path: Path):
-    md = render(load(tmp_path))["docs/specification.md"]
+    md = render(load(tmp_path))["docs/alpha/specification.md"]
     assert "| ID | Requirement | Acceptance check |" in md
     assert "| R1 | A user can embed a signed trust payload into an image. |" in md
     assert "returned image decodes back to the same payload" in md
@@ -169,7 +169,7 @@ def test_contributing_lists_the_components_and_tools(tmp_path: Path):
 
 
 def test_dependencies_md_seeded_per_component(tmp_path: Path):
-    md = render(load(tmp_path))["docs/dependencies.md"]
+    md = render(load(tmp_path))["docs/alpha/dependencies.md"]
     assert "| Dependency | Component | Why | Added |" in md
     rows = [ln for ln in md.splitlines() if ln.startswith("| ") and "2026" in ln]
     assert len(rows) == 13
@@ -190,7 +190,7 @@ def test_contributing_and_readme(tmp_path: Path):
 
 
 def test_dependencies_md_dates_each_row_in_full(tmp_path: Path):
-    md = render(load(tmp_path))["docs/dependencies.md"]
+    md = render(load(tmp_path))["docs/alpha/dependencies.md"]
     assert f"| pytest | api | Test runner | {TODAY.isoformat()} |" in md
 
 
@@ -249,7 +249,7 @@ def test_build_section_without_deployed_components(tmp_path: Path):
 def test_contributing_documents_where_docs_live_and_the_mappings(tmp_path: Path):
     text = render(load(tmp_path))["CONTRIBUTING.md"]
     section = text.split("## Documentation\n")[1].split("\n## ")[0]
-    assert "Internal docs" in section and "`docs/`" in section
+    assert "live in `docs/alpha/`" in section
     assert "User-facing documentation lives in `docs/guide/`." in section
     assert "| When these change | Update |" in section
     assert "| `api/**/routes/**` | `docs/guide/**` |" in section
@@ -257,10 +257,11 @@ def test_contributing_documents_where_docs_live_and_the_mappings(tmp_path: Path)
     assert text.index("## Documentation") < text.index("## Branching")
 
 
-def test_external_folder_gets_a_readme_and_a_claude_md_link(tmp_path: Path):
+def test_external_folder_is_named_but_not_written(tmp_path: Path):
+    """alpha writes nothing into docs/ but docs/alpha/."""
     out = render(load(tmp_path))
-    assert out["docs/guide/README.md"].startswith("# Pico Trust guide\n")
-    assert "- [User guide](docs/guide/)" in out["CLAUDE.md"]
+    assert not [k for k in out if k.startswith("docs/guide")]
+    assert "- User guide: `docs/guide/`" in out["CLAUDE.md"]
     assert "- [Contributing](CONTRIBUTING.md)" in out["CLAUDE.md"]
 
 
@@ -291,10 +292,10 @@ def test_elsewhere_and_no_external_docs(tmp_path: Path):
 
 WORKING_RULES = [
     "- Before you change code, docs or config, read the parts of "
-    "docs/specification.md and CONTRIBUTING.md that bear on the change and the "
-    "principle's parameters in docs/principles.toml. Follow them.",
+    "docs/alpha/specification.md and CONTRIBUTING.md that bear on the change and the "
+    "principle's parameters in docs/alpha/principles.toml. Follow them.",
     "- A decision updates the docs, as the decision skill says: what the product "
-    "does goes in docs/specification.md and needs the user's yes; how the work "
+    "does goes in docs/alpha/specification.md and needs the user's yes; how the work "
     "is done goes in CONTRIBUTING.md, with the reason in the commit; a changed "
     "principle is an override in the answers, which the user agrees to first.",
     "- When a requirement is ambiguous, make the reasonable choice, record it "
@@ -440,7 +441,7 @@ def test_claude_md_lists_each_stacks_rules_once(tmp_path: Path):
         "boundary; don't pass `dict[str, Any]` inward.",
         "- **python:import-contracts**: Once a component has more than one "
         "package, add import-linter contracts for the layers "
-        "the architecture in `docs/specification.md` names, and add "
+        "the architecture in `docs/alpha/specification.md` names, and add "
         "`lint-imports` to its "
         "`structure` command.",
         "",
@@ -537,8 +538,54 @@ def test_claude_md_points_visual_work_at_the_design_language(tmp_path: Path):
     assert (
         "- **One design language**: Every visual the project makes (a diagram, "
         "a chart, an image, the UI) is built from the design language in "
-        "docs/design-language.md: read it before making or changing one. A "
+        "docs/alpha/design-language.md: read it before making or changing one. A "
         "visual may step outside it for a stated reason; it may not drift "
         "from it." in md
     )
     assert md.count("design-language.md") == 1
+
+
+def test_R6_2_an_existing_doc_is_referred_to(tmp_path: Path):
+    for rel in ("docs/design.md", "docs/GLOSSARY.md", "docs/deps.md"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("# Theirs\n")
+
+    def existing(data: dict[str, Any]) -> None:
+        data["documentation"]["existing"] = {
+            "architecture": "docs/design.md",
+            "glossary": "docs/GLOSSARY.md",
+            "dependencies": "docs/deps.md",
+        }
+
+    a = load(tmp_path, existing)
+    principles = build_principles(D, a, "0.1.0")
+    out = render_docs(a, principles, 2026, TODAY)
+    spec = out["docs/alpha/specification.md"]
+    assert "## Responsibilities\n\nSee [docs/design.md](../../docs/design.md)." in spec
+    assert "## Contracts" not in spec
+    assert "## Errors\n\nEvery error a user sees" in spec  # errors has no doc
+    assert "[docs/GLOSSARY.md](../../docs/GLOSSARY.md)" in out["docs/alpha/glossary.md"]
+    assert "| Term |" not in out["docs/alpha/glossary.md"]
+    deps = out["docs/alpha/dependencies.md"]
+    assert "[docs/deps.md](../../docs/deps.md)" in deps and "## Log" not in deps
+    assert principles["dependency_log"] == "docs/deps.md"
+
+
+def test_an_existing_doc_must_be_there(tmp_path: Path):
+    def missing(data: dict[str, Any]) -> None:
+        data["documentation"]["existing"] = {"architecture": "docs/nope.md"}
+
+    with pytest.raises(AnswersError, match=r"existing\.architecture: docs/nope\.md"):
+        load(tmp_path, missing)
+
+
+def test_R6_4_root_docs_are_generated(tmp_path: Path):
+    out = render(load(tmp_path))
+    readme = out["README.md"]
+    assert readme.startswith("# Pico Trust\n\nHide short trust signals")
+    assert "## Setup, test and run" in readme
+    for setup, test in (("uv sync", "uv run pytest"), ("pnpm install", "vitest")):
+        assert setup in readme and test in readme
+    assert "# run: add the command once the entry point exists" in readme
+    assert out["LICENSE"].startswith("MIT License")
+    assert out["CLAUDE.md"].startswith("# Pico Trust")

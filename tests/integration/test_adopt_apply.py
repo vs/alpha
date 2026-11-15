@@ -56,7 +56,7 @@ def test_apply_dry_run_writes_nothing(repo: Path):
     assert kinds[".gitignore"] == "merge" and kinds[".claude/settings.json"] == "merge"
     assert kinds["README.md"] == "conflict"
     assert kinds[".github/workflows/ci.yml"] == "conflict"
-    assert kinds["docs/principles.toml"] == "new"
+    assert kinds["docs/alpha/principles.toml"] == "new"
     assert "LICENSE" not in kinds  # identity.license_file keeps the repo's
     assert "conflict  README.md" in done.stdout
 
@@ -176,7 +176,7 @@ def test_chain_leaves_git_hooks_alone(repo: Path):
     contributing = (repo / "CONTRIBUTING.md").read_text()
     assert 'sh .claude/alpha/githooks/commit-msg "$1"' in contributing
     assert "git config core.hooksPath" not in contributing
-    principles = (repo / "docs/principles.toml").read_text()
+    principles = (repo / "docs/alpha/principles.toml").read_text()
     assert 'hooks = "chain"' in principles
 
 

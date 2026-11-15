@@ -43,11 +43,11 @@ Task: `$ARGUMENTS`
 - project.json has `adoption` but no `manifest` key: an adoption is under way. Point to `/alpha:adopt`, and stop.
 - Otherwise, project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`, and stop.
 - With a `manifest`, read before the first step:
-  - project.json's `areas`: a spec area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/specification.md lists them under "Not settled yet".
-  - `docs/principles.toml`: the active principles, their parameters and `[review]`. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
-  - The parts of `docs/specification.md` and `CONTRIBUTING.md` that bear on the task, including CONTRIBUTING's Overrides and Exceptions.
+  - project.json's `areas`: a spec area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/alpha/specification.md lists them under "Not settled yet".
+  - `docs/alpha/principles.toml`: the active principles, their parameters and `[review]`. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
+  - The parts of `docs/alpha/specification.md` and `CONTRIBUTING.md` that bear on the task, including CONTRIBUTING's Overrides and Exceptions.
   - CLAUDE.md: each component's commands, the definition of done, the commit convention and how to talk to the user.
-  - `docs/adoption.md`, when it exists: a task never leaves more findings in a file than its baseline allows; the plan's own steps shrink baselines, not unrelated tasks (`stay-in-scope`).
+  - `docs/alpha/adoption.md`, when it exists: a task never leaves more findings in a file than its baseline allows; the plan's own steps shrink baselines, not unrelated tasks (`stay-in-scope`).
 
 ## 2. Pick the playbook
 
@@ -81,7 +81,7 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 
 **Two failures, one premise.** When two fixes that share an assumption fail the same check, write the assumption down and test it directly before trying a third.
 
-**Subagents.** Give bulk reading, searching and independent slices of work to subagents; keep their summaries, not their raw output. Each brief restates the user's goal, names the files and the result wanted, and says to follow CLAUDE.md, `docs/principles.toml`, `docs/specification.md` and `CONTRIBUTING.md`. A subagent runs on this chat's model unless the user names another. Two subagents never edit the same files at once. You own what they return: read their diff yourself and check its claims before building on it.
+**Subagents.** Give bulk reading, searching and independent slices of work to subagents; keep their summaries, not their raw output. Each brief restates the user's goal, names the files and the result wanted, and says to follow CLAUDE.md, `docs/alpha/principles.toml`, `docs/alpha/specification.md` and `CONTRIBUTING.md`. A subagent runs on this chat's model unless the user names another. Two subagents never edit the same files at once. You own what they return: read their diff yourself and check its claims before building on it.
 
 **Worktrees.** A feature, a refactoring across many files, or work you'll leave running can go in its own git worktree, so the user's checkout stays untouched. Already in a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`, outside a submodule): stay there. Otherwise follow the user's stated preference (CLAUDE.md, memory, this conversation), or offer it once with your recommendation. Create it with the harness's own worktree tool when there is one (`EnterWorktree`); otherwise `git worktree add .claude/worktrees/<branch> -b <branch>` from the default branch (generated projects ignore `.claude/worktrees/`; check with `git check-ignore`). Then run each component's setup command and its tests, so a red baseline is known before you change anything. Subagents running side by side each get their own worktree (the Agent tool's `isolation: "worktree"`). The branch reaches main as CLAUDE.md says; leave removing the worktree to the user.
 

@@ -200,20 +200,20 @@ def test_lockfiles_become_protected():
 def test_review_settings_come_from_answers(tmp_path: Path):
     def mutate(data: dict[str, Any]) -> None:
         data["agent_workflow"].update(
-            extra_risk_paths=["infra/**", "docs/principles.toml"],
+            extra_risk_paths=["infra/**", "docs/alpha/principles.toml"],
         )
 
     review = build_principles(D, variant(tmp_path, mutate), "0.1.0")["review"]
     assert review["mode"] == "at-merge"
     assert "max_lines" not in review
-    assert review["risk_paths"].count("docs/principles.toml") == 1
+    assert review["risk_paths"].count("docs/alpha/principles.toml") == 1
     assert review["risk_paths"][-6:] == [
         "infra/**",
         "api/openapi.yaml",
         "api/migrations/versions/**",
         "web/src/styles/tokens.css",
         "web/src/styles/tokens.css/**",
-        "docs/design-language.md",
+        "docs/alpha/design-language.md",
     ]
 
 
@@ -251,7 +251,7 @@ def test_output_parses_and_is_deterministic():
     assert parsed["docs_map"] == {
         "api/**/routes/**": ["docs/guide/**"],
         "web/**/pages/**": ["docs/guide/**"],
-        "**/openapi*.yaml": ["docs/specification.md"],
+        "**/openapi*.yaml": ["docs/alpha/specification.md"],
     }
     assert parsed["components"][0]["commands"]["test"] == "uv run pytest"
     assert parsed["project"] == {"name": "Pico Trust", "slug": "pico-trust"}
@@ -338,11 +338,11 @@ def test_extra_protected_and_contract_paths_reach_the_principles():
 @pytest.mark.parametrize(
     ("glob", "blocked"),
     [
-        ("docs/**", "docs/principles.toml"),
-        ("**/*.toml", "docs/principles.toml"),
+        ("docs/**", "docs/alpha/principles.toml"),
+        ("**/*.toml", "docs/alpha/principles.toml"),
         ("**/package.json", "web/package.json"),
         ("docs/guide/**", "docs/guide/**"),
-        ("docs/dependencies.md", "docs/dependencies.md"),
+        ("docs/alpha/dependencies.md", "docs/alpha/dependencies.md"),
         ("**/tests/**", "api/tests/**/*.py (tests)"),
         ("web/**/*.test.ts", "web/**/*.test.ts (tests)"),
     ],
@@ -616,15 +616,15 @@ def test_a_defined_design_language_switches_its_principle_on():
     out = build_principles(D, A, "0.1.0")
     p = principle(out, "design-language")
     assert p["active"] is True and p["components"] == ["api", "web"]
-    assert p["params"] == {"language": "docs/design-language.md"}
-    assert "docs/design-language.md" in out["review"]["risk_paths"]
+    assert p["params"] == {"language": "docs/alpha/design-language.md"}
+    assert "docs/alpha/design-language.md" in out["review"]["risk_paths"]
 
 
 def test_a_skipped_design_language_enforces_nothing(tmp_path: Path):
     out = build_principles(D, scenario_answers(tmp_path, "rust-cli"), "0.1.0")
     p = principle(out, "design-language")
     assert p["active"] is False and p["components"] == [] and p["params"] == {}
-    assert "docs/design-language.md" not in out["review"]["risk_paths"]
+    assert "docs/alpha/design-language.md" not in out["review"]["risk_paths"]
 
 
 def test_defaults_older_than_the_design_language_say_how_to_proceed():

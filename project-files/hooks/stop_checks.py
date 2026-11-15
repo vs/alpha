@@ -20,7 +20,7 @@ BUDGET = 1100
 MAX_BLOCKS = 3
 MAX_SCAN_BYTES = 1_000_000
 SNIFF_BYTES = 8192
-DEPENDENCY_LOG = "docs/dependencies.md"
+DEPENDENCY_LOG = "docs/alpha/dependencies.md"
 # Lockfiles that also hold the project's own version, which a release bumps.
 SELF_VERSIONED = ("uv.lock", "Cargo.lock")
 HASH_CONTENT_BYTES = 1_000_000
@@ -397,7 +397,7 @@ def run_tests() -> NoReturn:
     principles = _common.load_principles(root)
     if principles is None:
         print(
-            "stop_checks.py: no docs/principles.toml here. Run it from the "
+            "stop_checks.py: no docs/alpha/principles.toml here. Run it from the "
             "project root.",
             file=sys.stderr,
         )

@@ -322,7 +322,7 @@ def test_unknown_step_lists_the_ids(tmp_path: Path, git_env: None):
     assert result.returncode == 1 and "steps: p2-a" in result.stderr
 
 
-# --- docs/adoption.md ---
+# --- docs/alpha/adoption.md ---
 
 SOURCE = Source(PLUGIN_ROOT, True)
 TODAY = date(2026, 11, 11)
@@ -347,7 +347,7 @@ def rendered(root: Path) -> dict[str, str]:
 
 def test_adoption_doc_lists_steps_by_phase(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, PLAN_STEPS)
-    doc = rendered(root)["docs/adoption.md"]
+    doc = rendered(root)["docs/alpha/adoption.md"]
     assert doc.startswith("# Adoption plan\n")
     assert "| P1 Normalize | 1 | 1 |" in doc and "| P4 Rework | 1 | 1 |" in doc
     assert doc.index("## P1 Normalize") < doc.index("## P2 Close tool gaps")
@@ -363,13 +363,13 @@ def test_adoption_doc_lists_steps_by_phase(tmp_path: Path, git_env: None):
 def test_no_adoption_doc_without_steps(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, [])
     texts = rendered(root)
-    assert "docs/adoption.md" not in texts
+    assert "docs/alpha/adoption.md" not in texts
     assert "Adoption plan" not in texts["CLAUDE.md"]
 
 
 def test_claude_md_points_to_the_plan(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, PLAN_STEPS)
-    assert "- [Adoption plan](docs/adoption.md)" in rendered(root)["CLAUDE.md"]
+    assert "- [Adoption plan](docs/alpha/adoption.md)" in rendered(root)["CLAUDE.md"]
 
 
 def test_update_refreshes_the_doc(tmp_path: Path, git_env: None):
@@ -382,9 +382,9 @@ def test_update_refreshes_the_doc(tmp_path: Path, git_env: None):
     commit_update(root, load_project_principles(root), [])
     done(root, "p2-a")
     update = plan_update(root, PLUGIN_ROOT, SOURCE, TODAY)
-    assert [c.path for c in update.changes] == ["docs/adoption.md"]
+    assert [c.path for c in update.changes] == ["docs/alpha/adoption.md"]
     apply_update(root, update)
-    assert "| `p2-a` | ml | done |" in (root / "docs/adoption.md").read_text()
+    assert "| `p2-a` | ml | done |" in (root / "docs/alpha/adoption.md").read_text()
 
 
 @pytest.mark.slow
@@ -392,8 +392,8 @@ def test_adoption_doc_passes_rumdl(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, PLAN_STEPS)
     texts = rendered(root)
     for rel in (
-        "docs/adoption.md",
-        "docs/principles.toml",
+        "docs/alpha/adoption.md",
+        "docs/alpha/principles.toml",
         ".rumdl.toml",
         "_typos.toml",
     ):
@@ -405,9 +405,9 @@ def test_adoption_doc_passes_rumdl(tmp_path: Path, git_env: None):
         assert pin is not None
         command = f"mise x {pin.mise}@{pin.version} -- {pin.command}"
         if tool != "lychee":
-            command += " docs/adoption.md"
+            command += " docs/alpha/adoption.md"
         else:
-            command = command.replace(" .", " docs/adoption.md")
+            command = command.replace(" .", " docs/alpha/adoption.md")
         done_ = subprocess.run(
             command, shell=True, cwd=root, capture_output=True, text=True
         )
@@ -456,7 +456,7 @@ def test_commit_hook_missing_from_the_hook_manager(tmp_path: Path, git_env: None
 def test_survey_hook_files_reach_the_principles(tmp_path: Path, git_env: None):
     survey = {"git": {"hook_managers": [".husky/commit-msg"]}}
     root = plan_repo(tmp_path, [], git_hooks="chain", survey=survey)
-    principles = tomllib.loads(rendered(root)["docs/principles.toml"])
+    principles = tomllib.loads(rendered(root)["docs/alpha/principles.toml"])
     assert principles["git"]["hook_files"] == [".husky/commit-msg"]
 
 

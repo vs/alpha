@@ -2,7 +2,7 @@ schema = 1
 
 [review]
 exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]
-risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/principles.toml"]
+risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/alpha/principles.toml"]
 
 [protected]
 paths = ["**/.env", "**/.env.*", "**/*.pem", "**/*.key"]
@@ -252,7 +252,7 @@ core = false
 [[principles]]
 id = "design-language"
 title = "One design language"
-statement = "Every visual the project makes (a diagram, a chart, an image, the UI) is built from the design language in docs/design-language.md: read it before making or changing one. A visual may step outside it for a stated reason; it may not drift from it."
+statement = "Every visual the project makes (a diagram, a chart, an image, the UI) is built from the design language in docs/alpha/design-language.md: read it before making or changing one. A visual may step outside it for a stated reason; it may not drift from it."
 rationale = "Visuals made one at a time drift apart; one declared language keeps the docs and the product looking like the same thing, and makes a restyle one decision."
 applies = ["design_language"]
 settled_by = "design_language"

@@ -20,19 +20,29 @@ def _active(principles: dict[str, Any], principle_id: str) -> bool:
     )
 
 
-# What to ask /alpha:go for to settle each open product area.
+# Each product area's title, and the /alpha:specify request that settles it.
 SETTLE_REQUESTS: dict[str, tuple[str, str]] = {
-    "requirements": ("Target users and requirements", "settle the target users"),
-    "architecture": ("Architecture", "settle the architecture"),
-    "errors": ("Errors", "settle the error handling"),
-    "design_language": ("Design language", "settle the design language"),
-    "ui": ("UI", "settle the UI"),
-    "observability": ("Observability", "settle the observability"),
-    "data": ("Data", "settle the data and migrations"),
-    "accessibility": ("Accessibility", "settle the accessibility target"),
-    "performance": ("Performance", "settle the performance budgets"),
-    "auth": ("Auth", "settle the auth"),
+    "requirements": ("Target users and requirements", "/alpha:specify requirements"),
+    "architecture": ("Architecture", "/alpha:specify architecture"),
+    "errors": ("Errors", "/alpha:specify errors"),
+    "design_language": ("Design language", "/alpha:specify design language"),
+    "ui": ("UI", "/alpha:specify UI"),
+    "observability": ("Observability", "/alpha:specify observability"),
+    "data": ("Data", "/alpha:specify data"),
+    "accessibility": ("Accessibility", "/alpha:specify accessibility"),
+    "performance": ("Performance", "/alpha:specify performance"),
+    "auth": ("Auth", "/alpha:specify auth"),
 }
+
+
+def existing_doc(a: Answers, key: str) -> str | None:
+    """The repo's own doc for an area, when the documentation area named one."""
+    return a.documentation.existing.get(key) if a.documentation else None
+
+
+def see(path: str) -> str:
+    """A link from a doc in docs/alpha/ to the repo's own doc at `path`."""
+    return f"See [{path}](../../{path})."
 
 
 def could_apply(area: str, a: Answers) -> bool:
@@ -50,15 +60,17 @@ def could_apply(area: str, a: Answers) -> bool:
 
 def not_settled(area: str) -> str:
     _, request = SETTLE_REQUESTS[area]
-    return f"Not settled yet: `/alpha:go {request}` settles it when the work needs it."
+    return f"Not settled yet: `{request}` settles it."
 
 
-def architecture_sections(a: Answers) -> list[str]:
+def architecture_section(a: Answers) -> list[str]:
     if a.architecture is None:
-        lines = ["## Responsibilities and contracts", "", not_settled("architecture")]
-    else:
-        lines = _responsibilities(a.architecture)
-    lines += ["", "## Errors", ""]
+        return ["## Responsibilities and contracts", "", not_settled("architecture")]
+    return _responsibilities(a.architecture)
+
+
+def errors_section(a: Answers) -> list[str]:
+    lines = ["## Errors", ""]
     if a.errors is None:
         return [*lines, not_settled("errors")]
     lines += [
@@ -102,6 +114,9 @@ def _responsibilities(architecture: Architecture) -> list[str]:
 def glossary(a: Answers, principles: dict[str, Any]) -> str | None:
     if a.architecture is None:
         return None
+    theirs = existing_doc(a, "glossary")
+    if theirs is not None:
+        return f"# Glossary\n\nThis project keeps its glossary in {see(theirs)[4:]}\n"
     terms = sorted(a.architecture.glossary, key=lambda t: t.term.casefold())
     if not terms and not _active(principles, "one-vocabulary"):
         return None
@@ -152,7 +167,7 @@ def testing_section(a: Answers, principles: dict[str, Any]) -> list[str]:
         "Put each level's tests under `tests/<level>/` in the component.",
         "",
         "A test that covers an acceptance check names its requirement id (e.g. "
-        "`R1`) in its name, so each check in docs/specification.md traces to a "
+        "`R1`) in its name, so each check in docs/alpha/specification.md traces to a "
         "test.",
         "",
     ]
@@ -250,6 +265,13 @@ _PALETTE_CHECKS = {
 
 
 def design_language_doc(a: Answers) -> str | None:
+    theirs = existing_doc(a, "design_language")
+    if theirs is not None and a.design_language is not None:
+        return f"# Design language\n\nThis project's design language: {see(theirs)}\n"
+    return _design_language_doc(a)
+
+
+def _design_language_doc(a: Answers) -> str | None:
     language = a.design_language
     if language is None or not language.defined:
         return None

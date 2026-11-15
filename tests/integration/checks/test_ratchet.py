@@ -140,9 +140,11 @@ LINE = r"^(?P<file>[^:\s]+):\d+: (?P<rule>\w+)"
 def _project(tmp_path: Path, entries: list[dict[str, Any]]) -> Path:
     root = tmp_path / "proj"
     (root / ".git").mkdir(parents=True)
-    (root / "docs").mkdir()
+    (root / "docs" / "alpha").mkdir(parents=True)
     (root / "api").mkdir()
-    (root / "docs" / "principles.toml").write_text(dumps({"baselines": entries}))
+    (root / "docs" / "alpha" / "principles.toml").write_text(
+        dumps({"baselines": entries})
+    )
     return root
 
 
@@ -299,11 +301,11 @@ def test_a_missing_tool_says_to_run_setup(tmp_path: Path):
     entry = _entry("", command="no-such-linter --check")
     entry["command"] = "no-such-linter --check"
     root = _project(tmp_path, [entry])
-    data = tomllib.loads((root / "docs/principles.toml").read_text())
+    data = tomllib.loads((root / "docs/alpha/principles.toml").read_text())
     data["components"] = [
         {"name": "api", "path": "api", "commands": {"setup": "uv sync"}}
     ]
-    (root / "docs/principles.toml").write_text(dumps(data))
+    (root / "docs/alpha/principles.toml").write_text(dumps(data))
     _set_baseline(root, {})
     done = _run(root, "lint:api")
     assert done.returncode == 2

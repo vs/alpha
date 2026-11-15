@@ -41,7 +41,7 @@ def matches(rel_path: str, globs: list[str]) -> bool:
 
 def data_globs(key: str) -> list[str]:
     try:
-        with open("docs/principles.toml", "rb") as f:
+        with open("docs/alpha/principles.toml", "rb") as f:
             data = tomllib.load(f).get("data", {})
     except (OSError, tomllib.TOMLDecodeError):
         return []
@@ -167,7 +167,7 @@ def baselines() -> int:
     if base is None:
         return 0
     ref = _merge_base(base)
-    principles = "docs/principles.toml"
+    principles = "docs/alpha/principles.toml"
     try:
         listed_now = _baselined(Path(principles).read_text(encoding="utf-8"))
     except OSError:

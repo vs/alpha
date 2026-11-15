@@ -278,7 +278,7 @@ DIFF_LINES = 1500
 USAGE = (
     "Run it as: python3 .claude/alpha/hooks/review.py brief (or snapshot, or "
     'absorb <before-tree> <after-tree>, or untested "<why>" <path> ...), from '
-    "the root of an alpha project (one with docs/principles.toml)."
+    "the root of an alpha project (one with docs/alpha/principles.toml)."
 )
 
 
@@ -581,7 +581,7 @@ def main() -> None:
         or (len(args) == 3 and args[0] == "absorb")
         or (len(args) >= 3 and args[0] == "untested")
     )
-    if not valid or not (root / "docs" / "principles.toml").is_file():
+    if not valid or not (root / "docs" / "alpha" / "principles.toml").is_file():
         print(USAGE, file=sys.stderr)
         sys.exit(1)
     try:

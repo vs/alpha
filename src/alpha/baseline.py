@@ -275,14 +275,14 @@ def baseline_file(target: Path, check: str) -> Path:
 
 
 def baselined(target: Path) -> list[str]:
-    """The ids docs/principles.toml lists under [[baselines]], in order."""
-    path = target / "docs" / "principles.toml"
+    """The ids docs/alpha/principles.toml lists under [[baselines]], in order."""
+    path = target / "docs" / "alpha" / "principles.toml"
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise BaselineError(
             f"{path} can't be read ({e}). Run this in a project alpha generated or "
-            "adopted, or restore the file with git checkout docs/principles.toml."
+            "adopted, or restore the file with git checkout docs/alpha/principles.toml."
         ) from None
     entries = cast("list[object]", data.get("baselines", []))
     return [
@@ -296,7 +296,7 @@ def _known(target: Path, check: str) -> list[str]:
     ids = baselined(target)
     if check not in ids:
         raise BaselineError(
-            f"{check!r} isn't baselined in {target}/docs/principles.toml "
+            f"{check!r} isn't baselined in {target}/docs/alpha/principles.toml "
             f"(baselined: {', '.join(ids) or 'none'}). Add it to adoption.baselines "
             "in the answers and run alpha update, or use one of those ids."
         )

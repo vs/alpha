@@ -37,7 +37,7 @@ Run these with the `alpha:grilling` skill (invoke it with the Skill tool and fol
   - `user-message` - a UI shows a message next to the problem, in plain words, with what to do next.
   - `exceptions` - code that calls a library or pipeline gets a typed exception whose message names the fix.
   - `structured-log` - a background worker logs the failure with its category and the fix, since no person is waiting.
-  - `other` - ask what, and describe it under the Errors section of docs/specification.md.
+  - `other` - ask what, and describe it under the Errors section of docs/alpha/specification.md.
 - **Categories** - recommend `defaults.errors.categories`. Explain: each error belongs to one category, and each category has one meaning across components (e.g. `not-found` is a 404 in the api and "We couldn't find that image" in the web app). Drop categories that can't happen here; add domain ones (e.g. `payment-declined`).
 
 When a format or the categories differ from the defaults, follow the grilling skill's override protocol (keys `errors.formats.<kind>`, e.g. `errors.formats.backend`, and `errors.categories`).

@@ -16,7 +16,7 @@ The interview asks only what alpha needs to set up the tooling: the name,
 license, components and stacks, tests, docs, CI, releases and git. What the
 product does, its architecture, errors, UI, data, budgets and so on, stays
 open until the work needs it; `/alpha:go` settles each part then, and
-`docs/specification.md` lists what's still open.
+`docs/alpha/specification.md` lists what's still open.
 
 ```sh
 claude plugin marketplace add vs/alpha
@@ -36,21 +36,21 @@ recommended answer, for you to confirm or rewrite.
 
 | | |
 |---|---|
-| `docs/principles.toml` | the one file CLAUDE.md, hooks and reviewer read |
-| `docs/specification.md` | what the product does: requirements and the parts settled so far, the rest listed as not settled yet; features add their own specs in `docs/specs/` |
+| `docs/alpha/principles.toml` | the one file CLAUDE.md, hooks and reviewer read |
+| `docs/alpha/specification.md` | what the product does: requirements and the parts settled so far, the rest listed as not settled yet; features add their own specs in `docs/alpha/features/` |
 | `CONTRIBUTING.md` | how the project is set up, checked, committed, built, released and kept secure |
 | `.claude/` | permissions, hooks, the principles reviewer, skills to commit, record a decision in the docs, and review a change, the whole repo or its `shortcut:` ledger |
 | each component | strict lint, types and tests, wired up with no `src/`; a monorepo's Rust components form one Cargo workspace at the root |
 | `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, typos, markdown, links, action pins, agent config) |
 | `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
-| `docs/design-language.md` | optional: one look for every visual, from diagrams in the docs to the UI, which the reviewer holds each changed visual to |
+| `docs/alpha/design-language.md` | optional: one look for every visual, from diagrams in the docs to the UI, which the reviewer holds each changed visual to |
 
 The design language is yours to skip. Settle it when you need it
 (`/alpha:go settle the design language`: character, palette, typography,
 shape, imagery, diagram style) and it becomes a principle that CLAUDE.md
 states, and the source of the UI's tokens. Until then, alpha enforces and
 recommends nothing about how visuals look. Which files count as visuals is the `[visuals]`
-list in `docs/principles.toml` (diagram sources, SVG, styles, tokens, chart
+list in `docs/alpha/principles.toml` (diagram sources, SVG, styles, tokens, chart
 specs; docs and UI markup when a change touches something visual; images and
 fonts are named but can't be read). Settling it asks for the paths of
 third-party assets, such as partner logos, and leaves them out.
@@ -94,7 +94,7 @@ part that has docs but no build files yet gets the skeleton a new project
 would, after one question.
 Today's lint, type, test and docs findings are baselined, so only new ones
 fail, and a baseline only shrinks. What's left is a compliance plan in
-`docs/adoption.md`: run `/alpha:adopt` again to work through it one step at a
+`docs/alpha/adoption.md`: run `/alpha:adopt` again to work through it one step at a
 time, each step done only when its check passes.
 
 ## Change it later
@@ -117,7 +117,7 @@ it step by step, keeping the project's principles, docs and
 checks. `/alpha:go settle the performance budgets` settles a part of the
 specification left open, as do `settle the target users` and `settle the
 auth`; a feature that needs one asks about it with its other questions. A feature starts with research and questions, then a spec in
-`docs/specs/<date>-<feature>.md` that names a test for each acceptance
+`docs/alpha/features/<date>-<feature>/` that names a test for each acceptance
 check. Nothing is built until you approve it and choose how: native, where
 Claude builds every task, or with subagents, where a fresh one builds each
 task and another reviews it. Each task's tests are written first and fail
@@ -127,7 +127,7 @@ playbooks live in the plugin, not in your project.
 ## Decisions live in the docs
 
 A project keeps no decision records. A choice changes the doc it governs:
-what the product does in `docs/specification.md`, how the work is done in
+what the product does in `docs/alpha/specification.md`, how the work is done in
 `CONTRIBUTING.md`, a loosened principle as an override listed there, an
 exception to a check as a row of its Exceptions table, and an accepted review
 finding as an `Accepts:` trailer on a commit. Git history keeps when and why.

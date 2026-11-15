@@ -75,7 +75,7 @@ def test_legacy_project_runs_green_and_ratchets(tmp_path: Path, git_env: None):
     for rel, text in LEGACY.items():
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / rel).write_text(text)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
 
     bootstrap(tmp_path, principles, capture_baselines=True)  # mise run ci passes
     assert _counts(tmp_path, "lint:api") == {"api/legacy.py": {"F401": 1}}

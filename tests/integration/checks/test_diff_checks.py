@@ -20,8 +20,8 @@ PRINCIPLES = (
 def repo(tmp_path: Path, git_env: None) -> Path:
     r = tmp_path / "repo"
     (r / "migrations").mkdir(parents=True)
-    (r / "docs").mkdir()
-    (r / "docs" / "principles.toml").write_text(PRINCIPLES)
+    (r / "docs" / "alpha").mkdir(parents=True)
+    (r / "docs" / "alpha" / "principles.toml").write_text(PRINCIPLES)
     (r / "migrations" / "0001.sql").write_text("create table a (id int);\n")
     git(r, "init", "-q", "-b", "main")
     git(r, "add", "-A")
@@ -332,7 +332,7 @@ LISTED = PRINCIPLES + '\n[[baselines]]\nid = "typecheck:api"\ndir = "api"\n'
 
 def test_a_newly_listed_check_starts_its_baseline(repo: Path):
     # The adoption's own pull request: the check is listed and captured here.
-    (repo / "docs" / "principles.toml").write_text(LISTED)
+    (repo / "docs" / "alpha" / "principles.toml").write_text(LISTED)
     _baseline(repo, {"api/a.py": {"E1": 5}})
     commit(repo)
     result = run(repo, "baselines")

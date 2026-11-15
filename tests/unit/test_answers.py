@@ -634,7 +634,12 @@ def test_external_folder_must_be_under_docs(tmp_path: Path, path: str):
 
 @pytest.mark.parametrize(
     "path",
-    ["docs/build.md", "docs/principles.toml", "docs/specs", "docs/specs/x"],
+    [
+        "docs/build.md",
+        "docs/alpha/principles.toml",
+        "docs/alpha",
+        "docs/alpha/features/x",
+    ],
 )
 def test_external_folder_stays_clear_of_generated_docs(tmp_path: Path, path: str):
     d = valid()
@@ -642,7 +647,8 @@ def test_external_folder_stays_clear_of_generated_docs(tmp_path: Path, path: str
     for m in d["documentation"]["mappings"]:
         m["docs"] = [f"{path}/**"]
     with pytest.raises(
-        AnswersError, match=r"documentation\.external_path: .*alpha writes"
+        AnswersError,
+        match=r"documentation\.external_path: .*alpha writes its docs under",
     ):
         check(tmp_path, d)
 

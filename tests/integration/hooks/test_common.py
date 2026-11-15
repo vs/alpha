@@ -22,17 +22,17 @@ from .conftest import FIXTURE, HOOKS, OLD_PYTHON, STUB, Project
 
 
 def test_malformed_principles_explains_and_exits_zero(project: Project):
-    project.write("docs/principles.toml", "schema = = 1")
+    project.write("docs/alpha/principles.toml", "schema = = 1")
     r = project.run_hook(
         "guard_bash.py", {"tool_name": "Bash", "tool_input": {"command": "ls"}}
     )
     assert r.returncode == 0
     assert "not valid TOML" in r.stderr
-    assert "git checkout docs/principles.toml" in r.stderr
+    assert "git checkout docs/alpha/principles.toml" in r.stderr
 
 
 def test_missing_principles_is_silent(project: Project):
-    (project.root / "docs" / "principles.toml").unlink()
+    (project.root / "docs" / "alpha" / "principles.toml").unlink()
     r = project.run_hook("guard_bash.py", {})
     assert r.returncode == 0 and r.stderr == ""
 
@@ -73,7 +73,7 @@ def test_matches_double_star():
     assert _common.matches("api/src/y.py", g)
     assert not _common.matches("api/tests/t.py", g)
     assert _common.matches("any/deep/openapi.yaml", ["**/openapi*.yaml"])
-    assert _common.matches("docs/principles.toml", ["docs/principles.toml"])
+    assert _common.matches("docs/alpha/principles.toml", ["docs/alpha/principles.toml"])
 
 
 def test_block_exits_2(capsys: pytest.CaptureFixture[str]):
@@ -154,7 +154,7 @@ def test_project_root_falls_back_to_payload_cwd(project: Project, tmp_path: Path
         env={"CLAUDE_PROJECT_DIR": None},
     )
     assert r.returncode == 0
-    project.write("docs/principles.toml", "schema = = 1")
+    project.write("docs/alpha/principles.toml", "schema = = 1")
     r = project.run_hook(
         "guard_bash.py",
         {"cwd": str(project.root)},

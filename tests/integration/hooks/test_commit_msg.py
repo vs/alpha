@@ -96,7 +96,7 @@ def test_a_malformed_scope_is_rejected(project: Project) -> None:
 
 
 def test_without_principles_uses_defaults_and_any_scope(project: Project) -> None:
-    (project.root / "docs" / "principles.toml").unlink()
+    (project.root / "docs" / "alpha" / "principles.toml").unlink()
     assert run_msg(project, "feat(whatever): Add x\n").returncode == 0
     assert run_msg(project, "feet: Add x\n").returncode == 1
 
@@ -110,11 +110,11 @@ def test_old_python_rejects_the_commit(project: Project) -> None:
 
 
 def test_malformed_principles_rejects_the_commit(project: Project) -> None:
-    project.write("docs/principles.toml", "schema = = 1")
+    project.write("docs/alpha/principles.toml", "schema = = 1")
     result = run_msg(project, "feat: Add x\n")
     assert result.returncode == 1
     assert "not valid TOML" in result.stderr
-    assert "git checkout docs/principles.toml" in result.stderr
+    assert "git checkout docs/alpha/principles.toml" in result.stderr
 
 
 def test_runs_from_a_subdirectory_using_toplevel_principles(project: Project) -> None:

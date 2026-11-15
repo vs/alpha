@@ -43,11 +43,11 @@ class Project:
         return path
 
     def principles(self) -> dict[str, Any]:
-        with (self.root / "docs" / "principles.toml").open("rb") as f:
+        with (self.root / "docs" / "alpha" / "principles.toml").open("rb") as f:
             return tomllib.load(f)
 
     def write_principles(self, data: dict[str, Any]) -> None:
-        self.write("docs/principles.toml", render_principles(data))
+        self.write("docs/alpha/principles.toml", render_principles(data))
 
     def set_commands(self, component: str, **commands: str) -> None:
         data = self.principles()

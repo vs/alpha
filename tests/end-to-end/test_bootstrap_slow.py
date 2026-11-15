@@ -44,7 +44,7 @@ def test_bootstrap_runs_green(
 ):
     """R2: generate and bootstrap leave a skeleton whose checks all pass."""
     generate_scenario(tmp_path, scenario)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     for c in principles["components"]:
         for lockfile in project_book(tmp_path).get(c["stack"]).lockfiles:
@@ -87,7 +87,7 @@ def test_format_check_fails_on_an_unformatted_file(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     for c in principles["components"]:
         name, text = UNFORMATTED[c["stack"]]
@@ -111,7 +111,7 @@ def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env: None):
     data["components"][0].update(stack="typescript", kind="cli")
     answers.write_text(json.dumps(data))
     generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
@@ -136,7 +136,7 @@ def test_scenarios_pass_repo_checks(
     tmp_path: Path, scenario: str, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, scenario)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)  # raises unless `mise run ci` exits 0
     # commit-skeleton's own git init must leave bootstrap's repository usable.
     git(tmp_path, "init", "-q", "-b", "main")
@@ -152,7 +152,9 @@ def bootstrapped_web(tmp_path_factory: pytest.TempPathFactory) -> Path:
     target = tmp_path_factory.mktemp("web")
     place_answers(target, "web-ts-plus-python-api")
     generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
-    bootstrap(target, tomllib.loads((target / "docs/principles.toml").read_text()))
+    bootstrap(
+        target, tomllib.loads((target / "docs/alpha/principles.toml").read_text())
+    )
     return target
 
 
@@ -204,7 +206,7 @@ def test_structure_fails_on_unused_dependency(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     unused = {"python": "uv add requests", "typescript": "pnpm add left-pad"}
     for c in principles["components"]:
@@ -228,7 +230,7 @@ def test_depcruise_reports_a_cycle(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     web = tmp_path / "web"
     command = "pnpm depcruise --config .dependency-cruiser.cjs ."
@@ -256,7 +258,7 @@ def test_diff_cover_catches_untested_line(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")  # CI compares against origin/<base>
@@ -319,7 +321,7 @@ def test_diff_cover_catches_untested_typescript_line(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")
@@ -411,7 +413,7 @@ def test_exhaustive_gate_catches_a_half_tested_branch(tmp_path: Path, git_env: N
     data["testing"]["exhaustive"] = True
     answers.write_text(json.dumps(data))
     generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")
@@ -459,7 +461,7 @@ def test_rust_checks_fail_on_their_violations(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "rust-cli")
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     (cli,) = principles["components"]
@@ -500,7 +502,7 @@ def test_diff_cover_catches_untested_rust_line(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "rust-cli")
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")
@@ -622,7 +624,7 @@ def test_exhaustive_gate_catches_a_half_tested_rust_branch(
     data["testing"]["exhaustive"] = True
     answers.write_text(json.dumps(data))
     generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
     commit_skeleton(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")
@@ -664,7 +666,7 @@ def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
     exhaustive testing, on real tools."""
     place_rust_monorepo(tmp_path, exhaustive=True)
     generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
+    principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)  # every component's commands, from cargo fetch
     commit_skeleton(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""

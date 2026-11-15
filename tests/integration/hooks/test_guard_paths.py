@@ -42,7 +42,7 @@ def test_lockfile_blocked_with_component_setup_command(project: Project) -> None
     proc = run(project, "Write", {"file_path": str(project.root / "api/uv.lock")})
     assert proc.returncode == 2
     assert proc.stderr.startswith(
-        "api/uv.lock is protected (`api/uv.lock` in docs/principles.toml), so "
+        "api/uv.lock is protected (`api/uv.lock` in docs/alpha/principles.toml), so "
         "Claude can't edit it."
     )
     assert "Lockfiles change only through the package manager (e.g. uv sync)." in (
@@ -267,14 +267,14 @@ def test_nested_env_files_blocked(project: Project) -> None:
 
 
 def test_principles_file_edit_asks(project: Project) -> None:
-    proc = edit(project, "docs/principles.toml", 'test = "x"', 'test = "true"')
+    proc = edit(project, "docs/alpha/principles.toml", 'test = "x"', 'test = "true"')
     text = asked(proc)
-    assert "docs/principles.toml" in text
+    assert "docs/alpha/principles.toml" in text
     assert "single source of truth" in text
     write = run(
         project,
         "Write",
-        {"file_path": str(project.root / "docs/principles.toml"), "content": ""},
+        {"file_path": str(project.root / "docs/alpha/principles.toml"), "content": ""},
     )
     assert "single source of truth" in asked(write)
 

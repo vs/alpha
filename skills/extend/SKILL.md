@@ -48,7 +48,7 @@ Go on when it lists the changes with no problem.
 
 ## 4. Show and confirm
 
-Summarize the list. Show the diffs of CLAUDE.md, `docs/principles.toml` and the docs, and say which files will need a hand merge (the dry run shows each as `conflict  <path> (your edits overlap alpha's change: merge by hand)`). When the project came from an older alpha, its first line names the upgrade, such as `(kit 0.4.2 to 0.4.3)`: the update also brings the project to this kit, so it lists files the requested change doesn't touch (copied hooks and checks, the newer kit's files as `new`). Tell the user so before they confirm. Write nothing to generated files (CLAUDE.md, docs, principles, component configs) until the user confirms; the answers in project.json are already saved.
+Summarize the list. Show the diffs of CLAUDE.md, `docs/alpha/principles.toml` and the docs, and say which files will need a hand merge (the dry run shows each as `conflict  <path> (your edits overlap alpha's change: merge by hand)`). When the project came from an older alpha, its first line names the upgrade, such as `(kit 0.4.2 to 0.4.3)`: the update also brings the project to this kit, so it lists files the requested change doesn't touch (copied hooks and checks, the newer kit's files as `new`). Tell the user so before they confirm. Write nothing to generated files (CLAUDE.md, docs, principles, component configs) until the user confirms; the answers in project.json are already saved.
 
 ## 5. Apply
 

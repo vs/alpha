@@ -4,7 +4,7 @@ import os
 import re
 import tempfile
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
@@ -58,9 +58,9 @@ from alpha.validate import (
 from alpha.validate import AnswersError as AnswersError
 
 PROJECT_JSON = ".claude/alpha/project.json"
-PRINCIPLES_FILE = "docs/principles.toml"
-DEPENDENCY_LOG = "docs/dependencies.md"
-DESIGN_LANGUAGE_DOC = "docs/design-language.md"
+PRINCIPLES_FILE = "docs/alpha/principles.toml"
+DEPENDENCY_LOG = "docs/alpha/dependencies.md"
+DESIGN_LANGUAGE_DOC = "docs/alpha/design-language.md"
 _DESIGN = "design_language"
 _COMPONENTS_FIELDS = ("layout", "workspace", "components_talk", "components", "recipes")
 
@@ -211,6 +211,9 @@ class Documentation:
     external_path: str
     external_location: str
     mappings: tuple[DocMapping, ...]
+    # The repo's own doc for an area, by area (or "glossary", "dependencies"):
+    # alpha's doc refers to it instead of repeating it.
+    existing: dict[str, str] = field(default_factory=dict[str, str])
 
 
 @dataclass(frozen=True)
@@ -604,7 +607,36 @@ def _workflow(raw: object) -> AgentWorkflow:
     return AgentWorkflow(strings(d, "extra_risk_paths", w))
 
 
-def _documentation(raw: object) -> Documentation:
+EXISTING_DOC_KEYS: tuple[str, ...] = (*PRODUCT_AREAS, "glossary", "dependencies")
+
+
+def _existing_docs(raw: object, base: Path) -> dict[str, str]:
+    where = "documentation.existing"
+    found: dict[str, str] = {}
+    for key, value in obj(raw, where).items():
+        if key not in EXISTING_DOC_KEYS:
+            raise fail(
+                f"{where}.{key}",
+                "isn't an area alpha writes a doc for",
+                f"Use one of: {', '.join(EXISTING_DOC_KEYS)}",
+            )
+        if not isinstance(value, str) or unmatchable(value) or "*" in value:
+            raise fail(
+                f"{where}.{key}",
+                f"{value!r} isn't a path relative to the project root",
+                'Write the file\'s path, e.g. "docs/design.md"',
+            )
+        if not (base / value).is_file():
+            raise fail(
+                f"{where}.{key}",
+                f"{value} doesn't exist",
+                "Name a file the repo has, or leave the area out",
+            )
+        found[key] = value
+    return found
+
+
+def _documentation(raw: object, base: Path) -> Documentation:
     w = "documentation"
     d = obj(raw, w)
     external = choice(d, "external", w, EXTERNAL_DOCS)
@@ -618,11 +650,11 @@ def _documentation(raw: object) -> Documentation:
                 f"{path!r} is not a folder under docs/",
                 'Use a folder inside docs/, e.g. "docs/guide"',
             )
-        if parts[1] == "specs" or parts[-1].endswith((".md", ".toml")):
+        if parts[1] == "alpha" or parts[-1].endswith((".md", ".toml")):
             raise fail(
                 "documentation.external_path",
-                f"{path!r} is where alpha writes its own docs (docs/*.md, "
-                "docs/principles.toml, docs/specs/)",
+                f"{path!r} isn't a folder of its own: alpha writes its docs under "
+                "docs/alpha/",
                 'Use a folder of its own, e.g. "docs/guide"',
             )
     elif path:
@@ -648,7 +680,8 @@ def _documentation(raw: object) -> Documentation:
         mw = f"documentation.mappings[{i}]"
         mo = obj(m, mw)
         mappings.append(DocMapping(paths(mo, "paths", mw), paths(mo, "docs", mw)))
-    return Documentation(external, path, location, tuple(mappings))
+    existing = _existing_docs(d.get("existing", {}), base)
+    return Documentation(external, path, location, tuple(mappings), existing)
 
 
 def _build(
@@ -1175,7 +1208,7 @@ def parse_answers(
         else None
     )
     documentation = (
-        _documentation(get(top, "documentation", ""))
+        _documentation(get(top, "documentation", ""), base)
         if active("documentation")
         else None
     )

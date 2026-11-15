@@ -24,7 +24,9 @@ def test_context_points_at_the_specification_and_contributing(
     project: Project,
 ) -> None:
     text = _common.context_text(project.root, project.principles())
-    assert text.startswith("alpha: what the product does is in docs/specification.md")
+    assert text.startswith(
+        "alpha: what the product does is in docs/alpha/specification.md"
+    )
     assert "CONTRIBUTING.md" in text.splitlines()[0]
     assert "decision record" not in text
 
@@ -107,14 +109,14 @@ def test_subagent_start_injects_the_same_context(project: Project) -> None:
 
 
 def test_subagent_start_is_silent_outside_alpha_projects(project: Project) -> None:
-    (project.root / "docs" / "principles.toml").unlink()
+    (project.root / "docs" / "alpha" / "principles.toml").unlink()
     out = project.run_hook("subagent_start.py", {"hook_event_name": "SubagentStart"})
     assert out.returncode == 0 and out.stdout == ""
 
 
 def test_context_steers_code_with_the_writing_principles(project: Project) -> None:
     text = _common.context_text(project.root, project.principles())
-    head = "Write code by these principles (docs/principles.toml):\n"
+    head = "Write code by these principles (docs/alpha/principles.toml):\n"
     assert head in text
     section = text.split(head)[1]
     for title in (

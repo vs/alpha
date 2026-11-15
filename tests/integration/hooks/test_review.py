@@ -227,7 +227,7 @@ def test_brief_lists_the_stack_rules_of_touched_components(project: Project) -> 
         "boundary; don't pass `dict[str, Any]` inward. [components: api]",
         "- python:import-contracts: Once a component has more than one package, "
         "add import-linter contracts for the layers the architecture in "
-        "`docs/specification.md` names, and add `lint-imports` to its "
+        "`docs/alpha/specification.md` names, and add `lint-imports` to its "
         "`structure` command. [components: api]",
     ]
 
@@ -360,7 +360,7 @@ def test_malformed_findings_restart_the_review(
 
 
 def test_brief_cli_outside_an_alpha_project(project: Project) -> None:
-    (project.root / "docs/principles.toml").unlink()
+    (project.root / "docs/alpha/principles.toml").unlink()
     proc = project.run_hook("review.py", {})
     assert proc.returncode == 1
     assert "python3 .claude/alpha/hooks/review.py brief" in proc.stderr

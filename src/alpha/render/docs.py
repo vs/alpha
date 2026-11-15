@@ -29,10 +29,10 @@ _DONE = (
 )
 _WORKING_RULES = (
     "- Before you change code, docs or config, read the parts of "
-    "docs/specification.md and CONTRIBUTING.md that bear on the change and the "
-    "principle's parameters in docs/principles.toml. Follow them.",
+    "docs/alpha/specification.md and CONTRIBUTING.md that bear on the change and the "
+    "principle's parameters in docs/alpha/principles.toml. Follow them.",
     "- A decision updates the docs, as the decision skill says: what the product "
-    "does goes in docs/specification.md and needs the user's yes; how the work "
+    "does goes in docs/alpha/specification.md and needs the user's yes; how the work "
     "is done goes in CONTRIBUTING.md, with the reason in the commit; a changed "
     "principle is an override in the answers, which the user agrees to first.",
     "- When a requirement is ambiguous, make the reasonable choice, record it "
@@ -146,8 +146,8 @@ def _docs_section(docs: Documentation) -> list[str]:
     lines = [
         "## Documentation",
         "",
-        "Internal docs (the specification, the principles) live in `docs/`. "
-        + _external(docs),
+        "alpha's docs (the specification, the principles, the dependency log) "
+        "live in `docs/alpha/`. " + _external(docs),
         "",
     ]
     if docs.mappings:
@@ -254,7 +254,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     ]
     lines += [
         "",
-        "`docs/principles.toml` is the source of truth, with each principle's "
+        "`docs/alpha/principles.toml` is the source of truth, with each principle's "
         "parameters, rationale and overrides.",
         "",
         "## Working rules",
@@ -302,24 +302,25 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "",
         "## Docs",
         "",
-        "- [Principles](docs/principles.toml)",
-        "- [Specification](docs/specification.md): what the product does, settled "
-        "as the work needs it; each feature adds its own spec in `docs/specs/`",
+        "- [Principles](docs/alpha/principles.toml)",
+        "- [Specification](docs/alpha/specification.md): what the product does; "
+        "`/alpha:specify` settles each open part, and each feature gets a folder "
+        "in `docs/alpha/features/`",
         "- [Contributing](CONTRIBUTING.md): how the project is built, checked, "
         "released and kept secure",
-        "- [Dependencies](docs/dependencies.md)",
+        "- [Dependencies](docs/alpha/dependencies.md)",
     ]
     docs = _documentation(a)
     if docs.external == "folder":
-        lines.append(f"- [User guide]({docs.external_path}/)")
+        lines.append(f"- User guide: `{docs.external_path}/`")
     if area_docs.glossary(a, principles) is not None:
-        lines.append("- [Glossary](docs/glossary.md)")
+        lines.append("- [Glossary](docs/alpha/glossary.md)")
     if area_docs.changelog(a) is not None:
         lines.append("- [Changelog](CHANGELOG.md)")
     if area_docs.adoption_doc(a) is not None:
         lines.append(
-            "- [Adoption plan](docs/adoption.md): the steps that bring this repo's "
-            "code up to the principles; `/alpha:adopt` resumes it"
+            "- [Adoption plan](docs/alpha/adoption.md): the steps that bring this "
+            "repo's code up to the principles; `/alpha:adopt` resumes it"
         )
     return "\n".join(lines) + "\n"
 
@@ -331,11 +332,12 @@ def _readme(a: Answers, principles: dict[str, Any]) -> str:
         "",
         ident.value_proposition,
         "",
-        "## Setup and test",
+        "## Setup, test and run",
         "",
     ]
     for comp in principles["components"]:
         cmds = comp["commands"]
+        run = cmds.get("run") or "# run: add the command once the entry point exists"
         lines += [
             f"### {comp['name']} (`{comp['path']}/`)",
             "",
@@ -343,6 +345,7 @@ def _readme(a: Answers, principles: dict[str, Any]) -> str:
             f"cd {comp['path']}",
             cmds["setup"],
             cmds["test"],
+            run,
             "```",
             "",
         ]
@@ -400,7 +403,7 @@ def _contributing(
         "`mise install` installs the pinned tools; `mise run check` runs every "
         "component's checks and the repository checks below, the same as CI.",
         "",
-        "The principles in `docs/principles.toml` name them in `checked_by` as "
+        "The principles in `docs/alpha/principles.toml` name them in `checked_by` as "
         "`ci:<name>`: a name in the table is that check, and "
         + "; ".join(f"`ci:{k}` is when {v}" for k, v in CI_STEPS.items())
         + ".",
@@ -452,9 +455,18 @@ def _contributing(
 
 def _specification(a: Answers) -> str:
     """What the product does, in one file; features add their own specs in
-    docs/specs/."""
+    docs/alpha/features/."""
     ident = _identity(a)
     req = a.requirements
+    linked = (
+        {
+            area: path
+            for area, path in a.documentation.existing.items()
+            if area in a.areas and a.areas[area] == "done"
+        }
+        if a.documentation
+        else {}
+    )
     lines = [
         f"# {ident.name}: specification",
         "",
@@ -489,22 +501,35 @@ def _specification(a: Answers) -> str:
             "",
             "## Not settled yet",
             "",
-            "These parts of the specification are left for when the work needs "
-            "them. Until then their principles are off.",
+            "These parts of the specification stay open until you settle them. "
+            "Until then their principles are off.",
             "",
         ]
-        lines += [f"- {title}: `/alpha:go {request}`" for title, request in open_areas]
+        for area, (title, request) in area_docs.SETTLE_REQUESTS.items():
+            if (title, request) not in open_areas:
+                continue
+            theirs = area_docs.existing_doc(a, area)
+            documented = (
+                f" (the project documents it so far in [{theirs}](../../{theirs}))"
+                if theirs
+                else ""
+            )
+            lines.append(f"- {title}: `{request}`{documented}")
     sections = [
-        area_docs.architecture_sections(a),
-        area_docs.auth_section(a),
-        area_docs.ui_section(a),
-        area_docs.data_section(a),
-        area_docs.performance_section(a),
-        area_docs.observability_section(a),
+        ("architecture", area_docs.architecture_section(a)),
+        ("errors", area_docs.errors_section(a)),
+        ("auth", area_docs.auth_section(a)),
+        ("ui", area_docs.ui_section(a)),
+        ("data", area_docs.data_section(a)),
+        ("performance", area_docs.performance_section(a)),
+        ("observability", area_docs.observability_section(a)),
     ]
-    for section in sections:
-        if section is not None:
-            lines += ["", *section]
+    for area, section in sections:
+        if section is None:
+            continue
+        if area in linked:
+            section = [section[0], "", area_docs.see(linked[area])]
+        lines += ["", *section]
     return "\n".join(lines) + "\n"
 
 
@@ -547,6 +572,12 @@ def _components_section(a: Answers, principles: dict[str, Any]) -> list[str]:
 
 
 def _dependencies(a: Answers, today: date, added: Mapping[str, date]) -> str:
+    theirs = area_docs.existing_doc(a, "dependencies")
+    if theirs is not None:
+        return (
+            "# Dependencies\n\nThis project logs each dependency it adds, with the "
+            f"reason, in [{theirs}](../../{theirs}).\n"
+        )
     lines = [
         "# Dependencies",
         "",
@@ -608,22 +639,16 @@ def render_docs(
         "LICENSE": _license(a, year, root),
         "CONTRIBUTING.md": _contributing(a, principles, checks),
         "CLAUDE.md": _claude_md(a, principles),
-        "docs/specification.md": _specification(a),
-        "docs/dependencies.md": _dependencies(a, today, added or {}),
+        "docs/alpha/specification.md": _specification(a),
+        "docs/alpha/dependencies.md": _dependencies(a, today, added or {}),
     }
     optional = {
         DESIGN_LANGUAGE_DOC: area_docs.design_language_doc(a),
         "CHANGELOG.md": area_docs.changelog(a),
-        "docs/adoption.md": area_docs.adoption_doc(a),
+        "docs/alpha/adoption.md": area_docs.adoption_doc(a),
     }
     out.update({path: text for path, text in optional.items() if text is not None})
     glossary = area_docs.glossary(a, principles)
     if glossary is not None:
-        out["docs/glossary.md"] = glossary
-    docs = _documentation(a)
-    if docs.external == "folder":
-        out[f"{docs.external_path}/README.md"] = (
-            f"# {_identity(a).name} guide\n\n"
-            f"User-facing documentation for {_identity(a).name} lives here.\n"
-        )
+        out["docs/alpha/glossary.md"] = glossary
     return out

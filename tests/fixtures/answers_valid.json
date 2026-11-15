@@ -169,7 +169,7 @@
           "**/openapi*.yaml"
         ],
         "docs": [
-          "docs/specification.md"
+          "docs/alpha/specification.md"
         ]
       }
     ]

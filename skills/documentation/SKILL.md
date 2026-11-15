@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Decide where documentation lives and how it stays true. Internal docs (the specification, the principles, the dependency log) always live in `docs/`, and the process in `CONTRIBUTING.md`. User-facing docs are a choice. Then map the paths that hold each component's public behavior to the docs that describe it: when an agent changes one of those paths without touching its docs, the Stop hook blocks it ("Docs move with the code").
+Decide where documentation lives and how it stays true. alpha's own docs (the specification, the principles, the dependency log) always live in `docs/alpha/`, and the process in `CONTRIBUTING.md`; alpha writes nothing else into `docs/`. User-facing docs are a choice. Then map the paths that hold each component's public behavior to the docs that describe it: when an agent changes one of those paths without touching its docs, the Stop hook blocks it ("Docs move with the code").
 
 ## Fields this area settles
 
@@ -27,6 +27,7 @@ Decide where documentation lives and how it stays true. Internal docs (the speci
 - `documentation.external_location` - with `elsewhere`, where they live (e.g. a wiki URL); otherwise `""`.
 - `documentation.mappings[].paths` - globs, relative to the project root, of code whose changes need doc changes.
 - `documentation.mappings[].docs` - the docs (paths or globs, e.g. `"docs/guide/**"`) that must change with them.
+- `documentation.existing` - in an existing repo, the repo's own doc for an area alpha would document, keyed by product area, `glossary` or `dependencies` (e.g. `{"architecture": "docs/design.md"}`): alpha's file in `docs/alpha/` links to it instead of repeating it. `{}` for a new project.
 - `areas.documentation` - `"in_progress"` while you work, `"done"` at the end.
 
 ## Questions
@@ -45,10 +46,10 @@ Round 2 (needs the answer above):
 
 - **Docs mappings** - propose all mappings in one question. For each component, take `defaults.documentation.public_paths[kind]` and put the component's path in front of each glob (`api/**/routes/**`; a component at `"."` gets no prefix). Map them:
   - user-facing kinds (`backend` with outside callers, `frontend`, `cli`, `mobile`, `library`) to the user-facing docs: `README.md` for `readme`, `<external_path>/**` for `folder`;
-  - everything else, and every component when user docs are `elsewhere` or `none`, to `docs/specification.md`;
-  - when components talk, also the contract files in `architecture.contracts.paths` to `docs/specification.md`.
+  - everything else, and every component when user docs are `elsewhere` or `none`, to `docs/alpha/specification.md`;
+  - when components talk, also the contract files in `architecture.contracts.paths` to `docs/alpha/specification.md`.
 
-  Explain: the Stop hook blocks a change to a mapped path that leaves its docs untouched, so map only real public behavior, not all code. There is no code yet, so these are the usual places; the user can edit the mappings later in `docs/principles.toml` (`docs_map`). A kind with no usual paths (e.g. `ml`) gets no mapping; that's fine.
+  Explain: the Stop hook blocks a change to a mapped path that leaves its docs untouched, so map only real public behavior, not all code. There is no code yet, so these are the usual places; the user can edit the mappings later in `docs/alpha/principles.toml` (`docs_map`). A kind with no usual paths (e.g. `ml`) gets no mapping; that's fine.
 
 When the user-facing docs choice differs from `defaults.documentation.external`, follow the grilling skill's override protocol (key `documentation.external`). When the user changes the usual paths for a kind (not just one project's globs), the key is `documentation.public_paths.<kind>`, e.g. `documentation.public_paths.backend`.
 

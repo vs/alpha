@@ -47,7 +47,7 @@ def _project(tmp_path: Path, components: list[dict[str, Any]] | None = None) -> 
     (root / "bin" / "fake.py").write_text(FAKE)
     (root / "api" / "src").mkdir(parents=True)
     (root / "api" / "src" / "app.py").write_text("a = 'BAD'\nb = 'BAD'\n")
-    (root / "docs" / "decisions").mkdir(parents=True)
+    (root / "docs" / "alpha").mkdir(parents=True)
     entry = {
         "id": CHECK,
         "dir": "api",
@@ -55,7 +55,9 @@ def _project(tmp_path: Path, components: list[dict[str, Any]] | None = None) -> 
         "pattern": PATTERN,
     }
     principles = {"components": components or [], "baselines": [entry]}
-    (root / "docs" / "principles.toml").write_text(render_principles(principles))
+    (root / "docs" / "alpha" / "principles.toml").write_text(
+        render_principles(principles)
+    )
     git(root, "init", "-q", "-b", "main")
     return root
 
@@ -171,13 +173,13 @@ def test_bootstrap_captures_after_setup(tmp_path: Path):
     data["baselines"][0]["command"] = (
         "test -f ../setup.marker && python3 ../bin/fake.py src"
     )
-    (root / "docs" / "principles.toml").write_text(render_principles(data))
+    (root / "docs" / "alpha" / "principles.toml").write_text(render_principles(data))
     bootstrap(root, data, capture_baselines=True)
     assert _counts(root) == {"api/src/app.py": {"E1": 2}}
 
 
 def _principles(root: Path) -> dict[str, Any]:
-    return tomllib.loads((root / "docs" / "principles.toml").read_text())
+    return tomllib.loads((root / "docs" / "alpha" / "principles.toml").read_text())
 
 
 def test_capture_needs_a_row_new_to_the_branch(tmp_path: Path, git_env: None):
@@ -199,7 +201,7 @@ def test_bootstrap_runs_a_just_captured_check_once(tmp_path: Path):
     data["baselines"][0]["command"] = (
         "echo run >> ../runs.log; python3 ../bin/fake.py src"
     )
-    (root / "docs" / "principles.toml").write_text(render_principles(data))
+    (root / "docs" / "alpha" / "principles.toml").write_text(render_principles(data))
     bootstrap(root, data, capture_baselines=True)
     assert (root / "runs.log").read_text().splitlines() == ["run"]
 

@@ -1,6 +1,7 @@
 from typing import Any, cast
 
 from alpha.answers import (
+    DEPENDENCY_LOG,
     DESIGN_LANGUAGE_DOC,
     Answers,
     AnswersError,
@@ -387,6 +388,7 @@ def build_principles(
         },
         "git": git_section,
         "docs_map": docs_map,
+        "dependency_log": a.documentation.existing.get("dependencies", DEPENDENCY_LOG),
         "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
         "testing": {
             "diff_coverage": diff_coverage(a, defaults),

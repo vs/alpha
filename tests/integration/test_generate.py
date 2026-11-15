@@ -48,28 +48,28 @@ def test_open_areas_render_as_not_settled(tmp_path: Path):
     setup_only(data)
     path.write_text(json.dumps(data))
     written = generate(tmp_path, ROOT, SRC, 2026, TODAY)
-    product = (tmp_path / "docs/specification.md").read_text()
+    product = (tmp_path / "docs/alpha/specification.md").read_text()
     not_settled = product.split("## Not settled yet")[1]
-    for request in (
-        "settle the target users",
-        "settle the auth",
-        "settle the architecture",
-        "settle the error handling",
-        "settle the design language",
-        "settle the UI",
-        "settle the observability",
-        "settle the data and migrations",
-        "settle the accessibility target",
-        "settle the performance budgets",
+    for area in (
+        "requirements",
+        "auth",
+        "architecture",
+        "errors",
+        "design language",
+        "UI",
+        "observability",
+        "data",
+        "accessibility",
+        "performance",
     ):
-        assert f"`/alpha:go {request}`" in not_settled, request
+        assert f"`/alpha:specify {area}`" in not_settled, area
     sections = product.split("## Not settled yet")[1]
     assert "## Responsibilities and contracts\n\nNot settled yet" in sections
     assert "## Errors\n\nNot settled yet" in sections
-    assert "`/alpha:go settle the auth`" in sections
+    assert "`/alpha:specify auth`" in sections
     for heading in ("## UI", "## Data", "## Performance", "## Observability"):
         assert heading not in product, heading
-    for doc in ("docs/design-language.md", "docs/glossary.md"):
+    for doc in ("docs/alpha/design-language.md", "docs/alpha/glossary.md"):
         assert doc not in written and not (tmp_path / doc).exists(), doc
 
 
@@ -81,19 +81,21 @@ def test_open_areas_that_cannot_apply_are_not_listed(tmp_path: Path):
     setup_only(data)
     path.write_text(json.dumps(data))
     generate(tmp_path, ROOT, SRC, 2026, TODAY)
-    spec = (tmp_path / "docs/specification.md").read_text()
+    spec = (tmp_path / "docs/alpha/specification.md").read_text()
     listed = spec.split("## Not settled yet")[1]
-    for request in ("UI", "accessibility target", "observability", "data and"):
-        assert f"settle the {request}" not in listed, request
-    for request in ("architecture", "error handling", "design language", "perf"):
-        assert f"settle the {request}" in listed, request
+    for area in ("UI", "accessibility", "observability", "data"):
+        assert f"`/alpha:specify {area}`" not in listed, area
+    for area in ("architecture", "errors", "design language", "performance"):
+        assert f"`/alpha:specify {area}`" in listed, area
 
 
 def test_done_areas_have_no_not_settled_section(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    assert "Not settled yet" not in (tmp_path / "docs/specification.md").read_text()
+    assert (
+        "Not settled yet" not in (tmp_path / "docs/alpha/specification.md").read_text()
+    )
 
 
 REMOVED_DOCS = (
@@ -112,10 +114,10 @@ REMOVED_DOCS = (
 def test_the_specification_is_one_file(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
-    """F1, F3: the product's specification is docs/specification.md; the files
+    """F1, F3: the product's specification is docs/alpha/specification.md; the files
     hooks read or the user kept stay where they are."""
     written = generate_scenario(tmp_path, "web-ts-plus-python-api")
-    spec = (tmp_path / "docs/specification.md").read_text()
+    spec = (tmp_path / "docs/alpha/specification.md").read_text()
     assert spec.startswith("# Pico Trust: specification\n")
     headings = [line for line in spec.splitlines() if line.startswith("## ")]
     assert headings == [
@@ -134,10 +136,10 @@ def test_the_specification_is_one_file(
     for doc in REMOVED_DOCS:
         assert doc not in written and not (tmp_path / doc).exists(), doc
     for kept in (
-        "docs/principles.toml",
-        "docs/dependencies.md",
-        "docs/design-language.md",
-        "docs/glossary.md",
+        "docs/alpha/principles.toml",
+        "docs/alpha/dependencies.md",
+        "docs/alpha/design-language.md",
+        "docs/alpha/glossary.md",
     ):
         assert (tmp_path / kept).is_file(), kept
 
@@ -393,7 +395,7 @@ def test_no_decision_records_are_written(
     assert not [f for f in files if f.startswith("docs/decisions")]
     answers = json.loads((tmp_path / ".claude/alpha/project.json").read_text())
     assert "decisions" not in answers
-    principles = (tmp_path / "docs/principles.toml").read_text()
+    principles = (tmp_path / "docs/alpha/principles.toml").read_text()
     assert 'override = "loosen (component:api): The api is a single-process' in (
         principles
     )
@@ -428,7 +430,9 @@ def test_bootstrap_runs_bootstrap_setup_test_per_component(
     project.mkdir()
     generate_scenario(project, "web-ts-plus-python-api")
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
-    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    bootstrap(
+        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    )
     announced = [
         "api: uv add --dev pytest pytest-cov ruff pyright deptry",
         "api: uv sync",
@@ -484,7 +488,7 @@ def test_bootstrap_without_mise_says_how_to_install(
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     with pytest.raises(GenerateError) as err:
         bootstrap(
-            project, tomllib.loads((project / "docs/principles.toml").read_text())
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
         )
     assert str(err.value) == (
         "mise is not installed. Install it (brew install mise, or "
@@ -520,7 +524,9 @@ def test_bootstrap_installs_only_the_project_s_check_tools(
     bin_dir = fake_tools(tmp_path, {}, tools=("uv", "pnpm"))
     log = mise_recording_argv(bin_dir)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
-    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    bootstrap(
+        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    )
     tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
     assert "github:betterleaks/betterleaks" in tools
     calls = [json.loads(line) for line in log.read_text().splitlines()]
@@ -542,7 +548,7 @@ def test_bootstrap_install_failure_points_at_the_install(
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     with pytest.raises(GenerateError) as err:
         bootstrap(
-            project, tomllib.loads((project / "docs/principles.toml").read_text())
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
         )
     tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
     install = f"mise install {' '.join(tools)}"
@@ -563,7 +569,7 @@ def test_bootstrap_names_unreadable_project_json(
     project = tmp_path / "proj"
     project.mkdir()
     generate_scenario(project, "python-ml-single")
-    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
     answers = project / ".claude/alpha/project.json"
     answers.write_text(text)
     with pytest.raises(GenerateError) as err:
@@ -588,7 +594,7 @@ def test_bootstrap_step_times_out_with_a_fix(
     started = time.monotonic()
     with pytest.raises(GenerateError) as err:
         bootstrap(
-            project, tomllib.loads((project / "docs/principles.toml").read_text())
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
         )
     assert time.monotonic() - started < 20
     tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
@@ -617,7 +623,7 @@ def test_bootstrap_repo_check_failure_names_command_and_fix(
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     with pytest.raises(GenerateError) as err:
         bootstrap(
-            project, tomllib.loads((project / "docs/principles.toml").read_text())
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
         )
     assert str(err.value) == (
         f'"mise run --continue-on-error ci" failed in {project} (exit 2). Last '
@@ -636,7 +642,9 @@ def test_bootstrap_without_mise_toml_skips_the_repository_checks(
     generate_scenario(project, "python-ml-single")
     (project / "mise.toml").unlink()  # a project from before the repository checks
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
-    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    bootstrap(
+        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    )
     ran = (tmp_path / "tools.log").read_text()
     assert "mise" not in ran
     assert not (project / ".git").exists()
@@ -649,7 +657,7 @@ def test_bootstrap_only_named_components(
     project.mkdir()
     generate_scenario(project, "web-ts-plus-python-api")
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
-    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
     bootstrap(project, principles, only=["api"])
     ran = (tmp_path / "tools.log").read_text().splitlines()
     components = [line for line in ran if not line.startswith("proj: mise ")]
@@ -664,11 +672,12 @@ def test_bootstrap_unknown_component_is_explained(
     project.mkdir()
     generate_scenario(project, "web-ts-plus-python-api")
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
-    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
     with pytest.raises(GenerateError) as e:
         bootstrap(project, principles, only=["worker"])
     assert str(e.value) == (
-        "No component named worker in docs/principles.toml (components: api, web)."
+        "No component named worker in docs/alpha/principles.toml (components: "
+        "api, web)."
     )
     assert not (tmp_path / "tools.log").exists()
 
@@ -686,7 +695,9 @@ def test_bootstrap_refreshes_the_manifest_hashes(
         (bin_dir / tool).write_text(f"#!/bin/sh\n{action}\n")
         (bin_dir / tool).chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
-    bootstrap(project, tomllib.loads((project / "docs/principles.toml").read_text()))
+    bootstrap(
+        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    )
     files = json.loads((project / PROJECT_JSON).read_text())["manifest"]["files"]
     assert "api/pyproject.toml" in files
     for rel, digest in files.items():
@@ -703,7 +714,7 @@ def test_bootstrap_failure_names_command_output_and_fix(
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {'pnpm': 3})}:/usr/bin:/bin")
     with pytest.raises(GenerateError) as err:
         bootstrap(
-            project, tomllib.loads((project / "docs/principles.toml").read_text())
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
         )
     message = str(err.value)
     assert (
@@ -734,7 +745,7 @@ def test_bootstrap_keeps_only_the_last_40_lines(
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     with pytest.raises(GenerateError) as err:
         bootstrap(
-            project, tomllib.loads((project / "docs/principles.toml").read_text())
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
         )
     message = str(err.value)
     assert "line 61\n" in message and "line 100\n" in message
@@ -767,7 +778,7 @@ def test_cli_generate_uses_the_plugin_and_your_defaults(tmp_path: Path):
     )
     assert out.returncode == 0, out.stderr
     assert "warning" not in out.stderr
-    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
     assert principles["review"]["exclude"] == ["docs/**"]
     data = json.loads((project / ".claude/alpha/project.json").read_text())
     assert data["manifest"]["defaults"]["live"] is False
@@ -783,7 +794,7 @@ def test_cli_generate_error_exits_1(tmp_path: Path):
 def test_cli_bootstrap_without_principles_exits_1(tmp_path: Path):
     out = run_cli("bootstrap", str(tmp_path))
     assert out.returncode == 1
-    assert "docs/principles.toml" in out.stderr
+    assert "docs/alpha/principles.toml" in out.stderr
     assert "alpha generate" in out.stderr
 
 
@@ -814,7 +825,7 @@ def test_answers_still_load_after_the_manifest_is_added(
 
 
 def edit_principles(target: Path, edit: Callable[[dict[str, Any]], object]) -> None:
-    path = target / "docs/principles.toml"
+    path = target / "docs/alpha/principles.toml"
     data = tomllib.loads(path.read_text())
     edit(data)
     path.write_text(render_principles(data))
@@ -846,8 +857,8 @@ def test_cli_bootstrap_explains_missing_principles_key(
     out = run_cli("bootstrap", str(tmp_path))
     assert_explained(
         out,
-        'docs/principles.toml: components[0] ("ml").commands.setup is missing',
-        "git checkout docs/principles.toml",
+        'docs/alpha/principles.toml: components[0] ("ml").commands.setup is missing',
+        "git checkout docs/alpha/principles.toml",
     )
 
 
@@ -894,12 +905,12 @@ def test_bootstrap_runs_a_drafted_recipe(
     project = tmp_path / "proj"
     shell_project(project)
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {}, ('mise',))}:/usr/bin:/bin")
-    principles = tomllib.loads((project / "docs/principles.toml").read_text())
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
     bootstrap(project, principles)
 
 
 @pytest.mark.parametrize(
-    "path", ["CLAUDE.md", "docs/principles.toml", ".gitignore", "README.md"]
+    "path", ["CLAUDE.md", "docs/alpha/principles.toml", ".gitignore", "README.md"]
 )
 def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: str):
     data = json.loads((SCENARIOS / "python-ml-single.json").read_text())
@@ -964,9 +975,9 @@ def test_bootstrap_rejects_malformed_principles_with_component_and_fix(
     edit_principles(tmp_path, edit)
     done = run_cli("bootstrap", str(tmp_path))
     assert done.returncode == 1
-    path = tmp_path / "docs/principles.toml"
+    path = tmp_path / "docs/alpha/principles.toml"
     assert done.stderr.startswith(f"{path}: {problem}"), done.stderr
-    assert "git checkout docs/principles.toml" in done.stderr
+    assert "git checkout docs/alpha/principles.toml" in done.stderr
     assert "Traceback" not in done.stderr
 
 
@@ -988,5 +999,5 @@ def test_bootstrap_rejects_a_baseline_without_an_id(
     edit_principles(tmp_path, lambda d: d.update(baselines=[{"check": "lint"}]))
     done = run_cli("bootstrap", str(tmp_path))
     assert done.returncode == 1
-    assert "docs/principles.toml: baselines[0].id is missing" in done.stderr
+    assert "docs/alpha/principles.toml: baselines[0].id is missing" in done.stderr
     assert "Traceback" not in done.stderr

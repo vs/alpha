@@ -31,12 +31,12 @@ def principles_problem(path: Path) -> str | None:
             tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
         return (
-            f"docs/principles.toml is not valid TOML: {e}. Fix the file (it is the "
-            "single source of truth for alpha's checks), or restore it with "
-            '"git checkout docs/principles.toml".'
+            f"docs/alpha/principles.toml is not valid TOML: {e}. Fix the file (it is "
+            "the single source of truth for alpha's checks), or restore it with "
+            '"git checkout docs/alpha/principles.toml".'
         )
     except OSError as e:
-        return f"docs/principles.toml is unreadable: {e}. Check its permissions."
+        return f"docs/alpha/principles.toml is unreadable: {e}. Check its permissions."
     return None
 
 
@@ -103,7 +103,7 @@ def hook_problem(root: Path, principles: dict[str, Any]) -> str | None:
 def main() -> None:
     inp = _common.read_input()
     root = _common.project_root(inp)
-    principles = root / "docs" / "principles.toml"
+    principles = root / "docs" / "alpha" / "principles.toml"
     if not principles.is_file():
         sys.exit(0)
     problem = _common.python_problem()

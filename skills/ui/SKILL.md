@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-A UI built from a declared set of tools stays consistent and cheap to change ("A deliberate visual system"). This area names that set for every component with a UI: frontends and mobile apps always, plus any component with `traits.has_ui`. With no UI there is nothing to decide: say so in one line, save the empty answer, and finish. Projects with a UI get a UI section in `docs/specification.md`, and the tokens file becomes a risk path the reviewer looks at closely.
+A UI built from a declared set of tools stays consistent and cheap to change ("A deliberate visual system"). This area names that set for every component with a UI: frontends and mobile apps always, plus any component with `traits.has_ui`. With no UI there is nothing to decide: say so in one line, save the empty answer, and finish. Projects with a UI get a UI section in `docs/alpha/specification.md`, and the tokens file becomes a risk path the reviewer looks at closely.
 
 ## Fields this area settles
 

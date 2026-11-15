@@ -214,10 +214,10 @@ def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env: None):
     data["git"]["scopes"].append("deps")
     save(target, data)
     p = plan(target)
-    assert kinds(p)["docs/principles.toml"] == "change"
+    assert kinds(p)["docs/alpha/principles.toml"] == "change"
     assert kinds(p)["CLAUDE.md"] == "merge"
     apply_update(target, p)
-    assert '"infra/**"' in (target / "docs/principles.toml").read_text()
+    assert '"infra/**"' in (target / "docs/alpha/principles.toml").read_text()
     text = claude_md.read_text()
     assert text.endswith("Team rule: ask before deploys.\n")
     assert "scopes: api, web, deps," in text
@@ -234,7 +234,7 @@ def test_settling_an_open_area_applies_it(tmp_path: Path, git_env: None):
     generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, TODAY)
     git(tmp_path, "init", "-q", "-b", "main")
     commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
-    spec = tmp_path / "docs/specification.md"
+    spec = tmp_path / "docs/alpha/specification.md"
     assert "## UI" not in spec.read_text()
     visual = next(
         x
@@ -264,7 +264,7 @@ def test_overlapping_edit_leaves_the_file_and_writes_a_proposal(
     tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
-    principles = target / "docs/principles.toml"
+    principles = target / "docs/alpha/principles.toml"
     edited = principles.read_text().replace(
         "risk_paths = [", 'risk_paths = ["ops/**", ', 1
     )
@@ -274,10 +274,13 @@ def test_overlapping_edit_leaves_the_file_and_writes_a_proposal(
     data["agent_workflow"]["extra_risk_paths"].append("infra/**")
     save(target, data)
     p = plan(target)
-    assert kinds(p)["docs/principles.toml"] == "conflict"
+    assert kinds(p)["docs/alpha/principles.toml"] == "conflict"
     apply_update(target, p)
     assert principles.read_text() == edited
-    assert "<<<<<<< yours" in (target / PROPOSALS / "docs/principles.toml").read_text()
+    assert (
+        "<<<<<<< yours"
+        in (target / PROPOSALS / "docs/alpha/principles.toml").read_text()
+    )
     assert "merge by hand" in describe(p, target)
 
 
@@ -320,12 +323,12 @@ def test_added_component_gets_templates_ci_and_dated_rows(
     assert kinds(p)["worker/pyproject.toml"] == "new"
     assert kinds(p)[WORKFLOW] == "change"
     assert "worker" in text_of(p, WORKFLOW)
-    rows = text_of(p, "docs/dependencies.md").splitlines()
+    rows = text_of(p, "docs/alpha/dependencies.md").splitlines()
     worker = [r for r in rows if r.startswith("| ") and " | worker | " in r]
     api = [r for r in rows if r.startswith("| ") and " | api | " in r]
     assert worker and all(r.endswith("| 2026-11-02 |") for r in worker)
     assert api and all(r.endswith("| 2026-10-19 |") for r in api)
-    assert 'name = "worker"' in text_of(p, "docs/principles.toml")
+    assert 'name = "worker"' in text_of(p, "docs/alpha/principles.toml")
     assert "alpha bootstrap" in describe(p, target)
 
 
@@ -370,14 +373,14 @@ def test_removing_a_component_with_a_scoped_override_plans_cleanly(
     save(target, data)
     p = plan(target)
     assert OVERRIDE_ROW in text_of(p, "CONTRIBUTING.md")
-    principles = text_of(p, "docs/principles.toml")
+    principles = text_of(p, "docs/alpha/principles.toml")
     assert "loosen (component:api)" not in principles
     apply_update(target, p)
     commit_the_update(target)
     data = answers(target)
     smaller_reviews(data)
     save(target, data)
-    assert kinds(plan(target))["docs/principles.toml"] == "change"
+    assert kinds(plan(target))["docs/alpha/principles.toml"] == "change"
 
 
 def test_renaming_a_component_leaves_its_override_inert(tmp_path: Path, git_env: None):
@@ -391,7 +394,7 @@ def test_renaming_a_component_leaves_its_override_inert(tmp_path: Path, git_env:
     ] = ["backend"]
     save(target, data)
     p = plan(target)
-    assert "loosen (component:api)" not in text_of(p, "docs/principles.toml")
+    assert "loosen (component:api)" not in text_of(p, "docs/alpha/principles.toml")
 
 
 def test_override_for_a_component_that_never_existed_is_refused(
@@ -444,14 +447,14 @@ def test_applied_update_becomes_the_new_baseline(tmp_path: Path, git_env: None):
     assert after["manifest"]["updated_at"] == "2026-11-02"
     state = json.loads((target / UPDATE_STATE).read_text())
     assert "before_tree" in state
-    assert state["groups"]["docs/principles.toml"] == "docs"
+    assert state["groups"]["docs/alpha/principles.toml"] == "docs"
     (target / UPDATE_STATE).unlink()
     assert describe(plan(target), target) == "alpha update: nothing to change"
 
 
 def test_update_refuses_while_an_update_awaits_commit(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
-    principles = target / "docs/principles.toml"
+    principles = target / "docs/alpha/principles.toml"
     principles.write_text(
         principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
@@ -463,7 +466,7 @@ def test_update_refuses_while_an_update_awaits_commit(tmp_path: Path, git_env: N
     with pytest.raises(GenerateError, match="An update is waiting to be committed"):
         plan(target)
     assert (target / UPDATE_STATE).is_file()
-    assert (target / PROPOSALS / "docs/principles.toml").is_file()
+    assert (target / PROPOSALS / "docs/alpha/principles.toml").is_file()
 
 
 def test_update_with_nothing_to_change_writes_nothing(tmp_path: Path, git_env: None):
@@ -486,7 +489,7 @@ def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env: 
     )
     assert out.returncode == 0, out.stderr
     assert "alpha update: 1 file to change" in out.stdout
-    assert "--- a/docs/principles.toml" in out.stdout.splitlines()
+    assert "--- a/docs/alpha/principles.toml" in out.stdout.splitlines()
     assert git(target, "status", "--porcelain") == f"M {PROJECT_JSON}"
 
 
@@ -577,7 +580,7 @@ def test_commit_update_without_an_update_is_explained(tmp_path: Path, git_env: N
 
 def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
-    principles = target / "docs/principles.toml"
+    principles = target / "docs/alpha/principles.toml"
     principles.write_text(
         principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
@@ -588,13 +591,13 @@ def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env: None):
     apply_update(target, plan(target))
     _, notes = commit_the_update(target)
     assert notes == [
-        "docs/principles.toml: alpha's change wasn't merged in (proposal: "
-        ".claude/alpha/state/update/docs/principles.toml)."
+        "docs/alpha/principles.toml: alpha's change wasn't merged in (proposal: "
+        ".claude/alpha/state/update/docs/alpha/principles.toml)."
     ]
 
 
 def conflicting_update(target: Path) -> Path:
-    principles = target / "docs/principles.toml"
+    principles = target / "docs/alpha/principles.toml"
     principles.write_text(
         principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
@@ -612,7 +615,7 @@ def test_commit_update_keeps_proposals_of_unmerged_conflicts(
     target = generated_repo(tmp_path, SCENARIO)
     conflicting_update(target)
     commit_the_update(target)
-    assert (target / PROPOSALS / "docs/principles.toml").is_file()
+    assert (target / PROPOSALS / "docs/alpha/principles.toml").is_file()
     assert not (target / UPDATE_STATE).exists()
 
 
@@ -623,7 +626,7 @@ def test_update_state_labels_conflict_digests(tmp_path: Path, git_env: None):
     principles = conflicting_update(target)
     state = json.loads((target / UPDATE_STATE).read_text())
     assert state["conflicts"] == {
-        "docs/principles.toml": "sha256:"
+        "docs/alpha/principles.toml": "sha256:"
         + hashlib.sha256(principles.read_bytes()).hexdigest()
     }
 
@@ -641,7 +644,7 @@ def test_commit_update_reads_a_pre_label_state_file(tmp_path: Path, git_env: Non
     state_file.write_text(json.dumps(state))
     _, notes = commit_the_update(target)
     assert [n for n in notes if "wasn't merged" in n]
-    assert (target / PROPOSALS / "docs/principles.toml").is_file()
+    assert (target / PROPOSALS / "docs/alpha/principles.toml").is_file()
 
 
 def test_commit_update_deletes_proposals_of_merged_conflicts(
@@ -659,11 +662,11 @@ def test_later_update_leaves_an_earlier_kept_proposal(tmp_path: Path, git_env: N
     target = generated_repo(tmp_path, SCENARIO)
     conflicting_update(target)
     commit_the_update(target)
-    kept = (target / PROPOSALS / "docs/principles.toml").read_bytes()
+    kept = (target / PROPOSALS / "docs/alpha/principles.toml").read_bytes()
     data = answers(target)
     save(target, data)
     apply_update(target, plan(target))
-    assert (target / PROPOSALS / "docs/principles.toml").read_bytes() == kept
+    assert (target / PROPOSALS / "docs/alpha/principles.toml").read_bytes() == kept
 
 
 def test_apply_update_absorbs_alphas_changes_into_review(
@@ -789,7 +792,7 @@ def test_commit_update_new_root_component_commits_alphas_files_and_the_lockfile(
 
 def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
-    principles = target / "docs/principles.toml"
+    principles = target / "docs/alpha/principles.toml"
     principles.write_text(
         principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
@@ -829,7 +832,7 @@ def test_update_of_a_current_project_keeps_the_plain_notes(
     target = generated_repo(tmp_path, SCENARIO)
     (target / "CONTRIBUTING.md").unlink()
     commit(target, "docs: Drop the contributing guide")
-    principles = target / "docs/principles.toml"
+    principles = target / "docs/alpha/principles.toml"
     principles.write_text(
         principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
@@ -841,7 +844,7 @@ def test_update_of_a_current_project_keeps_the_plain_notes(
     save(target, data)
     out = describe(plan(target), target)
     assert (
-        "  conflict  docs/principles.toml (your edits overlap alpha's change: "
+        "  conflict  docs/alpha/principles.toml (your edits overlap alpha's change: "
         "merge by hand)"
     ) in out
     assert "  skipped   CONTRIBUTING.md (you deleted it: alpha's change to it " in out
@@ -869,7 +872,7 @@ def test_a_project_from_before_the_design_language_area_can_define_one(
     generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, date(2026, 10, 19))
     git(tmp_path, "init", "-q", "-b", "main")
     commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
-    assert not (tmp_path / "docs/design-language.md").exists()
+    assert not (tmp_path / "docs/alpha/design-language.md").exists()
     assert "design language" not in (tmp_path / "CLAUDE.md").read_text().lower()
     assert kinds(plan(tmp_path)) == {}
 
@@ -879,8 +882,8 @@ def test_a_project_from_before_the_design_language_area_can_define_one(
     save(tmp_path, data)
     p = plan(tmp_path)
     found = kinds(p)
-    assert found["docs/design-language.md"] == "new"
-    assert found["docs/principles.toml"] == "change"
+    assert found["docs/alpha/design-language.md"] == "new"
+    assert found["docs/alpha/principles.toml"] == "change"
     assert "- **One design language**: " in text_of(p, "CLAUDE.md")
-    assert '"docs/design-language.md"' in text_of(p, "docs/principles.toml")
+    assert '"docs/alpha/design-language.md"' in text_of(p, "docs/alpha/principles.toml")
     assert "docs/decisions" not in " ".join(kinds(p))

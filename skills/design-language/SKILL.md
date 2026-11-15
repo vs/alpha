@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-A design language is the one look every visual of the project shares: the diagrams and charts in its docs, its images, and its UI ("One design language"). This area is optional, and the choice is the user's. Defined, it becomes `docs/design-language.md`, a principle the reviewer checks every changed visual against (CLAUDE.md states it and names the page), and the source the UI area's tokens, typography and icons come from. Which files count as visuals comes from `defaults.design_language.visuals` and lands as `[visuals]` in `docs/principles.toml`, with the user's third-party paths excluded. It is guidance with room for deliberate exceptions, not a wall: how firmly colors are held is the user's choice. Skipped, alpha writes none of that, and enforces and recommends nothing about how visuals look.
+A design language is the one look every visual of the project shares: the diagrams and charts in its docs, its images, and its UI ("One design language"). This area is optional, and the choice is the user's. Defined, it becomes `docs/alpha/design-language.md`, a principle the reviewer checks every changed visual against (CLAUDE.md states it and names the page), and the source the UI area's tokens, typography and icons come from. Which files count as visuals comes from `defaults.design_language.visuals` and lands as `[visuals]` in `docs/alpha/principles.toml`, with the user's third-party paths excluded. It is guidance with room for deliberate exceptions, not a wall: how firmly colors are held is the user's choice. Skipped, alpha writes none of that, and enforces and recommends nothing about how visuals look.
 
 ## Fields this area settles
 

@@ -34,7 +34,7 @@ def section(text: str, title: str) -> str:
 
 
 def spec(out: dict[str, str]) -> str:
-    return out["docs/specification.md"]
+    return out["docs/alpha/specification.md"]
 
 
 def contributing(out: dict[str, str]) -> str:
@@ -79,10 +79,10 @@ def test_single_component_has_no_contracts(tmp_path: Path):
 
 def test_glossary_written_when_terms_exist(tmp_path: Path):
     out = render(load(tmp_path))
-    glossary = out["docs/glossary.md"]
+    glossary = out["docs/alpha/glossary.md"]
     assert glossary.startswith("# Glossary\n")
     assert glossary.index("| Intact |") < glossary.index("| Payload |")
-    assert "- [Glossary](docs/glossary.md)" in out["CLAUDE.md"]
+    assert "- [Glossary](docs/alpha/glossary.md)" in out["CLAUDE.md"]
 
 
 def test_no_glossary_for_one_component_without_jargon(tmp_path: Path):
@@ -91,7 +91,7 @@ def test_no_glossary_for_one_component_without_jargon(tmp_path: Path):
         data["architecture"]["glossary"] = []
 
     out = render(load(tmp_path, mutate=one))
-    assert "docs/glossary.md" not in out
+    assert "docs/alpha/glossary.md" not in out
     assert "Glossary" not in out["CLAUDE.md"]
 
 
@@ -99,7 +99,7 @@ def test_glossary_with_two_components_and_no_terms_yet(tmp_path: Path):
     def empty(data: dict[str, Any]) -> None:
         data["architecture"]["glossary"] = []
 
-    glossary = render(load(tmp_path, mutate=empty))["docs/glossary.md"]
+    glossary = render(load(tmp_path, mutate=empty))["docs/alpha/glossary.md"]
     assert "Add terms as they come up" in glossary
 
 
@@ -151,7 +151,7 @@ def test_security_doc_with_nothing_deployed(tmp_path: Path):
 
 
 def test_dependency_policy_precedes_the_log(tmp_path: Path):
-    doc = render(load(tmp_path))["docs/dependencies.md"]
+    doc = render(load(tmp_path))["docs/alpha/dependencies.md"]
     policy = section(doc, "Policy")
     assert "Adding:" in policy and "Pinning:" in policy
     assert "Dependabot opens weekly update pull requests" in policy
@@ -172,7 +172,7 @@ def test_dependabot_policy_without_ci_leaves_out_the_actions(tmp_path: Path):
         )
 
     policy = section(
-        render(load(tmp_path, mutate=mutate))["docs/dependencies.md"], "Policy"
+        render(load(tmp_path, mutate=mutate))["docs/alpha/dependencies.md"], "Policy"
     )
     assert "Dependabot opens weekly update pull requests, per component." in policy
     assert "CI actions" not in policy
@@ -182,7 +182,7 @@ def test_manual_updates_policy(tmp_path: Path):
     def manual(data: dict[str, Any]) -> None:
         data["dependencies"] = {"updates": "manual", "schedule": "monthly"}
 
-    doc = render(load(tmp_path, mutate=manual))["docs/dependencies.md"]
+    doc = render(load(tmp_path, mutate=manual))["docs/alpha/dependencies.md"]
     assert "Upgrades are manual: check for updates monthly." in doc
 
 
@@ -360,7 +360,7 @@ def test_claude_md_links_the_specification_and_contributing(tmp_path: Path):
     out = render(load(tmp_path))
     claude = out["CLAUDE.md"]
     for link in (
-        "- [Specification](docs/specification.md)",
+        "- [Specification](docs/alpha/specification.md)",
         "- [Contributing](CONTRIBUTING.md)",
         "- [Changelog](CHANGELOG.md)",
     ):
@@ -375,7 +375,7 @@ def skip_design_language(data: dict[str, Any]) -> None:
 
 def test_design_language_doc_declares_every_part(tmp_path: Path):
     out = render(load(tmp_path))
-    doc = out["docs/design-language.md"]
+    doc = out["docs/alpha/design-language.md"]
     assert doc.startswith("# Design language\n")
     assert "It guides; it isn't a wall." in doc
     assert "a deliberate exception passes, drift is a finding" in doc
@@ -399,13 +399,13 @@ def test_design_language_doc_names_a_fuller_guide(tmp_path: Path):
     def with_guide(data: dict[str, Any]) -> None:
         data["design_language"]["source"] = "docs/brand/guide.pdf"
 
-    doc = render(load(tmp_path, mutate=with_guide))["docs/design-language.md"]
+    doc = render(load(tmp_path, mutate=with_guide))["docs/alpha/design-language.md"]
     assert "The full guide: docs/brand/guide.pdf." in section(doc, "Source")
 
 
 def test_a_skipped_design_language_writes_nothing_about_visuals(tmp_path: Path):
     out = render(load(tmp_path, mutate=skip_design_language))
-    assert "docs/design-language.md" not in out
+    assert "docs/alpha/design-language.md" not in out
     assert "design language" not in section(spec(out), "UI")
     claude = out["CLAUDE.md"]
     assert "design language" not in claude.lower()
@@ -416,5 +416,5 @@ def test_design_language_doc_says_when_the_palette_is_enforced(tmp_path: Path):
     def enforce(data: dict[str, Any]) -> None:
         data["design_language"]["palette_check"] = "enforce"
 
-    doc = render(load(tmp_path, mutate=enforce))["docs/design-language.md"]
+    doc = render(load(tmp_path, mutate=enforce))["docs/alpha/design-language.md"]
     assert "the `palette` check (`mise run check:palette`) fails on a color" in doc

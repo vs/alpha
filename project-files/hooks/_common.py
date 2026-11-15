@@ -23,7 +23,7 @@ from typing import Any, NamedTuple, NoReturn, cast
 
 STATE_DIR = ".claude/alpha/state"
 BASELINE_DIR = ".claude/alpha/baselines"  # spec §8b; only shrinks
-PRINCIPLES = "docs/principles.toml"
+PRINCIPLES = "docs/alpha/principles.toml"
 NOT_FOUND = 127
 TAIL_LINES = 60
 
@@ -172,7 +172,7 @@ def project_root(inp: dict[str, Any], path: str | None = None) -> Path:
 
 
 def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:
-    path = root / "docs" / "principles.toml"
+    path = root / "docs" / "alpha" / "principles.toml"
     if not path.is_file():
         return None
     import tomllib  # noqa: PLC0415 - absent on 3.9; check_python() has exited by then
@@ -182,9 +182,9 @@ def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:
             return tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
         print(
-            f"docs/principles.toml is not valid TOML: {e}. Fix the file (it is the "
-            "single source of truth for alpha's checks), or restore it with "
-            '"git checkout docs/principles.toml".',
+            f"docs/alpha/principles.toml is not valid TOML: {e}. Fix the file (it is "
+            "the single source of truth for alpha's checks), or restore it with "
+            '"git checkout docs/alpha/principles.toml".',
             file=sys.stderr,
         )
         sys.exit(fail_code)
@@ -466,7 +466,7 @@ def writing_principles(principles: dict[str, Any]) -> list[str]:
 
 def context_text(root: Path, principles: dict[str, Any]) -> str:
     lines = [
-        "alpha: what the product does is in docs/specification.md and how the "
+        "alpha: what the product does is in docs/alpha/specification.md and how the "
         "work is done in CONTRIBUTING.md; read the parts that bear on your change "
         "before changing anything, and record a decision there with the decision "
         "skill."
@@ -480,7 +480,10 @@ def context_text(root: Path, principles: dict[str, Any]) -> str:
         lines += ["Principle overrides:", *(f"- {o}" for o in overrides)]
     writing = writing_principles(principles)
     if writing:
-        lines += ["Write code by these principles (docs/principles.toml):", *writing]
+        lines += [
+            "Write code by these principles (docs/alpha/principles.toml):",
+            *writing,
+        ]
     return "\n".join(lines)
 
 
@@ -532,7 +535,7 @@ def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
             "write or delete it. Read it if you need to; ask the user if it's wrong."
         )
     head = (
-        f"{rel} is protected (`{glob}` in docs/principles.toml), so Claude can't "
+        f"{rel} is protected (`{glob}` in docs/alpha/principles.toml), so Claude can't "
         "edit it."
     )
     if rel.startswith(f"{BASELINE_DIR}/"):

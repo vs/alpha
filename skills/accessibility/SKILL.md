@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Every UI must work with a keyboard and assistive technology ("Accessibility"), and that is far cheaper to build in than to retrofit. This area sets the target level and the automated checks that keep each UI there. It covers the same components as the UI area. With no UI there is nothing to decide: say so in one line, save the empty answer, and finish. The target and checks go into the UI section of `docs/specification.md` and the accessibility principle.
+Every UI must work with a keyboard and assistive technology ("Accessibility"), and that is far cheaper to build in than to retrofit. This area sets the target level and the automated checks that keep each UI there. It covers the same components as the UI area. With no UI there is nothing to decide: say so in one line, save the empty answer, and finish. The target and checks go into the UI section of `docs/alpha/specification.md` and the accessibility principle.
 
 ## Fields this area settles
 

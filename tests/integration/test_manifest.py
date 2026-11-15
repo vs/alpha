@@ -25,7 +25,7 @@ def test_dependency_rows_use_each_components_added_date():
     )
     rows = [
         line
-        for line in out["docs/dependencies.md"].splitlines()
+        for line in out["docs/alpha/dependencies.md"].splitlines()
         if line.startswith("| ") and line.endswith("|")
     ]
     api = [r for r in rows if "| api |" in r]

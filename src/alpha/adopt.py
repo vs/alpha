@@ -278,7 +278,7 @@ def _uncommitted(target: Path) -> list[str]:
 # Paths alpha writes and commits; a repo that ignores them can't take alpha.
 _MUST_TRACK = (
     "CLAUDE.md",
-    "docs/principles.toml",
+    "docs/alpha/principles.toml",
     "mise.toml",
     SETTINGS,
     PROJECT_JSON,

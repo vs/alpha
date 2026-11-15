@@ -86,7 +86,7 @@ def test_anything_but_the_bare_command_changes_nothing(
 
 
 def test_silent_outside_alpha_projects(project: Project) -> None:
-    (project.root / "docs/principles.toml").unlink()
+    (project.root / "docs/alpha/principles.toml").unlink()
     proc = prompt(project, "accept F-aaa111")
     assert proc.returncode == 0 and proc.stdout == ""
 

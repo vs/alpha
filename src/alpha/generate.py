@@ -38,7 +38,7 @@ from alpha.render.tooling import MISE, render_tooling
 from alpha.repo_checks import repo_checks
 from alpha.shell import run_command
 
-PRINCIPLES_TOML = "docs/principles.toml"
+PRINCIPLES_TOML = "docs/alpha/principles.toml"
 _ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
 _ALLOWED_DIRS = frozenset({".claude", ".claude/alpha"})
 _TAIL_LINES = 40

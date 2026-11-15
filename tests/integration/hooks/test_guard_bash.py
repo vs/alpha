@@ -119,7 +119,7 @@ def test_non_bash_tool_ignored(project: Project) -> None:
 
 
 def test_not_an_alpha_project_ignored(project: Project) -> None:
-    (project.root / "docs" / "principles.toml").unlink()
+    (project.root / "docs" / "alpha" / "principles.toml").unlink()
     assert bash(project, "git push -f").returncode == 0
 
 
@@ -598,7 +598,7 @@ def test_commands_that_sweep_up_shared_work_are_blocked(
         "git reset --soft HEAD~1",
         "git checkout main",
         "git checkout -b topic",
-        "git checkout docs/principles.toml",
+        "git checkout docs/alpha/principles.toml",
         "git checkout 1a2b3c -- api/migrations/0001_create_uploads.sql",
         "git restore api/app/main.py",
         "git restore --staged .",

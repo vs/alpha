@@ -67,7 +67,7 @@ def test_r8_a_feature_needs_an_approved_spec_before_tests_and_code():
     """R8: the feature spec names a test per check and is approved before any code."""
     text = _playbook("feature.md")
     steps = re.findall(r"^(\d+)\. (.*)$", text, re.M)
-    spec = next(int(n) for n, s in steps if "docs/specs/<YYYY-MM-DD>-" in s)
+    spec = next(int(n) for n, s in steps if "docs/alpha/features/<YYYY-MM-DD>-" in s)
     approval = next(int(n) for n, s in steps if "approval of the spec, every time" in s)
     build = next(int(n) for n, s in steps if s.startswith("Build the tasks"))
     assert spec < approval < build
@@ -96,7 +96,7 @@ def test_the_spec_template_traces_each_check_to_a_test():
     assert "| ID | Requirement | Acceptance check | Test |" in template
     for heading in ("## Why", "## Requirements", "## Plan", "## Decisions"):
         assert heading in template
-    assert "Serves: R<n> in docs/specification.md" in template
+    assert "Serves: R<n> in docs/alpha/specification.md" in template
 
 
 def test_worktrees_prefer_the_harness_tool_and_an_ignored_folder():

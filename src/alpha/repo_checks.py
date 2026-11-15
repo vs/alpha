@@ -1,6 +1,6 @@
 """Repository checks: tools that look at the whole repo, not one component.
 
-Built from the answers, recorded in docs/principles.toml (all but the scheduled
+Built from the answers, recorded in docs/alpha/principles.toml (all but the scheduled
 ones) and pinned in the project's root mise.toml.
 """
 
@@ -256,7 +256,7 @@ def _through_ratchet(check: RepoCheck, baselined: tuple[str, ...]) -> RepoCheck:
 
 
 def principles_entries(checks: list[RepoCheck]) -> list[dict[str, Any]]:
-    """The `[[repo_checks]]` of docs/principles.toml: every check CI runs on a
+    """The `[[repo_checks]]` of docs/alpha/principles.toml: every check CI runs on a
     pull request, as the mise task that runs it."""
     return [
         {

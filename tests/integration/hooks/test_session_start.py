@@ -54,21 +54,21 @@ def test_no_hooks_path_warning_without_shim(project: Project) -> None:
 
 
 def test_no_hooks_path_warning_without_principles(project: Project) -> None:
-    (project.root / "docs" / "principles.toml").unlink()
+    (project.root / "docs" / "alpha" / "principles.toml").unlink()
     install_shim(project)
     assert start(project).stdout == ""
 
 
 def test_malformed_principles_warns(project: Project) -> None:
-    project.write("docs/principles.toml", "not = [valid")
+    project.write("docs/alpha/principles.toml", "not = [valid")
     text = context(start(project).stdout)
-    assert "docs/principles.toml is not valid TOML" in text
+    assert "docs/alpha/principles.toml is not valid TOML" in text
     assert "git checkout" in text
 
 
 def test_multiple_warnings_are_combined(project: Project) -> None:
     install_shim(project)
-    project.write("docs/principles.toml", "not = [valid")
+    project.write("docs/alpha/principles.toml", "not = [valid")
     text = context(start(project).stdout)
     assert "core.hooksPath" in text
     assert "not valid TOML" in text
@@ -142,7 +142,7 @@ def test_old_python_warns_that_hooks_are_off(project: Project) -> None:
 
 
 def test_old_python_is_silent_outside_alpha_projects(project: Project) -> None:
-    (project.root / "docs" / "principles.toml").unlink()
+    (project.root / "docs" / "alpha" / "principles.toml").unlink()
     result = project.run_hook("session_start.py", {}, python=OLD_PYTHON)
     assert result.returncode == 0 and result.stdout == ""
 

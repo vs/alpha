@@ -16,7 +16,7 @@ exclude = ["**/node_modules/**", "docs/partners/**"]
 
 def repo(tmp_path: Path, files: dict[str, str], mode: str = "enforce") -> Path:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    files = {"docs/principles.toml": PRINCIPLES.format(mode=mode), **files}
+    files = {"docs/alpha/principles.toml": PRINCIPLES.format(mode=mode), **files}
     for rel, text in files.items():
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,7 +131,7 @@ def test_an_enforced_palette_with_no_readable_color_fails_with_a_fix(
     tmp_path: Path,
 ) -> None:
     root = repo(tmp_path, {"web/app.css": "a { color: #ff00aa }\n"})
-    (root / "docs/principles.toml").write_text(
+    (root / "docs/alpha/principles.toml").write_text(
         '[visuals]\npalette_check = "enforce"\npalette = ["oklch(0.5 0.2 260)"]\n'
         'palette_files = ["**/*.css"]\n'
     )
@@ -159,7 +159,7 @@ def test_indented_sass_reads_values_and_skips_selectors(tmp_path: Path) -> None:
     sheet = "#feed\n  color: #ff00aa\n  a:hover\n    color: #0b5fff\n"
     files = {"web/app.sass": sheet}
     root = repo(tmp_path, files)
-    (root / "docs/principles.toml").write_text(
+    (root / "docs/alpha/principles.toml").write_text(
         PRINCIPLES.format(mode="enforce").replace('"**/*.css"', '"**/*.sass"')
     )
     done = run(root)
@@ -171,7 +171,7 @@ def test_a_sass_interpolation_opens_no_block(tmp_path: Path) -> None:
     sheet = ".a\n  color: #ff00aa\n.b\n  width: calc(100% - #{$gap})\n"
     scss = ".a { border: 1px solid #123456 #{$style}; }\n"
     root = repo(tmp_path, {"web/app.sass": sheet, "web/app.css": scss})
-    (root / "docs/principles.toml").write_text(
+    (root / "docs/alpha/principles.toml").write_text(
         PRINCIPLES.format(mode="enforce").replace(
             '"**/*.css"', '"**/*.css", "**/*.sass"'
         )
@@ -190,8 +190,8 @@ def test_a_value_after_a_selector_on_one_line_is_still_read(tmp_path: Path) -> N
 
 def test_an_unreadable_principles_file_stops_with_a_fix(tmp_path: Path) -> None:
     root = repo(tmp_path, {})
-    (root / "docs/principles.toml").write_text("[visuals\n")
+    (root / "docs/alpha/principles.toml").write_text("[visuals\n")
     done = run(root)
     assert done.returncode == 2
-    assert "docs/principles.toml can't be read" in done.stdout
-    assert "git checkout docs/principles.toml" in done.stdout
+    assert "docs/alpha/principles.toml can't be read" in done.stdout
+    assert "git checkout docs/alpha/principles.toml" in done.stdout

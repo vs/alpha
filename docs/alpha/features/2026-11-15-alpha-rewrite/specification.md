@@ -231,9 +231,8 @@ src/alpha/
   kit.py            defaults, user layer, registry, recipes (loading)
   recipes.py        recipe model, templates, drafted recipes, local proofs
   principles.py     the principles table
-  render/           one module per output: principles, claude_md, contributing,
-                    readme, specification, settings, gitignore, tooling, ci,
-                    components; render/__init__.py assembles the full render
+  render/           docs.py and area_docs.py (the docs), tooling.py, ci.py,
+                    claude_settings.py
   apply.py          plan, merge, write
   rendered.py       the render commits, their notes, finding the base
   merge.py          three-way merge, line and JSON unions

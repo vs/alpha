@@ -16,7 +16,7 @@ def test_decision_skill_routes_each_kind_into_the_docs():
     text = DECISION.read_text()
     routes = text.split("## 1. Where it goes")[1].split("\n## ")[0]
     for piece in (
-        "`docs/specification.md`",
+        "`docs/alpha/specification.md`",
         "`CONTRIBUTING.md`",
         "An override in the answers",
         "Exceptions table",

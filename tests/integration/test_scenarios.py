@@ -79,7 +79,7 @@ def git_log_subjects(cwd: Path) -> list[str]:
 
 
 def principles_of(target: Path) -> dict[str, Any]:
-    return tomllib.loads((target / "docs" / "principles.toml").read_text())
+    return tomllib.loads((target / "docs" / "alpha" / "principles.toml").read_text())
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
@@ -89,7 +89,7 @@ def test_scenario_skeleton(
     files = generate_scenario(tmp_path, scenario)
     for f in [
         "CLAUDE.md",
-        "docs/principles.toml",
+        "docs/alpha/principles.toml",
         ".claude/settings.json",
         ".claude/alpha/hooks/stop_checks.py",
         ".claude/skills/commit/SKILL.md",
@@ -216,7 +216,9 @@ def test_commit_skeleton_goes_through_the_real_commit_msg_hook(
     generate_scenario(tmp_path, "python-ml-single")
     data = principles_of(tmp_path)
     data["git"]["types"] = ["feat"]
-    (tmp_path / "docs" / "principles.toml").write_text(render_principles(data))
+    (tmp_path / "docs" / "alpha" / "principles.toml").write_text(
+        render_principles(data)
+    )
     with pytest.raises(GenerateError, match=r'unknown type "docs"') as err:
         commit_skeleton(tmp_path, data, [])
     assert "alpha commit-skeleton" in str(err.value)
@@ -228,7 +230,9 @@ def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     data = principles_of(tmp_path)
     data["git"]["scopes"] = ["backend", "web"]
-    (tmp_path / "docs" / "principles.toml").write_text(render_principles(data))
+    (tmp_path / "docs" / "alpha" / "principles.toml").write_text(
+        render_principles(data)
+    )
     commit_skeleton(tmp_path, data, [])
     assert git_log_subjects(tmp_path) == [
         "ci: Schedule dependency updates",
@@ -248,7 +252,7 @@ def test_commit_skeleton_rerun_finishes_after_a_partial_failure(
     generate_scenario(tmp_path, "python-ml-single")
     data = principles_of(tmp_path)
     data["git"]["types"] = ["docs", "chore"]
-    principles = tmp_path / "docs" / "principles.toml"
+    principles = tmp_path / "docs" / "alpha" / "principles.toml"
     principles.write_text(render_principles(data))
     with pytest.raises(GenerateError, match=r'unknown type "build"'):
         commit_skeleton(tmp_path, data, [])
@@ -350,7 +354,9 @@ def test_generated_hooks_enforce_the_generated_principles(
     started = hook("SessionStart", None, {"source": "startup"})
     assert started.returncode == 0, started.stderr
     told = json.loads(started.stdout)["hookSpecificOutput"]["additionalContext"]
-    assert told.startswith("alpha: what the product does is in docs/specification.md")
+    assert told.startswith(
+        "alpha: what the product does is in docs/alpha/specification.md"
+    )
     assert "- tests-first-class: drop (component:web)" in told
 
     edit: dict[str, Any] = {
