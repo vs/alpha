@@ -86,7 +86,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 
 - **alpha-python:uv-for-dependencies**: Add and remove dependencies with `uv add` and `uv remove`, never by editing the dependency lists in `pyproject.toml` or with `pip`.
 - **alpha-python:typed-boundaries**: Parse external input (JSON, files, environment, requests) into dataclasses or typed models at the boundary; don't pass `dict[str, Any]` inward.
-- **alpha-python:import-contracts**: Once a component has more than one package, add import-linter contracts for the layers `docs/architecture.md` names, and add `lint-imports` to its `structure` command.
+- **alpha-python:import-contracts**: Once a component has more than one package, add import-linter contracts for the layers the architecture in `docs/specification.md` names, and add `lint-imports` to its `structure` command.
 
 ## Commands
 
@@ -124,17 +124,11 @@ Follow the commit skill (`.claude/skills/commit/SKILL.md`, which the user runs a
 ## Docs
 
 - [Principles](docs/principles.toml)
-- [Product](docs/product.md)
-- [Architecture](docs/architecture.md)
-- [Build, CI and hosting](docs/build.md)
-- [Security](docs/security.md)
+- [Specification](docs/specification.md): what the product does, settled as the work needs it; each feature adds its own spec in `docs/specs/`
+- [Contributing](CONTRIBUTING.md): how the project is built, checked, released and kept secure
 - [Dependencies](docs/dependencies.md)
 - [Decisions](docs/decisions/)
-- [Contributing](CONTRIBUTING.md)
 - [Glossary](docs/glossary.md)
-- [Data](docs/data.md)
-- [Performance](docs/performance.md)
-- [Releases](docs/releases.md)
 - [Adoption plan](docs/adoption.md): the steps that bring this repo's code up to the principles; `/alpha:adopt` resumes it
 
 ## Install and verify

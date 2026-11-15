@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Decide build and hosting up front, so nothing about shipping is left for later ("Build and hosting are decided up front"). CI runs each component's checks (setup, format check, lint, typecheck, test) on every push to main and every pull request, the same commands alpha runs when it sets the project up, so the first run is green. alpha records what each component builds into and where it runs in `docs/build.md`. It creates no cloud resources and no deploy jobs; say so plainly.
+Decide build and hosting up front, so nothing about shipping is left for later ("Build and hosting are decided up front"). CI runs each component's checks (setup, format check, lint, typecheck, test) on every push to main and every pull request, the same commands alpha runs when it sets the project up, so the first run is green. alpha records what each component builds into and where it runs in the Build, CI and hosting section of `CONTRIBUTING.md`. It creates no cloud resources and no deploy jobs; say so plainly.
 
 ## Fields this area settles
 

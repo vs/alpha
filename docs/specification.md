@@ -1,4 +1,4 @@
-# alpha: product
+# alpha: specification
 
 ## Value proposition
 
@@ -20,3 +20,53 @@ Developers building with Claude Code who want agents to follow enforced engineer
 | R6 | Support any stack through recipes: the ones the kit ships (Python, TypeScript, Rust) or drafted ones that must be proven before use. | Given a stack the kit has no recipe for, when a drafted recipe is saved, then answers check refuses it until alpha recipe try proves it, and again after any later edit. |
 | R7 | Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates. | Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults. |
 | R8 | Work a task in a generated or adopted project by a playbook that keeps its principles, decision records and checks; a feature is built from a spec with its tests that the user approves. | Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end. |
+
+## Responsibilities
+
+| Component | Responsibility | Calls |
+|---|---|---|
+| alpha | Turns interview answers into an enforced project (generate, adopt, update) and checks the answers, recipes, baselines and adoption steps that drive it. | - |
+
+## Contracts
+
+No contracts: components don't call each other.
+
+## Errors
+
+Every error a user sees says what went wrong and how to fix it.
+
+| Component | Format | Meaning |
+|---|---|---|
+| alpha | message-and-exit-code | A message on stderr and a non-zero exit code. |
+
+Categories:
+
+- validation
+- not-found
+- conflict
+- unavailable
+- internal
+
+## Auth
+
+none
+
+## Data
+
+| Component | Storage | Migrations | Reversible |
+|---|---|---|---|
+| alpha | JSON and TOML files: .claude/alpha/project.json (schema 1) in each project, the user layer in ~/.config/alpha/, and per-check baseline files | none | no |
+
+## Performance
+
+| Component | Metric | Budget | Measured by |
+|---|---|---|---|
+| alpha | startup | 200 ms | an end-to-end pytest test that times bin/alpha --help, run by mise run check |
+
+A change that breaks a budget is fixed, or the budget is changed by a decision record.
+
+### Expected load
+
+one developer running alpha on a laptop, against one project at a time
+
+Reviews judge scale against this load, and a `shortcut:` comment names the load past which its shortcut stops holding.

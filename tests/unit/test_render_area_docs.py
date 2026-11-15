@@ -33,8 +33,29 @@ def section(text: str, title: str) -> str:
     return text.split(f"## {title}\n")[1].split("\n## ")[0]
 
 
+def spec(out: dict[str, str]) -> str:
+    return out["docs/specification.md"]
+
+
+def contributing(out: dict[str, str]) -> str:
+    return out["CONTRIBUTING.md"]
+
+
+REMOVED = (
+    "docs/product.md",
+    "docs/architecture.md",
+    "docs/build.md",
+    "docs/security.md",
+    "docs/releases.md",
+    "docs/ui.md",
+    "docs/data.md",
+    "docs/performance.md",
+    "docs/observability.md",
+)
+
+
 def test_architecture_lists_responsibilities_contracts_and_errors(tmp_path: Path):
-    doc = render(load(tmp_path))["docs/architecture.md"]
+    doc = spec(render(load(tmp_path)))
     resp = section(doc, "Responsibilities")
     assert "| Component | Responsibility | Calls |" in resp
     assert "| api | Embeds and verifies trust payloads in images. | - |" in resp
@@ -50,7 +71,7 @@ def test_architecture_lists_responsibilities_contracts_and_errors(tmp_path: Path
 
 def test_single_component_has_no_contracts(tmp_path: Path):
     a = load(tmp_path, SCENARIOS / "python-ml-single.json")
-    doc = render(a)["docs/architecture.md"]
+    doc = spec(render(a))
     assert "No contracts: components don't call each other." in section(
         doc, "Contracts"
     )
@@ -108,13 +129,13 @@ def test_exhaustive_testing_reaches_contributing_and_claude_md(tmp_path: Path):
     )
 
 
-def test_security_doc(tmp_path: Path):
+def test_security_is_process_and_auth_is_spec(tmp_path: Path):
     out = render(load(tmp_path))
-    doc = out["docs/security.md"]
-    assert doc.startswith("# Security\n")
+    doc = section(contributing(out), "Security")
     assert "Production secrets live in: Fly.io secrets." in section(doc, "Secrets")
     assert "`.env` files, which git ignores" in section(doc, "Secrets")
-    assert "API keys for publishers" in section(doc, "Auth")
+    assert "API keys for publishers" in section(spec(out), "Auth")
+    assert "Auth" not in doc
     protected = section(doc, "Protected paths")
     assert "- `api/keys/**`" in protected
     assert "- `api/uv.lock`" in protected
@@ -122,12 +143,11 @@ def test_security_doc(tmp_path: Path):
     assert "Lockfiles change only through the package manager" in protected
     secrets = section(doc, "Secrets")
     assert "the Stop hook blocks a change that adds a secret" in secrets
-    assert "- [Security](docs/security.md)" in out["CLAUDE.md"]
 
 
 def test_security_doc_with_nothing_deployed(tmp_path: Path):
     a = load(tmp_path, SCENARIOS / "python-ml-single.json")
-    assert "Nothing is deployed." in section(render(a)["docs/security.md"], "Secrets")
+    assert "Nothing is deployed." in section(contributing(render(a)), "Secrets")
 
 
 def test_dependency_policy_precedes_the_log(tmp_path: Path):
@@ -166,20 +186,16 @@ def test_manual_updates_policy(tmp_path: Path):
     assert "Upgrades are manual: check for updates monthly." in doc
 
 
-def test_observability_doc(tmp_path: Path):
-    out = render(load(tmp_path))
-    doc = out["docs/observability.md"]
-    assert doc.startswith("# Observability\n")
+def test_observability_is_a_spec_section(tmp_path: Path):
+    doc = section(spec(render(load(tmp_path))), "Observability")
     assert "| Component | Logs | Correlation | Telemetry |" in doc
     assert "| api | json | traceparent | none |" in doc
     assert "`info` in deployed environments, `debug` locally" in doc
-    assert "- [Observability](docs/observability.md)" in out["CLAUDE.md"]
 
 
 def test_no_observability_doc_when_nothing_is_deployed(tmp_path: Path):
     out = render(load(tmp_path, SCENARIOS / "python-ml-single.json"))
-    assert "docs/observability.md" not in out
-    assert "Observability" not in out["CLAUDE.md"].split("## Docs")[1]
+    assert "## Observability" not in spec(out)
 
 
 def scenario(tmp_path: Path, name: str) -> Answers:
@@ -187,8 +203,7 @@ def scenario(tmp_path: Path, name: str) -> Answers:
 
 
 def test_ui_doc_lists_the_visual_system_and_accessibility(tmp_path: Path):
-    doc = render(load(tmp_path))["docs/ui.md"]
-    assert doc.startswith("# UI\n")
+    doc = section(spec(render(load(tmp_path))), "UI")
     visual = section(doc, "Visual system")
     assert "| Component | Library | Tokens | Icons | Typography | Theming |" in visual
     assert (
@@ -206,18 +221,19 @@ def test_ui_doc_lists_the_visual_system_and_accessibility(tmp_path: Path):
     assert "Every UI works with a keyboard and a screen reader." in a11y
 
 
-def test_data_doc_lists_storage_and_the_migration_rules(tmp_path: Path):
-    doc = render(load(tmp_path))["docs/data.md"]
-    assert doc.startswith("# Data\n")
-    storage = section(doc, "Storage")
+def test_storage_is_spec_and_the_migration_rules_are_process(tmp_path: Path):
+    out = render(load(tmp_path))
+    storage = section(spec(out), "Data")
     assert "| Component | Storage | Migrations | Reversible |" in storage
     assert (
         "| api | PostgreSQL | Alembic: `api/migrations/versions/**` | yes |" in storage
     )
-    assert "Every schema change is a migration." in storage
-    assert "Migrations are append-only" in storage
-    assert "(the Stop hook checks)" in storage
-    assert "## Experiments" not in doc
+    assert "append-only" not in spec(out)
+    rules = section(contributing(out), "Migrations")
+    assert "Every schema change is a migration." in rules
+    assert "Migrations are append-only" in rules
+    assert "(the Stop hook checks)" in rules
+    assert "## Experiments" not in contributing(out)
 
 
 @pytest.mark.parametrize("change", ["no-migrations", "dropped"])
@@ -239,35 +255,36 @@ def test_data_doc_states_migration_rules_only_where_they_apply(
                 }
             )
 
-    doc = render(load(tmp_path, mutate=mutate))["docs/data.md"]
-    assert "| api | PostgreSQL |" in doc
-    assert "append-only" not in doc and "Stop hook" not in doc
+    out = render(load(tmp_path, mutate=mutate))
+    assert "| api | PostgreSQL |" in section(spec(out), "Data")
+    assert "## Migrations" not in contributing(out)
+    assert "append-only" not in contributing(out)
 
 
 def test_ml_data_doc_has_experiments_only(tmp_path: Path):
     out = render(scenario(tmp_path, "python-ml-single"))
-    doc = out["docs/data.md"]
-    assert "## Storage" not in doc
-    experiments = section(doc, "Experiments")
+    assert "## Data" not in spec(out)
+    experiments = section(contributing(out), "Experiments")
     assert "- Data versioning: DVC" in experiments
     assert "- Seeds: fixed seeds recorded in the run config" in experiments
     assert "- Experiment tracking: MLflow" in experiments
-    assert "docs/ui.md" not in out and "docs/performance.md" not in out
+    assert "## UI" not in spec(out) and "## Performance" not in spec(out)
 
 
-def test_rust_cli_has_no_ui_or_data_docs(tmp_path: Path):
+def test_rust_cli_has_no_ui_or_data_sections(tmp_path: Path):
     out = render(scenario(tmp_path, "rust-cli"))
-    assert "docs/ui.md" not in out and "docs/data.md" not in out
-    assert "| cli | startup | 200 ms | hyperfine in CI |" in out["docs/performance.md"]
+    assert "## UI" not in spec(out) and "## Data" not in spec(out)
+    assert "| cli | startup | 200 ms | hyperfine in CI |" in section(
+        spec(out), "Performance"
+    )
     assert "CHANGELOG.md" not in out
 
 
 def test_releases_doc_says_scheme_scope_changelog_and_process(tmp_path: Path):
-    doc = render(load(tmp_path))["docs/releases.md"]
-    assert doc.startswith("# Releases\n")
+    doc = section(contributing(render(load(tmp_path))), "Releases")
     assert "Semantic versioning (MAJOR.MINOR.PATCH)" in doc
     assert "One version for the whole repository." in doc
-    assert "Changes are recorded in [CHANGELOG.md](../CHANGELOG.md)" in doc
+    assert "Changes are recorded in [CHANGELOG.md](CHANGELOG.md)" in doc
     assert "Tag vX.Y.Z on main; CI builds the container and the static site." in doc
 
 
@@ -277,7 +294,7 @@ def test_releases_doc_wording_follows_the_answers(tmp_path: Path):
             scheme="calver", changelog="github-releases", scope="component"
         )
 
-    doc = render(load(tmp_path, mutate=mutate))["docs/releases.md"]
+    doc = section(contributing(render(load(tmp_path, mutate=mutate))), "Releases")
     assert "Calendar versioning" in doc
     assert "Each component is versioned on its own" in doc
     assert "GitHub release notes" in doc
@@ -299,13 +316,13 @@ def test_changelog_without_version_numbers_goes_by_date(tmp_path: Path):
     log = out["CHANGELOG.md"]
     assert "grouped by the date they reached main" in log
     assert "Unreleased" not in log and "version" not in log.lower()
-    doc = out["docs/releases.md"]
+    doc = section(contributing(out), "Releases")
     assert "under the date it reached main" in doc
     assert "moved under the version" not in doc
 
 
-def test_performance_doc_lists_every_budget(tmp_path: Path):
-    doc = render(load(tmp_path))["docs/performance.md"]
+def test_performance_lists_every_budget(tmp_path: Path):
+    doc = section(spec(render(load(tmp_path))), "Performance")
     assert "| Component | Metric | Budget | Measured by |" in doc
     assert "| api | p95 response time | 300 ms | k6 in CI against staging |" in doc
     assert (
@@ -326,32 +343,30 @@ def no_budgets(data: dict[str, Any]) -> None:
 
 def test_performance_doc_records_the_expected_load(tmp_path: Path):
     a = load(tmp_path, mutate=with_load)
-    doc = render(a)["docs/performance.md"]
-    assert doc.index("| api | p95 response time") < doc.index("## Expected load")
-    assert "## Expected load\n\nabout 50 concurrent users at peak\n" in doc
+    doc = section(spec(render(a)), "Performance")
+    assert doc.index("| api | p95 response time") < doc.index("### Expected load")
+    assert "### Expected load\n\nabout 50 concurrent users at peak\n" in doc
     principles = build_principles(D, a, "0.1.0")
     assert principles["review"]["expected_load"] == "about 50 concurrent users at peak"
 
 
-def test_an_expected_load_alone_still_gets_a_performance_doc(tmp_path: Path):
-    doc = render(load(tmp_path, mutate=no_budgets))["docs/performance.md"]
-    assert doc.startswith("# Performance\n\n## Expected load\n")
-    assert "| Component |" not in doc
+def test_an_expected_load_alone_still_gets_a_performance_section(tmp_path: Path):
+    doc = spec(render(load(tmp_path, mutate=no_budgets)))
+    assert "## Performance\n\n### Expected load\n" in doc
+    assert "| Component | Metric |" not in doc
 
 
-def test_claude_md_links_the_new_docs(tmp_path: Path):
-    claude = render(load(tmp_path))["CLAUDE.md"]
+def test_claude_md_links_the_specification_and_contributing(tmp_path: Path):
+    out = render(load(tmp_path))
+    claude = out["CLAUDE.md"]
     for link in (
-        "- [UI](docs/ui.md)",
-        "- [Data](docs/data.md)",
-        "- [Releases](docs/releases.md)",
-        "- [Performance](docs/performance.md)",
+        "- [Specification](docs/specification.md)",
+        "- [Contributing](CONTRIBUTING.md)",
         "- [Changelog](CHANGELOG.md)",
     ):
         assert link in claude
-    rust = render(scenario(tmp_path / "r", "rust-cli"))["CLAUDE.md"]
-    assert "docs/ui.md" not in rust and "docs/data.md" not in rust
-    assert "- [Releases](docs/releases.md)" in rust
+    for removed in REMOVED:
+        assert removed not in out and removed not in claude, removed
 
 
 def skip_design_language(data: dict[str, Any]) -> None:
@@ -376,7 +391,7 @@ def test_design_language_doc_declares_every_part(tmp_path: Path):
     assert "Mermaid in Markdown" in section(doc, "Diagrams and charts")
     assert "## Source" not in doc
     assert "[design language](design-language.md)" in section(
-        out["docs/ui.md"], "Visual system"
+        spec(out), "Visual system"
     )
 
 
@@ -391,7 +406,7 @@ def test_design_language_doc_names_a_fuller_guide(tmp_path: Path):
 def test_a_skipped_design_language_writes_nothing_about_visuals(tmp_path: Path):
     out = render(load(tmp_path, mutate=skip_design_language))
     assert "docs/design-language.md" not in out
-    assert "design language" not in out["docs/ui.md"]
+    assert "design language" not in section(spec(out), "UI")
     claude = out["CLAUDE.md"]
     assert "design language" not in claude.lower()
     assert "design-language" not in claude

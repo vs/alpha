@@ -75,7 +75,7 @@ rule = "Parse external input (JSON, files, environment, requests) into dataclass
 
 [[components.rules]]
 id = "alpha-python:import-contracts"
-rule = "Once a component has more than one package, add import-linter contracts for the layers `docs/architecture.md` names, and add `lint-imports` to its `structure` command."
+rule = "Once a component has more than one package, add import-linter contracts for the layers the architecture in `docs/specification.md` names, and add `lint-imports` to its `structure` command."
 
 [[principles]]
 id = "simplest-architecture"

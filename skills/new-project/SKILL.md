@@ -97,5 +97,5 @@ Tell the user, briefly:
   - Every `shortcut:` comment names when to upgrade it (the `shortcuts` repository check).
 - **Reports on request:** `/review-change` (a change), `/audit` (the whole repo) and `/debt` (the deliberate shortcuts); each changes no code.
 - **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved to the kit.
-- **Not settled yet:** the open spec areas, each with the `/alpha:go` request that settles it (docs/product.md lists them); their principles stay off until then.
+- **Not settled yet:** the open spec areas, each with the `/alpha:go` request that settles it (docs/specification.md lists them); their principles stay off until then.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building with `/alpha:go <task>`.

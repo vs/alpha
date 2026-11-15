@@ -6,7 +6,7 @@ You own the design and the spec. The user approves the spec and picks how it's b
 2. Find the spec areas the feature needs that are still open (project.json's `areas`): a UI needs ui and accessibility, stored data needs data, a deployed component needs observability, calls between components need architecture, errors users see need errors, a budget needs performance, a visual needs the design language. Research each as the Specify playbook's step 2 says; its questions join the grilling, and its answers go in the spec's Decisions as `<area>: <answers>`. Nothing is settled yet.
 3. Name the data shape before any logic: the types, the states and what moves between them, and the structure that holds them (a typed model, a table, a state machine) rather than scattered conditionals. Keep the structure the codebase already has unless it can't hold the feature.
 4. Grill. List the decisions the feature leaves open as a design tree and settle them with the user in rounds, invoking the `alpha:grilling` skill with the Skill tool. For a feature, recommendations come from the principles, the decision records and the code you read, not the kit defaults, and its override protocol doesn't apply. A question you could settle by running something goes to the Prototype playbook instead. Keep each settled choice in the spec's Decisions section; nothing is recorded elsewhere before approval.
-5. Write the feature spec to `docs/specs/<YYYY-MM-DD>-<feature-slug>.md`, today's date, in the shape below. Every acceptance check names the test that proves it. Each requirement traces to a row of `docs/product.md`, which alpha generates from the answers: the one it serves, or a new one, written as `new: <requirement>` until approval adds it with `/alpha:extend` (identity area); never edit the file.
+5. Write the feature spec to `docs/specs/<YYYY-MM-DD>-<feature-slug>.md`, today's date, in the shape below. Every acceptance check names the test that proves it. Each requirement traces to a row of the Requirements in `docs/specification.md`, which alpha generates from the answers: the one it serves, or a new one, written as `new: <requirement>` until approval adds it with `/alpha:extend` (identity area); never edit the file.
 6. Plan the build in the spec's Plan section: ordered tasks, each small enough for one commit that passes the checks, naming its files and the tests from the Requirements table it makes pass. Tasks with disjoint files and no shared interface can run side by side; say which.
 7. Get the user's approval of the spec, every time, and their choice of how to build it. Show its path and a summary of the requirements, checks, decisions and tasks. Ask for the approval first, then how to build it, with your recommendation and one sentence of why (how many tasks, how much they depend on each other's interfaces, what a shipped mistake would cost):
    - **Native**: you build every task yourself in this session, then a fresh subagent reviews the whole branch. Cheapest and fastest; no independent review until the end.
@@ -36,7 +36,7 @@ Spec shape:
 
 Date: YYYY-MM-DD
 Status: approved by the user on YYYY-MM-DD, built native | with subagents
-Serves: R<n> in docs/product.md
+Serves: R<n> in docs/specification.md
 
 ## Why
 

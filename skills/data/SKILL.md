@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Stored data outlives the code, so every change to its shape must be repeatable and recoverable ("Safe migrations"); ML results must be repeatable too ("Reproducible"). This area covers components with `traits.persisted_data` and, for ML, the project's data and experiments. With neither there is nothing to decide: say so in one line, save the empty answer, and finish. Otherwise the project gets `docs/data.md`.
+Stored data outlives the code, so every change to its shape must be repeatable and recoverable ("Safe migrations"); ML results must be repeatable too ("Reproducible"). This area covers components with `traits.persisted_data` and, for ML, the project's data and experiments. With neither there is nothing to decide: say so in one line, save the empty answer, and finish. Otherwise the project's storage goes in a Data section of `docs/specification.md`, and its migration and experiment rules in `CONTRIBUTING.md`.
 
 Migrations are append-only: the Stop hook blocks any edit to a migration that existed when the session started (renaming or deleting one counts), and the fix is a new migration. Explain this to the user when they choose the migration files.
 

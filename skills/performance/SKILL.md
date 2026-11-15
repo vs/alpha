@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-A budget that is written down and checked stops slow regressions from piling up ("Performance budgets"). The principle applies only to components that get budgets here, so a component without one carries no ceremony. Projects with budgets or an expected load get `docs/performance.md`; the reviewer holds each component to its budgets and judges scale against the expected load.
+A budget that is written down and checked stops slow regressions from piling up ("Performance budgets"). The principle applies only to components that get budgets here, so a component without one carries no ceremony. Projects with budgets or an expected load get a Performance section in `docs/specification.md`; the reviewer holds each component to its budgets and judges scale against the expected load.
 
 ## Fields this area settles
 

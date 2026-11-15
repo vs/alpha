@@ -46,7 +46,7 @@ It prints one row per marker, `<file>:<line>, limit: <the limit>. upgrade: <when
 
 ## Report
 
-Group the rows by file. For each, say in plain words what was simplified (read the code around the marker) and whether the project's expected load (`docs/performance.md`) or a recent change already crosses the limit; mark those rows **due**. Add an owner per row only if the user asks (`git blame -L<line>,<line> <file>`).
+Group the rows by file. For each, say in plain words what was simplified (read the code around the marker) and whether the project's expected load (`docs/specification.md`, Performance) or a recent change already crosses the limit; mark those rows **due**. Add an owner per row only if the user asks (`git blame -L<line>,<line> <file>`).
 
 End with the count line. Nothing found: "No shortcuts. Clean ledger."
 

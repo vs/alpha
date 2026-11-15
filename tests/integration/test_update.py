@@ -251,7 +251,8 @@ def test_settling_an_open_area_applies_it(tmp_path: Path, git_env: None):
     generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, TODAY)
     git(tmp_path, "init", "-q", "-b", "main")
     commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
-    assert not (tmp_path / "docs/ui.md").exists()
+    spec = tmp_path / "docs/specification.md"
+    assert "## UI" not in spec.read_text()
     visual = next(
         x
         for x in load_project_principles(tmp_path)["principles"]
@@ -267,14 +268,14 @@ def test_settling_an_open_area_applies_it(tmp_path: Path, git_env: None):
     apply_update(tmp_path, plan(tmp_path))
 
     library = full["ui"]["components"][0]["library"]
-    assert library in (tmp_path / "docs/ui.md").read_text()
+    assert library in spec.read_text().split("## UI\n")[1]
     visual = next(
         x
         for x in load_project_principles(tmp_path)["principles"]
         if x["id"] == "visual-system"
     )
     assert visual["active"] is True
-    assert "settle the UI" not in (tmp_path / "docs/product.md").read_text()
+    assert "settle the UI" not in spec.read_text()
 
 
 def test_new_decision_is_numbered_after_the_projects_own_records(
@@ -962,8 +963,8 @@ def test_update_of_a_current_project_keeps_the_plain_notes(
     tmp_path: Path, git_env: None
 ):
     target = generated_repo(tmp_path, SCENARIO)
-    (target / "docs/build.md").unlink()
-    commit(target, "docs: Drop the build doc")
+    (target / "CONTRIBUTING.md").unlink()
+    commit(target, "docs: Drop the contributing guide")
     principles = target / "docs/principles.toml"
     principles.write_text(
         principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
@@ -979,7 +980,7 @@ def test_update_of_a_current_project_keeps_the_plain_notes(
         "  conflict  docs/principles.toml (your edits overlap alpha's change: "
         "merge by hand)"
     ) in out
-    assert "  skipped   docs/build.md (you deleted it: alpha's change to it is " in out
+    assert "  skipped   CONTRIBUTING.md (you deleted it: alpha's change to it " in out
     assert "(kit " not in out
 
 
