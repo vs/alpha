@@ -31,7 +31,6 @@ A project that must not fail (a library or tool others build on, a data store, a
 - `testing.mutants` - optional `true` or `false`, only with exhaustive testing: whether a pull request also fails when a mutant of a line it changes survives the tests. Leave it out to take `defaults.testing.mutants` (on). Only components whose recipe has a `mutants` command are checked (Rust, with cargo-mutants).
 - `testing.run` - optional, `"at-merge"` or `"at-stop"`: when alpha's hooks run a component's full test suite. `at-merge`: once, before Claude's work reaches main (a push to main, or merging a pull request). `at-stop`: every time Claude finishes a turn in which the component changed, which suits a suite that takes seconds. Leave it out to take `defaults.testing.run`.
 - `areas.testing` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "testing"`.
 
 ## Questions
 
@@ -55,14 +54,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "testing": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `testing` set to `"in_progress"`.
 3. When the user confirms the area, save the `testing` object `{"components": [{"name", "levels"}]}`, with one entry per component, plus `"diff_coverage": <0-100>`, `"exhaustive": <true|false>`, `"mutants": <true|false>` and `"run": "<at-merge|at-stop>"`, each only when the user chose a value other than the default. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "testing"`:
-   `{"area": "testing", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the levels (e.g. "Unit, integration and end-to-end tests"); `context` is where the risk is; `decision` gives each component's levels and says whether testing is exhaustive; `consequences` says how tests trace to requirements, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `testing` set to `"done"`.
+4. In the same call, save `areas` with `testing` set to `"done"`.
 
 ## Check
 

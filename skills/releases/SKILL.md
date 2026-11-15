@@ -27,7 +27,6 @@ Users and other components need to know what changed and whether an upgrade is s
 - `releases.scope` - `"repo"` (one version for everything) or `"component"` (each component versioned on its own; only with more than one component).
 - `releases.process` - one or two sentences on how a release is cut, e.g. "Tag vX.Y.Z on main; CI builds and publishes the package."
 - `areas.releases` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "releases"`.
 
 ## Questions
 
@@ -46,14 +45,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "releases": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `releases` set to `"in_progress"`.
 3. When the user confirms the area, save the `releases` object `{"scheme", "changelog", "scope", "process"}`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "releases"`:
-   `{"area": "releases", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "Semantic versions for the whole repo"); `context` is who consumes the releases; `decision` gives the scheme, changelog, scope and process; `consequences` says what a breaking change means, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `releases` set to `"done"`.
+4. In the same call, save `areas` with `releases` set to `"done"`.
 
 ## Check
 

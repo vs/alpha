@@ -13,7 +13,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
-from alpha.shell import Ran, run_command
+from alpha.shell import GIT_TIMEOUT, Ran, run_command
 
 # The component steps a baseline may hold. format_check is fixed once (plan
 # step P1), and setup isn't a check of the code.
@@ -379,46 +379,52 @@ def _run_ratchet(target: Path, *args: str, frozen: bool = False) -> Ran:
     return done
 
 
-def find_record(target: Path, number: str) -> Path | None:
-    """docs/decisions/<number>-*.md, if there is one."""
-    if not number.isdigit():
-        return None
-    found = sorted((target / "docs" / "decisions").glob(f"{int(number):04d}-*.md"))
-    return found[0] if found else None
+CONTRIBUTING = "CONTRIBUTING.md"
 
 
-def accepts(record: Path, token: str) -> bool:
-    """Whether the record is accepted and names `token` in backticks."""
+def exception_rows(text: str) -> list[str]:
+    """The rows of CONTRIBUTING.md's Exceptions table."""
+    rows: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            inside = line.strip() == "## Exceptions"
+        elif (
+            inside and line.startswith("|") and not line.startswith(("| Path", "|---"))
+        ):
+            rows.append(line.strip())
+    return rows
+
+
+def excepted_on_branch(target: Path, check: str) -> bool:
+    """Whether an Exceptions row names `check` (in backticks) that wasn't there
+    where the branch started: the pull request check counts only those."""
     try:
-        text = record.read_text(encoding="utf-8")
+        now = exception_rows((target / CONTRIBUTING).read_text(encoding="utf-8"))
     except OSError:
         return False
-    lines = [line.strip() for line in text.splitlines()]
-    return "Status: accepted" in lines and f"`{token}`" in text
-
-
-def _decision(target: Path, number: str, check: str) -> Path:
-    record = find_record(target, number)
-    if record is None:
-        raise BaselineError(
-            f"No decision record {number} in docs/decisions/. Record the decision "
-            "first (the project's /decision skill), then pass its number."
+    named = [row for row in now if f"`{check}`" in row]
+    point = _branch_point(target)
+    if point is None or not named:
+        return bool(named)
+    try:
+        shown = subprocess.run(
+            ["git", "show", f"{point}:{CONTRIBUTING}"],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT,
         )
-    rel = record.relative_to(target).as_posix()
-    if not accepts(record, check):
+    except subprocess.TimeoutExpired:
         raise BaselineError(
-            f"{rel} doesn't accept a larger {check} baseline: it needs "
-            f"`Status: accepted` and the check id in backticks (`{check}`), with "
-            "why the new findings stay."
-        )
-    if named_before_branch(target, rel, check):
-        raise BaselineError(
-            f"{rel} already named `{check}` before this branch, so it accepted an "
-            "earlier growth, not this one. The pull request check counts only a "
-            "decision that names the check for the first time on the branch: "
-            "record a new one for these findings."
-        )
-    return record
+            f"git show took longer than {GIT_TIMEOUT:g}s reading {CONTRIBUTING} "
+            "where the branch started; check the repository isn't locked, then "
+            "retry."
+        ) from None
+    before: set[str] = (
+        set(exception_rows(shown.stdout)) if shown.returncode == 0 else set()
+    )
+    return any(row not in before for row in named)
 
 
 def _branch_point(target: Path) -> str | None:
@@ -435,22 +441,9 @@ def _branch_point(target: Path) -> str | None:
     return None
 
 
-def named_before_branch(target: Path, rel: str, token: str) -> bool:
-    """Whether the record at `rel` already named `token` where the branch
-    started: the pull request check accepts only a record that names it here
-    first."""
-    point = _branch_point(target)
-    if point is None:
-        return False
-    shown = subprocess.run(
-        ["git", "show", f"{point}:{rel}"], cwd=target, capture_output=True, text=True
-    )
-    return shown.returncode == 0 and f"`{token}`" in shown.stdout
-
-
-def capture(target: Path, check: str, decision: str | None = None) -> str:
+def capture(target: Path, check: str) -> str:
     """Record the check's findings as its baseline. A baseline that already
-    exists may only grow with an accepted decision naming the check."""
+    exists may only grow with a new Exceptions row naming the check."""
     _known(target, check)
     before = counts(target, check)
     path = baseline_file(target, check)
@@ -460,23 +453,17 @@ def capture(target: Path, check: str, decision: str | None = None) -> str:
         raise BaselineError(done.err.strip() or done.out.strip())
     now = counts(target, check) or {}
     grown, _ = ratchet().compare(now, before or {})
-    if before is not None and grown:
-        if decision is None:
-            assert old is not None
-            path.write_bytes(old)
-            lines = [f"  {f} {r}: {n} now, {b} in the baseline" for f, r, n, b in grown]
-            raise BaselineError(
-                f"Capturing {check} would grow its baseline:\n"
-                + "\n".join(lines)
-                + "\nFix those findings, or record why they stay in a decision "
-                f"naming `{check}` and rerun with --decision <number>."
-            )
-        try:
-            _decision(target, decision, check)
-        except BaselineError:
-            assert old is not None
-            path.write_bytes(old)
-            raise
+    if before is not None and grown and not excepted_on_branch(target, check):
+        assert old is not None
+        path.write_bytes(old)
+        lines = [f"  {f} {r}: {n} now, {b} in the baseline" for f, r, n, b in grown]
+        raise BaselineError(
+            f"Capturing {check} would grow its baseline:\n"
+            + "\n".join(lines)
+            + "\nFix those findings, or, with the user's agreement, add a row to "
+            f"the Exceptions table in {CONTRIBUTING} naming the files and "
+            f"`{check}` with why they stay, then rerun."
+        )
     return done.out.strip()
 
 

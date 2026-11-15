@@ -27,11 +27,10 @@ A deployed system fails where nobody is watching, so it must explain itself ("Ob
 - `observability.components[].correlation` - `"traceparent"`, `"request-id"`, or `"none"` (only with a single deployed component).
 - `observability.components[].telemetry` - `"none"`, `"opentelemetry"` or `"other"`.
 - `areas.observability` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "observability"`.
 
 ## Questions
 
-When no component is deployed, ask nothing: save `{"components": []}` and a decision saying observability applies once something is deployed.
+When no component is deployed, ask nothing: save `{"components": []}`; observability applies once something is deployed.
 
 Otherwise run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round covering every deployed component:
 
@@ -47,14 +46,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "observability": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `observability` set to `"in_progress"`.
 3. When the user confirms the area (or right away, with nothing deployed), save the `observability` object `{"components": [{"name", "log_format", "correlation", "telemetry"}]}`, with one entry per deployed component. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "observability"`:
-   `{"area": "observability", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "JSON logs correlated by traceparent"); `context` is what runs where; `decision` gives each component's format, correlation and telemetry; `consequences` says how a failure is traced, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `observability` set to `"done"`.
+4. In the same call, save `areas` with `observability` set to `"done"`.
 
 ## Check
 

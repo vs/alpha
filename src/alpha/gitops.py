@@ -23,7 +23,7 @@ _DOCS = [
 ]
 _TOOLING = [MISE, TYPOS, RUMDL, LYCHEE, BETTERLEAKS]
 _TOOLING_SUBJECT = "build: Pin the repository's check tools"
-_DOCS_SUBJECT = "docs: Add product brief, principles and decisions"
+_DOCS_SUBJECT = "docs: Add the specification, principles and process"
 _CLAUDE_SUBJECT = "chore: Add Claude Code settings and guardrails"
 _CI_SUBJECT = "ci: Run every component's checks in CI"
 _DEPENDABOT_SUBJECT = "ci: Schedule dependency updates"
@@ -261,7 +261,7 @@ def commit_update(
     baselines = [BASELINE_DIR] if (target / BASELINE_DIR).is_dir() else []
     groups: list[tuple[str, list[str]]] = [
         (
-            _DOCS_SUBJECT if adopting else "docs: Update docs and decision records",
+            _DOCS_SUBJECT if adopting else "docs: Update the docs",
             paths_of("docs"),
         ),
         (

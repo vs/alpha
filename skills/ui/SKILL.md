@@ -30,11 +30,10 @@ A UI built from a declared set of tools stays consistent and cheap to change ("A
 - `ui.components[].theming` - `"light"`, `"dark"`, `"light-dark"` or `"custom"`.
 - `ui.components[].visual_regression` - how visual changes are caught, e.g. `"Playwright screenshots"`, or `"none"`.
 - `areas.ui` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "ui"`.
 
 ## Questions
 
-When no component has a UI, ask nothing: save `{"components": []}` and a decision saying the project has no UI, so the visual-system principle doesn't apply.
+When no component has a UI, ask nothing: save `{"components": []}`, so the visual-system principle doesn't apply.
 
 Otherwise run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round per component with a UI. Facts first: look up what the component's stack and framework usually use (its manifest, the stack's docs) and recommend from that. Never assume a library the stack can't use. When `design_language.defined` is true, it comes first: recommend typography, icons and theming that match it, and say the tokens file is where its colors, type and shape live in code.
 
@@ -52,14 +51,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "ui": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `ui` set to `"in_progress"`.
 3. When the user confirms the area (or right away, with no UI), save the `ui` object `{"components": [{"name", "library", "tokens", "icons", "typography", "theming", "visual_regression"}]}`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "ui"`:
-   `{"area": "ui", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "shadcn/ui on one tokens file"); `context` is who uses the UI; `decision` gives each component's library, tokens path and theming; `consequences` says how drift is caught, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `ui` set to `"done"`.
+4. In the same call, save `areas` with `ui` set to `"done"`.
 
 ## Check
 

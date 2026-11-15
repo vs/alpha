@@ -55,11 +55,12 @@ def test_accepting_and_recording_clears_the_review(project: Project) -> None:
         {"hook_event_name": "UserPromptSubmit", "prompt": f"accept {finding['id']}"},
     )
     assert "accepted" in prompt.stdout
-    project.write(
-        "docs/decisions/0001-keep-the-migration.md",
-        "# 0001. Keep the migration\n\nDate: 2026-10-23\nStatus: accepted\n"
-        f"Accepts: {finding['id']}\n\n## Context\n\nc\n\n## Decision\n\nd\n\n"
-        "## Consequences\n\nq\n",
+    project.git(
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        f"chore: Keep the migration\n\nAccepts: {finding['id']} the user keeps it",
     )
     proc = stop(project)
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
@@ -87,13 +88,15 @@ def test_brief_asks_the_reviewer_to_check_claudes_disproofs(
     off_risk = {**FINDING, "file": "api/src/x.py", "principle": "fail-helpfully"}
     report(project, tree, [off_risk])
     (finding,) = review.load_state(project.root)["findings"]
-    project.write(
-        "docs/decisions/0001-disprove.md",
-        "# 0001. Keep the broad except\n\nDate: 2026-11-10\nStatus: accepted\n"
-        f"Accepts: {finding['id']}\n\n## Decision\n\nIt re-raises.\n",
+    project.git(
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        f"chore: Keep the broad except\n\nAccepts: {finding['id']} it re-raises",
     )
     text = review.brief(project.root)
-    assert "## Findings Claude accepted (read the decision that accepts each" in text
+    assert "## Findings Claude accepted (read the `Accepts:` trailer of each" in text
     assert f"- {finding['id']} fail-helpfully api/src/x.py" in text
     assert "## Open findings" not in text
 

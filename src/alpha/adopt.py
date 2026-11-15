@@ -26,14 +26,12 @@ from alpha.answers import (
     write_answers,
     write_json,
 )
-from alpha.baseline import accepts, find_record
 from alpha.defaults import Source, load_defaults, load_survey
 from alpha.generate import copied_files, render_project, source_info
 from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group, status_paths
 from alpha.merge import Change, classify, merge_json, union_lines
 from alpha.principles import diff_coverage
 from alpha.recipes import RecipeBook, matches
-from alpha.records import record_paths, taken_numbers
 from alpha.registry import load_registry
 from alpha.render.docs import CHAINED_COMMIT_MSG
 from alpha.shell import GIT_TIMEOUT, run_command
@@ -373,7 +371,6 @@ def plan_adoption(
             'adoption.git_hooks to "chain", so they stay and call alpha\'s '
             "commit check, then retry."
         )
-    records = record_paths(a, taken=taken_numbers(target))
     added = {c.name: today for c in a.components}
     rendered = render_project(
         target,
@@ -381,7 +378,6 @@ def plan_adoption(
         load_defaults(source),
         today.year,
         today,
-        records,
         added,
         registry=load_registry(source),
     )
@@ -408,7 +404,6 @@ def plan_adoption(
         "adopted_at": today.isoformat(),
         "defaults": source_info(source),
         "applied": answers_snapshot(top),
-        "records": records.to_json(),
         "added": {name: day.isoformat() for name, day in added.items()},
     }
     return UpdatePlan(
@@ -775,20 +770,12 @@ def done(target: Path, sid: str, confirmed: bool = False) -> list[str]:
     return report
 
 
-def drop(target: Path, sid: str, decision: str) -> None:
+def drop(target: Path, sid: str, reason: str) -> None:
     a, saved, raw = _load_steps(target)
     _step(a, sid)
-    record = find_record(target, decision)
-    if record is None:
+    if not reason.strip():
         raise AdoptError(
-            f"No decision record {decision} in docs/decisions/. Dropping a step "
-            "loosens the plan, so record why with the user first (the project's "
-            "/decision skill), then pass its number."
+            f"Dropping {sid} loosens the plan, so it needs the reason the user "
+            "agreed to: pass it with --reason."
         )
-    if not accepts(record, sid):
-        rel = record.relative_to(target).as_posix()
-        raise AdoptError(
-            f"{rel} doesn't drop {sid}: it needs `Status: accepted` and the step id "
-            f"in backticks (`{sid}`), with why the step isn't needed."
-        )
-    _save_step(target, saved, raw, sid, status="dropped", decision=int(decision))
+    _save_step(target, saved, raw, sid, status="dropped", reason=reason.strip())

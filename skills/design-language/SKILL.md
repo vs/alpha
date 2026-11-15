@@ -35,7 +35,6 @@ A design language is the one look every visual of the project shares: the diagra
 - `design_language.palette_check` - what happens to a color outside the palette in diagrams, SVG and stylesheets: `"advise"` (the reviewer sees it and judges whether it is a deliberate exception or drift), `"enforce"` (a repository check also fails on it, at Stop and in CI) or `"off"`.
 - `design_language.third_party` - paths or globs of visuals that follow somebody else's design (partner logos, payment icons, badges), relative to the project root, e.g. `["docs/partners/**"]`; `[]` when there are none.
 - `areas.design_language` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "design_language"`.
 
 ## Questions
 
@@ -47,7 +46,7 @@ Round one is a single question:
 
 - **Define a design language?** - explain in two lines what defining it switches on (the page, the reviewer's check on every visual, the UI area drawing from it) and that skipping it switches all of that off. Recommend yes when a component has a UI or the user already has a brand or style guide, and skipping otherwise. Either answer is fine; never argue for one.
 
-When the user skips, ask nothing else: save `{"defined": false}` and a decision saying the project has no design language, so alpha enforces nothing about its visuals. Don't suggest colors, typefaces or diagram styles anywhere later in the interview.
+When the user skips, ask nothing else: save `{"defined": false}`, so alpha enforces nothing about the project's visuals. Don't suggest colors, typefaces or diagram styles anywhere later in the interview.
 
 When the user defines one, facts first: read any guide, tokens file or brand page the user points to and recommend from it. With nothing to read, propose a small, complete language that fits the product and its users from identity, and say it's a starting point. Then one round:
 
@@ -69,14 +68,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "design_language": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `design_language` set to `"in_progress"`.
 3. When the user confirms the area, save the `design_language` object: `{"defined": false}` when skipped, else `{"defined": true, "character", "colors": [{"name", "value", "use"}], "typography", "shape", "imagery", "diagrams", "source", "palette_check", "third_party": []}`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "design_language"`:
-   `{"area": "design_language", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "A flat, high-contrast design language", or "No design language"); `context` is which visuals the project will have and who sees them; `decision` gives the character, the palette and the diagram style, or says it was skipped; `consequences` says the reviewer checks every changed visual against `docs/design-language.md`, or that nothing about visuals is enforced.
-5. In the same call, save `areas` with `design_language` set to `"done"`.
+4. In the same call, save `areas` with `design_language` set to `"done"`.
 
 ## Check
 

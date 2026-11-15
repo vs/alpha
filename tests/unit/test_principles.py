@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import SCENARIOS, override_record, single_component
+from helpers import SCENARIOS, single_component
 
 from alpha.answers import Answers, AnswersError, load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -16,7 +16,6 @@ from alpha.principles import (
     compute_facts,
     render_principles,
 )
-from alpha.records import Records
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
 D = load_defaults(Source(PLUGIN_ROOT, True))
@@ -86,8 +85,8 @@ def test_drop_for_one_component(tmp_path: Path):
     p = principle(build_principles(D, a, "0.1.0"), "observability")
     assert p["components"] == ["web"]
     assert p["active"] is True
-    data = json.loads(FIXTURE.read_text())
-    assert p["override_decision"] == override_record(data, "observability")
+    reason = json.loads(FIXTURE.read_text())["overrides"][0]["reason"]
+    assert p["override"] == f"drop (component:api): {reason}"
 
 
 def test_drop_last_component_or_project_deactivates(tmp_path: Path):
@@ -226,11 +225,24 @@ def test_facts():
     assert facts["budgets_set"] and not facts["ml"]
 
 
-def test_override_decision_comes_from_the_records():
-    records = Records((), ("docs/decisions/0042-override-observability.md",))
-    p = build_principles(D, A, "0.1.0", records)
-    by_id = {x["id"]: x for x in p["principles"]}
-    assert by_id["observability"]["override_decision"] == records.overrides[0]
+def test_each_override_says_its_change_scope_and_reason(tmp_path: Path):
+    def two(data: dict[str, Any]) -> None:
+        data["overrides"].append(
+            {
+                "principle": "observability",
+                "scope": "component:web",
+                "change": "tighten",
+                "params": {},
+                "reason": "",
+            }
+        )
+
+    out = build_principles(D, variant(tmp_path, two), "0.1")
+    by_id = {x["id"]: x for x in out["principles"]}
+    said = by_id["observability"]["override"]
+    assert said.startswith("loosen (component:api): ")
+    assert said.endswith("; tighten (component:web)")
+    assert by_id["timeouts"]["override"] == ""
 
 
 def test_output_parses_and_is_deterministic():
@@ -296,7 +308,6 @@ def open_areas(*areas: str) -> Any:
         for area in areas:
             data["areas"][area] = "open"
             del data[area]
-        data["decisions"] = [d for d in data["decisions"] if d["area"] not in areas]
 
     return mutate
 

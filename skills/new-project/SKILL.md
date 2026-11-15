@@ -26,7 +26,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 
 - If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done, which are pending and which are open (from its `areas`; an area missing from `areas`, because the interview started on an older alpha, is pending). A spec area an older alpha left pending becomes open: save it so with `answers write`. Then continue with the first area in the order below that isn't done.
 - Otherwise create it:
-  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "open", "errors": "open", "testing": "pending", "design_language": "open", "ui": "open", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "open", "releases": "pending", "data": "open", "accessibility": "open", "performance": "open", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
+  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "open", "errors": "open", "testing": "pending", "design_language": "open", "ui": "open", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "open", "releases": "pending", "data": "open", "accessibility": "open", "performance": "open", "git": "pending", "agent_workflow": "pending"}, "overrides": []}'`
 
 ## 3. Load the kit defaults
 
@@ -55,7 +55,7 @@ The interview settles the setup: what alpha needs to wire the project's tooling.
 9. Git history: `alpha:git-history`
 10. Agent workflow: `alpha:agent-workflow`
 
-The spec areas (architecture, errors, design language, UI, observability, data, accessibility, performance) describe the product, which the user often can't know yet. They stay open: don't run them here. `/alpha:go` settles each one when the work needs it (decision 0034). Only when the user asks to settle one now, invoke its skill after the setup areas.
+The spec areas (architecture, errors, design language, UI, observability, data, accessibility, performance) describe the product, which the user often can't know yet. They stay open: don't run them here. `/alpha:go` settles each one when the work needs it. Only when the user asks to settle one now, invoke its skill after the setup areas.
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 
@@ -85,13 +85,13 @@ Tell the user, briefly:
 - **Enforced now:**
   - Every commit, by anyone, must follow the convention and scopes (the git `commit-msg` hook).
   - Claude can't skip git hooks, push with a plain `--force`, or rewrite main; it may rebase its own branch and push it with `--force-with-lease`.
-  - Claude can't edit protected files (secrets, lockfiles, and any extra protected paths), and can't skip a test, add an ignore comment or loosen strictness until a decision record names the file and says why.
+  - Claude can't edit protected files (secrets, lockfiles, and any extra protected paths), and can't skip a test, add an ignore comment or loosen strictness until a row in CONTRIBUTING.md's Exceptions table names the file and says why.
   - Every file Claude edits is formatted and linted right away.
   - Claude can't finish while it has added a secret, changed source without changing tests (or saying why a trivial change needs none), changed a mapped path without its docs, added a dependency without a recorded reason, or left the type checks or tests failing.
   - Claude can't edit a migration that existed before the session: migrations are append-only, so a fix is a new migration (when a component stores data).
   - CI runs every component's checks on each push to main and each pull request (when the user chose CI). Tell the user the workflow runs once they push the repository to GitHub.
   - Dependabot opens update pull requests on the chosen schedule (when chosen), also once the repository is on GitHub.
-  - Claude can't push to main or merge a pull request with unreviewed changes or open review findings, and can't finish with open findings (in batched mode, also not with unreviewed changes past the thresholds). Claude may accept a finding it disproves, recorded in the decision log; a finding on a risk path needs your "accept".
+  - Claude can't push to main or merge a pull request with unreviewed changes or open review findings, and can't finish with open findings (in batched mode, also not with unreviewed changes past the thresholds). Claude may accept a finding it disproves, recorded as an `Accepts:` trailer in a commit; a finding on a risk path needs your "accept".
   - The reviewer checks every changed visual (a diagram, a chart, an image, UI styles) against `docs/design-language.md`, letting a deliberate, explained exception through and reporting drift, and a change to that page is reviewed as risky (when the user defined a design language; otherwise say nothing about visuals is enforced). With `palette_check` `advise` the reviewer is shown each color outside the palette; with `enforce`, the `palette` check also fails on one at Stop and in CI.
   - Each session starts with a warning if the project setup is broken.
   - Every `shortcut:` comment names when to upgrade it (the `shortcuts` repository check).

@@ -37,7 +37,7 @@ class StackRule:
 
 @dataclass(frozen=True)
 class Workspace:
-    """What a stack's components share in a monorepo (decision 0027): files
+    """What a stack's components share in a monorepo: files
     at the repository root, written once, and each member's own files."""
 
     root_templates: dict[str, str]
@@ -71,7 +71,7 @@ class Recipe:
     coverage: str = ""
     coverage_report: str = ""
     # Optional: the mutation-testing gate of an exhaustively tested project
-    # (decision 0029), run in the component folder on the diff in MUTANTS_DIFF.
+    # , run in the component folder on the diff in MUTANTS_DIFF.
     mutants: str = ""
     workspace: Workspace | None = None
     # How each step's findings read, for a baseline (spec §8b); keyed by step.

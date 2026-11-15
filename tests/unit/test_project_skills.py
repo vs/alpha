@@ -1,8 +1,7 @@
 import re
-from datetime import date
 
 from alpha.cli import PLUGIN_ROOT
-from alpha.render.docs import decision_record
+from alpha.render.docs import EXCEPTIONS_SECTION
 
 DECISION = PLUGIN_ROOT / "project-files" / "skills" / "decision" / "SKILL.md"
 
@@ -13,40 +12,25 @@ def test_decision_skill_frontmatter():
     assert "allowed-tools" not in text.split("\n---\n", 1)[0]
 
 
-def test_decision_skill_states_the_record_format():
+def test_decision_skill_routes_each_kind_into_the_docs():
     text = DECISION.read_text()
+    routes = text.split("## 1. Where it goes")[1].split("\n## ")[0]
     for piece in (
-        "docs/decisions/NNNN-<slug>.md",
-        "# NNNN. ",
-        "Date: ",
-        "Status: accepted",
-        "Supersedes: NNNN",
-        "superseded by NNNN",
-        "## Context",
-        "## Decision",
-        "## Consequences",
-        "docs/principles.toml",
-        "override_decision",
+        "`docs/specification.md`",
+        "`CONTRIBUTING.md`",
+        "An override in the answers",
+        "Exceptions table",
+        "An `Accepts:` trailer",
     ):
-        assert piece in text, piece
-    assert len(text.splitlines()) <= 120
+        assert piece in routes, piece
+    assert "docs/decisions" not in text
+    assert len(text.splitlines()) <= 60
 
 
-def test_decision_skill_keeps_claude_md_in_step_with_overrides():
+def test_decision_skill_names_the_exceptions_table_alpha_writes():
     text = DECISION.read_text()
-    change = text.split("## 4. Changing a principle")[1].split("\n## ")[0]
-    assert "CLAUDE.md" in change and "(overridden: see " in change
-
-
-def test_decision_skill_matches_the_interview_format():
-    record = decision_record(7, "Use OpenAPI", date(2026, 10, 23), "c", "d", "q")
-    lines = record.splitlines()
-    assert re.fullmatch(r"# \d{4}\. .+", lines[0])
-    text = DECISION.read_text()
-    for line in lines:
-        if line.startswith(("Date: ", "Status: ", "## ")):
-            head = line.split(":")[0] + ":" if ":" in line else line
-            assert head in text, f"the skill doesn't name {head!r}"
+    assert EXCEPTIONS_SECTION[0] in text
+    assert re.search(r"Accepts: F-x{6} <", text)
 
 
 REVIEWER = PLUGIN_ROOT / "project-files" / "agents" / "principles-reviewer.md"
@@ -80,7 +64,7 @@ def test_reviewer_agent_contract():
         '"line"',
         '"problem"',
         '"fix"',
-        "decision:NNNN",
+        "`spec`",
         "```json",
     ):
         assert piece in text, piece

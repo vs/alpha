@@ -19,7 +19,6 @@ from helpers import (
     GenerateScenario,
     generated_repo,
     git,
-    override_record,
     place_answers,
     proven,
     run_cli,
@@ -72,8 +71,6 @@ def test_open_areas_render_as_not_settled(tmp_path: Path):
         assert heading not in product, heading
     for doc in ("docs/design-language.md", "docs/glossary.md"):
         assert doc not in written and not (tmp_path / doc).exists(), doc
-    records = "\n".join(p.name for p in (tmp_path / "docs/decisions").iterdir())
-    assert "architecture" not in records and "performance" not in records
 
 
 def test_open_areas_that_cannot_apply_are_not_listed(tmp_path: Path):
@@ -143,7 +140,6 @@ def test_the_specification_is_one_file(
         "docs/glossary.md",
     ):
         assert (tmp_path / kept).is_file(), kept
-    assert any(p.startswith("docs/decisions/") for p in written)
 
 
 def test_the_process_is_in_contributing(
@@ -387,23 +383,21 @@ def test_copies_hook_scripts_tools_and_executable_githook(
     assert agent.read_text() == (ROOT / "project-files/agents/committer.md").read_text()
 
 
-def test_override_decision_file_matches_principles(
+def test_no_decision_records_are_written(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
+    """F1: no records and no decisions list; the override's reason reaches
+    the principles file instead of a record path."""
     files = generate_scenario(tmp_path, "web-ts-plus-python-api")
-    principles = (tmp_path / "docs/principles.toml").read_text()
+    assert not (tmp_path / "docs/decisions").exists()
+    assert not [f for f in files if f.startswith("docs/decisions")]
     answers = json.loads((tmp_path / ".claude/alpha/project.json").read_text())
-    path = override_record(answers, answers["overrides"][0]["principle"])
-    assert path in files
-    assert f'override_decision = "{path}"' in principles
-
-
-def test_decision_records_carry_the_full_date(
-    tmp_path: Path, generate_scenario: GenerateScenario
-):
-    generate_scenario(tmp_path, "web-ts-plus-python-api")
-    for record in sorted((tmp_path / "docs/decisions").glob("*.md")):
-        assert "\nDate: 2026-10-19\n" in record.read_text(), record.name
+    assert "decisions" not in answers
+    principles = (tmp_path / "docs/principles.toml").read_text()
+    assert 'override = "loosen (component:api): The api is a single-process' in (
+        principles
+    )
+    assert "override_decision" not in principles
 
 
 def fake_tools(

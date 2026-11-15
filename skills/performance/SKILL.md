@@ -28,7 +28,6 @@ A budget that is written down and checked stops slow regressions from piling up 
 - `performance.components[].budgets[].limit` - the limit, with its unit, e.g. `"300 ms"`, `"200 KB gzipped"`.
 - `performance.components[].budgets[].measured_by` - how and where it is measured, e.g. `"k6 in CI against staging"`.
 - `areas.performance` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "performance"`.
 
 A component's `budgets` may be `[]`: no budgets, so the principle stays off for it.
 
@@ -49,14 +48,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "performance": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `performance` set to `"in_progress"`.
 3. When the user confirms the area, save the `performance` object `{"expected_load", "components": [{"name", "budgets": [{"metric", "limit", "measured_by"}]}]}`, with one entry per component. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "performance"`:
-   `{"area": "performance", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the budgets (e.g. "Response time and bundle budgets"); `context` is the requirement that motivates them; `decision` gives each component's budgets and how they're measured; `consequences` says that breaking a budget needs a fix or a decision record, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `performance` set to `"done"`.
+4. In the same call, save `areas` with `performance` set to `"done"`.
 
 ## Check
 

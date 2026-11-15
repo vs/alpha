@@ -26,7 +26,6 @@ Two dependency rules are always on and need no answers: every new dependency get
 - `dependencies.schedule` - `"daily"`, `"weekly"` or `"monthly"`.
 - `dependencies.cooldown_days` - whole days, 0 or more; optional. When left out, generate uses `defaults.dependencies.cooldown_days`.
 - `areas.dependencies` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "dependencies"`.
 
 ## Questions
 
@@ -47,14 +46,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "dependencies": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `dependencies` set to `"in_progress"`.
 3. When the user confirms the area, save the `dependencies` object `{"updates", "schedule", "cooldown_days"}`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "dependencies"`:
-   `{"area": "dependencies", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "Weekly Dependabot updates"); `context` is how many toolchains drift; `decision` gives the tool and schedule; `consequences` says who reviews updates and how they're checked, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `dependencies` set to `"done"`.
+4. In the same call, save `areas` with `dependencies` set to `"done"`.
 
 ## Check
 

@@ -14,10 +14,10 @@ You own the design and the spec. The user approves the spec and picks how it's b
 
    And whether to work in a worktree (SKILL.md section 3). On changes to the spec, edit it and ask again. Nothing but the spec file is written until they approve. Then:
    1. Follow the project's branching in CLAUDE.md: with feature branches, make the feature branch (`git switch -c <branch>`), or the worktree when they chose one, and move the spec file there; on trunk, commit on the main branch.
-   2. Settle each open area the spec names with the Specify playbook's steps 3 and 4. The answers the spec records are the user's, approved with it: `/alpha:extend` saves them without asking again, and asks only what the spec left out; add each new requirement with `/alpha:extend`; record each settled choice that later changes must follow with the `decision` skill. Then put the requirement ids and record links in the spec.
+   2. Settle each open area the spec names with the Specify playbook's steps 3 and 4. The answers the spec records are the user's, approved with it: `/alpha:extend` saves them without asking again, and asks only what the spec left out; add each new requirement with `/alpha:extend`; record each settled choice that later changes must follow with the `decision` skill, which writes it into the docs. Then put the requirement ids in the spec.
    3. Commit the spec as one `docs` commit.
 8. Build the tasks in order, without stopping to check in between them. For each task:
-   1. Write its tests at the levels the project's testing decision gives, each asserting what a user of the code can observe. Run them and paste the output: each must fail on the missing behavior, not on a typo or an import.
+   1. Write its tests at the levels the project's testing answers give (CONTRIBUTING.md, Testing), each asserting what a user of the code can observe. Run them and paste the output: each must fail on the missing behavior, not on a typo or an import.
    2. Write the smallest code that makes them pass, keeping the project's principles; delete what the change makes dead first (`subtract-first`).
    3. Run the task's tests and the component's checks, then commit the tests and code together following the commit skill (`clean-history`).
 
@@ -67,4 +67,4 @@ Serves: R<n> in docs/specification.md
 
 <!-- rumdl-enable MD013 -->
 
-**Reply:** the spec path, how it was built, each acceptance check with its test and result, the decisions recorded, and what is left open.
+**Reply:** the spec path, how it was built, each acceptance check with its test and result, the decisions written into the docs, and what is left open.

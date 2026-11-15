@@ -26,7 +26,6 @@ Decide how errors reach whoever uses each component, before any code exists ("Fa
 - `errors.components[].format` - `problem-json`, `message-and-exit-code`, `user-message`, `exceptions`, `structured-log` or `other`.
 - `errors.categories` - the kinds of error, lowercase with hyphens (e.g. `["validation", "not-found", "internal"]`).
 - `areas.errors` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "errors"`.
 
 ## Questions
 
@@ -38,7 +37,7 @@ Run these with the `alpha:grilling` skill (invoke it with the Skill tool and fol
   - `user-message` - a UI shows a message next to the problem, in plain words, with what to do next.
   - `exceptions` - code that calls a library or pipeline gets a typed exception whose message names the fix.
   - `structured-log` - a background worker logs the failure with its category and the fix, since no person is waiting.
-  - `other` - ask what, and record it in the decision.
+  - `other` - ask what, and describe it under the Errors section of docs/specification.md.
 - **Categories** - recommend `defaults.errors.categories`. Explain: each error belongs to one category, and each category has one meaning across components (e.g. `not-found` is a 404 in the api and "We couldn't find that image" in the web app). Drop categories that can't happen here; add domain ones (e.g. `payment-declined`).
 
 When a format or the categories differ from the defaults, follow the grilling skill's override protocol (keys `errors.formats.<kind>`, e.g. `errors.formats.backend`, and `errors.categories`).
@@ -49,14 +48,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "errors": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `errors` set to `"in_progress"`.
 3. When the user confirms the area, save the `errors` object `{"components": [{"name", "format"}], "categories": [...]}`, with one entry per component. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "errors"`:
-   `{"area": "errors", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "Problem details and user messages"); `context` is who meets the errors; `decision` gives each format and the categories; `consequences` says what every error must contain, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `errors` set to `"done"`.
+4. In the same call, save `areas` with `errors` set to `"done"`.
 
 ## Check
 

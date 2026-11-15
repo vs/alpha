@@ -38,7 +38,6 @@ Any stack works. The kit has proven recipes for some (`"${CLAUDE_PLUGIN_ROOT}/bi
 - `components[].traits.ml` - it trains or runs machine-learning models.
 - `components[].traits.nontrivial_logic` - it holds real business rules, not just plumbing.
 - `areas.components` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "components"`.
 
 ## Questions
 
@@ -74,15 +73,13 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "components": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `components` set to `"in_progress"`.
 3. When the user confirms the area, save `layout`, `components_talk` and the `components` list, plus `"workspace": false` only when the user declined the workspace. Each component is `{"name", "path", "kind", "stack", "traits": {"has_ui", "deployed", "network_calls", "persisted_data", "ml", "nontrivial_logic"}}`, with every trait `true` or `false`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "components"`:
-   `{"area": "components", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the shape (e.g. "Python api plus TypeScript web"); `context` is why these parts; `decision` lists the components with their stacks and the layout; `consequences` names the toolchains to maintain and the integration points, plus any defaults wish from the override protocol.
-5. For each stack that `recipe list` doesn't name, invoke `alpha:stack-recipe` with the Skill tool for it before marking the area done.
-6. In the same call as step 3 (or after the recipes are proven), save `areas` with `components` set to `"done"`.
+4. For each stack that `recipe list` doesn't name, invoke `alpha:stack-recipe` with the Skill tool for it before marking the area done.
+5. In the same call as step 3 (or after the recipes are proven), save `areas` with `components` set to `"done"`.
 
 ## Check
 

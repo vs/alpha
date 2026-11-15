@@ -19,7 +19,7 @@ AREAS: tuple[str, ...] = (
     "agent_workflow",
 )
 # The areas that describe the product rather than wire its tooling: the
-# interview leaves them open and /alpha:go settles them (decision 0034).
+# interview leaves them open and /alpha:go settles them.
 SPEC_AREAS: tuple[str, ...] = (
     "architecture",
     "errors",

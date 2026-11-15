@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Decide where documentation lives and how it stays true. Internal docs (product brief, architecture, decisions, build, dependencies) always live in `docs/`. User-facing docs are a choice. Then map the paths that hold each component's public behavior to the docs that describe it: when an agent changes one of those paths without touching its docs, the Stop hook blocks it ("Docs move with the code").
+Decide where documentation lives and how it stays true. Internal docs (the specification, the principles, the dependency log) always live in `docs/`, and the process in `CONTRIBUTING.md`. User-facing docs are a choice. Then map the paths that hold each component's public behavior to the docs that describe it: when an agent changes one of those paths without touching its docs, the Stop hook blocks it ("Docs move with the code").
 
 ## Fields this area settles
 
@@ -28,7 +28,6 @@ Decide where documentation lives and how it stays true. Internal docs (product b
 - `documentation.mappings[].paths` - globs, relative to the project root, of code whose changes need doc changes.
 - `documentation.mappings[].docs` - the docs (paths or globs, e.g. `"docs/guide/**"`) that must change with them.
 - `areas.documentation` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "documentation"`.
 
 ## Questions
 
@@ -59,14 +58,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "documentation": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `documentation` set to `"in_progress"`.
 3. When the user confirms the area, save the `documentation` object `{"external", "external_path", "external_location", "mappings": [{"paths": [...], "docs": [...]}]}`. Keep the exact field names; `mappings` may be `[]`.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "documentation"`:
-   `{"area": "documentation", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "User guide in docs/guide"); `context` is who reads the docs; `decision` says where user docs live and what is mapped; `consequences` says which changes must update which docs, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `documentation` set to `"done"`.
+4. In the same call, save `areas` with `documentation` set to `"done"`.
 
 ## Check
 

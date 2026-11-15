@@ -142,7 +142,7 @@ def test_commit_skeleton_groups_and_trailers(
         "build(api): Set up python toolchain and tests",
         "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
-        "docs: Add product brief, principles and decisions",
+        "docs: Add the specification, principles and process",
     ]
     assert hashes == git(tmp_path, "log", "--reverse", "--format=%H").splitlines()
     assert git(tmp_path, "log", "-1", "--format=%B") == (
@@ -197,7 +197,7 @@ def test_commit_skeleton_component_at_root_takes_the_rest(
         "build(ml): Set up python toolchain and tests",
         "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
-        "docs: Add product brief, principles and decisions",
+        "docs: Add the specification, principles and process",
     ]
     assert set(git(tmp_path, "show", "--name-only", "--format=", "HEAD~2").split()) == {
         "pyproject.toml",
@@ -237,7 +237,7 @@ def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
         "build: Set up api toolchain and tests",
         "build: Pin the repository's check tools",
         "chore: Add Claude Code settings and guardrails",
-        "docs: Add product brief, principles and decisions",
+        "docs: Add the specification, principles and process",
     ]
     assert git(tmp_path, "status", "--porcelain") == ""
 
@@ -350,9 +350,8 @@ def test_generated_hooks_enforce_the_generated_principles(
     started = hook("SessionStart", None, {"source": "startup"})
     assert started.returncode == 0, started.stderr
     told = json.loads(started.stdout)["hookSpecificOutput"]["additionalContext"]
-    assert told.startswith("alpha: decisions in effect")
-    assert "0001 Product identity [accepted]" in told
-    assert "- tests-first-class: drop, scope component:web (" in told
+    assert told.startswith("alpha: what the product does is in docs/specification.md")
+    assert "- tests-first-class: drop (component:web)" in told
 
     edit: dict[str, Any] = {
         "tool_name": "Write",

@@ -119,31 +119,29 @@ def test_adding_type_ignore_blocks(project: Project) -> None:
     assert reason(proc).strip() == (
         "This edit weakens a check (# type: ignore) in api/a.py. Principle "
         "never-weaken-checks: fix the cause instead. If the check is wrong here, "
-        "record why with the decision skill, naming the path api/a.py and the "
-        "rule, then retry; the principles-reviewer checks that reason."
+        "add a row to CONTRIBUTING.md's Exceptions table naming the path api/a.py, "
+        "the rule and why, then retry; the principles-reviewer checks that reason."
     )
 
 
-def decision(project: Project, n: int, status: str, body: str) -> None:
+def exceptions(project: Project, *rows: str, section: str = "Exceptions") -> None:
     project.write(
-        f"docs/decisions/{n:04d}-exception.md",
-        f"# {n:04d}. Allow an exception\n\nDate: 2026-11-10\nStatus: {status}\n\n"
-        f"## Decision\n\n{body}\n",
+        "CONTRIBUTING.md",
+        f"# Contributing\n\n## {section}\n\n| Path | Check | Reason |\n"
+        "|---|---|---|\n" + "".join(f"{row}\n" for row in rows),
     )
 
 
-def test_a_decision_naming_the_file_lets_the_exception_through(
-    project: Project,
-) -> None:
-    decision(project, 14, "accepted", "api/a.py keeps `# type: ignore` on f().")
+def test_an_exceptions_row_naming_the_file_lets_it_through(project: Project) -> None:
+    exceptions(project, "| `api/a.py` | `# type: ignore` | f() is untyped upstream. |")
     proc = edit(project, "api/a.py", "x = f()", "x = f()  # type: ignore")
     assert proc.returncode == 0 and proc.stdout == ""
     other = edit(project, "api/b.py", "x = f()", "x = f()  # type: ignore")
     assert "api/b.py" in reason(other)
 
 
-def test_a_superseded_decision_does_not_count(project: Project) -> None:
-    decision(project, 14, "superseded by 0015", "api/a.py keeps `# type: ignore`.")
+def test_a_row_outside_the_exceptions_table_does_not_count(project: Project) -> None:
+    exceptions(project, "| `api/a.py` | `# type: ignore` | x |", section="Overrides")
     proc = edit(project, "api/a.py", "x = f()", "x = f()  # type: ignore")
     assert "never-weaken-checks" in reason(proc)
 

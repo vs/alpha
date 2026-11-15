@@ -176,7 +176,7 @@ def test_new_finding_fails(tmp_path: Path):
     assert done.returncode == 1
     assert "api/a.py E1: 2 now, 1 in the baseline" in done.stderr
     assert "a.py:1: E1 one" in done.stderr and "a.py:9: E1 two" in done.stderr
-    assert "--decision" in done.stderr
+    assert "Exceptions table" in done.stderr
 
 
 def test_same_findings_pass(tmp_path: Path):

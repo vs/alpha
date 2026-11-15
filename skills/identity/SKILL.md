@@ -17,7 +17,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Pin down what the files need to name the project: what it does in a sentence or two, its name and slug, the license and the copyright holder. That is all the setup asks (decision 0034).
+Pin down what the files need to name the project: what it does in a sentence or two, its name and slug, the license and the copyright holder. That is all the setup asks.
 
 Who it's for, its requirements with their acceptance checks (Given/When/Then, which tests trace back to) and whether its domain has its own jargon are the product's specification. The user often doesn't know them yet, so the setup leaves them empty: `requirements` `[]`, `target_users` `""`, `domain_jargon` `false`. They're settled later, when `alpha:extend` sends you here for them: a feature built with `/alpha:go` adds the requirements it serves, and `/alpha:go settle the target users` settles the users.
 
@@ -35,7 +35,6 @@ Who it's for, its requirements with their acceptance checks (Given/When/Then, wh
 - `identity.copyright_holder` - the person or organization named in the license.
 - `identity.domain_jargon` - `true` when the domain has its own vocabulary; `false` until settled.
 - `areas.identity` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "identity"`.
 
 ## Questions
 
@@ -71,14 +70,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "identity": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `identity` set to `"in_progress"`.
 3. When the user confirms the area, save the whole `identity` object with every field above. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "identity"`:
-   `{"area": "identity", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` is a short name (e.g. "Product identity"); `context` is the problem and audience; `decision` is the name and license, plus the users and requirement ids once they're settled; `consequences` says what this rules in or out (e.g. "Each feature adds the requirements it serves through /alpha:go"), plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `identity` set to `"done"`.
+4. In the same call, save `areas` with `identity` set to `"done"`.
 
 ## Check
 

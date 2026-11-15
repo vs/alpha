@@ -10,7 +10,7 @@ _ERROR_FORMATS = {
     "user-message": "A message next to the problem, saying how to fix it.",
     "exceptions": "Typed exceptions whose message says how to fix the problem.",
     "structured-log": "A structured log entry with the category and the fix.",
-    "other": "As described in the errors decision record.",
+    "other": "As the specification's Errors section describes.",
 }
 
 
@@ -20,7 +20,7 @@ def _active(principles: dict[str, Any], principle_id: str) -> bool:
     )
 
 
-# What to ask /alpha:go for to settle each open spec area (decision 0034).
+# What to ask /alpha:go for to settle each open spec area.
 SETTLE_REQUESTS: dict[str, tuple[str, str]] = {
     "architecture": ("Architecture", "settle the architecture"),
     "errors": ("Errors", "settle the error handling"),
@@ -277,7 +277,7 @@ def design_language_doc(a: Answers) -> str | None:
         "series colors, a one-off illustration). What it must not do is drift: a "
         "near-copy of a palette color, a second accent, a typeface nobody chose. "
         "Something the project will keep using goes into the design language "
-        "first (`/alpha:extend`, with a decision record).",
+        "first (`/alpha:extend`).",
         "",
         _PALETTE_CHECKS[language.palette_check] + " "
         "`[visuals]` in [principles.toml](principles.toml) lists the files that "
@@ -377,7 +377,7 @@ def data_section(a: Answers) -> list[str] | None:
 
 def data_rules_sections(a: Answers, principles: dict[str, Any]) -> list[str]:
     """How the team changes stored data and runs experiments: process, for
-    CONTRIBUTING.md (decision 0035)."""
+    CONTRIBUTING.md."""
     if a.data is None:
         return []
     lines: list[str] = []
@@ -489,8 +489,8 @@ def performance_section(a: Answers) -> list[str] | None:
             "|---|---|---|---|",
             *rows,
             "",
-            "A change that breaks a budget is fixed, or the budget is changed by a "
-            "decision record.",
+            "A change that breaks a budget is fixed, or the budget is changed "
+            "through `/alpha:extend`.",
             "",
         ]
     if load:
@@ -558,8 +558,8 @@ def adoption_doc(a: Answers) -> str | None:
                 )
             if s.depends_on:
                 facts.append("After " + ", ".join(f"`{d}`" for d in s.depends_on) + ".")
-            if s.status == "dropped" and s.decision is not None:
-                facts.append(f"Dropped by decision {s.decision:04d}.")
+            if s.status == "dropped" and s.reason is not None:
+                facts.append(f"Dropped: {s.reason}")
             if facts:
                 lines += ["", " ".join(facts)]
             lines += ["", "Done when:", ""]

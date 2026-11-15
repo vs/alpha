@@ -373,8 +373,8 @@ def _principle_line(p: dict[str, Any], touched: set[str] | None) -> str:
         for name, extra in cast("dict[str, Any]", per).items():
             if isinstance(extra, dict) and (touched is None or name in touched):
                 line += f" [{name}: {_params(cast('dict[str, Any]', extra))}]"
-    if p.get("override_decision"):
-        line += f" [override: {p['override_decision']}]"
+    if p.get("override"):
+        line += f" [override: {p['override']}]"
     return line
 
 
@@ -495,7 +495,6 @@ def brief(root: Path) -> str:
     save_state(root, state)
     stats = _numstat(root, reviewed, current)
     files = [path for _, path in stats]
-    records, _warnings = _common.decision_index(root)
     load = str(principles.get("review", {}).get("expected_load", "")) or (
         "not recorded: infer it from the README and deploy config, and say "
         "which load you assumed"
@@ -509,13 +508,10 @@ def brief(root: Path) -> str:
     rules = _stack_rules(principles, touched)
     if rules:
         lines += ["", "## Stack rules", "", *rules]
-    lines += ["", "## Decisions", ""]
-    lines += [
-        f"- {n:04d} {title} ({path})"
-        for n, title, status, path in records
-        if status == "accepted"
-    ]
-    logged = accepted_in_log(root)
+    exceptions = _common.exception_rows(root)
+    if exceptions:
+        lines += ["", "## Exceptions (CONTRIBUTING.md)", "", *exceptions]
+    logged = _common.accepted_findings(root)
     by_user = [f for f in state.get("findings", []) if f.get("accepted")]
     if by_user:
         lines += ["", "## Findings the user accepted (don't report these again)", ""]
@@ -531,8 +527,8 @@ def brief(root: Path) -> str:
     if by_claude:
         lines += [
             "",
-            "## Findings Claude accepted (read the decision that accepts each; "
-            "report it as a new finding if its reason doesn't hold)",
+            "## Findings Claude accepted (read the `Accepts:` trailer of each in "
+            "git log; report it as a new finding if its reason doesn't hold)",
             "",
         ]
         lines += [
@@ -626,22 +622,6 @@ def main() -> None:
         sys.exit(1)
 
 
-_ACCEPTS = re.compile(r"F-[0-9a-f]{6}")
-
-
-def accepted_in_log(root: Path) -> set[str]:
-    ids: set[str] = set()
-    for _n, _title, _status, path in _common.decision_index(root)[0]:
-        try:
-            head = (root / path).read_text(encoding="utf-8").splitlines()[:20]
-        except (OSError, UnicodeDecodeError):
-            continue
-        for line in head:
-            if line.startswith("Accepts:"):
-                ids.update(_ACCEPTS.findall(line))
-    return ids
-
-
 def on_risk_path(principles: dict[str, Any], finding: dict[str, Any]) -> bool:
     globs = [str(g) for g in principles.get("review", {}).get("risk_paths", [])]
     return _common.matches(str(finding.get("file", "")), globs)
@@ -658,7 +638,7 @@ def settled(
 def gate(root: Path, principles: dict[str, Any]) -> str | None:
     state = ensure_state(root)
     findings: list[dict[str, Any]] = list(state.get("findings", []))
-    logged = accepted_in_log(root)
+    logged = _common.accepted_findings(root)
     still_open = [f for f in findings if not settled(principles, f, logged)]
     if still_open:
         listing = "\n".join(
@@ -675,17 +655,16 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
         )
         return (
             f"alpha review: open findings:\n{listing}\nFix them and run the "
-            "principles-reviewer agent again. A finding you can disprove: record "
-            "the disproof with the decision skill, with an `Accepts: <id>` header "
-            f"line, and carry on.{escalate}"
+            "principles-reviewer agent again. A finding you can disprove: commit "
+            "the disproof as a trailer, `Accepts: <id> <why it's wrong>` (an empty "
+            f"commit works), and carry on.{escalate}"
         )
     unrecorded = [str(f["id"]) for f in findings if f["id"] not in logged]
     if unrecorded:
-        lines = ", ".join(f"Accepts: {i}" for i in unrecorded)
+        lines = ", ".join(f"Accepts: {i} <why it stands>" for i in unrecorded)
         return (
-            "alpha review: the user accepted findings that aren't in the decision "
-            "log yet. Record them with the decision skill, one header line each: "
-            f"{lines}."
+            "alpha review: the user accepted findings that no commit records yet. "
+            f"Add a trailer per finding to a commit (an empty one works): {lines}."
         )
     if findings:
         state["reviewed_tree"] = state["reviewed_for"]
@@ -702,7 +681,7 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
 
 def merge_blocker(root: Path, principles: dict[str, Any]) -> str | None:
     state = ensure_state(root)
-    logged = accepted_in_log(root)
+    logged = _common.accepted_findings(root)
     pending = [
         str(f["id"])
         for f in state.get("findings", [])
@@ -712,8 +691,8 @@ def merge_blocker(root: Path, principles: dict[str, Any]) -> str | None:
         return (
             "Nothing reaches main unreviewed: resolve the review findings first "
             f"({', '.join(pending)}): fix them and run the principles-reviewer "
-            "again, or record why one stands with the decision skill (an "
-            "`Accepts: <id>` line; a finding on a risk path needs the user's "
+            "again, or commit why one stands as a trailer, `Accepts: <id> "
+            "<reason>` (a finding on a risk path needs the user's "
             '"accept <id>" too).'
         )
     try:

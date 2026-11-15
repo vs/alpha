@@ -476,7 +476,7 @@ core = true
 [[principles]]
 id = "never-weaken-checks"
 title = "Never weaken a check to pass it"
-statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong in one place, record why in a decision that names the path and the rule, then make the exception there."
+statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong in one place, add a row to CONTRIBUTING.md's Exceptions table that names the path, the rule and why, then make the exception there."
 rationale = "A check bent to pass proves nothing; an exception with a recorded reason can be reviewed, and reverted when the reason stops holding."
 applies = ["always"]
 checked_by = ["reviewer", "hook:guard_paths"]
@@ -539,7 +539,7 @@ core = true
 [[principles]]
 id = "never-block-on-the-human"
 title = "Never block on the human"
-statement = "Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, record it in the decision log, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people."
+statement = "Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, write it into the docs, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people."
 rationale = "The user supervises asynchronously: a recorded, reversible choice costs less than a stalled session, and the record makes it quick to correct."
 applies = ["always"]
 checked_by = ["reviewer"]

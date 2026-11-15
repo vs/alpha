@@ -26,11 +26,10 @@ Every UI must work with a keyboard and assistive technology ("Accessibility"), a
 - `accessibility.components[].name` - one entry per component with a UI, by name; none for the others.
 - `accessibility.components[].checks` - the automated checks, in the user's words, e.g. `"axe in the end-to-end tests"`.
 - `areas.accessibility` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "accessibility"`.
 
 ## Questions
 
-When no component has a UI, ask nothing: save `{"level": "", "components": []}` and a decision saying the project has no UI, so the accessibility principle doesn't apply.
+When no component has a UI, ask nothing: save `{"level": "", "components": []}`, so the accessibility principle doesn't apply.
 
 Otherwise run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round:
 
@@ -45,14 +44,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "accessibility": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `accessibility` set to `"in_progress"`.
 3. When the user confirms the area (or right away, with no UI), save the `accessibility` object `{"level", "components": [{"name", "checks"}]}`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "accessibility"`:
-   `{"area": "accessibility", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the target (e.g. "WCAG 2.2 AA"); `context` is who uses the UI; `decision` gives the level and each component's checks; `consequences` says what fails when a check finds a violation, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `accessibility` set to `"done"`.
+4. In the same call, save `areas` with `accessibility` set to `"done"`.
 
 ## Check
 

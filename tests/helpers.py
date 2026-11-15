@@ -48,11 +48,10 @@ def run_cli(*args: str, env: dict[str, str] | None = None):
 
 def setup_only(data: dict[str, Any]) -> None:
     """Answers as the setup interview leaves them: every spec area open, no
-    requirements, target users or auth yet (decision 0034)."""
+    requirements, target users or auth yet."""
     for area in SPEC_AREAS:
         data["areas"][area] = "open"
         data.pop(area, None)
-    data["decisions"] = [d for d in data["decisions"] if d["area"] not in SPEC_AREAS]
     data["overrides"] = []
     data["identity"].update(requirements=[], target_users="")
     data["security"]["auth"] = ""
@@ -191,11 +190,6 @@ def single_component(
         data["performance"]["components"] = [{"name": name, "budgets": budgets}]
     if "releases" in data:
         data["releases"]["scope"] = "repo"
-
-
-def override_record(data: dict[str, Any], principle: str, index: int = 0) -> str:
-    number = len(data["decisions"]) + index + 1
-    return f"docs/decisions/{number:04d}-override-{principle}.md"
 
 
 def shell_recipe() -> dict[str, Any]:

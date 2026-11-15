@@ -48,7 +48,7 @@ Review a change like the senior developer who will be paged when it breaks. Orde
 4. **Missing test:** risky logic (a branch, a parser, money, security, data writes, a bug fix) with no test that fails when it breaks. One good test, not coverage.
 5. **Speed:** big slowdowns are problems; small wins (work repeated in a hot loop) are suggestions, unless a budget in `docs/specification.md` makes them count.
 6. **Lean:** code that should not exist or should be smaller: dead code, unused options and config, speculative features; a helper the repo already has (name the path); what the standard library, the platform or an installed dependency already does; an abstraction with one implementation; near-copies that must change together; a function doing several unrelated jobs (split by job, never by line count).
-7. **The project's own rules:** anything that breaks a principle in `docs/principles.toml` or an accepted record in `docs/decisions/`; name the principle or the record.
+7. **The project's own rules:** anything that breaks a principle in `docs/principles.toml`, the specification in `docs/specification.md` or the process in `CONTRIBUTING.md`; name the principle or the section.
 
 ## 3. Check before you report
 

@@ -56,6 +56,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=AREAS,
         help="only require this area to be done (repeatable)",
     )
+    adrop_d = asub.add_parser(
+        "drop-decisions",
+        help="remove the decisions list once /alpha:fold-decisions folded it",
+    )
+    adrop_d.add_argument("target", type=Path, help="the project")
     awrite = asub.add_parser(
         "write", help="merge a JSON object from stdin into the answers file"
     )
@@ -108,10 +113,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="the user confirmed the step's confirm conditions",
     )
-    adrop = adsub.add_parser("drop", help="drop a step, with an accepted decision")
+    adrop = adsub.add_parser("drop", help="drop a step the user agreed to drop")
     adrop.add_argument("target", type=Path, help="the adopted repo")
     adrop.add_argument("step", help="the step id")
-    adrop.add_argument("--decision", required=True, help="the decision record's number")
+    adrop.add_argument("--reason", required=True, help="why the step isn't needed")
     apply_cmd = adsub.add_parser(
         "apply", help="install alpha's files onto the repo, on a branch"
     )
@@ -130,10 +135,6 @@ def build_parser() -> argparse.ArgumentParser:
     which.add_argument("--check", help="the check id, e.g. typecheck:api")
     which.add_argument(
         "--all", action="store_true", help="every listed check not yet captured"
-    )
-    bcap.add_argument(
-        "--decision",
-        help="the accepted decision record that lets an existing baseline grow",
     )
     btight = bsub.add_parser("tighten", help="lower each baseline to what's left")
     btight.add_argument("target", type=Path, help="the project")
@@ -215,6 +216,14 @@ def _answers_input(given: str | None) -> str:
 
 
 def _answers(args: argparse.Namespace) -> int:
+    if args.answers_command == "drop-decisions":
+        try:
+            dropped = answers.drop_decisions(args.target)
+        except answers.AnswersError as e:
+            print(e, file=sys.stderr)
+            return 3
+        print(f"ok: dropped {dropped} decisions from {answers.PROJECT_JSON}")
+        return 0
     if args.answers_command == "write":
         try:
             answers.write_answers(args.target, _answers_input(args.json))
@@ -337,8 +346,8 @@ def _adopt_step(args: argparse.Namespace) -> str:
     if args.adopt_command == "done":
         report = adopt.done(target, args.step, args.confirmed_by_user)
         return "\n".join([*report, f"{args.step} is done. {_RECORD}"])
-    adopt.drop(target, args.step, args.decision)
-    return f"{args.step} is dropped (decision {args.decision}). {_RECORD}"
+    adopt.drop(target, args.step, args.reason)
+    return f"{args.step} is dropped. {_RECORD}"
 
 
 def _adopt(args: argparse.Namespace) -> int:
@@ -383,7 +392,7 @@ def _baseline(args: argparse.Namespace) -> int:
                 lines = baseline.capture_missing(target)
                 print("\n".join(lines) or "Every baselined check is captured.")
             else:
-                print(baseline.capture(target, args.check, args.decision))
+                print(baseline.capture(target, args.check))
             return 0
         changed, problems = baseline.tighten(target)
     except baseline.BaselineError as e:

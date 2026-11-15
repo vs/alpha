@@ -38,7 +38,6 @@ from alpha.generate import (
 )
 from alpha.gitops import PROPOSALS, UPDATE_STATE, commit_group, status_paths
 from alpha.merge import Change, classify
-from alpha.records import Records, record_paths, taken_numbers
 from alpha.registry import load_registry
 from alpha.validate import AnswersError
 
@@ -101,12 +100,9 @@ def _not_loaded(target: Path, manifest: dict[str, Any], problem: Exception) -> s
     )
 
 
-def _baseline(
-    target: Path, manifest: dict[str, Any]
-) -> tuple[Records, dict[str, date], int]:
-    records = Records.from_json(manifest.get("records"))
+def _baseline(target: Path, manifest: dict[str, Any]) -> tuple[dict[str, date], int]:
     raw: object = manifest.get("added")
-    if records is None or not isinstance(raw, dict):
+    if not isinstance(raw, dict):
         raise _not_kept(target)
     try:
         added = {
@@ -116,7 +112,7 @@ def _baseline(
         year = date.fromisoformat(cast(str, manifest.get("generated_at"))).year
     except (TypeError, ValueError):
         raise _not_kept(target) from None
-    return records, added, year
+    return added, year
 
 
 def _load(target: Path) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -145,19 +141,6 @@ def _load(target: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(manifest.get("applied"), dict):
         raise _not_kept(target)
     return top, manifest
-
-
-def _check_history(applied: dict[str, Any], current: dict[str, Any]) -> None:
-    for key in ("decisions", "overrides"):
-        now: object = current.get(key, [])
-        now_list = cast(list[object], now) if isinstance(now, list) else []
-        for i, entry in enumerate(cast(list[object], applied.get(key, []))):
-            if i >= len(now_list) or now_list[i] != entry:
-                raise GenerateError(
-                    f"{key}[{i}] changed since the project was generated. Decision "
-                    "records are history: put it back as it was, and add a new "
-                    "decision for the change instead."
-                )
 
 
 def _moves(
@@ -306,7 +289,6 @@ kit, target = Path(sys.argv[1]), Path(sys.argv[2])
 today = date.fromisoformat(sys.argv[3])
 sys.path.insert(0, str(kit / "src"))
 from alpha import answers, defaults, generate
-from alpha.records import Records
 data = json.loads((target / ".claude/alpha/project.json").read_text(encoding="utf-8"))
 manifest = data["manifest"]
 applied = manifest["applied"]
@@ -314,18 +296,21 @@ source = defaults.locate_source(kit, os.environ, Path.home())
 was = answers.parse_answers(
     applied, target, generated=True, former=answers.generated_components(applied)
 )
+params = inspect.signature(generate.render_project).parameters
 extra = {}
-if "registry" in inspect.signature(generate.render_project).parameters:
+if "registry" in params:
     from alpha.registry import load_registry
     extra["registry"] = load_registry(source)
+if "records" in params:
+    from alpha.records import Records
+    extra["records"] = Records.from_json(manifest["records"])
 texts = generate.render_project(
     target,
     was,
     defaults.load_defaults(source),
     date.fromisoformat(manifest["generated_at"]).year,
     today,
-    Records.from_json(manifest["records"]),
-    {name: date.fromisoformat(day) for name, day in manifest["added"].items()},
+    added={name: date.fromisoformat(day) for name, day in manifest["added"].items()},
     **extra,
 ).texts
 copies = getattr(generate, "copied_files", None) or generate._copies
@@ -414,14 +399,20 @@ def plan_update(
     it up, also to this kit, copied files included: each file then merges
     against what that kit wrote, rendered by that kit (spec §5a)."""
     top, manifest = _load(target)
-    records, added, year = _baseline(target, manifest)
+    added, year = _baseline(target, manifest)
     if (target / UPDATE_STATE).exists():
         raise GenerateError(
             "An update is waiting to be committed. Merge any proposals in "
             f"{PROPOSALS}/, run alpha commit-update {target}, then run alpha "
             "update again."
         )
-    applied = cast(dict[str, Any], manifest["applied"])
+    # A kit before docs/specs/2026-11-15-no-decision-records.md snapshotted the
+    # answers with their decisions list; the snapshot is history, so it stays.
+    applied = {
+        k: v
+        for k, v in cast(dict[str, Any], manifest["applied"]).items()
+        if k != "decisions"
+    }
     defaults = load_defaults(source)
     # One registry for both renders, so kit changes cancel out.
     registry = load_registry(source)
@@ -430,7 +421,7 @@ def plan_update(
             applied, target, generated=True, former=generated_components(applied)
         )
         before = render_project(
-            target, was, defaults, year, today, records, added, registry=registry
+            target, was, defaults, year, today, added, registry=registry
         )
     except (AnswersError, GenerateError, ValueError, KeyError) as e:
         raise GenerateError(_not_loaded(target, manifest, e)) from None
@@ -441,12 +432,8 @@ def plan_update(
         if area:
             raise GenerateError(f"Revisit the {area} area: {e}") from None
         raise GenerateError(f"Fix {PROJECT_JSON}: {e}") from None
-    _check_history(applied, top)
-    new_records = record_paths(now, known=records, taken=taken_numbers(target))
     dates = {c.name: added.get(c.name, today) for c in now.components}
-    after = render_project(
-        target, now, defaults, year, today, new_records, dates, registry=registry
-    )
+    after = render_project(target, now, defaults, year, today, dates, registry=registry)
     moves = _moves(target, was, now, (before, after))
     upgraded_from = _upgrade_from(target, manifest)
     copies = copied_files(plugin_root) if upgraded_from else {}
@@ -482,9 +469,8 @@ def plan_update(
         new_components=tuple(c.name for c in now.components if c.name not in old_names),
         groups={p: commit_group(p, after.component_of) for p in touched},
         manifest={
-            **manifest,
+            **{k: v for k, v in manifest.items() if k != "records"},
             "applied": answers_snapshot(top),
-            "records": new_records.to_json(),
             "added": {name: day.isoformat() for name, day in dates.items()},
             "updated_at": today.isoformat(),
             **(

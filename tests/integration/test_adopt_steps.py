@@ -64,7 +64,7 @@ def test_steps_load(tmp_path: Path):
             component=None,
             acceptance=[{"confirm": "Every API error says how to fix it"}],
             status="dropped",
-            decision=12,
+            reason="The CLI has no user-facing errors yet.",
         ),
     ]
     del steps[2]["component"]
@@ -72,7 +72,8 @@ def test_steps_load(tmp_path: Path):
     assert [s.id for s in a.steps] == ["p1-format-ml", "p2-lint-ml", "p4-errors"]
     assert a.steps[1].depends_on == ("p1-format-ml",)
     assert a.steps[1].acceptance[1].kind == "run"
-    assert a.steps[2].decision == 12 and a.steps[2].component is None
+    assert a.steps[2].reason == "The CLI has no user-facing errors yet."
+    assert a.steps[2].component is None
 
 
 @pytest.mark.parametrize(
@@ -100,7 +101,7 @@ def test_steps_load(tmp_path: Path):
             [step(acceptance=[{"no_baseline": "x", "dir": "a"}])],
             r"dir: only goes with run",
         ),
-        ([step(status="dropped")], r"decision: is missing for a dropped step"),
+        ([step(status="dropped")], r"reason: is missing for a dropped step"),
         ([step(component="ghost")], r"steps\[0\]\.component: no component named"),
         ([step(owner="me")], r"steps\[0\]\.owner: unknown key"),
     ],
@@ -231,7 +232,10 @@ def test_next_follows_phase_order_and_dependencies(tmp_path: Path, git_env: None
 def test_next_when_all_done_or_empty(tmp_path: Path, git_env: None):
     root = plan_repo(
         tmp_path,
-        [ok("p1-a", "P1", status="dropped", decision=3), ok("p2-b", status="done")],
+        [
+            ok("p1-a", "P1", status="dropped", reason="Not needed."),
+            ok("p2-b", status="done"),
+        ],
     )
     _, why = next_step(load_answers(root / PROJECT))
     assert why == "Every step of the adoption plan is done or dropped."
@@ -293,18 +297,15 @@ def test_done_confirm_needs_the_flag(tmp_path: Path, git_env: None):
     assert statuses(root) == {"p2-lint-ml": "done"}
 
 
-def test_drop_needs_an_accepted_record_naming_the_step(tmp_path: Path, git_env: None):
+def test_drop_needs_a_reason_and_keeps_it(tmp_path: Path, git_env: None):
+    """F4: a dropped step keeps the reason the user agreed to."""
     root = plan_repo(tmp_path, [ok("p2-a")])
-    with pytest.raises(AdoptError, match="No decision record 7"):
-        drop(root, "p2-a", "7")
-    record = root / "docs/decisions/0007-drop-a.md"
-    record.write_text("# 0007. Drop a\n\nStatus: accepted\n\nNot needed.\n")
-    with pytest.raises(AdoptError, match="`p2-a`"):
-        drop(root, "p2-a", "7")
-    record.write_text("# 0007. Drop a\n\nStatus: accepted\n\n`p2-a` isn't needed.\n")
-    drop(root, "p2-a", "7")
+    with pytest.raises(AdoptError, match="--reason"):
+        drop(root, "p2-a", "  ")
+    drop(root, "p2-a", " The repo has no stored data. ")
     saved = json.loads((root / PROJECT).read_text())["adoption"]["steps"][0]
-    assert saved["status"] == "dropped" and saved["decision"] == 7
+    assert saved["status"] == "dropped"
+    assert saved["reason"] == "The repo has no stored data."
 
 
 def test_start_sets_in_progress_and_branch(tmp_path: Path, git_env: None):
@@ -332,7 +333,7 @@ PLAN_STEPS = [
         "p4-errors",
         phase="P4",
         status="dropped",
-        decision=12,
+        reason="The CLI prints no errors of its own.",
         title="Say how to fix each error",
         acceptance=[{"confirm": "every CLI error says how to fix it"}],
     ),
@@ -351,7 +352,10 @@ def test_adoption_doc_lists_steps_by_phase(tmp_path: Path, git_env: None):
     assert "| P1 Normalize | 1 | 1 |" in doc and "| P4 Rework | 1 | 1 |" in doc
     assert doc.index("## P1 Normalize") < doc.index("## P2 Close tool gaps")
     assert "| `p2-lint-ml` | ml | in progress |" in doc
-    assert "After `p1-format-ml`." in doc and "Dropped by decision 0012." in doc
+    assert (
+        "After `p1-format-ml`." in doc
+        and "Dropped: The CLI prints no errors of its own." in doc
+    )
     assert "- the recipe sets ml.commands.lint" in doc
     assert "- the user confirms: every CLI error says how to fix it" in doc
 

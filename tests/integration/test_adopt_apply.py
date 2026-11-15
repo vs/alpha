@@ -77,9 +77,10 @@ def test_apply_never_loses_a_repo_line(repo: Path):
         assert (repo / rel).read_text() == EXISTING[rel]
 
 
-def test_records_follow_the_repos(repo: Path):
-    records = _plan(repo).manifest["records"]["decisions"]
-    assert records[0].startswith("docs/decisions/0002-")
+def test_the_repos_own_records_stay_and_alpha_adds_none(repo: Path):
+    plan = _plan(repo)
+    assert "records" not in plan.manifest
+    assert not [c.path for c in plan.changes if c.path.startswith("docs/decisions/")]
 
 
 def test_apply_makes_the_branch(repo: Path):
@@ -142,7 +143,7 @@ def test_apply_writes_a_manifest_update_can_use(repo: Path):
     data = json.loads((repo / ".claude/alpha/project.json").read_text())
     manifest = data["manifest"]
     assert manifest["adopted_at"] == "2026-11-11"
-    assert set(manifest) >= {"applied", "records", "added", "files", "generated_at"}
+    assert set(manifest) >= {"applied", "added", "files", "generated_at"}
     state = json.loads((repo / ".claude/alpha/state/update.json").read_text())
     assert state["kind"] == "adopt" and state["new_components"] == []
     with pytest.raises(GenerateError, match="waiting to be committed"):
@@ -206,7 +207,7 @@ def test_commit_adoption_groups(repo: Path):
     )
     subjects = git(repo, "log", "--format=%s", f"{start}..HEAD").splitlines()
     assert list(reversed(subjects)) == [
-        "docs: Add product brief, principles and decisions",
+        "docs: Add the specification, principles and process",
         "chore: Add Claude Code settings and guardrails",
         "build: Pin the repository's check tools",
         "ci: Run every component's checks in CI",
@@ -285,10 +286,6 @@ def test_kit_upgrade_brings_the_kits_changes_and_keeps_the_repos(
     data["manifest"]["kit_version"] = "0.0.1"
     data["manifest"]["defaults"] = {"path": str(kit), "live": True, "commit": None}
     path.write_text(json.dumps(data, indent=2) + "\n")
-    record = repo / data["manifest"]["records"]["decisions"][0]
-    record.write_text(
-        record.read_text().replace("Status: accepted", "Status: superseded by 0099")
-    )
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "--no-verify", "-m", "chore: As the older kit left it")
     plan = plan_update(repo, PLUGIN_ROOT, SOURCE, TODAY)
@@ -296,7 +293,6 @@ def test_kit_upgrade_brings_the_kits_changes_and_keeps_the_repos(
     assert describe(plan, repo).startswith("alpha update (kit 0.0.1 to ")
     apply_update(repo, plan)
     assert (repo / rel).read_text() == current
-    assert "Status: superseded by 0099" in record.read_text()
     assert EXISTING["README.md"].strip() in (repo / "README.md").read_text()
     assert json.loads(path.read_text())["manifest"]["kit_version"] != "0.0.1"
 
