@@ -70,8 +70,8 @@ class Recipe:
     # (relative to the component). A stack with both gets a diff coverage check.
     coverage: str = ""
     coverage_report: str = ""
-    # Optional: the mutation-testing gate of an exhaustively tested project
-    # , run in the component folder on the diff in MUTANTS_DIFF.
+    # Optional: the mutation-testing gate of an exhaustively tested project,
+    # run in the component folder on the diff in MUTANTS_DIFF.
     mutants: str = ""
     workspace: Workspace | None = None
     # How each step's findings read, for a baseline (spec §8b); keyed by step.
