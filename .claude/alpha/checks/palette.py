@@ -186,7 +186,8 @@ def main() -> int:
         print(
             "palette: the design language's palette holds no hex, rgb() or hsl() "
             "color, so no color can be checked against it. Write the palette's "
-            "values in one of those forms (/alpha:extend), or set palette_check "
+            "values in one of those forms (/alpha:specify design language), or "
+            "set palette_check "
             f'to "advise" or "off" under [visuals] in {PRINCIPLES}.'
         )
         return 1
@@ -198,7 +199,8 @@ def main() -> int:
     print(
         f"{len(found)} color(s) outside the palette in docs/alpha/design-language.md. "
         "For each: use a palette color; or add the color to the design language "
-        "with /alpha:extend; or, for a third-party file, add its path to "
+        "with /alpha:specify design language; or, for a third-party file, add "
+        "its path to "
         f"exclude under [visuals] in {PRINCIPLES}. To make this check advisory, "
         'set palette_check = "advise" there.'
     )
