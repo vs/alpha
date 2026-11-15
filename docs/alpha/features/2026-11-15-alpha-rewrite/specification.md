@@ -291,9 +291,9 @@ Claude's choices, made while the user was away or after the review, open to the 
 
 ## By hand, for projects alpha already set up
 
-To be confirmed while building (plan task 19 follows them on alpha itself), and repeated in the final report:
+Confirmed on alpha itself (plan task 19), and repeated in the final report:
 
 1. Move `docs/principles.toml` and `docs/dependencies.md` to `docs/alpha/`, and fold `docs/specification.md`, `docs/glossary.md`, `docs/design-language.md` and `docs/adoption.md` into `docs/alpha/`; old feature specs in `docs/specs/` go to `docs/alpha/features/`. The old hooks find no principles file after the move and stop checking, so do this in one sitting.
-2. Remove `manifest` from `.claude/alpha/project.json` and reshape the answers (identity's target users and requirements into `requirements`, `security.auth` into `auth`; drop the review mode, thresholds, `testing.run`, `testing.mutants` and each `proven_hash`), then `alpha answers check` until ok and `alpha recipe try` for each drafted recipe.
+2. Replace `manifest` in `.claude/alpha/project.json` with an `installed` record, read from it: `kit_version` its kit version, `mode` `"adopted"` when it has `adopted_at` else `"new"`, `on` that date (else `generated_at`), `components` its `added`, and `preexisting` the files alpha writes that the repo had when the adoption surveyed it (`git ls-tree -r --name-only` at the survey's `git.head`; `[]` for a project alpha generated). Reshape the answers (identity's target users and requirements into `requirements`, `security.auth` into `auth`; drop the review mode, thresholds, `testing.run`, `testing.mutants` and each `proven_hash`), then `alpha answers check` until ok and `alpha recipe try` for each drafted recipe. Commit steps 1 and 2: `alpha apply` merges only into committed files.
 3. Run `alpha apply`: alpha's own files and hook entries are replaced, and every other alpha-written file that differs is a proposal to merge by hand. Then `alpha bootstrap` and `alpha commit`.
 4. In chain mode, wrap the chained call in the hook manager's file in `# alpha:begin` and `# alpha:end`.

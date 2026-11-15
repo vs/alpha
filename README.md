@@ -206,12 +206,18 @@ alpha doesn't upgrade such a project on its own. By hand, in one sitting:
    and fold `docs/specification.md`, `docs/glossary.md`,
    `docs/design-language.md` and `docs/adoption.md` into `docs/alpha/`; old
    feature specs in `docs/specs/` go to `docs/alpha/features/`.
-2. Remove `manifest` from `project.json` and reshape the answers: identity's
-   target users and requirements go into a `requirements` area,
-   `security.auth` into an `auth` area; drop the review mode and thresholds,
-   `testing.run`, `testing.mutants` and each `proven_hash`. Then run
-   `bin/alpha answers check` until it prints ok, and `bin/alpha recipe try`
-   for each drafted recipe.
+2. Replace `manifest` in `project.json` with an `installed` record read from
+   it: `kit_version` its kit version; `mode` `"adopted"` when it has
+   `adopted_at`, else `"new"`; `on` that date (else `generated_at`);
+   `components` its `added`; and `preexisting` the files alpha writes that
+   the repo had when the adoption surveyed it (`git ls-tree -r --name-only`
+   at the survey's `git.head`), or `[]` for a project alpha generated.
+   Reshape the answers: identity's target users and requirements go into a
+   `requirements` area, `security.auth` into an `auth` area; drop the review
+   mode and thresholds, `testing.run`, `testing.mutants` and each
+   `proven_hash`. Then run `bin/alpha answers check` until it prints ok, and
+   `bin/alpha recipe try` for each drafted recipe. Commit steps 1 and 2:
+   `apply` merges only into committed files.
 3. Run `bin/alpha apply <project>`: alpha's own files and hook entries are
    replaced, and every other file of alpha's that differs becomes a proposal
    to merge by hand. Then `bin/alpha bootstrap <project>` and
