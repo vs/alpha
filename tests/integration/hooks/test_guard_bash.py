@@ -404,7 +404,7 @@ def commit_change(project: Project, rel: str = "api/src/x.py") -> None:
     [
         "git push",
         "git push --dry-run origin main",
-        "git push origin topic:main",
+        "git push origin HEAD:main",
         "gh pr merge --squash --auto",
         "gh --repo=owner/repo pr merge",
     ],
@@ -666,3 +666,22 @@ def test_R10_4_moving_review_notes_between_clones_is_blocked(
 def test_reading_review_notes_passes(project: Project, command: str) -> None:
     proc = bash(project, command)
     assert NOTES not in proc.stderr, command
+
+
+def test_main_gets_only_the_head_its_gates_judged(project: Project) -> None:
+    """A push to main from another branch's checkout would send work the
+    review and test gates never looked at."""
+    project.git("checkout", "-q", "-B", "main")
+    committed(project)
+    published(project)
+    project.git("switch", "-q", "-c", "topic")
+    commit_change(project)
+    project.git("switch", "-q", "main")
+    proc = bash(project, "git push origin topic:main")
+    assert proc.returncode == 2
+    assert "Push main from the checkout where it is checked out" in proc.stderr
+
+
+def test_fetching_every_note_is_blocked(project: Project) -> None:
+    proc = bash(project, "git fetch origin 'refs/notes/*:refs/notes/*'")
+    assert proc.returncode == 2 and NOTES in proc.stderr

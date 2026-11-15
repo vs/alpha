@@ -189,7 +189,7 @@ In an adopted repo with baselines, the checks that ran through the ratchet run p
 
 ### Review
 
-- **When:** only at the merge gate. The command guard runs it on `git push` to a main branch and on `gh pr merge` for a branch checked out here; for `gh pr merge` the PR's head on GitHub must be the local HEAD. The gate also needs a remembered test pass on the current files (`stop_checks.py tests`). Stop never asks for a review.
+- **When:** only at the merge gate. The command guard runs it on `git push` to a main branch, which must send the checkout's own HEAD, and on `gh pr merge`, whose branch must be checked out here (else it blocks, saying to check it out); for `gh pr merge` the PR's head on GitHub must be the local HEAD. The gate also needs a remembered test pass on the current files (`stop_checks.py tests`). Stop never asks for a review.
 - **Where:** a note per reviewed tree under `refs/notes/alpha-review`: `{"kind": "review" | "fix-check", "branch": <name>, "base": <tree>, "findings": [{id, principle, file, line, problem, fix, status}]}`, with status `open`, `fixed` or `accepted`.
 - **Main:** the first of `origin/HEAD`, `origin/main`, `origin/master`, `main`, `master` that exists; the merge base is `git merge-base HEAD <main>`.
 - **Last review:** walk `git rev-list --topo-order <merge base>..HEAD` for the first commit whose tree has a note. None (a rebase gave every commit a new tree): the newest note whose `branch` is the current branch. None: no review yet. Notes on the merge base or main's history don't count, so their open findings never carry into a branch.

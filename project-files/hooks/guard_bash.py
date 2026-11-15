@@ -244,7 +244,7 @@ def review_notes_written(raw: list[str], sub: str, args: list[str]) -> bool:
         notes = [a for a in args if "refs/notes/" in a]
         return "--mirror" in args or named or any("*" in a for a in notes)
     if sub == "fetch":
-        return named
+        return named or any("refs/notes/" in a and "*" in a for a in args)
     return False
 
 
@@ -507,9 +507,19 @@ def pr_head(root: Path, target: str) -> str | None:
 def check_merge(root: Path, words: list[str]) -> None:
     target = merge_target(words)
     branch = pr_branch(root, target)
-    checkout = checkout_with(root, branch) if branch else None
+    if branch is None:
+        _common.block(
+            f"alpha can't tell which branch pull request {target} merges (gh pr "
+            "view failed), so it can't check its review and tests. Check the "
+            "branch out (gh pr checkout), then merge from there."
+        )
+    checkout = checkout_with(root, branch)
     if checkout is None:
-        return
+        _common.block(
+            f"{branch} isn't checked out here, so alpha can't check what merges "
+            f"was reviewed and tested. Run git switch {branch} (or gh pr "
+            "checkout), then merge from there."
+        )
     remote = pr_head(checkout, target or branch or "")
     local = (git_output(checkout, "rev-parse", "HEAD") or "").strip()
     if remote and local and remote != local:
@@ -617,7 +627,47 @@ def check_push(root: Path, raw_args: list[str], args: list[str]) -> None:
             "rewrites main."
         )
     if to_main:
+        foreign = [s for s in main_sources(root, raw_args) if not is_head(root, s)]
+        if foreign:
+            _common.block(
+                f"git push sends {foreign[0]} to main, but the review and test "
+                "gates judge this checkout's HEAD. Push main from the checkout "
+                "where it is checked out."
+            )
         check_review(root)
+
+
+def main_sources(root: Path, raw_args: list[str]) -> list[str]:
+    """What a push sends to a main branch: each refspec's source, or the main
+    branches themselves when it pushes every branch."""
+    words: list[str] = []
+    skip = False
+    for arg in raw_args:
+        if skip:
+            skip = False
+        elif arg in PUSH_EVERY_BRANCH:
+            return sorted(main_branches(root))
+        elif arg in PUSH_VALUE_FLAGS:
+            skip = True
+        elif not arg.startswith("-"):
+            words.append(arg)
+    main = main_branches(root)
+    sources: list[str] = []
+    for spec in words[1:] or ["HEAD"]:
+        src, _, dst = (
+            spec.lstrip("+").rpartition(":") if ":" in spec else ("", "", spec)
+        )
+        src = src or dst
+        target = dst if dst not in ("", "HEAD") else current_branch(root)
+        if target.removeprefix("refs/heads/") in main:
+            sources.append(src)
+    return sources
+
+
+def is_head(root: Path, ref: str) -> bool:
+    here = (git_output(root, "rev-parse", "HEAD") or "").strip()
+    there = (git_output(root, "rev-parse", "--verify", "-q", ref) or "").strip()
+    return ref == "HEAD" or (bool(there) and there == here)
 
 
 REVIEWER = "principles-reviewer"
