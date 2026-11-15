@@ -30,10 +30,6 @@ GLOBAL_OPTIONS_WITH_VALUE = {
 }
 COMMIT_VALUE_FLAGS = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--template"}
 COMMIT_VALUE_LETTERS = "mFCct"
-HOOKS_PATH_MESSAGE = (
-    "Overriding core.hooksPath skips the project's commit checks. Fix what the "
-    "hook reports instead; if the hook itself is wrong, tell the user."
-)
 HOOKS_CONFIG_MESSAGE = (
     "Changing core.hooksPath switches off the project's commit checks. Keep it "
     "at .claude/alpha/githooks; if the hook itself is wrong, tell the user."
@@ -41,32 +37,8 @@ HOOKS_CONFIG_MESSAGE = (
 HOOKS_PATH = ".claude/alpha/githooks"
 CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--list", "-l", "get", "list"}
 CONFIG_UNSETS = {"--unset", "--unset-all", "unset"}
-WRAPPERS: dict[tuple[str, ...], set[str]] = {
-    ("uv", "run"): {
-        "--with",
-        "--with-editable",
-        "--with-requirements",
-        "--project",
-        "--directory",
-        "--python",
-        "-p",
-        "--package",
-        "--group",
-        "--extra",
-        "--env-file",
-        "--index",
-    },
-    ("pnpm", "exec"): {"--filter", "-F", "--dir", "-C"},
-    ("npx",): {"--package", "-p"},
-    ("nohup",): set(),
-    ("xargs",): {"-I", "-n", "-L", "-P", "-d", "-E", "-s", "-a"},
-}
-SHELLS = {"sh", "bash", "zsh"}
 SHELL_KEYWORDS = {"then", "do", "else", "elif", "!", "time", "if", "while", "until"}
-MAX_DEPTH = 2
 ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
-CONFIG_FROM_ENV = re.compile(r"GIT_CONFIG_(?:PARAMETERS|KEY_[0-9]+)=")
-EXPORTS = {"export", "declare", "typeset"}
 
 
 # A heredoc operator (<<WORD, <<-'WORD', <<"WORD"), but not a <<< here-string.
@@ -126,31 +98,11 @@ def split_segments(command: str) -> list[list[str]] | None:
     return [s for s in segments if s]
 
 
-def skip_wrapper(segment: list[str], i: int) -> int:
-    for words, valued in WRAPPERS.items():
-        head = segment[i : i + len(words)]
-        if not head or posixpath.basename(head[0]) != words[0]:
-            continue
-        if head[1:] != list(words[1:]):
-            continue
-        j = i + len(words)
-        while j < len(segment) and segment[j].startswith("-"):
-            if segment[j] == "--":
-                return j + 1
-            j += 2 if segment[j] in valued else 1
-        return j
-    return i
-
-
 def strip_prefix(segment: list[str]) -> list[str]:
     i = 0
     after_env = False
     while i < len(segment):
         tok = segment[i]
-        wrapped = skip_wrapper(segment, i)
-        if wrapped != i:
-            i, after_env = wrapped, False
-            continue
         if tok == "env":
             after_env = True
         elif tok in SHELL_KEYWORDS or tok in ("command", "exec"):
@@ -163,41 +115,15 @@ def strip_prefix(segment: list[str]) -> list[str]:
     return segment[i:]
 
 
-def git_invocation(segment: list[str]) -> tuple[str, list[str], bool] | None:
+def git_invocation(segment: list[str]) -> tuple[str, list[str]] | None:
     if not segment or posixpath.basename(segment[0]) != "git":
         return None
-    hooks_override = False
     i = 1
     while i < len(segment) and segment[i].startswith("-"):
-        arg = segment[i]
-        if arg in ("-c", "--config-env") and i + 1 < len(segment):
-            config = segment[i + 1]
-        elif arg.startswith("-c") and not arg.startswith("--"):
-            config = arg[2:]
-        elif arg.startswith("--config-env="):
-            config = arg.removeprefix("--config-env=")
-        else:
-            config = ""
-        if config.lower().startswith("core.hookspath"):
-            hooks_override = True
-        i += 2 if arg in GLOBAL_OPTIONS_WITH_VALUE else 1
+        i += 2 if segment[i] in GLOBAL_OPTIONS_WITH_VALUE else 1
     if i >= len(segment):
         return None
-    return segment[i], segment[i + 1 :], hooks_override
-
-
-def shell_script(segment: list[str]) -> str | None:
-    if not segment:
-        return None
-    name = posixpath.basename(segment[0])
-    if name == "eval":
-        return " ".join(segment[1:]) or None
-    if name in SHELLS:
-        for k, arg in enumerate(segment[1:], start=1):
-            is_flag = arg.startswith("-") and not arg.startswith("--")
-            if is_flag and arg.endswith("c") and k + 1 < len(segment):
-                return segment[k + 1]
-    return None
+    return segment[i], segment[i + 1 :]
 
 
 def option_args(sub: str, args: list[str]) -> list[str]:
@@ -296,39 +222,14 @@ def git_folder(segment: list[str]) -> str | None:
     return None
 
 
-def check_command(
-    command: str,
-    root: Path,
-    depth: int = 0,
-    here: Path | None = None,
-    hooks_env: bool = False,
-) -> None:
-    segments = split_segments(command)
-    if segments is None:
-        return
-    here = here or root
-    for raw in segments:
+def check_command(command: str, root: Path, here: Path) -> None:
+    for raw in split_segments(command) or []:
         segment = strip_prefix(raw)
-        hooks_env = hooks_env or sets_hooks_path_env(raw, segment)
         if segment[:1] == ["cd"] and len(segment) > 1 and segment[1] != "-":
             here = here / Path(segment[1]).expanduser()
-        script = shell_script(segment)
-        if script is not None and depth < MAX_DEPTH:
-            check_command(script, root, depth + 1, here, hooks_env)
         folder = git_folder(segment) if segment[:1] == ["git"] else None
         target = here / folder if folder else here
-        check_segment(segment, _common.checkout_of(target.resolve()) or root, hooks_env)
-
-
-def sets_hooks_path_env(raw: list[str], command: list[str]) -> bool:
-    """Whether the segment's assignments point git's config at core.hooksPath."""
-    assignments = raw[: len(raw) - len(command)]
-    if command[:1] and command[0] in EXPORTS:
-        assignments = assignments + command[1:]
-    return any(
-        CONFIG_FROM_ENV.match(word) and "core.hookspath" in word.lower()
-        for word in assignments
-    )
+        check_segment(segment, _common.checkout_of(target.resolve()) or root)
 
 
 REDIRECTS = (">>", ">|", ">")  # longest first; "&>" is "&" glued to ">"
@@ -439,20 +340,14 @@ def _files(here: Path, word: str) -> list[Path]:
     return [path if path.is_absolute() else here / path]
 
 
-def write_targets(command: str, cwd: Path, depth: int = 0) -> list[Path]:
-    segments = split_segments(command)
-    if segments is None:
-        return []
+def write_targets(command: str, cwd: Path) -> list[Path]:
     targets: list[Path] = []
     here = cwd
-    for segment in segments:
+    for segment in split_segments(command) or []:
         segment = strip_prefix(segment)
         if segment and segment[0] == "cd":
             here = _cd(here, segment)
             continue
-        script = shell_script(segment)
-        if script is not None and depth < MAX_DEPTH:
-            targets += write_targets(script, here, depth + 1)
         for word in command_targets(segment):
             if word not in NOT_FILES:
                 targets += _files(here, word)
@@ -562,22 +457,10 @@ def checkout_with(root: Path, branch: str) -> Path | None:
 
 
 def check_merge(root: Path, words: list[str]) -> None:
-    target = merge_target(words)
-    branch = pr_branch(root, target)
-    if branch is None:
-        _common.block(
-            f"alpha can't tell which branch `gh pr merge {target or ''}` merges, so "
-            "it can't check its review. Run it from the checkout that has the "
-            "branch, naming the branch: gh pr merge <branch>."
-        )
-    checkout = checkout_with(root, branch)
-    if checkout is None:
-        _common.block(
-            f"Nothing reaches main unreviewed, and no checkout here has {branch}. "
-            f"Check it out (git worktree add <folder> {branch}), run the "
-            "principles-reviewer agent there, then merge."
-        )
-    check_review(checkout)
+    branch = pr_branch(root, merge_target(words))
+    checkout = checkout_with(root, branch) if branch else None
+    if checkout is not None:
+        check_review(checkout)
 
 
 def gh_command(segment: list[str]) -> list[str] | None:
@@ -656,21 +539,19 @@ def check_shared_work(
         )
 
 
-def check_segment(segment: list[str], root: Path, hooks_env: bool) -> None:
+def check_segment(segment: list[str], root: Path) -> None:
     gh = gh_command(segment)
     if gh is not None and gh[:2] == ["pr", "merge"]:
         check_merge(root, gh[2:])
     invocation = git_invocation(segment)
     if invocation is None:
         return
-    sub, raw_args, hooks_override = invocation
+    sub, raw_args = invocation
     if sub == "config" and changes_hooks_path(raw_args):
         _common.block(HOOKS_CONFIG_MESSAGE)
     args = option_args(sub, raw_args)
-    if (hooks_override or hooks_env) and sub in SKIPPING:
-        _common.block(HOOKS_PATH_MESSAGE)
     if sub in SKIPPING:
-        if any(skips_verify(a) for a in args):
+        if "--no-verify" in args:
             _common.block(NO_VERIFY_MESSAGE)
         if sub == "commit" and any("n" in short_flags(a, sub) for a in args):
             _common.block(NO_VERIFY_MESSAGE)
@@ -693,11 +574,6 @@ def check_segment(segment: list[str], root: Path, hooks_env: bool) -> None:
                 f"HEAD is already on {', '.join(branches)}; amending rewrites the "
                 "main branch's history. Make a new commit instead."
             )
-
-
-def skips_verify(arg: str) -> bool:
-    """--no-verify, or any prefix of it git accepts as an abbreviation."""
-    return len(arg) >= len("--no-v") and "--no-verify".startswith(arg)
 
 
 def check_push(root: Path, raw_args: list[str], args: list[str]) -> None:
@@ -749,15 +625,11 @@ REVIEWER_MESSAGE = (
 )
 
 
-def check_read_only(command: str, cwd: Path, depth: int = 0) -> None:
+def check_read_only(command: str, cwd: Path) -> None:
     if write_targets(command, cwd):
         _common.block(REVIEWER_MESSAGE)
     for segment in split_segments(command) or []:
-        segment = strip_prefix(segment)
-        script = shell_script(segment)
-        if script is not None and depth < MAX_DEPTH:
-            check_read_only(script, cwd, depth + 1)
-        invocation = git_invocation(segment)
+        invocation = git_invocation(strip_prefix(segment))
         if invocation is not None and invocation[0] not in READ_ONLY_GIT:
             _common.block(REVIEWER_MESSAGE)
 
