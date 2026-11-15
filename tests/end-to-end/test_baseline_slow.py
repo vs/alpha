@@ -1,6 +1,7 @@
-"""Baselines end to end (spec §8b): a web+API project with legacy findings
-bootstraps green with them baselined, fails on a new one, tightens when one
-is fixed, and refuses a pull request that grows a baseline."""
+"""Baselines end to end (spec §8b): a web+API repo with legacy findings is
+adopted and bootstraps green with them baselined, fails on a new one,
+tightens when one is fixed, and refuses a pull request that grows a
+baseline."""
 
 import json
 import os
@@ -9,7 +10,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from helpers import git, install, place_answers
+from helpers import existing_repo, git, install, place_answers
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.generate import bootstrap
@@ -66,14 +67,12 @@ def _counts(root: Path, check: str) -> dict[str, dict[str, int]]:
 
 @pytest.mark.slow
 def test_legacy_project_runs_green_and_ratchets(tmp_path: Path, git_env: None):
+    existing_repo(tmp_path, LEGACY)  # the legacy code, committed on main
     answers = place_answers(tmp_path, "web-ts-plus-python-api")
     data = json.loads(answers.read_text())
-    data["adoption"] = {"baselines": CHECKS}
+    data["adoption"] = {"baselines": CHECKS, "git_hooks": "alpha"}
     answers.write_text(json.dumps(data))
-    install(tmp_path)
-    for rel, text in LEGACY.items():
-        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / rel).write_text(text)
+    install(tmp_path)  # on alpha/adopt, with a skeleton for each component
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
 
     bootstrap(tmp_path, principles, capture_baselines=True)  # mise run ci passes
@@ -94,6 +93,7 @@ def test_legacy_project_runs_green_and_ratchets(tmp_path: Path, git_env: None):
     assert _counts(tmp_path, "markdown") == {"docs/legacy.md": {"MD012": 1}}
     commit(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
+    git(tmp_path, "checkout", "-q", "-B", "main")  # the adoption, merged
 
     # A new type error fails, naming it; the legacy ones still pass.
     legacy = tmp_path / "api/legacy.py"
