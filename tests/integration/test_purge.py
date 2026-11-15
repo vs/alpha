@@ -288,3 +288,17 @@ def test_a_depends_on_a_task_outside_mise_toml_stays(project: Path) -> None:
     done = run_cli("purge", str(project))
     assert done.returncode == 0, done.stderr
     assert 'depends = ["build"]' in mise.read_text()
+
+
+def test_a_purge_refused_by_the_answers_leaves_the_hooks_off(project: Path) -> None:
+    """A refusal from outside alpha's own error type (here the answers'
+    check) undoes nothing of the uninstall either."""
+    assert run_cli("uninstall", str(project)).returncode == 0
+    path = project / ".claude/alpha/project.json"
+    data = json.loads(path.read_text())
+    data["decisions"] = []
+    path.write_text(json.dumps(data))
+    done = run_cli("purge", str(project))
+    assert done.returncode == 1 and "decisions" in done.stderr
+    assert status(project).name == "hooks-off"
+    assert ".claude/alpha/hooks/" not in (project / ".claude/settings.json").read_text()

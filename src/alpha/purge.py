@@ -647,6 +647,7 @@ def purge(
     was_off = (target / HOOKS_STATE).exists() or (target / CHAIN_STATE).exists()
     if was_off:
         hooks_on(target)  # put back what uninstall took out, so it's committed
+    planned = False
     try:
         p = plan(target, plugin_root, source, today)
         paths = [*p.deletions, *p.edits]
@@ -657,10 +658,10 @@ def purge(
                 "would edit or delete it. Commit or stash those changes, then "
                 "rerun alpha purge."
             )
-    except GenerateError:
-        if was_off:
+        planned = True
+    finally:
+        if was_off and not planned:  # a refusal of any kind leaves them off
             uninstall(target)
-        raise
     notes = uninstall(target)
     for rel, text in p.edits.items():
         (target / rel).write_text(text, encoding="utf-8")
