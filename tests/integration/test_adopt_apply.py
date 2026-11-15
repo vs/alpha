@@ -257,6 +257,32 @@ def test_update_after_adoption(repo: Path):
         assert EXISTING["README.md"].strip() in readme  # the repo's lines stay
 
 
+def test_update_reads_a_step_an_older_kit_dropped_by_decision(repo: Path):
+    """An older kit saved a dropped step with its decision record's number;
+    after /alpha:fold-decisions gives it a reason, update still reads the
+    snapshot the older kit left."""
+    _adopted(repo)
+    path = repo / ".claude/alpha/project.json"
+    data = json.loads(path.read_text())
+    dropped = {
+        "id": "p1-format",
+        "phase": "P1",
+        "title": "Format the code",
+        "why": "Nothing formats it.",
+        "principles": ["no-dead-code"],
+        "acceptance": [{"run": "true"}],
+        "status": "dropped",
+    }
+    data["adoption"]["steps"] = [{**dropped, "reason": "decision 7"}]
+    data["manifest"]["applied"]["adoption"]["steps"] = [{**dropped, "decision": 7}]
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "chore: As fold left it")
+    assert describe(plan_update(repo, PLUGIN_ROOT, SOURCE, TODAY), repo) == (
+        "alpha update: nothing to change"
+    )
+
+
 def _older_kit(folder: Path, version: str) -> Path:
     """A copy of this kit that calls itself `version`, as an older alpha."""
     for part in ("src", "defaults", "recipes", "registry", "project-files"):
