@@ -25,6 +25,7 @@ from alpha.defaults import Source
 from alpha.generate import GenerateError, load_project_principles
 from alpha.gitops import commit_group
 from alpha.render.ci import DEPENDABOT, WORKFLOW
+from alpha.rendered import find_base
 
 SCENARIO = "web-ts-plus-python-api"
 SOURCE = Source(PLUGIN_ROOT, True)
@@ -857,3 +858,18 @@ def test_R7_1_settling_areas_writes_their_docs(tmp_path: Path, git_env: None):
         p["id"]: p["active"] for p in load_project_principles(target)["principles"]
     }
     assert active["visual-system"] and active["perf-budgets"]
+
+
+def test_R11_1_the_base_survives_a_rebase(tmp_path: Path, git_env: None):
+    """CONTRIBUTING.md asks for a rebase before each pull request; the render
+    note must move with alpha's commit."""
+    target = generated_repo(tmp_path, SCENARIO)
+    git(target, "switch", "-q", "-c", "work")
+    (target / "notes.md").write_text("x\n")
+    git(target, "add", "notes.md")
+    git(target, "commit", "-q", "-m", "docs: Add notes")
+    before = git(target, "rev-parse", "HEAD~1")
+    git(target, "rebase", "-q", "--root", "--force-rebase")
+    assert git(target, "rev-parse", "HEAD~1") != before  # alpha's commit, rewritten
+    base = find_base(target)
+    assert base is not None and "CLAUDE.md" in base.texts
