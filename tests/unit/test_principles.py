@@ -241,7 +241,7 @@ def test_output_parses_and_is_deterministic():
     assert parsed["docs_map"] == {
         "api/**/routes/**": ["docs/guide/**"],
         "web/**/pages/**": ["docs/guide/**"],
-        "**/openapi*.yaml": ["docs/architecture.md"],
+        "**/openapi*.yaml": ["docs/specification.md"],
     }
     assert parsed["components"][0]["commands"]["test"] == "uv run pytest"
     assert parsed["project"] == {"name": "Pico Trust", "slug": "pico-trust"}

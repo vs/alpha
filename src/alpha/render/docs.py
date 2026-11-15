@@ -166,16 +166,18 @@ def _docs_section(docs: Documentation) -> list[str]:
     return lines
 
 
-def _build(a: Answers, principles: dict[str, Any], records: Records) -> str:
+def _build_section(
+    a: Answers, principles: dict[str, Any], records: Records
+) -> list[str]:
     assert a.build is not None
-    lines = ["# Build, CI and hosting", "", "## CI", ""]
+    lines = ["## Build, CI and hosting", "", "### CI", ""]
     if a.build.ci == "none":
         record = next(
             path
             for o, path in zip(a.overrides, records.overrides, strict=True)
             if o.principle == "build-hosting-upfront"
         )
-        lines.append(f"No CI. Why: see [the decision]({record.removeprefix('docs/')}).")
+        lines.append(f"No CI. Why: see [the decision]({record}).")
     else:
         lines += [
             f"GitHub Actions runs `{WORKFLOW}` on every push to main and every "
@@ -191,10 +193,10 @@ def _build(a: Answers, principles: dict[str, Any], records: Records) -> str:
             )
             for c in principles["components"]
         ]
-    lines += ["", "## Components", "", "| Component | Artifact | Hosting |"]
+    lines += ["", "### Artifacts and hosting", "", "| Component | Artifact | Hosting |"]
     lines.append("|---|---|---|")
     lines += [row(t.name, t.artifact, t.hosting or "-") for t in a.build.components]
-    lines += ["", "## Environments", ""]
+    lines += ["", "### Environments", ""]
     if a.build.environments:
         lines += [f"- {env}" for env in a.build.environments]
     else:
@@ -204,7 +206,7 @@ def _build(a: Answers, principles: dict[str, Any], records: Records) -> str:
         "Hosting is decided and documented here; alpha creates no cloud resources "
         "and no deploy jobs.",
     ]
-    return "\n".join(lines) + "\n"
+    return lines
 
 
 def _ticked(globs: list[str]) -> str:
@@ -314,28 +316,18 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "## Docs",
         "",
         "- [Principles](docs/principles.toml)",
-        "- [Product](docs/product.md)",
-        "- [Architecture](docs/architecture.md)",
-        "- [Build, CI and hosting](docs/build.md)",
-        "- [Security](docs/security.md)",
+        "- [Specification](docs/specification.md): what the product does, settled "
+        "as the work needs it; each feature adds its own spec in `docs/specs/`",
+        "- [Contributing](CONTRIBUTING.md): how the project is built, checked, "
+        "released and kept secure",
         "- [Dependencies](docs/dependencies.md)",
         "- [Decisions](docs/decisions/)",
-        "- [Contributing](CONTRIBUTING.md)",
     ]
     docs = _documentation(a)
     if docs.external == "folder":
         lines.append(f"- [User guide]({docs.external_path}/)")
     if area_docs.glossary(a, principles) is not None:
         lines.append("- [Glossary](docs/glossary.md)")
-    if area_docs.observability_doc(a) is not None:
-        lines.append("- [Observability](docs/observability.md)")
-    if area_docs.ui_doc(a) is not None:
-        lines.append("- [UI](docs/ui.md)")
-    if area_docs.data_doc(a, principles) is not None:
-        lines.append("- [Data](docs/data.md)")
-    if area_docs.performance_doc(a) is not None:
-        lines.append("- [Performance](docs/performance.md)")
-    lines.append("- [Releases](docs/releases.md)")
     if area_docs.changelog(a) is not None:
         lines.append("- [Changelog](CHANGELOG.md)")
     if area_docs.adoption_doc(a) is not None:
@@ -385,7 +377,10 @@ CHAINED_COMMIT_MSG = 'sh .claude/alpha/githooks/commit-msg "$1"'
 
 
 def _contributing(
-    a: Answers, principles: dict[str, Any], checks: list[RepoCheck]
+    a: Answers,
+    principles: dict[str, Any],
+    checks: list[RepoCheck],
+    records: Records,
 ) -> str:
     assert a.git is not None
     git = principles["git"]
@@ -407,6 +402,7 @@ def _contributing(
         f"- `{c['name']}`: `cd {c['path']} && {c['commands']['setup']}`"
         for c in principles["components"]
     ]
+    lines += ["", *_components_section(a, principles)]
     lines += [
         "",
         "## Checks",
@@ -455,14 +451,24 @@ def _contributing(
         )
         + " before its work reaches main: a push to main, or merging a pull "
         "request. People can push by hand.",
+        "",
+        *_build_section(a, principles, records),
+        "",
+        *area_docs.releases_section(a),
+        "",
+        *area_docs.security_section(a, principles),
+        "",
+        *area_docs.data_rules_sections(a, principles),
     ]
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines).rstrip("\n") + "\n"
 
 
-def _product(a: Answers) -> str:
+def _specification(a: Answers) -> str:
+    """What the product does, in one file; features add their own specs in
+    docs/specs/ (decision 0035)."""
     ident = _identity(a)
     lines = [
-        f"# {ident.name}: product",
+        f"# {ident.name}: specification",
         "",
         "## Value proposition",
         "",
@@ -499,19 +505,26 @@ def _product(a: Answers) -> str:
             "",
         ]
         lines += [f"- {title}: `/alpha:go {request}`" for title, request in open_areas]
+    sections = [
+        area_docs.architecture_sections(a),
+        area_docs.auth_section(a),
+        area_docs.ui_section(a),
+        area_docs.data_section(a),
+        area_docs.performance_section(a),
+        area_docs.observability_section(a),
+    ]
+    for section in sections:
+        if section is not None:
+            lines += ["", *section]
     return "\n".join(lines) + "\n"
 
 
-def _architecture(a: Answers, principles: dict[str, Any]) -> str:
+def _components_section(a: Answers, principles: dict[str, Any]) -> list[str]:
     members = [c for c in principles["components"] if c.get("workspace")]
     lines = [
-        "# Architecture",
-        "",
-        "## Layout",
+        "## Components",
         "",
         f"Layout: {a.layout}.",
-        "",
-        "## Components",
         "",
         "| Name | Path | Kind | Stack | Traits |",
         "|---|---|---|---|---|",
@@ -522,7 +535,7 @@ def _architecture(a: Answers, principles: dict[str, Any]) -> str:
         if a.components_talk
         else "Components do not communicate with each other."
     )
-    lines += ["", talk, "", "## Tool choices", ""]
+    lines += ["", talk, "", "### Tool choices", ""]
     book = a.book()
     for stack in dict.fromkeys(c.stack for c in a.components):
         recipe = book.get(stack)
@@ -541,8 +554,7 @@ def _architecture(a: Answers, principles: dict[str, Any]) -> str:
         if not recipe.proven:
             line += " (less proven: recipe drafted for this project)"
         lines.append(line)
-    lines += ["", *area_docs.architecture_sections(a)]
-    return "\n".join(lines) + "\n"
+    return lines
 
 
 def _dependencies(a: Answers, today: date, added: Mapping[str, date]) -> str:
@@ -598,27 +610,17 @@ def render_docs(
     out = {
         "README.md": _readme(a, principles),
         "LICENSE": _license(a, year, root),
-        "CONTRIBUTING.md": _contributing(a, principles, checks),
+        "CONTRIBUTING.md": _contributing(a, principles, checks, records),
         "CLAUDE.md": _claude_md(a, principles),
-        "docs/product.md": _product(a),
-        "docs/architecture.md": _architecture(a, principles),
+        "docs/specification.md": _specification(a),
         "docs/dependencies.md": _dependencies(a, today, added or {}),
-        "docs/build.md": _build(a, principles, records),
-        "docs/security.md": area_docs.security_doc(a, principles),
-        "docs/releases.md": area_docs.releases_doc(a),
     }
     optional = {
         DESIGN_LANGUAGE_DOC: area_docs.design_language_doc(a),
-        "docs/ui.md": area_docs.ui_doc(a),
-        "docs/data.md": area_docs.data_doc(a, principles),
-        "docs/performance.md": area_docs.performance_doc(a),
         "CHANGELOG.md": area_docs.changelog(a),
         "docs/adoption.md": area_docs.adoption_doc(a),
     }
     out.update({path: text for path, text in optional.items() if text is not None})
-    observability = area_docs.observability_doc(a)
-    if observability is not None:
-        out["docs/observability.md"] = observability
     glossary = area_docs.glossary(a, principles)
     if glossary is not None:
         out["docs/glossary.md"] = glossary

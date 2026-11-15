@@ -231,9 +231,9 @@ def test_brief_lists_the_stack_rules_of_touched_components(project: Project) -> 
         "environment, requests) into dataclasses or typed models at the "
         "boundary; don't pass `dict[str, Any]` inward. [components: api]",
         "- python:import-contracts: Once a component has more than one package, "
-        "add import-linter contracts for the layers `docs/architecture.md` "
-        "names, and add `lint-imports` to its `structure` command. "
-        "[components: api]",
+        "add import-linter contracts for the layers the architecture in "
+        "`docs/specification.md` names, and add `lint-imports` to its "
+        "`structure` command. [components: api]",
     ]
 
 
