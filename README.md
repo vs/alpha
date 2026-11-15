@@ -228,13 +228,15 @@ mise install && mise run check   # every check the kit runs on itself
 uv run pytest -m slow   # also bootstraps real projects; needs uv, pnpm, network
 ```
 
-## Setup and test
+## Setup, test and run
 
 ### alpha (`./`)
 
 ```sh
+cd .
 uv sync
 uv run pytest
+# run: add the command once the entry point exists
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before your first commit.
