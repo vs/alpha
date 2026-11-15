@@ -10,7 +10,7 @@ is a fix check, which judges them and reviews afresh only the changed files
 no finding names, so a fix never starts another full review. The notes stay
 local; another clone reviews again.
 
-Usage, from the project root: review.py brief | untested "<why>" <path> ...
+Usage, from the project root: review.py brief
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
+import untested
 
 NOTES_REF = "alpha-review"
 RENDERED_REF = "alpha-rendered"
@@ -43,7 +44,6 @@ IDENTITY = {
     "GIT_COMMITTER_NAME": "alpha",
     "GIT_COMMITTER_EMAIL": "alpha@localhost",
 }
-UNTESTED = "untested.json"
 
 
 class ReviewError(Exception):
@@ -496,14 +496,14 @@ def brief(root: Path) -> str:
         accepts = accepts_since(root, base)
         if accepts:
             lines += ["", "## Accepts trailers since the review", "", *accepts]
-    untested = untested_notes(root)
-    if untested:
+    noted = untested.notes(root)
+    if noted:
         lines += [
             "",
             "## Source changes Claude says need no test (check each reason)",
             "",
         ]
-        lines += [f"- {path}: {reason}" for path, reason in sorted(untested.items())]
+        lines += [f"- {path}: {reason}" for path, reason in sorted(noted.items())]
     lines += ["", "## Review afresh" if previous else "## Changed files", ""]
     lines += [f"- {path}" for path in fresh] or ["(none)"]
     lines += _changed_visuals(root, base, head, principles, fresh)
@@ -560,89 +560,18 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
     )
 
 
-def _untested_path(root: Path) -> Path:
-    return _common.state_path(root, UNTESTED)
-
-
-def _blob(root: Path, rel: str) -> str:
-    out = _git(root, "hash-object", "--", rel) if (root / rel).is_file() else None
-    return out.strip() if out else "deleted"
-
-
-def _untested(root: Path) -> list[dict[str, Any]]:
-    try:
-        data: object = json.loads(_untested_path(root).read_text())
-    except (OSError, ValueError):
-        return []
-    items = cast("list[object]", data) if isinstance(data, list) else []
-    return [cast("dict[str, Any]", n) for n in items if isinstance(n, dict)]
-
-
-def note_untested(root: Path, reason: str, paths: list[str]) -> list[str]:
-    """Record why these source changes need no test; returns the paths that
-    aren't in the project."""
-    rels = [_common.rel_to_root(root, str(Path.cwd() / p)) for p in paths]
-    outside = [p for p, rel in zip(paths, rels, strict=True) if rel is None]
-    if outside:
-        return outside
-    kept = [
-        n
-        for n in _untested(root)
-        if n.get("path") not in rels
-        and _blob(root, str(n.get("path"))) == n.get("blob")
-    ]
-    kept += [
-        {"path": rel, "reason": reason, "blob": _blob(root, rel)}
-        for rel in rels
-        if rel is not None
-    ]
-    _untested_path(root).write_text(json.dumps(kept, indent=2))
-    return []
-
-
-def untested_notes(root: Path) -> dict[str, str]:
-    """Paths noted as needing no test, while their content is the noted one."""
-    found: dict[str, str] = {}
-    for note in _untested(root):
-        path, reason = note.get("path"), note.get("reason")
-        if isinstance(path, str) and isinstance(reason, str):
-            if _blob(root, path) == note.get("blob"):
-                found[path] = reason
-    return found
-
-
 USAGE = (
-    'Run it as: python3 .claude/alpha/hooks/review.py brief (or untested "<why>" '
-    "<path> ...), from the root of an alpha project."
+    "Run it as: python3 .claude/alpha/hooks/review.py brief, from the root of an "
+    "alpha project."
 )
 
 
 def main() -> None:
     _common.check_python()
     root = _common.project_root({"cwd": os.getcwd()})
-    args = sys.argv[1:]
-    valid = args == ["brief"] or (len(args) >= 3 and args[0] == "untested")
-    if not valid or _common.checkout_of(root.resolve()) is None:
+    if sys.argv[1:] != ["brief"] or _common.checkout_of(root.resolve()) is None:
         print(USAGE, file=sys.stderr)
         sys.exit(1)
-    if args[0] == "untested":
-        if len(args[1].split()) < 2:
-            print(
-                'review.py: give the reason in a few words, e.g. "renames the field '
-                'only", before the paths.',
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        outside = note_untested(root, args[1], args[2:])
-        if outside:
-            print(
-                f"review.py: {', '.join(outside)} isn't in this project; name files "
-                "from its root.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        print("noted: the principles-reviewer checks the reason")
-        return
     try:
         print(brief(root), end="")
     except ReviewError as e:

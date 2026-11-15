@@ -136,7 +136,7 @@ def test_shim_is_posix_sh_and_executable() -> None:
     assert tracked == "" or tracked.startswith("100755")
 
 
-def test_shim_blocks_a_bad_commit_end_to_end(project: Project) -> None:
+def test_R13_2_a_bad_message_is_rejected(project: Project) -> None:
     hooks = project.root / ".claude" / "alpha"
     (hooks / "hooks").mkdir(parents=True)
     (hooks / "githooks").mkdir()
@@ -148,7 +148,12 @@ def test_shim_blocks_a_bad_commit_end_to_end(project: Project) -> None:
     project.git("config", "core.hooksPath", ".claude/alpha/githooks")
     project.write("a.txt", "a")
     project.git("add", "a.txt")
-    env = {**os.environ}
+    # Any committer, not only Claude: a person outside any Claude session.
+    person = {"GIT_AUTHOR_NAME": "A Person", "GIT_COMMITTER_NAME": "A Person"}
+    env = {
+        **{k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")},
+        **person,
+    }
     bad = subprocess.run(
         ["git", "commit", "-m", "added a"],
         cwd=project.root,

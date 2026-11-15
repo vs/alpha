@@ -33,9 +33,6 @@ _PROJECT_ONLY = (
     "design_language",
 )
 VISUAL_KINDS = ("sources", "carriers", "opaque", "exclude", "palette_files")
-# The hooks review and run the full test suites only before work reaches main.
-REVIEW_AT_MERGE = "at-merge"
-TESTS_AT_MERGE = "at-merge"
 
 _HEADER = """\
 # Single source of truth for this project's principles, review thresholds,
@@ -217,7 +214,7 @@ def build_principles(
     )
     tokens = {u.name: u.tokens for u in a.ui.components} if a.ui else {}
     defined_language = a.design_language is not None and a.design_language.defined
-    review = {**defaults["review"], "mode": REVIEW_AT_MERGE}
+    review = dict(defaults["review"])
     if a.performance is not None and a.performance.expected_load:
         review["expected_load"] = a.performance.expected_load
     review["risk_paths"] = _dedupe(
@@ -392,7 +389,6 @@ def build_principles(
         "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
         "testing": {
             "diff_coverage": diff_coverage(a, defaults),
-            "run": TESTS_AT_MERGE,
             **({"exhaustive": True} if project["exhaustive_testing"] else {}),
         },
         "components": components,

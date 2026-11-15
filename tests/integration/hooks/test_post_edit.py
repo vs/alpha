@@ -34,7 +34,7 @@ def test_lint_failure_blocks_with_output(project: Project) -> None:
     assert "Fix the lint errors above in api/src/app.py." in proc.stderr
 
 
-def test_format_runs_before_lint_in_component_dir(project: Project) -> None:
+def test_R13_1_an_edit_is_formatted_and_linted(project: Project) -> None:
     project.set_commands(
         "api",
         format_file=marker_cmd("fmt.marker") + " {file}",
