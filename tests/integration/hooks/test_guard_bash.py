@@ -407,6 +407,7 @@ def commit_change(project: Project, rel: str = "api/src/x.py") -> None:
         "git push origin HEAD:main",
         "gh pr merge --squash --auto",
         "gh --repo=owner/repo pr merge",
+        "gh pr merge -R owner/repo --squash",
     ],
 )
 def test_unreviewed_work_does_not_reach_main(project: Project, command: str) -> None:
@@ -447,6 +448,16 @@ def test_push_allowed_right_after_a_clean_review(project: Project) -> None:
     mark_reviewed(project)
     assert project.run_tests().returncode == 0
     assert bash(project, "git push").returncode == 0
+
+
+def test_push_all_from_mains_checkout_passes(project: Project) -> None:
+    project.git("checkout", "-q", "-B", "main")  # and no master branch
+    committed(project)
+    project.write("api/src/x.py", "x = 1\n")
+    mark_reviewed(project)
+    assert project.run_tests().returncode == 0
+    proc = bash(project, "git push --all origin")
+    assert proc.returncode == 0, proc.stderr
 
 
 def test_R12_2_main_waits_for_a_test_pass(project: Project) -> None:
