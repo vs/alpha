@@ -61,7 +61,7 @@ def test_key_order_is_deterministic():
     ]
 
 
-def test_hook_wiring():
+def test_R12_6_settings_wire_each_hook():
     def cmd(script: str) -> dict[str, str]:
         return {
             "type": "command",

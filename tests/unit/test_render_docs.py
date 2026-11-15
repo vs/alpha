@@ -310,7 +310,7 @@ WORKING_RULES = [
     "before removing code or behavior that looks intentional.",
     "- Commit only the files you changed for the work, staged by path. Other "
     "changes in the tree may be the user's or another session's, so don't stage, "
-    "stash or reset them; the hooks block the commands that would.",
+    "stash or reset them.",
     "- Subagents work under the same principles, docs and checks.",
     "- Before you report work as done, re-read every changed file top to bottom "
     "as a stranger would.",
