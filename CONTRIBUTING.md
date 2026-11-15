@@ -69,7 +69,7 @@ A test that covers an acceptance check names its requirement id (e.g. `R1`) in i
 
 ## Documentation
 
-Internal docs (design, decisions, how we work) live in `docs/`. User-facing documentation lives in README.md.
+Internal docs (the specification, the principles) live in `docs/`. User-facing documentation lives in README.md.
 
 | When these change | Update |
 |---|---|
@@ -88,7 +88,7 @@ Claude runs the principles reviewer and each changed component's full test suite
 
 ### CI
 
-No CI. Why: see [the decision](docs/decisions/0021-no-ci-checks-run-locally.md).
+No CI: see build-hosting-upfront under Overrides below.
 
 ### Artifacts and hosting
 
@@ -131,3 +131,21 @@ Claude can't edit these. Lockfiles change only through the package manager; chan
 - `**/*.pem`
 - `**/*.key`
 - `uv.lock`
+
+## Overrides
+
+| Principle | Change | Scope | Reason |
+|---|---|---|---|
+| build-hosting-upfront | loosen | project | mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend. |
+
+## Exceptions
+
+A check skipped or loosened in one place, or a baseline loosened, needs a row here naming the path and the check, with the reason; the checks look for it.
+
+| Path | Check | Reason |
+|---|---|---|
+| `project-files/hooks/_common.py` | `PLC0415` | The `tomllib` import in `load_principles` is late: hooks must parse on Python 3.9, which has no `tomllib`. It moves to the top once the hooks require Python 3.11. |
+| `project-files/hooks/session_start.py` | `PLC0415` | The `tomllib` imports in `principles_problem` and `_lenient_principles`, for the same reason. |
+| `project-files/hooks/stop_checks.py` | `PLC0415` | The `tomllib` import after `check_python()`, for the same reason. |
+| `src/alpha_evals/run.py` | `BLE001` | `_safe` and the reviewer probe in `run_scenario` report a crashing check instead of stopping the scenario. |
+| `src/alpha_evals/__main__.py` | `BLE001` | One crashing scenario is reported and the run goes on to the next. |

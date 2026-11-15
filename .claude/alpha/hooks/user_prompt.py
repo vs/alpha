@@ -68,11 +68,10 @@ def main() -> None:
             lines.append(f"{f['id']}: {f['principle']} {f['file']}: {f['problem']}")
     state["findings"] = findings
     review.save_state(root, state)
-    ids = ", ".join(f'"Accepts: {i}"' for i in wanted)
+    ids = ", ".join(f'"Accepts: {i} <why it stands>"' for i in wanted)
     say(
-        f"alpha: the user accepted {'; '.join(lines)}. Record each with the decision "
-        f"skill (an {ids} header line; context: the finding; decision: why it "
-        "stands)."
+        f"alpha: the user accepted {'; '.join(lines)}. Record each as a commit "
+        f"trailer ({ids}) on the next commit, or an empty one."
     )
     sys.exit(0)
 

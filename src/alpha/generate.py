@@ -361,8 +361,10 @@ def load_project_principles(target: Path) -> dict[str, Any]:
     return data
 
 
+# shortcut: readers index checked dicts, parse into dataclasses past a few more fields
 def _principles_problem(data: dict[str, Any]) -> str | None:
-    """What's wrong with the fields alpha's commands read, or None."""
+    """What's wrong with the fields alpha's commands read, or None. A command
+    that starts reading a new field checks it here in the same change."""
     project: object = data.get("project")
     if not isinstance(project, dict):
         return "project is missing" if project is None else "project must be a table"

@@ -420,8 +420,9 @@ def main() -> None:
             lines += [f"    {text}" for text in shown[:SHOWN]]
         lines.append(
             "Fix the new ones (the baselined ones may stay). If a finding is "
-            "wrong, record why in a decision that names the check, then run "
-            f"alpha baseline capture <project> --check {check} --decision <number>."
+            "wrong, add a row to CONTRIBUTING.md's Exceptions table naming the "
+            f"files, `{check}` and why, then run alpha baseline capture <project> "
+            f"--check {check}."
         )
         _fail(1, "\n".join(lines))
     if not shrunk:

@@ -443,131 +443,10 @@
       "reason": "mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend."
     }
   ],
-  "decisions": [
-    {
-      "area": "identity",
-      "title": "Product identity",
-      "context": "alpha is an existing Claude Code plugin being adopted; its README states what it does. It serves developers who want agents held to engineering principles in new and existing repos.",
-      "decision": "Name alpha (slug alpha), for developers building with Claude Code; requirements R1 (interview), R2 (generate), R3 (enforce), R4 (adopt), R5 (extend), R6 (recipes), R7 (user layer). MIT, keeping the repo LICENSE; domain jargon on.",
-      "consequences": "Features outside R1-R7 need a new requirement first. The glossary and One vocabulary principle apply to code, docs and skills."
-    },
-    {
-      "area": "components",
-      "title": "Single Python CLI",
-      "context": "alpha is one Python package (src/alpha, src/alpha_evals) driven through bin/alpha and the plugin skills; the survey found one candidate at the root.",
-      "decision": "One component, alpha: kind cli, stack alpha-python (adopted, extends the kit python recipe), path . (single layout). Traits: network calls (subprocesses), persisted data (project.json, user layer, baselines), non-trivial logic; no UI, not deployed, no ML.",
-      "consequences": "One toolchain to maintain (uv, Python 3.11+). Subprocess calls need timeouts and failure paths; project.json and the user layer need a migration path on schema change. The recipe runs the commands mise.toml already runs; deptry and coverage are not set up yet."
-    },
-    {
-      "area": "architecture",
-      "title": "One component, no contracts",
-      "context": "alpha is a single component; nothing calls another component, but the domain has its own vocabulary.",
-      "decision": "alpha turns interview answers into an enforced project (generate, adopt, update) and checks the answers, recipes, baselines and adoption steps that drive it. No calls, contract format none. Glossary: kit, area, component, recipe, principle, override, baseline, adoption step.",
-      "consequences": "These eight terms are fixed names across code, docs and skills; a new concept needs a glossary entry. Splitting off a component would need contracts."
-    },
-    {
-      "area": "errors",
-      "title": "Messages and exit codes",
-      "context": "alpha errors reach a developer at the terminal or Claude running a skill, which relays the fix.",
-      "decision": "alpha uses message-and-exit-code: alpha: <problem> and its fix on stderr, non-zero exit. Categories: validation, not-found, conflict, unavailable, internal (the kit defaults).",
-      "consequences": "Every error names what went wrong and the next step to fix it, so a skill can act on it without guessing."
-    },
-    {
-      "area": "testing",
-      "title": "Unit, integration and end-to-end tests",
-      "context": "The risk is in subprocess calls, file merges and stored state, and in whole flows (interview, generate, adopt, update) users drive through bin/alpha and the skills.",
-      "decision": "alpha: unit, integration (the real-toolchain tests now marked slow) and end-to-end (whole flows from R1-R7). Diff coverage 80% (kit default).",
-      "consequences": "A test covering an acceptance check names its requirement id (R1-R7). Today tests are flat under tests/ and few name a requirement; moving them under tests/<level>/ and linking them is part of the adoption plan. Diff coverage applies once the recipe has a coverage command."
-    },
-    {
-      "area": "ui",
-      "title": "No UI",
-      "context": "alpha runs in a terminal and inside Claude Code; no component shows a user interface.",
-      "decision": "No UI components.",
-      "consequences": "The visual-system and accessibility principles do not apply; adding a UI component reopens this area."
-    },
-    {
-      "area": "documentation",
-      "title": "README as user docs",
-      "context": "Users meet alpha through the README and three skills; developers through CLAUDE.md. The kit usual CLI globs match nothing here.",
-      "decision": "User docs live in README.md (kit default). Mapped: src/alpha/cli.py and bin/** to README.md or CLAUDE.md; skills/new-project, skills/adopt and skills/extend to README.md. Decision records start at 0001 in docs/decisions/.",
-      "consequences": "A change to the CLI or a user-invoked skill must update the README (or CLAUDE.md for the CLI), or the Stop hook blocks it."
-    },
-    {
-      "area": "build",
-      "title": "No CI, plugin package",
-      "context": "alpha is published as a Claude Code plugin through its own marketplace on GitHub (vs/alpha); nothing is deployed. The kit default is GitHub Actions.",
-      "decision": "CI: none (loosens build-hosting-upfront). No environments. alpha builds into a package (the plugin, published through its marketplace); no hosting.",
-      "consequences": "Nothing checks a push remotely: mise run check (and the commit hooks) are the only gate, so run them before every commit. Not made a default for future projects."
-    },
-    {
-      "area": "security",
-      "title": "Local CLI, no secrets or auth",
-      "context": "alpha runs on the user machine and is not deployed; the evals use the claude CLI login, which alpha never handles.",
-      "decision": "No secret store (nothing deployed; local .env files suffice). Auth: none. No extra protected paths.",
-      "consequences": "Claude cannot edit .env files, keys or lockfiles (always protected); the betterleaks check blocks a committed secret. Baseline-output fixtures stay editable so they can be re-recorded."
-    },
-    {
-      "area": "dependencies",
-      "title": "Weekly manual updates",
-      "context": "One toolchain (uv) plus the mise-pinned check tools drift. The kit default is Dependabot, but with no CI nothing would check its pull requests.",
-      "decision": "Updates: manual (kit default dependabot), weekly, after a 7-day cooldown from each release.",
-      "consequences": "Someone runs the updates weekly with uv and mise, and checks them locally with mise run check before committing; a new dependency still needs its row in docs/dependencies.md. Not made a default for future projects."
-    },
-    {
-      "area": "observability",
-      "title": "Nothing deployed",
-      "context": "alpha runs only on the user machine; no component is deployed.",
-      "decision": "No observability setup.",
-      "consequences": "Observability applies once a component is deployed; that reopens this area."
-    },
-    {
-      "area": "releases",
-      "title": "Semver tags with GitHub releases",
-      "context": "Plugin users update through the marketplace and read release notes on GitHub. The repo already tags vX.Y.Z on main and has GitHub releases, but no CHANGELOG.md; the kit default changelog is a file.",
-      "decision": "Scheme semver, changelog github-releases (kit default file), scope repo. Process: a chore: Release X.Y.Z commit bumps plugin.json, pyproject.toml, src/alpha/__init__.py and uv.lock; tag vX.Y.Z on main and publish a GitHub release with its notes.",
-      "consequences": "A breaking change to answers, recipes or the CLI is a major version (minor while 0.x) and its release notes say how to migrate. v0.2.0, v0.4.1 and v0.4.2 have tags but no GitHub release yet. Not made a default for future projects."
-    },
-    {
-      "area": "data",
-      "title": "Versioned JSON and TOML files",
-      "context": "alpha stores answers in each project (project.json, schema 1), the user layer in ~/.config/alpha/ and baseline files; they outlive the plugin version that wrote them.",
-      "decision": "Storage: JSON and TOML files. Migration tool: none today; answers refuses any schema but 1, and skills treat a missing area as pending. No ML.",
-      "consequences": "Bumping project.json schema needs an upgrader that rewrites older files, with tests, before release; until then a shape change must stay backward compatible. There are no migration files, so the append-only rule has nothing to guard."
-    },
-    {
-      "area": "accessibility",
-      "title": "No accessibility target",
-      "context": "alpha has no user interface beyond the terminal and Claude Code.",
-      "decision": "No accessibility target or checks.",
-      "consequences": "The accessibility principle does not apply; adding a UI component reopens this area."
-    },
-    {
-      "area": "performance",
-      "title": "CLI startup budget",
-      "context": "Skills call bin/alpha many times per interview and hook, so a slow start adds up; the load is one developer on a laptop.",
-      "decision": "alpha: startup < 200 ms (kit default for a CLI), measured by an end-to-end pytest test timing bin/alpha --help, run by mise run check. Today it starts in about 60-70 ms.",
-      "consequences": "Breaking the budget needs a fix or a decision record. The timing test does not exist yet; it is an adoption step."
-    },
-    {
-      "area": "git",
-      "title": "Conventional commits on feature branches",
-      "context": "One maintainer and Claude commit; 48 of the last 50 commits already follow conventional commits (the other two are merges), with scopes hooks, recipes, defaults and spec in use.",
-      "decision": "Convention: conventional. Scopes: alpha, hooks, recipes, defaults, spec. Branching: feature-branches merged into main. Git hooks: alpha sets core.hooksPath (no hook manager found).",
-      "consequences": "The commit-msg hook rejects a header that is not type(scope): description with a 50-char imperative description, or body lines past 72; merge, revert and fixup commits pass. Existing history stays as it is."
-    },
-    {
-      "area": "agent_workflow",
-      "title": "Review at merge",
-      "context": "Work happens on feature branches verified once when finished; a review per task would slow small changes, and the hooks already check every edit.",
-      "decision": "Review mode at-merge (kit default); max_lines 200 and max_files 5 recorded for batched mode; no extra risk paths beyond the kit ones.",
-      "consequences": "Claude stops for the principles reviewer before pushing to main or merging a pull request, and cannot finish with open findings."
-    }
-  ],
   "identity": {
     "name": "alpha",
     "slug": "alpha",
-    "value_proposition": "alpha interviews you about a new project, then writes what agents build on: principles, docs, decision records, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code, and each principle is checked, by a hook or by a reviewer agent, before a change reaches main.",
+    "value_proposition": "alpha interviews you about a new project, then writes what agents build on: principles, docs, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code, and each principle is checked, by a hook or by a reviewer agent, before a change reaches main.",
     "target_users": "Developers building with Claude Code who want agents to follow enforced engineering principles from day one: starting a new project from an enforced skeleton, or bringing an existing repo under the same rules without stopping its work.",
     "requirements": [
       {
@@ -607,7 +486,7 @@
       },
       {
         "id": "R8",
-        "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, decision records and checks; a feature is built from a spec with its tests that the user approves.",
+        "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, docs and checks; a feature is built from a spec with its tests that the user approves.",
         "acceptance": "Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end."
       }
     ],
@@ -1311,131 +1190,10 @@
           "reason": "mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend."
         }
       ],
-      "decisions": [
-        {
-          "area": "identity",
-          "title": "Product identity",
-          "context": "alpha is an existing Claude Code plugin being adopted; its README states what it does. It serves developers who want agents held to engineering principles in new and existing repos.",
-          "decision": "Name alpha (slug alpha), for developers building with Claude Code; requirements R1 (interview), R2 (generate), R3 (enforce), R4 (adopt), R5 (extend), R6 (recipes), R7 (user layer). MIT, keeping the repo LICENSE; domain jargon on.",
-          "consequences": "Features outside R1-R7 need a new requirement first. The glossary and One vocabulary principle apply to code, docs and skills."
-        },
-        {
-          "area": "components",
-          "title": "Single Python CLI",
-          "context": "alpha is one Python package (src/alpha, src/alpha_evals) driven through bin/alpha and the plugin skills; the survey found one candidate at the root.",
-          "decision": "One component, alpha: kind cli, stack alpha-python (adopted, extends the kit python recipe), path . (single layout). Traits: network calls (subprocesses), persisted data (project.json, user layer, baselines), non-trivial logic; no UI, not deployed, no ML.",
-          "consequences": "One toolchain to maintain (uv, Python 3.11+). Subprocess calls need timeouts and failure paths; project.json and the user layer need a migration path on schema change. The recipe runs the commands mise.toml already runs; deptry and coverage are not set up yet."
-        },
-        {
-          "area": "architecture",
-          "title": "One component, no contracts",
-          "context": "alpha is a single component; nothing calls another component, but the domain has its own vocabulary.",
-          "decision": "alpha turns interview answers into an enforced project (generate, adopt, update) and checks the answers, recipes, baselines and adoption steps that drive it. No calls, contract format none. Glossary: kit, area, component, recipe, principle, override, baseline, adoption step.",
-          "consequences": "These eight terms are fixed names across code, docs and skills; a new concept needs a glossary entry. Splitting off a component would need contracts."
-        },
-        {
-          "area": "errors",
-          "title": "Messages and exit codes",
-          "context": "alpha errors reach a developer at the terminal or Claude running a skill, which relays the fix.",
-          "decision": "alpha uses message-and-exit-code: alpha: <problem> and its fix on stderr, non-zero exit. Categories: validation, not-found, conflict, unavailable, internal (the kit defaults).",
-          "consequences": "Every error names what went wrong and the next step to fix it, so a skill can act on it without guessing."
-        },
-        {
-          "area": "testing",
-          "title": "Unit, integration and end-to-end tests",
-          "context": "The risk is in subprocess calls, file merges and stored state, and in whole flows (interview, generate, adopt, update) users drive through bin/alpha and the skills.",
-          "decision": "alpha: unit, integration (the real-toolchain tests now marked slow) and end-to-end (whole flows from R1-R7). Diff coverage 80% (kit default).",
-          "consequences": "A test covering an acceptance check names its requirement id (R1-R7). Today tests are flat under tests/ and few name a requirement; moving them under tests/<level>/ and linking them is part of the adoption plan. Diff coverage applies once the recipe has a coverage command."
-        },
-        {
-          "area": "ui",
-          "title": "No UI",
-          "context": "alpha runs in a terminal and inside Claude Code; no component shows a user interface.",
-          "decision": "No UI components.",
-          "consequences": "The visual-system and accessibility principles do not apply; adding a UI component reopens this area."
-        },
-        {
-          "area": "documentation",
-          "title": "README as user docs",
-          "context": "Users meet alpha through the README and three skills; developers through CLAUDE.md. The kit usual CLI globs match nothing here.",
-          "decision": "User docs live in README.md (kit default). Mapped: src/alpha/cli.py and bin/** to README.md or CLAUDE.md; skills/new-project, skills/adopt and skills/extend to README.md. Decision records start at 0001 in docs/decisions/.",
-          "consequences": "A change to the CLI or a user-invoked skill must update the README (or CLAUDE.md for the CLI), or the Stop hook blocks it."
-        },
-        {
-          "area": "build",
-          "title": "No CI, plugin package",
-          "context": "alpha is published as a Claude Code plugin through its own marketplace on GitHub (vs/alpha); nothing is deployed. The kit default is GitHub Actions.",
-          "decision": "CI: none (loosens build-hosting-upfront). No environments. alpha builds into a package (the plugin, published through its marketplace); no hosting.",
-          "consequences": "Nothing checks a push remotely: mise run check (and the commit hooks) are the only gate, so run them before every commit. Not made a default for future projects."
-        },
-        {
-          "area": "security",
-          "title": "Local CLI, no secrets or auth",
-          "context": "alpha runs on the user machine and is not deployed; the evals use the claude CLI login, which alpha never handles.",
-          "decision": "No secret store (nothing deployed; local .env files suffice). Auth: none. No extra protected paths.",
-          "consequences": "Claude cannot edit .env files, keys or lockfiles (always protected); the betterleaks check blocks a committed secret. Baseline-output fixtures stay editable so they can be re-recorded."
-        },
-        {
-          "area": "dependencies",
-          "title": "Weekly manual updates",
-          "context": "One toolchain (uv) plus the mise-pinned check tools drift. The kit default is Dependabot, but with no CI nothing would check its pull requests.",
-          "decision": "Updates: manual (kit default dependabot), weekly, after a 7-day cooldown from each release.",
-          "consequences": "Someone runs the updates weekly with uv and mise, and checks them locally with mise run check before committing; a new dependency still needs its row in docs/dependencies.md. Not made a default for future projects."
-        },
-        {
-          "area": "observability",
-          "title": "Nothing deployed",
-          "context": "alpha runs only on the user machine; no component is deployed.",
-          "decision": "No observability setup.",
-          "consequences": "Observability applies once a component is deployed; that reopens this area."
-        },
-        {
-          "area": "releases",
-          "title": "Semver tags with GitHub releases",
-          "context": "Plugin users update through the marketplace and read release notes on GitHub. The repo already tags vX.Y.Z on main and has GitHub releases, but no CHANGELOG.md; the kit default changelog is a file.",
-          "decision": "Scheme semver, changelog github-releases (kit default file), scope repo. Process: a chore: Release X.Y.Z commit bumps plugin.json, pyproject.toml, src/alpha/__init__.py and uv.lock; tag vX.Y.Z on main and publish a GitHub release with its notes.",
-          "consequences": "A breaking change to answers, recipes or the CLI is a major version (minor while 0.x) and its release notes say how to migrate. v0.2.0, v0.4.1 and v0.4.2 have tags but no GitHub release yet. Not made a default for future projects."
-        },
-        {
-          "area": "data",
-          "title": "Versioned JSON and TOML files",
-          "context": "alpha stores answers in each project (project.json, schema 1), the user layer in ~/.config/alpha/ and baseline files; they outlive the plugin version that wrote them.",
-          "decision": "Storage: JSON and TOML files. Migration tool: none today; answers refuses any schema but 1, and skills treat a missing area as pending. No ML.",
-          "consequences": "Bumping project.json schema needs an upgrader that rewrites older files, with tests, before release; until then a shape change must stay backward compatible. There are no migration files, so the append-only rule has nothing to guard."
-        },
-        {
-          "area": "accessibility",
-          "title": "No accessibility target",
-          "context": "alpha has no user interface beyond the terminal and Claude Code.",
-          "decision": "No accessibility target or checks.",
-          "consequences": "The accessibility principle does not apply; adding a UI component reopens this area."
-        },
-        {
-          "area": "performance",
-          "title": "CLI startup budget",
-          "context": "Skills call bin/alpha many times per interview and hook, so a slow start adds up; the load is one developer on a laptop.",
-          "decision": "alpha: startup < 200 ms (kit default for a CLI), measured by an end-to-end pytest test timing bin/alpha --help, run by mise run check. Today it starts in about 60-70 ms.",
-          "consequences": "Breaking the budget needs a fix or a decision record. The timing test does not exist yet; it is an adoption step."
-        },
-        {
-          "area": "git",
-          "title": "Conventional commits on feature branches",
-          "context": "One maintainer and Claude commit; 48 of the last 50 commits already follow conventional commits (the other two are merges), with scopes hooks, recipes, defaults and spec in use.",
-          "decision": "Convention: conventional. Scopes: alpha, hooks, recipes, defaults, spec. Branching: feature-branches merged into main. Git hooks: alpha sets core.hooksPath (no hook manager found).",
-          "consequences": "The commit-msg hook rejects a header that is not type(scope): description with a 50-char imperative description, or body lines past 72; merge, revert and fixup commits pass. Existing history stays as it is."
-        },
-        {
-          "area": "agent_workflow",
-          "title": "Review at merge",
-          "context": "Work happens on feature branches verified once when finished; a review per task would slow small changes, and the hooks already check every edit.",
-          "decision": "Review mode at-merge (kit default); max_lines 200 and max_files 5 recorded for batched mode; no extra risk paths beyond the kit ones.",
-          "consequences": "Claude stops for the principles reviewer before pushing to main or merging a pull request, and cannot finish with open findings."
-        }
-      ],
       "identity": {
         "name": "alpha",
         "slug": "alpha",
-        "value_proposition": "alpha interviews you about a new project, then writes what agents build on: principles, docs, decision records, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code, and each principle is checked, by a hook or by a reviewer agent, before a change reaches main.",
+        "value_proposition": "alpha interviews you about a new project, then writes what agents build on: principles, docs, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code, and each principle is checked, by a hook or by a reviewer agent, before a change reaches main.",
         "target_users": "Developers building with Claude Code who want agents to follow enforced engineering principles from day one: starting a new project from an enforced skeleton, or bringing an existing repo under the same rules without stopping its work.",
         "requirements": [
           {
@@ -1475,7 +1233,7 @@
           },
           {
             "id": "R8",
-            "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, decision records and checks; a feature is built from a spec with its tests that the user approves.",
+            "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, docs and checks; a feature is built from a spec with its tests that the user approves.",
             "acceptance": "Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end."
           }
         ],
@@ -1726,92 +1484,50 @@
         "extra_risk_paths": []
       }
     },
-    "records": {
-      "decisions": [
-        "docs/decisions/0001-product-identity.md",
-        "docs/decisions/0002-single-python-cli.md",
-        "docs/decisions/0003-one-component-no-contracts.md",
-        "docs/decisions/0004-messages-and-exit-codes.md",
-        "docs/decisions/0005-unit-integration-and-end-to-end-tests.md",
-        "docs/decisions/0006-no-ui.md",
-        "docs/decisions/0007-readme-as-user-docs.md",
-        "docs/decisions/0008-no-ci-plugin-package.md",
-        "docs/decisions/0009-local-cli-no-secrets-or-auth.md",
-        "docs/decisions/0010-weekly-manual-updates.md",
-        "docs/decisions/0011-nothing-deployed.md",
-        "docs/decisions/0012-semver-tags-with-github-releases.md",
-        "docs/decisions/0013-versioned-json-and-toml-files.md",
-        "docs/decisions/0014-no-accessibility-target.md",
-        "docs/decisions/0015-cli-startup-budget.md",
-        "docs/decisions/0016-conventional-commits-on-feature-branches.md",
-        "docs/decisions/0017-review-at-merge.md"
-      ],
-      "overrides": [
-        "docs/decisions/0018-override-build-hosting-upfront.md"
-      ]
-    },
     "added": {
       "alpha": "2026-11-12"
     },
     "files": {
       ".betterleaks.toml": "sha256:73c6df4257f10e5f06679d8a2d4cd67056a41dbe5acd646cf525b0582d05b6a8",
       ".claude/agents/committer.md": "sha256:388deb1b7b411facea05ca55825a1d5de3419c103665f2781e7c94199c9150d8",
-      ".claude/agents/principles-reviewer.md": "sha256:5f4b3312528be3cf90ea0bd87a3c3b830a34c54f43e04b28f4823d7f665dae10",
-      ".claude/alpha/checks/diff_checks.py": "sha256:6fa961651fcb634468c1cea4b6a071855a8b3cf1708bf08e79fff50a68701c4b",
+      ".claude/agents/principles-reviewer.md": "sha256:4a767a4d8e01f33d9c6467f32c8d95ad08d22cc4a462181efb1a3d2a603d5ced",
+      ".claude/alpha/checks/diff_checks.py": "sha256:44ede235f72c48cd34c32c9bcedf879dee4576a4766adee9cc31b682b47cb59c",
       ".claude/alpha/checks/palette.py": "sha256:896cfbbb0d0c3afe96c671f575f345fe32706f93fe098032176559595fc2d5ba",
-      ".claude/alpha/checks/ratchet.py": "sha256:e20717ddf91eb0fbf750e114ca2997bb7f89e332ad4045c8429140173b4ca833",
+      ".claude/alpha/checks/ratchet.py": "sha256:bf5417bc1a829a1bbdcb54139d5fe4d6f59949544b8c29882d946e480a75de5f",
       ".claude/alpha/checks/review_dates.py": "sha256:34cc0db87776aae7b7a30199f327f9114f3df5411af741f9599e27da3e3dfbbb",
       ".claude/alpha/checks/secret_scan.py": "sha256:268876915ead1aad1f6d14e4c9525fba6af267e505ee6590d3ba988e1b860f47",
       ".claude/alpha/checks/shortcuts.py": "sha256:12abd118df3bdd490c40663a6aa79d2b078ea0037bb01a4a158d4d72ef0d708c",
       ".claude/alpha/githooks/commit-msg": "sha256:cf04bd88851198263c0dd79b1eb4b8833a195ac1163db0888bb986d2fa8bd60c",
-      ".claude/alpha/hooks/_common.py": "sha256:74c4f45cf7718d6989ccc83ab27db372cced3609b8ba4e780e77394ad64bc7fb",
+      ".claude/alpha/hooks/_common.py": "sha256:a669e5ed42411f985c4854f6a4ecdf4504ecead52ed86fb508d8c2bdacda92b4",
       ".claude/alpha/hooks/commit_msg.py": "sha256:35ab2b248f2939272ea9abb414cd1bf601650fcccd24dca774744cba9d4f8dae",
       ".claude/alpha/hooks/guard_bash.py": "sha256:9c28dbe45067488fc4f197b09574b7b899a0585020bff64249e2be5025a7de72",
-      ".claude/alpha/hooks/guard_paths.py": "sha256:69e3daca0f32574d1d3a669dff1586814ae5c6140235f2da7170b900c5f30fd4",
+      ".claude/alpha/hooks/guard_paths.py": "sha256:61ac0a7b81a08f013a8f320f956f53f2412f538cfa1a6beb3b90672b09309634",
       ".claude/alpha/hooks/post_edit.py": "sha256:7942ac13f8cc87d29998b1551afba5cb8e686c1e4e488580d1ea56b8b887dd93",
-      ".claude/alpha/hooks/review.py": "sha256:37c658125b2251da825badb42171de92e500fff54815b59b6fb50b4905d0c82c",
+      ".claude/alpha/hooks/review.py": "sha256:b1dd5fcb76a4a17028f8789f03454437fa5a2db606f361d353b71c9f29c9faf5",
       ".claude/alpha/hooks/review_record.py": "sha256:ed811c19bcd9e72beaa591c5d9389900ec0213c20d3dae488fb9bb5c4fca14fb",
       ".claude/alpha/hooks/session_start.py": "sha256:54d572b1cc0585b8fcc12fb344c3abc6536b58987cd53d4ac3771710e292bc99",
       ".claude/alpha/hooks/stop_checks.py": "sha256:aa662d5857f4a9ccdd67a19f70c33de8024bb2c09156bf17a145963ace9ffeb8",
       ".claude/alpha/hooks/subagent_start.py": "sha256:c65b7861fcb08685626c2a48c95b5f19bbba5b0d90f192af1f1964920c742039",
-      ".claude/alpha/hooks/user_prompt.py": "sha256:36ca81b355e43d6d45b19d1974136740ef946c37fd9828830c5a71b1e67b0608",
+      ".claude/alpha/hooks/user_prompt.py": "sha256:5c5bb98b9e1e911d323ba69553931c1adc1aa96e19466f8f8088affe66e7c796",
       ".claude/settings.json": "sha256:8470c8cc20b63aa4a32a10cbfa3a772388e9c445d5dab3b6dd9fbfc1f7f400a6",
-      ".claude/skills/audit/SKILL.md": "sha256:51bb0b635524e95533e48b5df90192f9c9eed1d8b4489ac010efea938d5bd947",
+      ".claude/skills/audit/SKILL.md": "sha256:f37b8ee6c21a8aa0f0674d5351d264338e42b551fb0f4b6c50bf64e1043eb6f1",
       ".claude/skills/commit/SKILL.md": "sha256:6153014a29fb87eb378d160459e275b81b6e4d7cc8eabb76afb0a8ecc2d0a3b4",
       ".claude/skills/debt/SKILL.md": "sha256:21ebadac8c1c422f525d9d016d2c8117da531b4640a7eade99f753ae8f64b082",
-      ".claude/skills/decision/SKILL.md": "sha256:21bd8dfc679706dea21ca35992641cba84017d3adde9afcc3db3f2462a52bb30",
-      ".claude/skills/review-change/SKILL.md": "sha256:0941b68fe7be702913e75ace76e5c90eb1305a9557ae0ff38c10502f75bd69f2",
+      ".claude/skills/decision/SKILL.md": "sha256:e774e51bb18ebfdec7d86e6b75d6525ee2da3626ab91ab3e8e8bc9e5e5ea526d",
+      ".claude/skills/review-change/SKILL.md": "sha256:56b5a776f6346ca474f5035420f3c663c384b6670a5f9a3ba240b4cf11ac2c97",
       ".gitignore": "sha256:9be686545b4216343ef6d4537ddf799bc0329ac88ecbfcc4856b2377d0eec821",
       ".rumdl.toml": "sha256:f19f0dada5082aa3f2fffff55f0f976e0ced4ffdfd1b1d3ddd3e4b3a9575bcad",
-      "CLAUDE.md": "sha256:19f605487ccd502c7c087d9e4cdecdf15d48c8378dc0e11e1d61cd9e5ab7c66f",
-      "CONTRIBUTING.md": "sha256:428cdc9449b4cef01ce2e1d363ab3ed268043cd55d3625b0a67e371665815af1",
+      "CLAUDE.md": "sha256:90d32bd62bef102f47f68d32c89c4f68d69c71bdcd64391477421f9067bf83d9",
+      "CONTRIBUTING.md": "sha256:095fb138ffb8eef58e643210c6f239cdb239ed4dd126be8456d08e957d9caf98",
       "README.md": "sha256:a0f932d41a23ddaa94e6316b840403d6c1e963c21dc51496a008323319c58718",
       "_typos.toml": "sha256:7dae72444e3298536402e16e40864fc21ceebe37d52d37ef8b3c9678eb4cf21b",
       "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
-      "docs/decisions/0001-product-identity.md": "sha256:a7e7451a1c79f049dbe5dbd9e9a0d1007546be029c279f9e641a7665a5070a16",
-      "docs/decisions/0002-single-python-cli.md": "sha256:f6785c9e980a26218310969fffaa82f8eee5b0c43806e3d612a78a9243301c0c",
-      "docs/decisions/0003-one-component-no-contracts.md": "sha256:e598195c766a586942bfa3dead075136cfffb16980d524d5b5d343037fd6b4a4",
-      "docs/decisions/0004-messages-and-exit-codes.md": "sha256:6f564200de67d5917464a0df7abbe55afd6b72824885e3e4dcb56fffb5bbbf23",
-      "docs/decisions/0005-unit-integration-and-end-to-end-tests.md": "sha256:5175043b80fd7902f88c1ddc39cc5ef980bfa9031d3658240cee1fc82de68cb9",
-      "docs/decisions/0006-no-ui.md": "sha256:1b6c1d973b7c6aa2f50b890a86a2c00af45a1f9f375849410f0476579ac594f0",
-      "docs/decisions/0007-readme-as-user-docs.md": "sha256:5c5986d453de4a9c05dc0bcc2437a405b363403faeb1adfb2b2caaad8f44cb15",
-      "docs/decisions/0008-no-ci-plugin-package.md": "sha256:0cdb37820ad46481411a9a51194c7ba0cc89accab45b11a660f627b8f89515c7",
-      "docs/decisions/0009-local-cli-no-secrets-or-auth.md": "sha256:93eb069352bcaf25bcf7255993efc997ae29b866c4ea69c4e251e9a50286ed1d",
-      "docs/decisions/0010-weekly-manual-updates.md": "sha256:fd1bf05b5c0b0547c155d0be69f1b747f287a8e243ce441ccbd42adc4751b6d3",
-      "docs/decisions/0011-nothing-deployed.md": "sha256:60320b2d429134875387797c8c75285070b50543492fa6f5d6831c61adc6bc64",
-      "docs/decisions/0012-semver-tags-with-github-releases.md": "sha256:a5d58bc4116313eedb1032dda50ab74cf8329678eade9bc62797d7d5b07a4e9e",
-      "docs/decisions/0013-versioned-json-and-toml-files.md": "sha256:d2ee82c41aacbc1158ad1400febb2e44a043aa788c356d02b58f38fae0341fa7",
-      "docs/decisions/0014-no-accessibility-target.md": "sha256:4108c29aebb093de9d59e878e5652faa61fbebca05f52581f9316df284a04e6d",
-      "docs/decisions/0015-cli-startup-budget.md": "sha256:b9bd6de9bbf0ec80e42df48fa5ac1f55e176bf53da7bf49cf24b3b981e5a7858",
-      "docs/decisions/0016-conventional-commits-on-feature-branches.md": "sha256:2d1e9b729d9ad2778a83ca33069b2de472ab98b92807eeaff2a27d5290b93912",
-      "docs/decisions/0017-review-at-merge.md": "sha256:29c2e0e1b5f1af4983ead8fa0aed8fcffed4bfa4caa7b233b37a7e944c7ff43d",
-      "docs/decisions/0018-override-build-hosting-upfront.md": "sha256:be025c90f01b359d304ce147af26b9e6d0713de21cbcead8d050252b4026b61e",
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
       "docs/glossary.md": "sha256:ada005b93a27478627d61f55954278ac338ba999a38c5f3d0b34d03c798e1982",
-      "docs/principles.toml": "sha256:e03ac25dc45d30921a514002bab43258bf42c429efb85a2d433a56f45ca42b1b",
+      "docs/principles.toml": "sha256:c5ac33424473f26e40a1ff0289a9c4509914cb16b3ea7251550d08412d8dc779",
       "lychee.toml": "sha256:aa99805d677595788d9c6a8bf45442a1bb764aec33145e24af5eca2f648de9bb",
       "mise.toml": "sha256:a6d3c71404ed1b4b1ace0f91001d7c84a8ccba8b2821ec8c636f1d31090f7af2",
-      "docs/specification.md": "sha256:0e75896567071dafffe8a86aa5d7e442bb56ec3aed159e12c5e10e0d083eb7d1"
+      "docs/specification.md": "sha256:38a6d3f52c85cc4abbe000ceaa8b0c3f1d60424121a9a2e37f8bf16eb98ba961"
     },
     "updated_at": "2026-11-15"
   }
