@@ -215,3 +215,16 @@ def test_R10_3_alphas_own_writes_are_left_out(project: Project) -> None:
     project.git("notes", "--ref=alpha-rendered", "add", "-m", render, "HEAD")
     commit(project, "api/src/a.py")
     assert review.files_to_review(project.root, None) == ["api/src/a.py"]
+
+
+def test_R10_2_a_merged_branch_note_carries_nothing_into_its_next_work(
+    project: Project,
+) -> None:
+    """A branch reviewed with an open finding, merged as it was, then reused
+    under the same name: its old note isn't this work's last review."""
+    on_a_branch(project)
+    commit(project, "api/src/a.py")
+    reviewed(project, [FINDING])
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")  # merged
+    commit(project, "api/src/c.py")
+    assert review.last_review(project.root) is None
