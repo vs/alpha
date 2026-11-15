@@ -141,7 +141,7 @@ dependencies, releases, git and agent workflow. The **spec areas**
 (architecture, errors, design language, UI, observability, data,
 accessibility, performance) describe the product, which the user often can't
 know on day one; they start `open`. An open area needs no decision, writes no
-doc of its own, is listed under "Not settled yet" in docs/product.md, and
+doc of its own, is listed under "Not settled yet" in docs/specification.md, and
 keeps off the principles it gates (each such principle names its area,
 `settled_by`, in the catalog). Requirements, target users and auth may stay
 empty the same way. `/alpha:go` settles them as the work needs them, through
@@ -523,13 +523,18 @@ the builder's, with these constraints:
   (setup/test/run/lint/typecheck), the definition of done, the commit
   convention, and pointers to the principles file and docs. It does not
   duplicate the principles file's parameters.
-- **docs/**: product brief (identity and acceptance checks), architecture
-  (components, stacks, contracts, reasons), decisions (ADR-style decision
-  log, seeded by the interview), contributing guide (incl. commit convention),
-  glossary (when applicable), design language (when defined), UI/visual
-  system (when applicable), build/CI/hosting, security, dependency log,
-  observability, release process, data/migrations (when applicable),
-  performance budgets (when applicable).
+- **docs/** (user decision 2026-11-15, decision 0035): the specification,
+  `docs/specification.md` (value proposition, users, requirements with
+  acceptance checks, the spec areas not settled yet, architecture, errors,
+  auth, UI and accessibility, data storage, performance, observability, each
+  where it applies), with feature specs in `docs/specs/`; decisions
+  (ADR-style decision log, seeded by the interview); the dependency log;
+  glossary (when applicable); design language (when defined); the adoption
+  plan (when adopted).
+- **CONTRIBUTING.md**: the development process: setup, components and
+  stacks, checks, commit convention, testing, which docs move with which
+  code, branching, build/CI/hosting, releases, secrets and protected paths,
+  and the migration and experiment rules (when applicable).
 - **LICENSE**, **README** (identity plus how to set up/test/run).
 - **`.claude/settings.json`**: permissions matched to each component's stack
   (allow its test/build/lint commands, deny dangerous ones), hooks wired to
