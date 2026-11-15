@@ -1,5 +1,5 @@
-"""The Rust recipe's gates: branch coverage on a dated nightly (decision 0028)
-and mutation testing for an exhaustive project (decision 0029)."""
+"""The Rust recipe's gates: branch coverage on a dated nightly
+and mutation testing for an exhaustive project."""
 
 import json
 import tomllib

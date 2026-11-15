@@ -122,7 +122,7 @@ def test_adopt_a_real_repo(tmp_path: Path, git_env: None):
             assert (root / rel).read_bytes() == data, rel
     changed = git(root, "diff", "--name-only", start, "HEAD").splitlines()
     assert not [p for p in changed if p.startswith(("src/", "tests/"))]
-    assert "docs/decisions/0002-" in "\n".join(changed)
+    assert [p for p in changed if p.startswith("docs/decisions/")] == []
     counts = json.loads(
         (root / ".claude/alpha/baselines/typecheck.ml.json").read_text()
     )

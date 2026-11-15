@@ -124,7 +124,7 @@ def test_legacy_project_runs_green_and_ratchets(tmp_path: Path, git_env: None):
     git(tmp_path, "add", "-A")
     git(tmp_path, "commit", "-q", "--no-verify", "-m", "fix: Drop an unused import")
 
-    # A pull request that grows a baseline needs an accepted decision.
+    # A pull request that grows a baseline needs a new Exceptions row.
     git(tmp_path, "checkout", "-q", "-b", "feature")
     legacy.write_text(LEGACY["api/legacy.py"])
     done = _alpha("baseline", "capture", str(tmp_path), "--check", "lint:api")
@@ -138,12 +138,10 @@ def test_legacy_project_runs_green_and_ratchets(tmp_path: Path, git_env: None):
     done = _sh(tmp_path, "mise run check:baselines", ALPHA_BASE="main")
     assert done.returncode != 0
     assert "baselines only shrink" in done.stdout + done.stderr
-    record = tmp_path / "docs/decisions/0099-keep-the-os-import.md"
-    record.write_text(
-        "# 0099. Keep the os import\n\nDate: 2026-11-11\nStatus: accepted\n\n"
-        "## Context\n\nThe `lint:api` baseline keeps one F401 until the module "
-        "is rewritten.\n"
-    )
+    contributing = tmp_path / "CONTRIBUTING.md"
+    header = "| Path | Check | Reason |\n|---|---|---|\n"
+    row = "| `api/legacy.py` | `lint:api` | keeps one F401 until it is rewritten |\n"
+    contributing.write_text(contributing.read_text().replace(header, header + row))
     git(tmp_path, "add", "-A")
     git(tmp_path, "commit", "-q", "--no-verify", "-m", "docs: Accept the import")
     done = _sh(tmp_path, "mise run check:baselines", ALPHA_BASE="main")
