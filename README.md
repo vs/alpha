@@ -193,8 +193,9 @@ hooks, deletes `.claude/alpha/`, `docs/alpha/` and alpha's agents and skills
 (even edited ones), and takes out only what points at them from the files you
 keep: lines in `CLAUDE.md`, `CONTRIBUTING.md` and `README.md`, alpha's entries
 in `.claude/settings.json`, the tool configs, `.gitignore`, and the `mise.toml`
-tasks that ran alpha's scripts. Your components' scaffolding stays, so the
-project still builds and tests. A file it can't clean stops it before it
+tasks that ran alpha's scripts; the secrets check stays, running the same scan
+without alpha's script. Your components' scaffolding stays, so the project
+still builds and tests. A file it can't clean stops it before it
 writes anything, naming the line to fix. Claude runs neither unless you ask.
 
 ## Projects an older alpha set up

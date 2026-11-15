@@ -206,6 +206,22 @@ def clean_toml_arrays(text: str, removed: Removed) -> str:
     )
 
 
+# The secrets check's wrapper scans only the files git lists, so local
+# secrets in ignored files (.env) don't fail it; the same pipeline in the
+# shell mise runs tasks in keeps that without alpha's script.
+SECRET_SCAN = "python3 .claude/alpha/checks/secret_scan.py "
+LISTED_FILES = "git ls-files -z --cached --others --exclude-standard | xargs -0 -r "
+
+
+def unwrapped_secret_scan(text: str) -> str:
+    """The secrets task's command without alpha's wrapper script."""
+    return re.sub(
+        re.escape(SECRET_SCAN) + r'([^"\n]*)',
+        lambda m: f"{LISTED_FILES}{m.group(1)} --",
+        text,
+    )
+
+
 def unratcheted(text: str, plain: Mapping[str, str], where: str) -> str:
     """Each command that ran through alpha's ratchet, back to the plain one."""
     problems: list[str] = []
@@ -468,7 +484,8 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
     gone: list[str] = []
     text = read(MISE)
     if text is not None:
-        edits[MISE], gone = clean_mise(unratcheted(text, plain, MISE), removed)
+        kept = unwrapped_secret_scan(unratcheted(text, plain, MISE))
+        edits[MISE], gone = clean_mise(kept, removed)
         dangling = _dangling_depends(edits[MISE])
         if dangling:
             raise Uncleanable(

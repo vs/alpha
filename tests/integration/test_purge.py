@@ -90,7 +90,8 @@ def test_R3_1_purge_removes_alpha_in_one_commit(project: Path) -> None:
         p.startswith((*ALPHA_PATHS, ".claude/")) or p in KEPT_FILES_ALPHA_WROTE
         for p in changed
     ), changed
-    assert "secrets, migrations, review-dates" in done.stdout
+    assert "are gone: migrations, review-dates." in done.stdout
+    assert "xargs -0 -r betterleaks dir" in (project / "mise.toml").read_text()
 
 
 def test_R3_3_no_kept_file_names_a_deleted_path(project: Path) -> None:
@@ -236,7 +237,7 @@ def test_a_wrapped_depends_stops_purge(project: Path) -> None:
     head = git(project, "rev-parse", "HEAD")
     done = run_cli("purge", str(project))
     assert done.returncode == 1
-    assert "check:secrets" in done.stderr and "wrote nothing" in done.stderr
+    assert "check:migrations" in done.stderr and "wrote nothing" in done.stderr
     assert git(project, "rev-parse", "HEAD") == head
 
 
