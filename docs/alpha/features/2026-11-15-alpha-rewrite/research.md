@@ -6,14 +6,14 @@ What the current implementation (main at 9edaa5c, kit 0.8.0) does, what each pie
 
 ## 1. Inventory
 
-About 42,500 lines in all: 10,000 in `src/alpha`, 1,700 in `src/alpha_evals`, 4,000 in the hooks and checks copied into projects, 2,000 in skills, 25,000 in tests.
+About 39,800 lines in all: 10,300 in `src/alpha`, 1,300 in `src/alpha_evals`, 5,100 in the hooks and checks copied into projects, 2,000 in skills, 21,100 in tests.
 
 | Part | Files | What it does |
 |---|---|---|
 | CLI | `src/alpha/cli.py` | argparse front for every subcommand: `answers`, `recipe`, `registry`, `defaults`, `adopt`, `baseline`, `generate`, `bootstrap`, `commit-skeleton`, `commit-update`, `update`. |
 | Answers | `answers.py` (1,337), `core_areas.py` (710), `validate.py`, `areas.py` | Parses `.claude/alpha/project.json` into frozen dataclasses, area by area, with a message per error that names the field and the fix. 18 areas; 8 "spec areas" may be `open`. |
 | Kit data | `defaults.py`, `registry.py`, `recipes.py` (858), `recipe_cli.py` | Kit defaults (`defaults/defaults.toml`) with the user layer (`~/.config/alpha/overrides.toml`) on top; the reviewed tool registry (`registry/tools.toml`, `registry/actions.toml`) with pins and `last_reviewed`; stack recipes (`recipes/*.toml` plus templates), drafted recipes proven by `recipe try` (a `proven_hash` of the recipe's own fields). |
-| Principles | `principles.py` | Builds `docs/principles.toml` from the catalog in `defaults.toml`: which principles apply (traits, `settled_by` areas), their parameters, overrides, component commands and globs, protected paths, review settings, repo checks, baselines. The hooks read only this file. |
+| Principles | `principles.py` | Builds `docs/principles.toml` from the catalog in `defaults.toml`: which principles apply (traits, `settled_by` areas), their parameters, overrides, component commands and globs, protected paths, review settings, repo checks, baselines. The hooks read this file, plus CONTRIBUTING.md's Exceptions table and the `Accepts:` trailers in `git log`. |
 | Renderers | `render/docs.py`, `render/area_docs.py`, `render/tooling.py`, `render/ci.py`, `render/claude_settings.py`, `repo_checks.py` | CLAUDE.md, README, CONTRIBUTING, specification, glossary, design language, dependency log, adoption plan; mise.toml and the tool configs (typos, rumdl, lychee, betterleaks); GitHub Actions CI, scheduled workflow, Dependabot; `.claude/settings.json`. |
 | Writing files | `generate.py`, `update.py` (620), `merge.py`, `gitops.py` | `generate` writes into an empty folder and records `manifest` in project.json: `files` (a sha256 per written file, which nothing reads), `applied` (a copy of the answers), `added` dates, kit version. `update` re-renders the `applied` answers as the base of a 3-way merge (`git merge-file`), and for an older kit fetches that kit's code and runs it in a subprocess (`_RENDER_OLD`). `gitops` commits in groups (docs, chore, tooling, one per component, ci, dependabot). |
 | Adoption | `adopt.py` (781), `baseline.py` (473) | `survey` (candidate components from recipes' `[detect]` markers, hook managers, commit convention), `apply` onto `alpha/adopt` with `.gitignore` and `settings.json` merged mechanically and every other existing file as a two-sided proposal, the compliance plan (`gaps`, `next`, `start`, `done`, `drop`), baselines per file and rule. |
@@ -113,7 +113,7 @@ All listed pieces exist today. Notes per piece:
 ### 15 and 16. Constraints
 
 - `feat/no-decision-records` removed decision records; `fold-decisions` and `answers drop-decisions` exist only to migrate old projects.
-- `manifest.files` (hashes) is written by `generate` and `update` and read by nothing but `refresh_manifest`, which rewrites it. `manifest.applied` is an answers copy, not hashes, but it goes too, with the git-object base.
+- `manifest.files` (hashes) is written by `generate` and `update`; `refresh_manifest` and `apply_update` read only its keys, to rewrite the hashes. Nothing reads the hashes themselves. `manifest.applied` is an answers copy, not hashes, but it goes too, with the git-object base.
 - Gitignored state may hold hashes: the Stop cache keys on a sha256 of each component's files, `update.json` keeps conflict digests. Neither is committed.
 
 ## 4. Probes run for this research
@@ -123,7 +123,7 @@ All listed pieces exist today. Notes per piece:
 
 ## 5. Prior art (from knowledge, not fetched for this research)
 
-- git-appraise (Google) keeps code reviews in git notes under `refs/notes/devtools/*`; Gerrit writes review metadata as notes on commits (`refs/notes/review`). Both attach to commits. Attaching to the tree, as requirement 10 asks, makes a review survive a rebase or squash that keeps the content.
+- git-appraise (Google) keeps code reviews in git notes under `refs/notes/devtools/*`; Gerrit writes review metadata as notes on commits (`refs/notes/review`). Both attach to commits. Attaching to the tree, as requirement 10 asks, makes a review survive a squash or an amend that keeps the content. A rebase onto a moved main gives every commit a new tree, so the review must be found another way (the specification's Review section).
 - pre-commit and husky uninstall by removing their hook files and git config, and leave the project's own config files alone. That matches requirement 2's split between uninstall (hooks only) and purge (files).
 
 ## 6. Settled with the user while researching (2026-11-15)
@@ -131,3 +131,10 @@ All listed pieces exist today. Notes per piece:
 - `update` stays (CLI merges, skill resolves conflicts). Its base is alpha's last render, kept as a local git commit under `refs/alpha/rendered`; no answers copy in project.json and no running of an older kit. A clone without the ref gets two-sided proposals.
 - uninstall and purge are not guarded against Claude running them: the skills are user-invocable only and CLAUDE.md says Claude runs them only when the user asks.
 - The user then asked to take Claude's recommendation on every remaining open question while they are away. Those choices are marked "Claude's choice" in the specification's Decisions.
+- A review of the draft (Fable, 2026-11-15) found six must-fix problems and several contradictions with the requirements. The user then settled:
+  - A fix check also reviews the files changed since the reviewed tree that no open finding names; new findings only on those files.
+  - The type check stays at Stop, as today; post-edit formats and lints.
+  - In chain mode, uninstall removes alpha's chained line from the hook manager, and install puts it back.
+  - A drafted recipe's proof lives in gitignored state, not in project.json; another clone proves it again.
+  - A risk-path finding is accepted only by the user's exact `accept F-xxxxxx` prompt, recorded by a UserPromptSubmit hook.
+- The requirements themselves are kept in [requirements.md](requirements.md); their only other copy, in a removed worktree, was untracked.
