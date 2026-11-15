@@ -24,7 +24,7 @@ from alpha.defaults import Source, load_defaults, load_survey
 from alpha.gitops import HOOKS_PATH, status_paths
 from alpha.principles import diff_coverage
 from alpha.recipes import RecipeBook, matches
-from alpha.render.docs import CHAINED_COMMIT_MSG
+from alpha.render.docs import CHAIN_BEGIN, CHAIN_END, CHAINED_COMMIT_MSG
 from alpha.shell import GIT_TIMEOUT, run_command
 
 CAP = 50  # entries per list; the rest are counted
@@ -582,7 +582,8 @@ def _problem(c: Condition, target: Path, a: Answers, confirmed: bool) -> str | N
             return None
         return (
             "git's commit-msg hook doesn't run alpha's commit check yet: add "
-            f"`{CHAINED_COMMIT_MSG}` to it"
+            f"`{CHAINED_COMMIT_MSG}` to it, between `{CHAIN_BEGIN}` and "
+            f"`{CHAIN_END}` lines"
         )
     if confirmed:
         return None

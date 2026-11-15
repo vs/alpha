@@ -13,6 +13,7 @@ from alpha import (
     apply,
     baseline,
     defaults,
+    hooks_wiring,
     recipe_cli,
     registry,
     toml_write,
@@ -156,6 +157,15 @@ def build_parser() -> argparse.ArgumentParser:
     cm = sub.add_parser("commit", help="commit what apply or update wrote")
     cm.add_argument("target", type=Path, help="the project")
     cm.add_argument("--trailer", action="append", default=[], help="commit trailer")
+    un = sub.add_parser(
+        "uninstall",
+        help="switch alpha's hooks off; deletes no file and commits nothing",
+    )
+    un.add_argument("target", type=Path, help="a project alpha is installed in")
+    ho = sub.add_parser("hooks", help="switch alpha's hooks back on")
+    hosub = ho.add_subparsers(dest="hooks_command", required=True)
+    hon = hosub.add_parser("on", help="put back what uninstall took out")
+    hon.add_argument("target", type=Path, help="a project alpha is installed in")
     up = sub.add_parser(
         "update", help="bring alpha's files to the answers and this kit"
     )
@@ -445,6 +455,12 @@ def _apply(target: Path, dry_run: bool, updating: bool) -> None:
         print(f'Next: "alpha bootstrap {target}", then "alpha commit {target}".')
 
 
+def _wiring(target: Path, on: bool) -> None:
+    done = hooks_wiring.hooks_on(target) if on else hooks_wiring.uninstall(target)
+    state = "on" if on else "off"
+    print("\n".join(done) if done else f"alpha's hooks were already {state}.")
+
+
 def _status(target: Path) -> int:
     found = status(target)
     print(found.name + (f": {found.detail}" if found.detail else ""))
@@ -459,6 +475,8 @@ def _project(args: argparse.Namespace) -> int:
             _apply(target, args.dry_run, args.command == "update")
         elif args.command == "bootstrap":
             _bootstrap(target, args.component, args.capture_baselines)
+        elif args.command in ("uninstall", "hooks"):
+            _wiring(target, args.command == "hooks")
         else:
             _commit(target, args.trailer)
     except (
@@ -501,7 +519,7 @@ def main(argv: list[str] | None = None) -> int:
         return _adopt(args)
     if args.command == "status":
         return _status(args.target)
-    if args.command in ("apply", "bootstrap", "commit", "update"):
+    if args.command in ("apply", "bootstrap", "commit", "update", "uninstall", "hooks"):
         return _project(args)
     return 2  # unreachable: argparse rejects unknown commands
 

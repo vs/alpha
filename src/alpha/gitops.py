@@ -314,5 +314,9 @@ def git_init(target: Path) -> None:
         _check(target, "init", "-q", "-b", "main", command="apply")
 
 
-def set_hooks_path(target: Path) -> None:
-    _check(target, "config", "core.hooksPath", HOOKS_PATH, command="apply")
+def set_hooks_path(target: Path, command: str = "apply") -> None:
+    _check(target, "config", "core.hooksPath", HOOKS_PATH, command=command)
+
+
+def unset_hooks_path(target: Path, command: str) -> None:
+    _check(target, "config", "--unset", "core.hooksPath", command=command)

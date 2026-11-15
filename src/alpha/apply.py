@@ -28,7 +28,6 @@ from alpha.generate import (
     render_project,
 )
 from alpha.gitops import (
-    HOOKS_PATH,
     PROPOSALS,
     UPDATE_STATE,
     commit_group,
@@ -39,6 +38,7 @@ from alpha.gitops import (
 )
 from alpha.merge import Change, classify, merge_settings, union_lines
 from alpha.registry import load_registry
+from alpha.render.docs import CHAIN_BEGIN, CHAIN_END, CHAINED_COMMIT_MSG
 from alpha.rendered import Base, find_base, write_tree
 from alpha.validate import AnswersError
 
@@ -456,8 +456,8 @@ def write(target: Path, p: Plan) -> list[str]:
         else:
             notes.append(
                 "Your hook manager stays in charge of git's hooks: its commit-msg "
-                f'hook must call `sh {HOOKS_PATH}/commit-msg "$1"`, between '
-                "`# alpha:begin` and `# alpha:end` lines."
+                f"hook must call `{CHAINED_COMMIT_MSG}`, between `{CHAIN_BEGIN}` "
+                f"and `{CHAIN_END}` lines."
             )
     write_json(
         target / UPDATE_STATE,

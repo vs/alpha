@@ -24,7 +24,7 @@ class Status:
     detail: str = ""
 
 
-def _git(target: Path, *args: str) -> str | None:
+def git_output(target: Path, *args: str) -> str | None:
     try:
         done = subprocess.run(
             ["git", *args],
@@ -55,7 +55,7 @@ def _entries(target: Path) -> list[str]:
     return sorted(found)
 
 
-def _answers(target: Path) -> dict[str, Any] | None:
+def read_answers(target: Path) -> dict[str, Any] | None:
     try:
         data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -101,7 +101,7 @@ def hooks_off(target: Path, answers: dict[str, Any]) -> list[str]:
     if chained:
         if (target / CHAIN_STATE).is_file():
             off.append("alpha's call from the hook manager's commit-msg hook")
-    elif _git(target, "config", "--get", "core.hooksPath") != HOOKS_PATH:
+    elif git_output(target, "config", "--get", "core.hooksPath") != HOOKS_PATH:
         off.append(f"core.hooksPath ({HOOKS_PATH})")
     return off
 
@@ -124,7 +124,7 @@ def _next_step(answers: dict[str, Any]) -> str:
 def status(target: Path) -> Status:
     if not target.is_dir():
         return Status("missing", f"{target} isn't a folder; create it first")
-    answers = _answers(target)
+    answers = read_answers(target)
     if answers is not None and "installed" in answers:
         off = hooks_off(target, answers)
         if off:
@@ -138,8 +138,10 @@ def status(target: Path) -> Status:
     if answers is not None:
         return Status("interview", "an interview is under way; it resumes")
     entries = _entries(target)
-    in_repo = _git(target, "rev-parse", "--show-toplevel") is not None
-    head = _git(target, "rev-parse", "--verify", "-q", "HEAD") if in_repo else None
+    in_repo = git_output(target, "rev-parse", "--show-toplevel") is not None
+    head = (
+        git_output(target, "rev-parse", "--verify", "-q", "HEAD") if in_repo else None
+    )
     if not entries and head is None:
         return Status("empty")
     if not in_repo:
@@ -148,12 +150,12 @@ def status(target: Path) -> Status:
         )
     if head is None:
         return Status("uncommitted", "commit the files, then install again")
-    branch = _git(target, "branch", "--show-current") or ""
+    branch = git_output(target, "branch", "--show-current") or ""
     if not branch:
         return Status("uncommitted", "HEAD is detached; switch to a branch first")
-    if _git(target, "status", "--porcelain"):
+    if git_output(target, "status", "--porcelain"):
         return Status("uncommitted", "commit or stash the changes first")
-    if branch != ADOPT_BRANCH and _git(
+    if branch != ADOPT_BRANCH and git_output(
         target, "rev-parse", "--verify", "-q", f"refs/heads/{ADOPT_BRANCH}"
     ):
         return Status(
