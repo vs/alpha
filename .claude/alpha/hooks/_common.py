@@ -386,8 +386,6 @@ def write_baseline(root: Path, sha: str) -> None:
 
 
 CONTRIBUTING = "CONTRIBUTING.md"
-GIT_LOG_TIMEOUT = 30  # seconds: reading the branch's commit messages
-_ACCEPTS = re.compile(r"^Accepts: (F-[0-9a-f]{6})\b", re.M)
 
 
 class ExceptionRow(NamedTuple):
@@ -429,23 +427,6 @@ def newly_excepted(now: str, before: str, check: str) -> bool:
     return any(
         e.check == check and (e.path, e.check) not in old for e in parse_exceptions(now)
     )
-
-
-def accepted_findings(root: Path) -> set[str]:
-    """The review findings an `Accepts: F-xxxxxx <reason>` line settles in the
-    last commits' messages, in any paragraph: only its first id counts."""
-    try:
-        proc = subprocess.run(
-            ["git", "log", "-n", "500", "--format=%B"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=GIT_LOG_TIMEOUT,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return set()
-    return set(_ACCEPTS.findall(proc.stdout)) if proc.returncode == 0 else set()
 
 
 def overrides_in_effect(principles: dict[str, Any]) -> list[str]:
