@@ -147,8 +147,9 @@
             "run": "uv run pytest -k \"abbreviated_no_verify or env_hooks_path or config_env\""
           }
         ],
-        "status": "done",
-        "branch": "alpha/p4-guard-hook-bypasses"
+        "status": "dropped",
+        "branch": "alpha/p4-guard-hook-bypasses",
+        "reason": "The user chose to drop it: the command guard catches habits, not evasion, since a script file gets past any parser; the plain --no-verify, commit -n and git config core.hooksPath stay blocked."
       },
       {
         "id": "p4-relative-license-file",
@@ -894,8 +895,9 @@
                 "run": "uv run pytest -k \"abbreviated_no_verify or env_hooks_path or config_env\""
               }
             ],
-            "status": "done",
-            "branch": "alpha/p4-guard-hook-bypasses"
+            "status": "dropped",
+            "branch": "alpha/p4-guard-hook-bypasses",
+            "reason": "The user chose to drop it: the command guard catches habits, not evasion, since a script file gets past any parser; the plain --no-verify, commit -n and git config core.hooksPath stay blocked."
           },
           {
             "id": "p4-relative-license-file",
@@ -1521,7 +1523,7 @@
       "CONTRIBUTING.md": "sha256:095fb138ffb8eef58e643210c6f239cdb239ed4dd126be8456d08e957d9caf98",
       "README.md": "sha256:a0f932d41a23ddaa94e6316b840403d6c1e963c21dc51496a008323319c58718",
       "_typos.toml": "sha256:7dae72444e3298536402e16e40864fc21ceebe37d52d37ef8b3c9678eb4cf21b",
-      "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
+      "docs/adoption.md": "sha256:82bcee02519030caf8cad5e7d2af1692151590b0a5220ad6863173187e919261",
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
       "docs/glossary.md": "sha256:ada005b93a27478627d61f55954278ac338ba999a38c5f3d0b34d03c798e1982",
       "docs/principles.toml": "sha256:c5ac33424473f26e40a1ff0289a9c4509914cb16b3ea7251550d08412d8dc779",

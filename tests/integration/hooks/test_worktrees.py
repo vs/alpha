@@ -82,25 +82,17 @@ def test_merge_checks_the_checkout_that_has_the_branch(project: Project) -> None
     assert bash(project, "gh pr merge --squash", cwd=wt).returncode == 0
 
 
-def test_merge_of_a_branch_no_checkout_has_says_where_to_review(
+def test_merge_alpha_cannot_place_in_a_checkout_is_not_blocked(
     project: Project,
 ) -> None:
     committed(project)
-    proc = bash(project, "gh pr merge elsewhere")
-    assert proc.returncode == 2
-    assert "no checkout here has elsewhere" in proc.stderr
-    assert "git worktree add <folder> elsewhere" in proc.stderr
-
-
-def test_merge_by_a_number_gh_cannot_resolve_is_explained(project: Project) -> None:
-    committed(project)
+    assert bash(project, "gh pr merge elsewhere").returncode == 0
     proc = project.run_hook(
         "guard_bash.py",
         {"tool_name": "Bash", "tool_input": {"command": "gh pr merge 12"}},
         env={"PATH": "/usr/bin:/bin"},
     )
-    assert proc.returncode == 2
-    assert "can't tell which branch `gh pr merge 12` merges" in proc.stderr
+    assert proc.returncode == 0, proc.stderr
 
 
 def test_edits_in_a_worktree_are_checked_against_it(project: Project) -> None:

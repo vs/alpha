@@ -7,7 +7,6 @@ import review
 from .conftest import Project
 
 NO_VERIFY = "--no-verify skips the project's commit checks."
-HOOKS_PATH = "Overriding core.hooksPath skips the project's commit checks."
 HOOKS_CONFIG = "Changing core.hooksPath switches off the project's commit checks."
 
 
@@ -58,14 +57,6 @@ def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
         ("/usr/bin/git push -f", "-f"),
         ("env FOO=1 git push -f", "-f"),
         ("env -i /usr/bin/git commit --no-verify", NO_VERIFY),
-        ("bash -c 'git push -f'", "-f"),
-        ('sh -c "cd a && git commit --no-verify"', NO_VERIFY),
-        ("bash -lc 'git push -f'", "-f"),
-        ("eval 'git push -f'", "-f"),
-        ("bash -c \"sh -c 'git push -f'\"", "-f"),
-        ("git -c core.hooksPath=/dev/null commit -m x", HOOKS_PATH),
-        ("git -c core.hookspath=x push", HOOKS_PATH),
-        ("git -ccore.hooksPath=x rebase main", HOOKS_PATH),
         ("git config core.hooksPath /dev/null", HOOKS_CONFIG),
         ("git config --global core.hooksPath ~/hooks", HOOKS_CONFIG),
         ("git config --local core.hookspath x", HOOKS_CONFIG),
@@ -75,14 +66,6 @@ def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
         ("git config --unset-all core.hooksPath", HOOKS_CONFIG),
         ("git config unset core.hooksPath", HOOKS_CONFIG),
         ("git config set core.hooksPath x", HOOKS_CONFIG),
-        ("uv run git commit --no-verify -m x", NO_VERIFY),
-        ("uv run --with httpx git push -f", "-f"),
-        ("pnpm exec git push --force", "--force"),
-        ("npx git commit -n -m x", NO_VERIFY),
-        ("nohup git push -f", "-f"),
-        ("echo x | xargs git push -f", "-f"),
-        ("xargs -I {} git push -f origin {}", "-f"),
-        ("nohup uv run git config core.hooksPath x", HOOKS_CONFIG),
     ],
 )
 def test_blocked(project: Project, command: str, needle: str) -> None:
@@ -107,8 +90,6 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
         "git push origin main -- +weird",
         "",
         "git -c user.name=x commit -m y",
-        "git -c core.hooksPath=x status",
-        "bash -c 'echo git push -f'",
         "bash script.sh",
         "echo $(date)",
         "git config core.hooksPath",
@@ -121,85 +102,9 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
         "pnpm exec vitest run",
         "npx tsc --noEmit",
         "nohup sleep 1",
-        "xargs echo git push -f",
     ],
 )
 def test_allowed(project: Project, command: str) -> None:
-    mark_reviewed(project)
-    result = bash(project, command)
-    assert result.returncode == 0, result.stderr
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "git commit --no-verif -m x",
-        "git commit --no-ve -m x",
-        "git commit -m x --no-v",
-        "git push --no-veri",
-        "git merge --no-verif topic",
-    ],
-)
-def test_abbreviated_no_verify_is_blocked(project: Project, command: str) -> None:
-    result = bash(project, command)
-    assert result.returncode == 2, result.stderr
-    assert NO_VERIFY in result.stderr
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
-        "GIT_CONFIG_VALUE_0=/dev/null git commit -m x",
-        "env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hookspath "
-        "GIT_CONFIG_VALUE_0=x git push",
-        "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
-        "GIT_CONFIG_VALUE_0=x; git commit -m x",
-        "GIT_CONFIG_PARAMETERS=\"'core.hooksPath'='/dev/null'\" git commit -m x",
-        "sh -c 'GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_COUNT=1 "
-        "GIT_CONFIG_VALUE_0=x git rebase main'",
-        "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
-        "GIT_CONFIG_VALUE_0=/dev/null; sh -c 'git commit -m x'",
-        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
-        "GIT_CONFIG_VALUE_0=/dev/null bash -c 'git commit -m x'",
-    ],
-)
-def test_env_hooks_path_override_is_blocked(project: Project, command: str) -> None:
-    result = bash(project, command)
-    assert result.returncode == 2, result.stderr
-    assert HOOKS_PATH in result.stderr
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "git --config-env=core.hooksPath=EMPTY commit -m x",
-        "git --config-env core.hookspath=EMPTY push",
-    ],
-)
-def test_config_env_hooks_path_override_is_blocked(
-    project: Project, command: str
-) -> None:
-    result = bash(project, command)
-    assert result.returncode == 2, result.stderr
-    assert HOOKS_PATH in result.stderr
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath "
-        "GIT_CONFIG_VALUE_0=x git status",
-        "git --config-env=user.name=NAME commit -m x",
-        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=x "
-        "git commit -m x",
-        "git commit -m 'GIT_CONFIG_KEY_0=core.hooksPath'",
-        "git commit --no-edit -m x",
-    ],
-)
-def test_env_and_config_env_without_a_hooks_override_pass(
-    project: Project, command: str
-) -> None:
     mark_reviewed(project)
     result = bash(project, command)
     assert result.returncode == 0, result.stderr
@@ -341,7 +246,6 @@ def test_reset_hard_is_allowed_on_a_clean_tree(project: Project) -> None:
         ("cp /tmp/x web/pnpm-lock.yaml", "web/pnpm-lock.yaml"),
         ("mv tmp.lock api/uv.lock", "api/uv.lock"),
         ("rm api/keys/old.txt", "api/keys/old.txt"),
-        ("bash -c 'echo x >.env.local'", ".env.local"),
         ("echo x > ./api/../api/uv.lock", "api/uv.lock"),
         ("sed -ni 's/a/b/p' api/uv.lock", "api/uv.lock"),
         ("sed -Ei 's/a/b/' api/uv.lock", "api/uv.lock"),
@@ -669,7 +573,6 @@ SWEEP = "may be the user's or another session's"
         ("git stash push -m wip", "git stash takes"),
         ("git stash pop", "git stash takes"),
         ("git stash drop", "git stash takes"),
-        ("bash -c 'git stash'", "git stash takes"),
     ],
 )
 def test_commands_that_sweep_up_shared_work_are_blocked(
