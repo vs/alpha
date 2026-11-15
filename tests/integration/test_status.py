@@ -36,6 +36,8 @@ def test_R1_2_each_folder_state_is_told_apart(tmp_path: Path, git_env: None):
     assert name(loose) == "not-a-repo"
     repo = existing_repo(tmp_path / "repo")
     assert name(repo) == "existing"
+    (repo / "newsvc").mkdir()  # a new project's folder inside another repo
+    assert name(repo / "newsvc") == "empty"
     (repo / "README.md").write_text("edited\n")
     assert name(repo) == "uncommitted"
     git(repo, "checkout", "--", "README.md")
