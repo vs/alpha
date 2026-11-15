@@ -11,11 +11,9 @@ from helpers import place_answers, proven, shell_recipe, single_component
 
 from alpha import cli
 from alpha.answers import (
-    PROJECT_JSON,
     AnswersError,
     answers_snapshot,
     area_of,
-    drop_decisions,
     load_answers,
     parse_answers,
     write_answers,
@@ -107,18 +105,6 @@ def test_a_pending_spec_area_is_pointed_at_open(tmp_path: Path):
     d["areas"]["ui"] = "pending"
     with pytest.raises(AnswersError, match=r'areas\.ui: .*Set areas\.ui to "open"'):
         check(tmp_path, d)
-
-
-def test_drop_decisions_removes_only_the_list(tmp_path: Path):
-    path = tmp_path / PROJECT_JSON
-    path.parent.mkdir(parents=True)
-    path.write_text(
-        json.dumps({"schema": 1, "decisions": [{}, {}], "layout": "single"})
-    )
-    assert drop_decisions(tmp_path) == 2
-    assert json.loads(path.read_text()) == {"schema": 1, "layout": "single"}
-    with pytest.raises(AnswersError, match=r"decisions: isn't in the answers"):
-        drop_decisions(tmp_path)
 
 
 def test_every_area_is_either_setup_or_spec():
@@ -344,10 +330,10 @@ def test_agent_workflow_rules(tmp_path: Path):
 
 
 def test_a_decisions_list_is_refused(tmp_path: Path):
-    """F1: decisions live in the docs; old answers are pointed at folding."""
+    """R15.1: decisions live in the docs, never in the answers."""
     d = valid()
     d["decisions"] = [{"area": "git", "title": "Trunk"}]
-    with pytest.raises(AnswersError, match=r"decisions: .*fold-decisions"):
+    with pytest.raises(AnswersError, match=r"decisions: isn't part of the answers"):
         check(tmp_path, d)
 
 

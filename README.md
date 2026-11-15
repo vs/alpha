@@ -131,11 +131,6 @@ what the product does in `docs/specification.md`, how the work is done in
 `CONTRIBUTING.md`, a loosened principle as an override listed there, an
 exception to a check as a row of its Exceptions table, and an accepted review
 finding as an `Accepts:` trailer on a commit. Git history keeps when and why.
-A project an older alpha set up with `docs/decisions/` folds them in once:
-
-```text
-/alpha:fold-decisions
-```
 
 ## Update
 

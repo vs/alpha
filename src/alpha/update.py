@@ -100,38 +100,6 @@ def _not_loaded(target: Path, manifest: dict[str, Any], problem: Exception) -> s
     )
 
 
-def _without_records(applied: dict[str, Any]) -> dict[str, Any]:
-    """The answers an older kit snapshotted, in this kit's form: a kit before
-    docs/specs/2026-11-15-no-decision-records.md kept a decisions list, and a
-    dropped adoption step kept a decision number where this kit keeps a reason.
-    parse_answers checks the result, so a malformed snapshot passes through."""
-    applied = {k: v for k, v in applied.items() if k != "decisions"}
-    adoption: object = applied.get("adoption")
-    if not isinstance(adoption, dict):
-        return applied
-    adoption = cast(dict[str, Any], adoption)
-    steps: object = adoption.get("steps")
-    if not isinstance(steps, list):
-        return applied
-    applied["adoption"] = {
-        **adoption,
-        "steps": [_reason_for_record(s) for s in cast(list[object], steps)],
-    }
-    return applied
-
-
-def _reason_for_record(step: object) -> object:
-    if not isinstance(step, dict):
-        return step
-    old = cast(dict[str, Any], step)
-    if "decision" not in old:
-        return old
-    new = {k: v for k, v in old.items() if k != "decision"}
-    if old["decision"] is not None:
-        new.setdefault("reason", f"decision {old['decision']}")
-    return new
-
-
 def _baseline(target: Path, manifest: dict[str, Any]) -> tuple[dict[str, date], int]:
     raw: object = manifest.get("added")
     if not isinstance(raw, dict):
@@ -438,7 +406,7 @@ def plan_update(
             f"{PROPOSALS}/, run alpha commit-update {target}, then run alpha "
             "update again."
         )
-    applied = _without_records(cast(dict[str, Any], manifest["applied"]))
+    applied = cast(dict[str, Any], manifest["applied"])
     defaults = load_defaults(source)
     # One registry for both renders, so kit changes cancel out.
     registry = load_registry(source)

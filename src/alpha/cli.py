@@ -56,11 +56,6 @@ def build_parser() -> argparse.ArgumentParser:
         choices=AREAS,
         help="only require this area to be done (repeatable)",
     )
-    adrop_d = asub.add_parser(
-        "drop-decisions",
-        help="remove the decisions list once /alpha:fold-decisions folded it",
-    )
-    adrop_d.add_argument("target", type=Path, help="the project")
     awrite = asub.add_parser(
         "write", help="merge a JSON object from stdin into the answers file"
     )
@@ -216,14 +211,6 @@ def _answers_input(given: str | None) -> str:
 
 
 def _answers(args: argparse.Namespace) -> int:
-    if args.answers_command == "drop-decisions":
-        try:
-            dropped = answers.drop_decisions(args.target)
-        except answers.AnswersError as e:
-            print(e, file=sys.stderr)
-            return 3
-        print(f"ok: dropped {dropped} decisions from {answers.PROJECT_JSON}")
-        return 0
     if args.answers_command == "write":
         try:
             answers.write_answers(args.target, _answers_input(args.json))

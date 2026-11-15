@@ -748,8 +748,9 @@ def _override(raw: object, i: int, names: set[str] | None) -> Override:
 def _no_decisions() -> AnswersError:
     return fail(
         "decisions",
-        "is no longer part of the answers: choices live in the docs",
-        "Run /alpha:fold-decisions to fold them into the docs and remove the list",
+        "isn't part of the answers: a decision updates the docs it governs",
+        "Remove it, after putting each rule still in force into docs/alpha/ or "
+        "CONTRIBUTING.md",
     )
 
 
@@ -1286,30 +1287,6 @@ def write_answers(target: Path, text: str) -> Path:
             "Check the folder's permissions and free space, then retry",
         ) from None
     return path
-
-
-def drop_decisions(target: Path) -> int:
-    """Remove the decisions list a kit before the docs replaced it left in the
-    answers, once /alpha:fold-decisions has folded it; returns its length."""
-    path = target / PROJECT_JSON
-    try:
-        data: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
-        raise fail(
-            str(path),
-            f"can't be read as the answers ({e})",
-            "Run it in a project alpha generated or adopted",
-        ) from None
-    if not isinstance(data, dict) or "decisions" not in data:
-        raise fail(
-            "decisions",
-            "isn't in the answers, so there is nothing to drop",
-            "Nothing to do: the project already keeps its decisions in the docs",
-        )
-    top = cast(dict[str, Any], data)
-    dropped = top.pop("decisions")
-    write_json(path, top)
-    return len(cast(list[object], dropped)) if isinstance(dropped, list) else 0
 
 
 def write_json(path: Path, data: Mapping[str, Any]) -> None:

@@ -1,9 +1,5 @@
 import hashlib
 import json
-import os
-import shutil
-import subprocess
-import sys
 from datetime import date
 from pathlib import Path
 from typing import Any, cast
@@ -21,13 +17,11 @@ from helpers import (
     shell_recipe,
 )
 
-from alpha import VERSION
 from alpha.answers import PROJECT_JSON, answers_snapshot, write_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import (
     GenerateError,
-    copied_files,
     generate,
     load_project_principles,
 )
@@ -205,7 +199,7 @@ def test_answers_that_still_hold_decisions_point_to_folding(
     data = answers(tmp_path)
     data["decisions"] = [{"area": "git", "title": "x"}]
     (tmp_path / PROJECT_JSON).write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(GenerateError, match="/alpha:fold-decisions"):
+    with pytest.raises(GenerateError, match="decisions: isn't part of the answers"):
         plan(tmp_path)
 
 
@@ -809,7 +803,6 @@ def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env: 
     assert not (target / UPDATE_STATE).exists()
 
 
-PRE_BRANCH = "260b370"  # the kit before the repository checks (mise.toml etc.)
 TOOLING = (
     "mise.toml",
     "_typos.toml",
@@ -817,92 +810,6 @@ TOOLING = (
     "lychee.toml",
     ".betterleaks.toml",
 )
-
-
-def project_from_kit(tmp_path: Path, ref: str) -> tuple[Path, Path]:
-    """The web+API scenario, generated and committed by the kit at `ref`;
-    also the folder that kit was unpacked to."""
-    known = subprocess.run(
-        ["git", "cat-file", "-e", f"{ref}^{{commit}}"],
-        cwd=PLUGIN_ROOT,
-        capture_output=True,
-    )
-    if known.returncode != 0:
-        pytest.skip(f"needs the kit's history up to {ref} (fetch-depth: 0)")
-    kit = tmp_path / "old-kit"
-    kit.mkdir()
-    archive = subprocess.run(
-        ["git", "archive", ref], cwd=PLUGIN_ROOT, capture_output=True, check=True
-    )
-    subprocess.run(["tar", "-x", "-C", str(kit)], input=archive.stdout, check=True)
-    target = tmp_path / "project"
-    answers_file = target / PROJECT_JSON
-    answers_file.parent.mkdir(parents=True)
-    scenario = kit / "evals/scenarios" / f"{SCENARIO}.json"
-    answers_file.write_bytes(scenario.read_bytes())
-    subprocess.run(
-        [sys.executable, str(kit / "bin/alpha"), "generate", str(target)],
-        env={**os.environ, "ALPHA_SOURCE": str(kit)},
-        capture_output=True,
-        check=True,
-    )
-    git(target, "init", "-q", "-b", "main")
-    commit(target, "chore: Generate the skeleton")
-    return target, kit
-
-
-@pytest.fixture
-def pre_branch_project(tmp_path: Path, git_env: None) -> Path:
-    """The web+API scenario, generated and committed by the pre-branch kit."""
-    return project_from_kit(tmp_path, PRE_BRANCH)[0]
-
-
-def fold_decisions(target: Path) -> None:
-    """What /alpha:fold-decisions leaves behind: no records and no decisions
-    list in the answers."""
-    data = answers(target)
-    del data["decisions"]
-    (target / PROJECT_JSON).write_text(json.dumps(data, indent=2) + "\n")
-    shutil.rmtree(target / "docs" / "decisions")
-    commit(target, "docs: Fold the decision records into the docs")
-
-
-def test_update_of_an_older_kit_project_upgrades_it(pre_branch_project: Path):
-    """Spec §5a: alpha update brings a project an older kit set up to this
-    kit, each file merged against what that kit wrote there."""
-    target = pre_branch_project
-    assert not (target / "mise.toml").exists()
-    claude = target / "CLAUDE.md"
-    claude.write_text(claude.read_text() + "\nOur own rule.\n")
-    fold_decisions(target)
-    add_worker(target)
-    commit(target, "chore: Add a worker to the answers")
-    p = plan(target)
-    found = kinds(p)
-    for path in (*TOOLING, ".claude/alpha/checks/secret_scan.py"):
-        assert found[path] == "new"
-    assert found[".claude/alpha/hooks/guard_bash.py"] == "change"
-    assert found["CLAUDE.md"] == "merge"
-    assert describe(p, target).startswith(f"alpha update (kit 0.1.0 to {VERSION}): ")
-    apply_update(target, p)
-    for rel, src in copied_files(PLUGIN_ROOT).items():
-        assert (target / rel).read_bytes() == src.read_bytes(), rel
-        assert (target / rel).stat().st_mode & 0o777 == src.stat().st_mode & 0o777
-    assert claude.read_text().endswith("Our own rule.\n")
-    assert not (target / "docs/decisions").exists()
-    assert answers(target)["manifest"]["kit_version"] == VERSION
-    commit_the_update(target)
-    assert describe(plan(target), target) == "alpha update: nothing to change"
-
-
-def test_kit_upgrade_finds_a_released_kit_by_its_tag(tmp_path: Path, git_env: None):
-    target, kit = project_from_kit(tmp_path, "v0.4.2")
-    shutil.rmtree(kit)  # gone from the folder the manifest names
-    fold_decisions(target)
-    found = kinds(plan(target))
-    assert found[".claude/alpha/checks/secret_scan.py"] == "new"
-    assert found[".claude/alpha/hooks/guard_bash.py"] == "change"
-    assert "conflict" not in found.values(), found
 
 
 def test_update_refuses_a_project_from_a_newer_alpha(tmp_path: Path, git_env: None):

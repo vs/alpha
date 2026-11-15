@@ -1,7 +1,11 @@
 """What the kit ships, as a whole: features the rewrite dropped stay gone."""
 
+import re
 from pathlib import Path
 
+import pytest
+
+from alpha.answers import AnswersError, parse_answers
 from alpha.cli import PLUGIN_ROOT
 
 # The kit's shipped files, and alpha's own installed copy of them.
@@ -49,3 +53,23 @@ def test_R14_1_dropped_features_are_gone():
     for gone in ("project-files/skills/debt", "project-files/checks/shortcuts.py"):
         assert not (PLUGIN_ROOT / gone).exists(), gone
     assert _naming("check:shortcuts", "checks/shortcuts.py", "/debt") == []
+
+
+RECORD_USE = re.compile(
+    r"docs/decisions|decision records? (in|under|that)|decision log|"
+    r"`decisions\[\]`|`Kind: (product|technical)`|--decision|fold-decisions"
+)
+
+
+def test_R15_1_no_decision_records(tmp_path: Path):
+    """Decisions live in the docs. Only the survey, which finds a repo's own
+    records, may name them."""
+    allowed = {"defaults/survey.toml"}
+    named = sorted(
+        rel
+        for rel, text in _texts().items()
+        if rel not in allowed and RECORD_USE.search(text)
+    )
+    assert named == []
+    with pytest.raises(AnswersError, match=r"decisions: isn't part of the answers"):
+        parse_answers({"schema": 1, "areas": {}, "decisions": []}, tmp_path, ())
