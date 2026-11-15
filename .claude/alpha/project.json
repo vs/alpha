@@ -673,7 +673,7 @@
       },
       {
         "term": "area",
-        "meaning": "One topic of the interview (identity, components, ...), settled by its own skill and saved in project.json."
+        "meaning": "One topic alpha settles and saves in project.json (identity, components, ...), with its own skill: a setup area or a spec area."
       },
       {
         "term": "component",
@@ -710,6 +710,14 @@
       {
         "term": "feature spec",
         "meaning": "A feature's requirements, the test that proves each acceptance check, and its plan, in docs/specs/; the user approves it before any code. Not the kit's design spec in docs/superpowers/specs/."
+      },
+      {
+        "term": "setup area",
+        "meaning": "An area the interview settles because alpha needs it to wire the tooling: identity, components, testing, documentation, build, security, dependencies, releases, git, agent workflow."
+      },
+      {
+        "term": "spec area",
+        "meaning": "An area that describes the product (architecture, errors, design language, UI, observability, data, accessibility, performance); it starts open and /alpha:go settles it when the work needs it."
       }
     ]
   },
@@ -1533,7 +1541,7 @@
           },
           {
             "term": "area",
-            "meaning": "One topic of the interview (identity, components, ...), settled by its own skill and saved in project.json."
+            "meaning": "One topic alpha settles and saves in project.json (identity, components, ...), with its own skill: a setup area or a spec area."
           },
           {
             "term": "component",
@@ -1570,6 +1578,14 @@
           {
             "term": "feature spec",
             "meaning": "A feature's requirements, the test that proves each acceptance check, and its plan, in docs/specs/; the user approves it before any code. Not the kit's design spec in docs/superpowers/specs/."
+          },
+          {
+            "term": "setup area",
+            "meaning": "An area the interview settles because alpha needs it to wire the tooling: identity, components, testing, documentation, build, security, dependencies, releases, git, agent workflow."
+          },
+          {
+            "term": "spec area",
+            "meaning": "An area that describes the product (architecture, errors, design language, UI, observability, data, accessibility, performance); it starts open and /alpha:go settles it when the work needs it."
           }
         ]
       },
@@ -1764,13 +1780,13 @@
       ".claude/skills/commit/SKILL.md": "sha256:6153014a29fb87eb378d160459e275b81b6e4d7cc8eabb76afb0a8ecc2d0a3b4",
       ".claude/skills/debt/SKILL.md": "sha256:28ce95aa110ca9addccbf6bde630645739d206be0483acbc6b0fe046b9628eba",
       ".claude/skills/decision/SKILL.md": "sha256:21bd8dfc679706dea21ca35992641cba84017d3adde9afcc3db3f2462a52bb30",
-      ".claude/skills/review-change/SKILL.md": "sha256:030a78de6260b37987fb01b508dc3f5c2fd082ae665dbb55f312db85d2b2b158",
-      ".gitignore": "sha256:e1f166fb62f35ad82fc9f7f0f56d9c45de7732c87312030d0762c9af88b9b712",
-      ".rumdl.toml": "sha256:9382fe071cf76551d8127b9b9652a9ff23591b30870d610b89165da4c972f512",
+      ".claude/skills/review-change/SKILL.md": "sha256:90274b8e152cd7f910dde444aee9bd463d56865c4db18be6ccae58a691a2cc16",
+      ".gitignore": "sha256:9be686545b4216343ef6d4537ddf799bc0329ac88ecbfcc4856b2377d0eec821",
+      ".rumdl.toml": "sha256:f19f0dada5082aa3f2fffff55f0f976e0ced4ffdfd1b1d3ddd3e4b3a9575bcad",
       "CLAUDE.md": "sha256:97bad9566aef53da255807ba13ef6c1f6c1e773328a84e331cc8e32561e3a013",
       "CONTRIBUTING.md": "sha256:83cf965209184e7a650f4274359b9a12b5ee036215db3953612da017d005b89b",
       "README.md": "sha256:a0f932d41a23ddaa94e6316b840403d6c1e963c21dc51496a008323319c58718",
-      "_typos.toml": "sha256:3dde33ae6acb93d91ec5a95bd5d60c3a7f8363f329abb4998e83cd1900d0e106",
+      "_typos.toml": "sha256:7dae72444e3298536402e16e40864fc21ceebe37d52d37ef8b3c9678eb4cf21b",
       "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
       "docs/build.md": "sha256:1989a6f6d23296f92d8e9e68401b43f5e07f865e5ca5ba5b93b04d0201dce55e",
@@ -1794,13 +1810,13 @@
       "docs/decisions/0017-review-at-merge.md": "sha256:29c2e0e1b5f1af4983ead8fa0aed8fcffed4bfa4caa7b233b37a7e944c7ff43d",
       "docs/decisions/0018-override-build-hosting-upfront.md": "sha256:be025c90f01b359d304ce147af26b9e6d0713de21cbcead8d050252b4026b61e",
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
-      "docs/glossary.md": "sha256:4a9b4de214e6e55f5861f1cc2da60dd4e44a6b3d1b3b93325e293e25c2686919",
+      "docs/glossary.md": "sha256:ada005b93a27478627d61f55954278ac338ba999a38c5f3d0b34d03c798e1982",
       "docs/performance.md": "sha256:77f9500b07da86a144b3e0bcc400d0e455db24ab317b69e66e76c83cd681d52d",
       "docs/principles.toml": "sha256:0e4d3d76a5225e0318bb20eba01ac0b9e822e16881defa63f3424477c884250f",
       "docs/product.md": "sha256:b930ebbcad4f721fdb6fb8af61a124798f726f8175ac1c213c892476278e439c",
       "docs/releases.md": "sha256:f87fe7b35dd5a3b79159c751d5074fdd42d8e1aa9105c2a475c3df4cd45afd11",
       "docs/security.md": "sha256:2922ef7aa491100ee4c02752c12602f89390ba58d27efb7a299f79f0b61596b9",
-      "lychee.toml": "sha256:be7ab01eb157c56d4687f0c6a728e1ea98582d1c81b45980d920d1fedce9b138",
+      "lychee.toml": "sha256:aa99805d677595788d9c6a8bf45442a1bb764aec33145e24af5eca2f648de9bb",
       "mise.toml": "sha256:a6d3c71404ed1b4b1ace0f91001d7c84a8ccba8b2821ec8c636f1d31090f7af2"
     },
     "updated_at": "2026-11-15"
