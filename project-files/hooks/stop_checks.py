@@ -357,10 +357,16 @@ def runs_commands(comp: dict[str, Any], files: list[str]) -> bool:
 
 
 def components_to_test(root: Path, principles: dict[str, Any]) -> list[dict[str, Any]]:
-    """The components this checkout changed since it left main."""
+    """The components this checkout changed since it left main; every one
+    when the repository has no main to compare against."""
+    base = review.main_base(root)
+    names = changed_since(root, base)
+    if base is None:
+        tracked = git_lines(root, "ls-files") or names
+        names = sorted({*tracked, *names})
     by_comp: dict[str, list[str]] = {}
     found: dict[str, dict[str, Any]] = {}
-    for rel in changed_since(root, review.main_base(root)):
+    for rel in names:
         for comp in _common.components_for(rel, principles):
             name = component_label(comp)
             found[name] = comp
@@ -830,45 +836,6 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
     block(listing)
 
 
-def safe_gate(root: Path, principles: dict[str, Any]) -> str | None:
-    try:
-        return review.gate(root, principles)
-    except review.SnapshotError as e:
-        flag(
-            f"alpha review: can't measure review debt ({e}). Fix that so the "
-            "principles reviewer can run; pushes stay blocked until then."
-        )
-
-
-def review_block(root: Path, inp: dict[str, Any], reason: str) -> NoReturn:
-    marker = _common.state_path(root, "review-blocked")
-    digest = hashlib.sha256(reason.encode()).hexdigest()
-    try:
-        repeated = marker.read_text().strip() == digest
-    except OSError:
-        repeated = False
-    if inp.get("stop_hook_active") and repeated:
-        flag(
-            f"{reason}\n\nalpha: the same review block came up twice in this turn, "
-            "so Claude stopped here instead of looping. Ask Claude to carry on (run "
-            "the principles-reviewer, or fix the findings), or accept a finding; the "
-            "review gate applies again at the next stop."
-        )
-    marker.write_text(digest + "\n")
-    print(json.dumps({"decision": "block", "reason": reason}))
-    sys.exit(0)
-
-
-def review_or_flag(
-    root: Path, principles: dict[str, Any], inp: dict[str, Any], listing: str
-) -> None:
-    verdict = safe_gate(root, principles)
-    if verdict:
-        review_block(
-            root, inp, f"{verdict}\n\nThese checks are still failing too:\n{listing}"
-        )
-
-
 def main() -> None:
     _common.check_python()
     if sys.argv[1:] == ["tests"]:
@@ -883,9 +850,6 @@ def main() -> None:
         if not isinstance(agent, str) or not agent:
             sys.exit(0)
         subagent_stop(root, principles, agent)
-    if not inp.get("stop_hook_active"):
-        _common.state_path(root, "review-blocked").unlink(missing_ok=True)
-    review.note_turn_end(root)
     base = session_base(root)
     changed = changed_since(root, base)
     counter = _common.state_path(root, "stop-blocks")
@@ -900,10 +864,6 @@ def main() -> None:
         head = head_sha(root)
         if head is not None:
             _common.write_baseline(root, head)
-        verdict = safe_gate(root, principles)
-        if verdict:
-            review_block(root, inp, verdict)
-        _common.state_path(root, "review-blocked").unlink(missing_ok=True)
         sys.exit(0)
     listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
     if secrets:
@@ -914,7 +874,6 @@ def main() -> None:
     except OSError:
         given_up = False
     if given_up:
-        review_or_flag(root, principles, inp, listing)
         flag(
             "alpha: still open; the user was told after 3 attempts, so alpha won't "
             f"block on these again until they change:\n{listing}"
@@ -923,7 +882,6 @@ def main() -> None:
     if count >= MAX_BLOCKS:
         write_count(counter, 0)
         accepted.write_text(fingerprint + "\n")
-        review_or_flag(root, principles, inp, listing)
         flag(
             "alpha: checks still failing after 3 attempts; stopping so the user can "
             f"decide:\n{listing}"

@@ -13,13 +13,12 @@ from .conftest import Project
 
 
 def committed(project: Project) -> None:
+    """main, committed and published."""
     project.git("checkout", "-q", "-B", "main")
     project.write("api/src/a.py", "x = 1\n")
     project.git("add", "-A")
     project.git("commit", "-q", "-m", "chore: Base")
-    state = review.ensure_state(project.root)
-    state["reviewed_tree"] = review.snapshot(project.root)
-    review.save_state(project.root, state)
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")
 
 
 def worktree(project: Project, branch: str = "topic") -> Path:
@@ -37,10 +36,19 @@ def bash(
     return project.run_hook("guard_bash.py", payload)
 
 
+def git(root: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
+
+
 def mark_reviewed(root: Path) -> None:
-    state = review.ensure_state(root)
-    state["reviewed_tree"] = review.snapshot(root)
-    review.save_state(root, state)
+    """A clean review of HEAD's tree in `root`, committing the work first."""
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--allow-empty", "-m", "chore: Work")
+    review.write_note(
+        root,
+        review.tree_of(root, "HEAD"),
+        {"kind": "review", "branch": review.current_branch(root), "findings": []},
+    )
 
 
 @pytest.mark.parametrize(
@@ -67,6 +75,8 @@ def test_merge_checks_the_checkout_that_has_the_branch(project: Project) -> None
     committed(project)
     wt = worktree(project)
     (wt / "api/src/b.py").write_text("y = 2\n")
+    git(wt, "add", "-A")
+    git(wt, "commit", "-q", "-m", "feat: Add b")
     proc = bash(project, "gh pr merge topic --squash")
     assert proc.returncode == 2
     assert proc.stderr.startswith(
@@ -131,8 +141,8 @@ def test_a_pushed_branch_is_not_taken_as_reviewed(
     project.git("add", "api/src/b.py")
     project.git("commit", "-q", "-m", "feat: Add b")
     project.git("push", "-q", "-u", "origin", "topic")
-    (project.root / ".claude/alpha/state/review.json").unlink()
-    assert review.debt(project.root, project.principles())["files"] == ["api/src/b.py"]
+    assert review.last_review(project.root) is None
+    assert review.files_to_review(project.root, None) == ["api/src/b.py"]
 
 
 def test_a_rebase_onto_main_keeps_the_review(project: Project) -> None:
@@ -146,11 +156,16 @@ def test_a_rebase_onto_main_keeps_the_review(project: Project) -> None:
     project.write("web/src/c.ts", "export const c = 3\n")
     project.git("add", "web/src/c.ts")
     project.git("commit", "-q", "-m", "feat: Add c")
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")  # as a fetch
     project.git("checkout", "-q", "topic")
     project.git("rebase", "-q", "main")
-    assert review.debt(project.root, project.principles())["files"] == []
+    last = review.last_review(project.root)
+    assert last is not None
+    assert review.files_to_review(project.root, last[0]) == []
     project.write("api/src/b.py", "y = 3\n")
-    assert review.debt(project.root, project.principles())["files"] == ["api/src/b.py"]
+    project.git("add", "api/src/b.py")
+    project.git("commit", "-q", "-m", "fix: Change b")
+    assert review.files_to_review(project.root, last[0]) == ["api/src/b.py"]
 
 
 def test_project_root_prefers_the_file_then_the_cwd(

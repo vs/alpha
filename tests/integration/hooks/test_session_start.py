@@ -157,14 +157,6 @@ def test_real_old_python_warns_that_hooks_are_off(project: Project) -> None:
     assert "alpha needs Python 3.11+ (found 3." in text
 
 
-def test_session_start_creates_the_review_state(project: Project) -> None:
-    sha = commit(project)
-    start(project, source="startup")
-    state = json.loads((project.root / ".claude/alpha/state/review.json").read_text())
-    tree = project.git("rev-parse", f"{sha}^{{tree}}").stdout.strip()
-    assert state["reviewed_tree"] == tree
-
-
 def test_startup_clears_subagent_records_left_behind(project: Project) -> None:
     state = project.root / ".claude/alpha/state"
     state.mkdir(parents=True, exist_ok=True)

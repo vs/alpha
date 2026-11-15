@@ -223,9 +223,39 @@ def git_folder(segment: list[str]) -> str | None:
     return None
 
 
+NOTES_MESSAGE = (
+    "alpha's review notes are written only by its review hooks (the reviewer's "
+    "record, the user's accept) and stay in this clone. Run the "
+    "principles-reviewer instead."
+)
+NOTES_WRITES = {"add", "append", "copy", "edit", "merge", "remove", "prune"}
+
+
+def review_notes_written(raw: list[str], sub: str, args: list[str]) -> bool:
+    """Whether a git command writes alpha's review notes or moves them between
+    clones."""
+    named = " ".join(raw).count(review.NOTES_REF) > 0
+    if sub == "notes":
+        words = [a for a in args if not a.startswith("-")]
+        return named and bool(set(words) & NOTES_WRITES)
+    if sub == "update-ref":
+        return named
+    if sub == "push":
+        notes = [a for a in args if "refs/notes/" in a]
+        return "--mirror" in args or named or any("*" in a for a in notes)
+    if sub == "fetch":
+        return named
+    return False
+
+
 def check_command(command: str, root: Path, here: Path) -> None:
     for raw in split_segments(command) or []:
         segment = strip_prefix(raw)
+        invocation = git_invocation(segment)
+        if invocation is not None and review_notes_written(
+            raw, invocation[0], invocation[1]
+        ):
+            _common.block(NOTES_MESSAGE)
         if segment[:1] == ["cd"] and len(segment) > 1 and segment[1] != "-":
             here = here / Path(segment[1]).expanduser()
         folder = git_folder(segment) if segment[:1] == ["git"] else None
@@ -393,7 +423,7 @@ def check_review(root: Path) -> None:
     principles = _common.load_principles(root)
     if principles is None:
         return
-    reason = review.merge_blocker(root, principles) or stop_checks.untested_blocker(
+    reason = review.gate(root, principles) or stop_checks.untested_blocker(
         root, principles
     )
     if reason:
@@ -457,11 +487,38 @@ def checkout_with(root: Path, branch: str) -> Path | None:
     return None
 
 
+def pr_head(root: Path, target: str) -> str | None:
+    """The commit a pull request's head is at on GitHub, or None."""
+    try:
+        proc = subprocess.run(
+            ["gh", "pr", "view", target.lstrip("#"), "--json", "headRefOid"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        oid = json.loads(proc.stdout).get("headRefOid")
+    except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
+        return None
+    return oid if proc.returncode == 0 and isinstance(oid, str) else None
+
+
 def check_merge(root: Path, words: list[str]) -> None:
-    branch = pr_branch(root, merge_target(words))
+    target = merge_target(words)
+    branch = pr_branch(root, target)
     checkout = checkout_with(root, branch) if branch else None
-    if checkout is not None:
-        check_review(checkout)
+    if checkout is None:
+        return
+    remote = pr_head(checkout, target or branch or "")
+    local = (git_output(checkout, "rev-parse", "HEAD") or "").strip()
+    if remote and local and remote != local:
+        _common.block(
+            f"The pull request's head on GitHub ({remote[:12]}) isn't this "
+            f"checkout's HEAD ({local[:12]}): push the branch first, so what merges "
+            "is what was reviewed and tested."
+        )
+    check_review(checkout)
 
 
 def gh_command(segment: list[str]) -> list[str] | None:

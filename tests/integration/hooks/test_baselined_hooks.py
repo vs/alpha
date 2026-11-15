@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import review
 
 from .conftest import HOOKS, Project
 
@@ -97,9 +96,6 @@ def test_post_edit_blocks_a_new_finding(baselined: Project):
 
 
 def _stop(project: Project) -> subprocess.CompletedProcess[str]:
-    state = review.ensure_state(project.root)
-    state["reviewed_tree"] = review.snapshot(project.root)
-    review.save_state(project.root, state)
     payload = {"hook_event_name": "Stop", "stop_hook_active": False}
     return project.run_hook("stop_checks.py", payload)
 

@@ -1,3 +1,12 @@
+"""The user accepts review findings by replying `accept F-xxxxxx` and nothing
+else: the only way to accept a finding on a risk path (rewrite spec, R9.4).
+
+Claude Code runs this hook for every prompt, including subagent reports and
+messages from other sessions, with no field telling them apart from the user;
+requiring the whole prompt to be the command keeps a report that merely
+mentions one from accepting anything.
+"""
+
 from __future__ import annotations
 
 import json
@@ -32,13 +41,10 @@ def main() -> None:
         sys.exit(0)
     inp = _common.read_input()
     root = _common.project_root(inp)
-    if _common.load_principles(root) is None:
+    if _common.checkout_of(root.resolve()) is None:
         sys.exit(0)
-    review.absorb_outside_changes(root)
     text = inp.get("prompt")
     text = text.strip() if isinstance(text, str) else ""
-    # Claude Code also runs this hook for subagent reports and messages from
-    # other sessions, with no field that tells them apart from the user.
     command = _COMMAND.fullmatch(text)
     if command is None:
         near = _ID.findall(text)
@@ -51,28 +57,24 @@ def main() -> None:
             )
         sys.exit(0)
     wanted = [f"F-{i[2:].lower()}" for i in _ID.findall(command.group(1))]
-    state = review.ensure_state(root)
-    findings = list(state.get("findings", []))
-    open_ids = [str(f["id"]) for f in findings if not f.get("accepted")]
+    last = review.last_review(root)
+    open_ids = [str(f["id"]) for f in review.open_findings(last[1] if last else None)]
     unknown = [i for i in wanted if i not in open_ids]
-    if unknown:
+    if last is None or unknown:
         say(
-            f"alpha: {', '.join(unknown)} isn't an open review finding; nothing was "
-            f"accepted. Current open findings: {', '.join(open_ids) or 'none'}."
+            f"alpha: {', '.join(unknown or wanted)} isn't an open review finding; "
+            f"nothing was accepted. Open findings: {', '.join(open_ids) or 'none'}."
         )
         sys.exit(0)
+    tree, note = last
     lines: list[str] = []
-    for f in findings:
-        if f["id"] in wanted:
-            f["accepted"] = True
-            lines.append(f"{f['id']}: {f['principle']} {f['file']}: {f['problem']}")
-    state["findings"] = findings
-    review.save_state(root, state)
-    ids = ", ".join(f'"Accepts: {i} <why it stands>"' for i in wanted)
-    say(
-        f"alpha: the user accepted {'; '.join(lines)}. Record each as a commit "
-        f"trailer ({ids}) on the next commit, or an empty one."
-    )
+    for finding in note.get("findings", []):
+        if finding.get("id") in wanted:
+            finding["status"] = "accepted"
+            finding["accepted_by"] = "user"
+            lines.append(f"{finding['id']}: {finding['principle']} {finding['file']}")
+    review.write_note(root, tree, note)
+    say(f"alpha: the user accepted {'; '.join(lines)}.")
     sys.exit(0)
 
 

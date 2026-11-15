@@ -11,9 +11,14 @@ HOOKS_CONFIG = "Changing core.hooksPath switches off the project's commit checks
 
 
 def mark_reviewed(project: Project) -> None:
-    state = review.ensure_state(project.root)
-    state["reviewed_tree"] = review.snapshot(project.root)
-    review.save_state(project.root, state)
+    """A clean review of HEAD's tree, committing the work first."""
+    project.git("add", "-A")
+    project.git("commit", "-q", "--allow-empty", "-m", "chore: Work")
+    review.write_note(
+        project.root,
+        review.tree_of(project.root, "HEAD"),
+        {"kind": "review", "branch": "", "base": "", "recorded": 0, "findings": []},
+    )
 
 
 def bash(project: Project, command: str) -> subprocess.CompletedProcess[str]:
@@ -196,7 +201,6 @@ def test_lease_push_of_a_feature_branch_is_allowed(
         "git push --force-with-lease origin HEAD:main",
         "git push --force-with-lease origin topic:refs/heads/master",
         "git push --force-with-lease --all",
-        "git push --force-with-lease --mirror",
     ],
 )
 def test_lease_push_to_main_is_blocked(project: Project, command: str) -> None:
@@ -384,6 +388,17 @@ def committed(project: Project) -> None:
     mark_reviewed(project)
 
 
+def published(project: Project) -> None:
+    """main as the remote has it: HEAD, for the branch to leave from."""
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")
+
+
+def commit_change(project: Project, rel: str = "api/src/x.py") -> None:
+    project.write(rel, "x = 1\n")
+    project.git("add", "-A")
+    project.git("commit", "-q", "-m", "feat: Add x")
+
+
 @pytest.mark.parametrize(
     "command",
     [
@@ -397,7 +412,8 @@ def committed(project: Project) -> None:
 def test_unreviewed_work_does_not_reach_main(project: Project, command: str) -> None:
     project.git("checkout", "-q", "-B", "main")
     committed(project)
-    project.write("api/src/x.py", "x = 1\n")
+    published(project)
+    commit_change(project)
     proc = bash(project, command)
     assert proc.returncode == 2
     assert proc.stderr.startswith(
@@ -433,8 +449,9 @@ def test_push_allowed_right_after_a_clean_review(project: Project) -> None:
     assert bash(project, "git push").returncode == 0
 
 
-def test_a_push_to_main_waits_for_the_tests(project: Project) -> None:
+def test_R12_2_main_waits_for_a_test_pass(project: Project) -> None:
     committed(project)
+    published(project)
     project.write("api/src/x.py", "x = 1\n")
     mark_reviewed(project)
     proc = bash(project, "git push")
@@ -453,6 +470,7 @@ def test_a_push_to_main_waits_for_the_tests(project: Project) -> None:
 def test_a_failing_suite_keeps_main_closed(project: Project) -> None:
     project.set_commands("api", test="python3 -c 'raise SystemExit(1)'")
     committed(project)
+    published(project)
     project.write("api/src/x.py", "x = 1\n")
     mark_reviewed(project)
     assert project.run_tests().returncode == 1
@@ -461,29 +479,24 @@ def test_a_failing_suite_keeps_main_closed(project: Project) -> None:
     assert "Nothing reaches main untested" in proc.stderr
 
 
-def test_a_project_that_tests_at_stop_has_no_test_gate(project: Project) -> None:
-    project.set_test_run("at-stop")
-    committed(project)
-    project.write("api/src/x.py", "x = 1\n")
-    mark_reviewed(project)
-    assert bash(project, "git push").returncode == 0
-
-
 def test_open_findings_block_the_push(project: Project) -> None:
     committed(project)
-    state = review.load_state(project.root)
-    state["findings"] = [
-        {
-            "id": "F-abc123",
-            "principle": "p",
-            "file": "f",
-            "line": 1,
-            "problem": "x",
-            "fix": "y",
-            "accepted": False,
-        }
-    ]
-    review.save_state(project.root, state)
+    published(project)
+    commit_change(project)
+    finding = {
+        "id": "F-abc123",
+        "principle": "p",
+        "file": "f",
+        "line": 1,
+        "problem": "x",
+        "fix": "y",
+        "status": "open",
+    }
+    review.write_note(
+        project.root,
+        review.tree_of(project.root, "HEAD"),
+        {"kind": "review", "branch": "", "base": "", "findings": [finding]},
+    )
     proc = bash(project, "git push")
     assert proc.returncode == 2
     assert "F-abc123" in proc.stderr
@@ -602,3 +615,54 @@ def test_R2_3_the_guard_holds_without_the_principles_file(project: Project) -> N
 def test_R2_4_alpha_uninstall_passes_the_guard(project: Project) -> None:
     proc = bash(project, "/plugins/alpha/bin/alpha uninstall .")
     assert proc.returncode == 0, proc.stderr
+
+
+NOTES = "alpha's review notes are written only by its review hooks"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git notes --ref=alpha-review add -m x HEAD",
+        "git notes --ref alpha-review edit HEAD",
+        "git notes --ref=refs/notes/alpha-review remove HEAD",
+        "git notes --ref=alpha-review copy a b",
+        "git notes --ref=alpha-review merge other",
+        "GIT_NOTES_REF=refs/notes/alpha-review git notes add -m x HEAD",
+        "git update-ref refs/notes/alpha-review HEAD",
+    ],
+)
+def test_R10_1_writing_review_notes_is_blocked(project: Project, command: str) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 2, (command, proc.stderr)
+    assert NOTES in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push origin refs/notes/alpha-review",
+        "git push origin 'refs/notes/*:refs/notes/*'",
+        "git push --mirror origin",
+        "git fetch origin refs/notes/alpha-review:refs/notes/alpha-review",
+    ],
+)
+def test_R10_4_moving_review_notes_between_clones_is_blocked(
+    project: Project, command: str
+) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 2, (command, proc.stderr)
+    assert NOTES in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git notes --ref=alpha-review show HEAD",
+        "git notes --ref=alpha-review list",
+        "git push origin refs/notes/alpha-rendered",
+    ],
+)
+def test_reading_review_notes_passes(project: Project, command: str) -> None:
+    proc = bash(project, command)
+    assert NOTES not in proc.stderr, command
