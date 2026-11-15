@@ -211,7 +211,7 @@ In an adopted repo with baselines, the checks that ran through the ratchet run p
 - **Git hook:** `commit-msg` only.
 - **Untested notes:** `python3 .claude/alpha/hooks/untested.py "<why>" <path>...`, kept in state with each file's blob until it changes.
 - **Repository checks:** secrets, vulns, typos, markdown, links, links-online, agent-config, actions, review-dates, toolchain; `migrations` and `squawk` once data is settled with migration paths; `palette` once the design language is settled with `enforce`; diff coverage in CI.
-- Hooks require Python 3.11 at runtime (the kit does), so `tomllib` imports move to the top and the three `PLC0415` Exceptions rows go; an older `python3` still gets the guard message, printed by a tiny 3.9-safe entry check.
+- The hooks keep parsing on Python 3.9 (their late `tomllib` imports and the three `PLC0415` Exceptions rows stay), so an older `python3` gets the guard message rather than an ImportError.
 
 ### CLI
 
@@ -244,7 +244,8 @@ src/alpha/
   baseline.py       baselines
   bootstrap.py      toolchains, checks, baseline capture
 project-files/hooks/  _common.py, guard_bash.py, guard_paths.py, post_edit.py,
-                      stop_checks.py, context.py, review.py, review_record.py,
+                      stop_checks.py, session_start.py, subagent_start.py,
+                      review.py, review_record.py,
                       accept.py, untested.py, commit_msg.py
 project-files/checks/ secret_scan.py, diff_checks.py, ratchet.py,
                       review_dates.py, palette.py
@@ -279,7 +280,6 @@ Claude's choices, made while the user was away or after the review, open to the 
 - `do` never closes a product area; it names `/alpha:specify` for one the feature needs and keeps the feature's own choices in its spec.
 - Area guides become files read by `install` and `specify`, not 18 plugin skills; `fold-decisions` and `answers drop-decisions` go with the old projects' migration.
 - The requirements and target users, and auth, become product areas of their own (`requirements`, `auth`) instead of empty fields of identity and security.
-- Hooks require Python 3.11, dropping the 3.9 parse constraint and its three Exceptions rows.
 - The kit's version becomes 1.0.0: a breaking change bumps MAJOR, per CONTRIBUTING.md's Releases.
 
 ## Out of scope

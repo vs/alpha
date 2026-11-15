@@ -213,19 +213,6 @@ def test_blind_force_push_is_blocked_on_any_branch(project: Project) -> None:
     assert "--force-with-lease instead" in proc.stderr
 
 
-def test_reset_hard_is_blocked_while_tracked_files_have_changes(
-    project: Project,
-) -> None:
-    project.write("api/src/a.py", "x = 1\n")
-    committed(project)
-    project.write("api/src/a.py", "x = 2\n")
-    for command in ("git reset --hard", "git reset --hard origin/topic"):
-        proc = bash(project, command)
-        assert proc.returncode == 2, command
-        assert "uncommitted changes to tracked files (api/src/a.py)" in (proc.stderr)
-        assert SWEEP in proc.stderr
-
-
 def test_reset_hard_is_allowed_on_a_clean_tree(project: Project) -> None:
     committed(project)
     project.write("api/src/new.py", "x = 1\n")
@@ -530,58 +517,9 @@ def test_the_review_state_is_not_writable_from_bash(
     assert STATE_MESSAGE in proc.stderr
 
 
-@pytest.mark.parametrize(
-    "command", ["git clean -fdX", "git clean -fdx", "git clean -X -f"]
-)
-def test_git_clean_of_ignored_files_is_blocked(project: Project, command: str) -> None:
-    proc = bash(project, command)
-    assert proc.returncode == 2
-    assert ".claude/alpha/state" in proc.stderr
-
-
 def test_plain_git_clean_and_reading_the_state_pass(project: Project) -> None:
     assert bash(project, "git clean -fd").returncode == 0
     assert bash(project, "cat .claude/alpha/state/review.json").returncode == 0
-
-
-SWEEP = "may be the user's or another session's"
-
-
-@pytest.mark.parametrize(
-    ("command", "needle"),
-    [
-        ("git add -A", "git add -A stages every change"),
-        ("git add --all", "git add --all stages every change"),
-        ("git add -u", "git add -u stages every change"),
-        ("git add --update", "git add --update stages every change"),
-        ("git add -Av", "git add -Av stages every change"),
-        ("git add .", "git add . stages every change"),
-        ("cd api && git add .", "git add . stages every change"),
-        ("git add -- .", "git add . stages every change"),
-        ("git add ':/'", "git add :/ stages every change"),
-        ("git add '*'", "git add * stages every change"),
-        ("git commit -am x", "git commit -am commits every tracked change"),
-        ("git commit -a -m x", "git commit -a commits every tracked change"),
-        ("git commit --all -m x", "git commit --all commits every tracked change"),
-        ("git checkout .", "git checkout . discards"),
-        ("git checkout -- .", "git checkout . discards"),
-        ("git checkout HEAD -- .", "git checkout . discards"),
-        ("git restore .", "git restore . discards"),
-        ("git restore --staged --worktree .", "git restore . discards"),
-        ("git stash", "git stash takes"),
-        ("git stash -u", "git stash takes"),
-        ("git stash push -m wip", "git stash takes"),
-        ("git stash pop", "git stash takes"),
-        ("git stash drop", "git stash takes"),
-    ],
-)
-def test_commands_that_sweep_up_shared_work_are_blocked(
-    project: Project, command: str, needle: str
-) -> None:
-    proc = bash(project, command)
-    assert proc.returncode == 2, (command, proc.stderr)
-    assert needle in proc.stderr
-    assert SWEEP in proc.stderr
 
 
 @pytest.mark.parametrize(
@@ -599,6 +537,11 @@ def test_commands_that_sweep_up_shared_work_are_blocked(
         "git checkout main",
         "git checkout -b topic",
         "git checkout docs/alpha/principles.toml",
+        "git add -A",
+        "git commit -am x",
+        "git stash",
+        "git checkout .",
+        "git clean -fdx",
         "git checkout 1a2b3c -- api/migrations/0001_create_uploads.sql",
         "git restore api/app/main.py",
         "git restore --staged .",
@@ -610,3 +553,52 @@ def test_commands_that_name_their_files_pass(project: Project, command: str) -> 
     mark_reviewed(project)
     proc = bash(project, command)
     assert proc.returncode == 0, (command, proc.stderr)
+
+
+WIRING = "only /alpha:uninstall"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo '{}' > .claude/settings.json",
+        "rm .claude/settings.json",
+        "cp /tmp/x .claude/settings.local.json",
+        "mv .claude/settings.json /tmp/x",
+        "tee .claude/settings.json < /tmp/x",
+        "truncate -s 0 .claude/settings.json",
+        "sed -i '' 's/alpha/x/' .claude/settings.json",
+        "perl -i -pe 's/alpha/x/' .claude/settings.json",
+        "ln -sf /tmp/x .claude/settings.json",
+        "install /tmp/x .claude/settings.json",
+        "rm .claude/alpha/hooks/stop_checks.py",
+        "echo exit > .claude/alpha/hooks/guard_bash.py",
+        "rm docs/alpha/principles.toml",
+        "mv docs/alpha/principles.toml /tmp",
+        "git rm .claude/settings.json",
+        "git rm -r .claude/alpha",
+        "git mv docs/alpha/principles.toml docs/old.toml",
+        "git checkout HEAD~1 -- .claude/settings.json",
+        "git restore --source=HEAD~1 .claude/alpha/hooks/guard_bash.py",
+        "git config core.hooksPath /dev/null",
+        "git config --unset core.hooksPath",
+    ],
+)
+def test_R2_3_shell_ways_to_switch_the_hooks_off_are_blocked(
+    project: Project, command: str
+) -> None:
+    proc = bash(project, command)
+    assert proc.returncode == 2, (command, proc.stderr)
+    assert "/alpha:uninstall" in proc.stderr
+
+
+def test_R2_3_the_guard_holds_without_the_principles_file(project: Project) -> None:
+    (project.root / "docs" / "alpha" / "principles.toml").unlink()
+    (project.root / ".claude" / "alpha" / "hooks").mkdir(parents=True, exist_ok=True)
+    proc = bash(project, "rm .claude/settings.json")
+    assert proc.returncode == 2 and WIRING in proc.stderr
+
+
+def test_R2_4_alpha_uninstall_passes_the_guard(project: Project) -> None:
+    proc = bash(project, "/plugins/alpha/bin/alpha uninstall .")
+    assert proc.returncode == 0, proc.stderr

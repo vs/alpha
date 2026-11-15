@@ -64,7 +64,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - Read a file in full before you edit it, and every file a wide change touches; search snippets aren't enough.
 - Look up a dependency's API in its installed source or types instead of guessing it.
 - Remove dead code and replaced internal APIs without asking, but ask before removing code or behavior that looks intentional.
-- Commit only the files you changed for the work, staged by path. Other changes in the tree may be the user's or another session's, so don't stage, stash or reset them; the hooks block the commands that would.
+- Commit only the files you changed for the work, staged by path. Other changes in the tree may be the user's or another session's, so don't stage, stash or reset them.
 - Subagents work under the same principles, docs and checks.
 - Before you report work as done, re-read every changed file top to bottom as a stranger would.
 - At the end of a planned piece of work, run the principles-reviewer agent.

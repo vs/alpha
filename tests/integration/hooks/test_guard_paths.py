@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 from .conftest import HOOKS, Project
@@ -291,3 +292,69 @@ def test_a_resume_note_beside_the_state_is_writable(project: Project) -> None:
     proc = run(project, "Write", {"file_path": path, "content": "# Resume\n"})
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout == ""
+
+
+ALPHA_STOP = 'python3 "$CLAUDE_PROJECT_DIR"/.claude/alpha/hooks/stop_checks.py'
+SETTINGS = {
+    "permissions": {"allow": ["Bash(uv run:*)"]},
+    "hooks": {"Stop": [{"hooks": [{"type": "command", "command": ALPHA_STOP}]}]},
+}
+
+
+def _settings(project: Project) -> Path:
+    path = project.root / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(SETTINGS, indent=2))
+    return path
+
+
+def test_R2_3_edits_to_the_hook_wiring_are_blocked(project: Project) -> None:
+    path = _settings(project)
+    text = path.read_text()
+    for tool, args in (
+        ("Write", {"file_path": str(path), "content": json.dumps({"hooks": {}})}),
+        (
+            "Edit",
+            {"file_path": str(path), "old_string": "stop_checks.py", "new_string": "x"},
+        ),
+        (
+            "Edit",
+            {
+                "file_path": str(path),
+                "old_string": '"permissions"',
+                "new_string": '"disableAllHooks": true, "permissions"',
+            },
+        ),
+        (
+            "Write",
+            {
+                "file_path": str(project.root / ".claude/settings.local.json"),
+                "content": '{"disableAllHooks": true}',
+            },
+        ),
+        (
+            "Write",
+            {
+                "file_path": str(project.root / ".claude/alpha/hooks/stop_checks.py"),
+                "content": "import sys; sys.exit(0)",
+            },
+        ),
+    ):
+        result = run(project, tool, args)
+        assert result.returncode == 2, (tool, args, result.stderr)
+        assert "/alpha:uninstall" in result.stderr
+    assert path.read_text() == text
+
+
+def test_R2_3_a_new_permission_passes(project: Project) -> None:
+    path = _settings(project)
+    result = run(
+        project,
+        "Edit",
+        {
+            "file_path": str(path),
+            "old_string": '"Bash(uv run:*)"',
+            "new_string": '"Bash(uv run:*)", "Bash(make test:*)"',
+        },
+    )
+    assert result.returncode == 0, result.stderr
