@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from helpers import generated_repo, git, install, place_answers
+from helpers import generated_repo, git, install, place_answers, run_cli
 
 from alpha.answers import PROJECT_JSON
 from alpha.cli import PLUGIN_ROOT
@@ -114,3 +114,11 @@ def test_R16_1_no_committed_file_holds_file_hashes(tmp_path: Path, git_env: None
     assert found == []
     assert git(target, "rev-parse", "--verify", "refs/alpha/rendered")
     assert str(PLUGIN_ROOT) not in data
+
+
+def test_a_new_project_is_told_one_next_step(tmp_path: Path):
+    place_answers(tmp_path, SCENARIO)
+    done = run_cli("apply", str(tmp_path))
+    assert done.returncode == 0, done.stderr
+    assert "New components" not in done.stdout
+    assert f'Next: "alpha bootstrap {tmp_path}", then "alpha commit' in done.stdout

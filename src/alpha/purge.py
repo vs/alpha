@@ -560,6 +560,9 @@ def purge(
             parent.rmdir()
             parent = parent.parent
     shutil.rmtree(target / ".claude/alpha", ignore_errors=True)  # its local state
+    claude = target / ".claude"
+    if claude.is_dir() and not any(claude.iterdir()):
+        claude.rmdir()
     rendered.forget(target)
     _git(target, "update-ref", "-d", REVIEW_NOTES)
     args = ["commit", "-q", "-m", p.subject]

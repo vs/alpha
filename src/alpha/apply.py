@@ -491,7 +491,7 @@ def describe(p: Plan, target: Path, bootstrap_flags: str = "") -> str:
     for c in sorted(p.changes, key=lambda c: (_ORDER.index(c.kind), c.path)):
         lines.append(f"  {c.kind:<10}{c.path}{_NOTES.get(c.kind, '')}")
     lines += [f"  {note}" for note in p.notes]
-    if p.new_components:
+    if p.new_components and p.mode != "new":
         flags = bootstrap_flags or " ".join(
             f"--component {n}" for n in p.new_components
         )
