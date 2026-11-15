@@ -150,8 +150,13 @@ def last_review(root: Path) -> tuple[str, dict[str, Any]] | None:
             if note is not None:
                 return tree, note
     branch = current_branch(root)
+    on_main: set[str] = (
+        set((_git(root, "log", "--format=%T", base) or "").split()) if base else set()
+    )
     newest: tuple[int, str, dict[str, Any]] | None = None
     for obj in noted:
+        if obj in on_main:
+            continue
         note = read_note(root, obj)
         if note is None or not branch or note.get("branch") != branch:
             continue
@@ -250,17 +255,17 @@ def on_risk_path(principles: dict[str, Any], path: str) -> bool:
 
 
 def accepts_since(root: Path, tree: str | None) -> list[str]:
-    """The `Accepts:` lines of the commits since the reviewed tree's commit."""
-    out = _git(root, "log", "--format=%T %H") or ""
-    since: list[str] = []
-    for row in out.splitlines():
-        found_tree, _, commit = row.partition(" ")
+    """The `Accepts:` lines of the branch's commits since the reviewed tree's
+    commit, read in one git call."""
+    base = main_base(root)
+    out = _git(
+        root, "log", "--format=%T%x00%B%x1e", f"{base}..HEAD" if base else "HEAD"
+    )
+    lines: list[str] = []
+    for record in (out or "").split("\x1e"):
+        found_tree, _, body = record.strip("\n").partition("\x00")
         if found_tree == tree:
             break
-        since.append(commit)
-    lines: list[str] = []
-    for commit in since:
-        body = _git(root, "log", "-1", "--format=%B", commit) or ""
         lines += [line for line in body.splitlines() if line.startswith("Accepts: F-")]
     return lines
 
