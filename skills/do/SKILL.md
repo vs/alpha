@@ -1,6 +1,6 @@
 ---
-name: go
-description: Do a task in a project alpha generated or adopted, by a playbook that keeps the project's principles, docs and checks - investigation, feature (research, grill, spec with its tests, approval, tests first, code), bug fix, refactoring, perf, specify (settle a spec area left open), prototype, session pickup, pause. Use for /alpha:go <task>, or when the user asks for rigorous work on a feature, bug, refactor, slowness or question in such a project.
+name: do
+description: Do a task in a project alpha installed, by a playbook that keeps the project's principles, docs and checks - investigation, feature (research, deep research, brainstorming, a spec and a plan in its own folder, approval, tests first, code), bug fix, refactoring, perf, prototype, session pickup, pause. Use for /alpha:do [task], or when the user asks for rigorous work on a feature, bug, refactor, slowness or question in such a project.
 ---
 
 <!--
@@ -29,9 +29,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 -->
 
-# Go
+# Do
 
-Do one task in a project alpha generated or adopted, step by step, by the playbook that fits it. The playbooks say how to work; the project says what is right. Its principles, docs and checks win over anything written here.
+Do one task in a project alpha installed, step by step, by the playbook that fits it. The playbooks say how to work; the project says what is right. Its principles, docs and checks win over anything written here.
 
 Task: `$ARGUMENTS`
 
@@ -41,8 +41,8 @@ Task: `$ARGUMENTS`
 
 - No `<root>/.claude/alpha/project.json` with an `installed` key: alpha isn't installed in this repo, or its install isn't finished, so there are no principles to follow. Point to `/alpha:install`, and stop.
 - With `installed`, read before the first step:
-  - project.json's `areas`: a spec area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/alpha/specification.md lists them under "Not settled yet".
-  - `docs/alpha/principles.toml`: the active principles, their parameters and `[review]`. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
+  - project.json's `areas`: a product area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/alpha/specification.md lists them under "Not settled yet". Only `/alpha:specify` settles one, when the user asks: a task that needs one names it to the user with its `/alpha:specify` request, and keeps its own choices in its own spec.
+  - `docs/alpha/principles.toml`: the active principles and their parameters. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
   - The parts of `docs/alpha/specification.md` and `CONTRIBUTING.md` that bear on the task, including CONTRIBUTING's Overrides and Exceptions.
   - CLAUDE.md: each component's commands, the definition of done, the commit convention and how to talk to the user.
   - `docs/alpha/adoption.md`, when it exists: a task never leaves more findings in a file than its baseline allows; the plan's own steps shrink baselines, not unrelated tasks (`stay-in-scope`).
@@ -54,11 +54,10 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 | Playbook | File | For |
 |---|---|---|
 | Investigation | `investigation.md` | A read-only question: how does X work, why is Y built this way, are we sure, X or Y. |
-| Feature | `feature.md` | New or changed behavior: research, grill, spec with its tests, approval, tests first, code. |
+| Feature | `feature.md` | New or changed behavior: research, deep research, brainstorming, a spec and a plan in its own folder, approval, tests first, code. |
 | Bug fix | `bug-fix.md` | A defect to reproduce, trace to its root cause and fix with a test that fails without the fix. |
 | Refactoring | `refactoring.md` | A change to structure that keeps behavior: rename, extract, inline, merge, move. |
 | Perf | `perf.md` | A measured slowness, or a push on one metric, against a baseline. |
-| Specify | `specify.md` | Settling a spec area left open, the target users or the auth: on request, or because a task needs it. |
 | Prototype | `prototype.md` | A throwaway sketch to settle a design question by looking at it instead of asking. |
 | Session pickup | `session-pickup.md` | Resuming work an earlier session left: a branch, a resume note, a spec. |
 | Pause | `pause.md` | Stopping work cleanly so a later session can resume it. |
@@ -87,8 +86,7 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 
 1. The checks of every component you changed pass (the commands in CLAUDE.md, or `mise run check`), and the tests your change touches run green.
 2. The docs that move with the changed paths (the table in CONTRIBUTING.md) are updated in the same change.
-3. Run the `review-change` skill on your diff and fix what it finds that you agree with; say why you leave the rest.
-4. Commit by following the commit skill (`.claude/skills/commit/SKILL.md`; it runs only when the user types it, so read the file), one logical change per commit, each passing the checks on its own.
-5. The principles reviewer runs when `[review]` and the hooks ask for it (before main at least); its findings are fixed or accepted as the hooks say.
+3. Commit by following the commit skill (`.claude/skills/commit/SKILL.md`; it runs only when the user types it, so read the file), one logical change per commit, each passing the checks on its own.
+4. Don't run the principles reviewer or review the whole branch yourself: the principles review runs once, when the work reaches main, as the merge guard asks, and its findings are fixed or accepted there.
 
 **Reply.** Follow CLAUDE.md's communication rules and the playbook's reply line. Name each principle that changed a choice, and the choice. End with what you skipped or couldn't check, and any risk the user must know.

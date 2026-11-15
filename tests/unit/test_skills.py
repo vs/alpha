@@ -22,8 +22,8 @@ CLI = '"${CLAUDE_PLUGIN_ROOT}/bin/alpha"'
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 ENTRY = ["install", "extend", "specify", "update", "uninstall", "purge"]
 USER_ONLY = ["install", "uninstall", "purge"]
-ALL_SKILLS = ["grilling", "stack-recipe", *ENTRY, "go"]
-CLI_SKILLS = [s for s in ALL_SKILLS if s != "go"]
+ALL_SKILLS = ["grilling", "stack-recipe", *ENTRY, "do"]
+CLI_SKILLS = [s for s in ALL_SKILLS if s != "do"]
 INSTALL_PATHS = ["install/new-project.md", "install/adopt.md"]
 INSTALL_GUIDES = [f"install/areas/{a}.md" for a in areas.INSTALL_AREAS]
 PRODUCT_GUIDES = [f"specify/areas/{a}.md" for a in areas.PRODUCT_AREAS]
@@ -326,7 +326,7 @@ def test_answers_are_saved_with_one_line_answers_write(rel: str) -> None:
 
 REMOVED = re.compile(
     r"docs/(product|architecture|build|security|releases|ui|data|performance"
-    r"|observability)\.md|/alpha:new-project|/alpha:adopt\b|alpha:adopt\b"
+    r"|observability)\.md|/alpha:new-project|/alpha:adopt\b|alpha:adopt\b|/alpha:go\b"
 )
 
 
@@ -335,9 +335,7 @@ def test_no_kit_file_names_a_removed_doc_or_skill() -> None:
         p
         for folder in ("skills", "project-files", "recipes", "src")
         for p in (PLUGIN_ROOT / folder).rglob("*")
-        if p.is_file()
-        and p.suffix in (".md", ".py", ".toml")
-        and "skills/go/" not in p.as_posix()
+        if p.is_file() and p.suffix in (".md", ".py", ".toml")
     ]
     assert len(shipped) > 50
     named = [str(p) for p in shipped if REMOVED.search(p.read_text())]

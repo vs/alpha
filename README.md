@@ -15,7 +15,7 @@ before a change reaches main.
 The interview asks only what alpha needs to set up the tooling: the name,
 license, components and stacks, tests, docs, CI, releases and git. What the
 product does, its architecture, errors, UI, data, budgets and so on, stays
-open until the work needs it; `/alpha:go` settles each part then, and
+open until you ask; `/alpha:specify` settles each part then, and
 `docs/alpha/specification.md` lists what's still open.
 
 ```sh
@@ -46,7 +46,7 @@ recommended answer, for you to confirm or rewrite.
 | `docs/alpha/design-language.md` | optional: one look for every visual, from diagrams in the docs to the UI, which the reviewer holds each changed visual to |
 
 The design language is yours to skip. Settle it when you need it
-(`/alpha:go settle the design language`: character, palette, typography,
+(`/alpha:specify design language`: character, palette, typography,
 shape, imagery, diagram style) and it becomes a principle that CLAUDE.md
 states, and the source of the UI's tokens. Until then, alpha enforces and
 recommends nothing about how visuals look. Which files count as visuals is the `[visuals]`
@@ -108,17 +108,17 @@ It asks again only what the change affects, and merges into files you edited.
 ## Work in it
 
 ```text
-/alpha:go add CSV export to the report command
+/alpha:do add CSV export to the report command
 ```
 
 alpha picks a playbook for the task (investigation, feature, bug fix,
-refactoring, perf, specify, prototype, session pickup or pause) and follows
-it step by step, keeping the project's principles, docs and
-checks. `/alpha:go settle the performance budgets` settles a part of the
-specification left open, as do `settle the target users` and `settle the
-auth`; a feature that needs one asks about it with its other questions. A feature starts with research and questions, then a spec in
-`docs/alpha/features/<date>-<feature>/` that names a test for each acceptance
-check. Nothing is built until you approve it and choose how: native, where
+refactoring, perf, prototype, session pickup or pause) and follows it step by
+step, keeping the project's principles, docs and checks. A feature that needs
+a part of the specification still open names it with its `/alpha:specify`
+request. A feature starts with research into the code and into how other
+projects build it, then a brainstorm with you, one question at a time, then
+a spec and a plan in `docs/alpha/features/<date>-<feature>/` that name a test
+for each acceptance check. Nothing is built until you approve it and choose how: native, where
 Claude builds every task, or with subagents, where a fresh one builds each
 task and another reviews it. Each task's tests are written first and fail
 before the code makes them pass. Work can run in its own git worktree. The
