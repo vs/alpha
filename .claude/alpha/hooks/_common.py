@@ -19,7 +19,7 @@ import time
 from collections.abc import Generator
 from pathlib import Path
 from types import ModuleType
-from typing import Any, NoReturn, cast
+from typing import Any, NamedTuple, NoReturn, cast
 
 STATE_DIR = ".claude/alpha/state"
 BASELINE_DIR = ".claude/alpha/baselines"  # spec §8b; only shrinks
@@ -377,86 +377,75 @@ def write_baseline(root: Path, sha: str) -> None:
     state_path(root, "session-base").write_text(sha + "\n")
 
 
-DECISIONS_DIR = "docs/decisions"
-INDEX_LINES = 40
-_HEADING = re.compile(r"# (\d{4})\. (.+)")
+CONTRIBUTING = "CONTRIBUTING.md"
+GIT_LOG_TIMEOUT = 30  # seconds: reading the branch's commit messages
+_ACCEPTS = re.compile(r"^Accepts: (F-[0-9a-f]{6})\b", re.M)
 
 
-def decision_index(root: Path) -> tuple[list[tuple[int, str, str, str]], list[str]]:
-    records: list[tuple[int, str, str, str]] = []
-    warnings: list[str] = []
-    folder = root / DECISIONS_DIR
-    if not folder.is_dir():
-        return records, warnings
-    for path in sorted(folder.glob("*.md")):
-        rel = f"{DECISIONS_DIR}/{path.name}"
-        try:
-            lines = path.read_text(encoding="utf-8-sig").splitlines()
-        except (OSError, UnicodeDecodeError):
-            warnings.append(f"{rel} can't be read as UTF-8 text; fix or remove it.")
-            continue
-        heading = _HEADING.fullmatch(lines[0].strip()) if lines else None
-        if heading is None:
-            warnings.append(
-                f'{rel} has no "# NNNN. Title" first line; add one, or move it out '
-                f"of {DECISIONS_DIR}/ if it isn't a decision record."
-            )
-            continue
-        status = next(
-            (
-                line.split(":", 1)[1].strip()
-                for line in lines[1:12]
-                if line.startswith("Status:")
-            ),
-            "",
-        )
-        if not status:
-            warnings.append(f'{rel} has no "Status:" line; add "Status: accepted".')
-            continue
-        records.append((int(heading.group(1)), heading.group(2).strip(), status, rel))
-    records.sort()
-    numbers = [r[0] for r in records]
-    for n in sorted({n for n in numbers if numbers.count(n) > 1}):
-        paths = ", ".join(r[3] for r in records if r[0] == n)
-        warnings.append(
-            f"{n:04d} is the number of more than one record ({paths}); renumber "
-            "all but one."
-        )
-    return records, warnings
+class ExceptionRow(NamedTuple):
+    """A row of CONTRIBUTING.md's Exceptions table: a path, a check and why the
+    check doesn't hold there."""
+
+    path: str
+    check: str
+    row: str
 
 
-def _record_change(root: Path, record: str, principle: str) -> str | None:
+def parse_exceptions(text: str) -> list[ExceptionRow]:
+    """The rows of the Exceptions table in a CONTRIBUTING.md's text."""
+    found: list[ExceptionRow] = []
+    inside = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            inside = line.strip() == "## Exceptions"
+        elif (
+            inside and line.startswith("|") and not line.startswith(("| Path", "|---"))
+        ):
+            cells = [c.strip().strip("`") for c in line.strip().strip("|").split("|")]
+            if len(cells) >= 2:
+                found.append(ExceptionRow(cells[0], cells[1], line.strip()))
+    return found
+
+
+def exception_rows(root: Path) -> list[ExceptionRow]:
     try:
-        lines = (root / record).read_text(encoding="utf-8-sig").splitlines()[:12]
+        return parse_exceptions((root / CONTRIBUTING).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError):
-        return None
-    for line in lines:
-        found = re.fullmatch(r"Principle: (\S+) \((.+)\)", line.strip())
-        if found and found.group(1) == principle:
-            return found.group(2)
-    return None
+        return []
 
 
-def overrides_in_effect(
-    principles: dict[str, Any], root: Path | None = None
-) -> list[str]:
-    lines: list[str] = []
-    for p in principles.get("principles", []):
-        record = p.get("override_decision")
-        if not record:
-            continue
-        pid = str(p.get("id"))
-        change = _record_change(root, str(record), pid) if root is not None else None
-        if change is None:
-            parts: list[str] = []
-            if "active" in p:
-                parts.append("active" if p["active"] else "inactive")
-            if "components" in p:
-                comps = ", ".join(str(c) for c in p["components"]) or "none"
-                parts.append(f"components {comps}")
-            change = ", ".join(parts) or "overridden, see the record"
-        lines.append(f"{p.get('id')}: {change} ({record})")
-    return lines
+def newly_excepted(now: str, before: str, check: str) -> bool:
+    """Whether the Exceptions table in `now` names `check` for a path the table
+    in `before` didn't: rewording an older row's reason doesn't count."""
+    old = {(e.path, e.check) for e in parse_exceptions(before)}
+    return any(
+        e.check == check and (e.path, e.check) not in old for e in parse_exceptions(now)
+    )
+
+
+def accepted_findings(root: Path) -> set[str]:
+    """The review findings an `Accepts: F-xxxxxx <reason>` line settles in the
+    last commits' messages, in any paragraph: only its first id counts."""
+    try:
+        proc = subprocess.run(
+            ["git", "log", "-n", "500", "--format=%B"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=GIT_LOG_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    return set(_ACCEPTS.findall(proc.stdout)) if proc.returncode == 0 else set()
+
+
+def overrides_in_effect(principles: dict[str, Any]) -> list[str]:
+    return [
+        f"{p.get('id')}: {p['override']}"
+        for p in principles.get("principles", [])
+        if p.get("override")
+    ]
 
 
 WRITING = ("smallest-change", "scope-first", "fix-at-the-root", "lean-structure")
@@ -476,32 +465,22 @@ def writing_principles(principles: dict[str, Any]) -> list[str]:
 
 
 def context_text(root: Path, principles: dict[str, Any]) -> str:
-    records, warnings = decision_index(root)
-    if records:
-        lines = [
-            "alpha: decisions in effect (read the ones that bear on your change "
-            "before changing anything):"
-        ]
-        shown = records[-INDEX_LINES:]
-        lines += [
-            f"- {n:04d} {title} [{status}] {path}" for n, title, status, path in shown
-        ]
-        if len(records) > len(shown):
-            lines.append(
-                f"- … {len(records) - len(shown)} older records in {DECISIONS_DIR}/"
-            )
-    else:
-        lines = [
-            f"alpha: no decision records yet in {DECISIONS_DIR}/; record decisions "
-            "with the decision skill."
-        ]
-    overrides = overrides_in_effect(principles, root)
+    lines = [
+        "alpha: what the product does is in docs/specification.md and how the "
+        "work is done in CONTRIBUTING.md; read the parts that bear on your change "
+        "before changing anything, and record a decision there with the decision "
+        "skill."
+    ]
+    exceptions = exception_rows(root)
+    if exceptions:
+        lines += ["Exceptions in effect (CONTRIBUTING.md):"]
+        lines += [e.row for e in exceptions]
+    overrides = overrides_in_effect(principles)
     if overrides:
         lines += ["Principle overrides:", *(f"- {o}" for o in overrides)]
     writing = writing_principles(principles)
     if writing:
         lines += ["Write code by these principles (docs/principles.toml):", *writing]
-    lines += [f"Warning: {w}" for w in warnings]
     return "\n".join(lines)
 
 
@@ -560,8 +539,8 @@ def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
         return (
             f"{head} Baselines shrink by themselves: running the check tightens "
             "the file when findings are fixed, and you commit it. To keep a new "
-            "finding, record why in a decision naming the check, then run alpha "
-            "baseline capture <project> --check <id> --decision <number>."
+            "finding, add a row to CONTRIBUTING.md's Exceptions table naming the "
+            "check and why, then run alpha baseline capture <project> --check <id>."
         )
     protected = principles.get("protected", {})
     if glob in [str(g) for g in protected.get("extra", [])]:

@@ -11,7 +11,6 @@ from alpha.areas import SETUP_AREAS
 from alpha.baseline import BASELINE_GLOB, ratchet_command
 from alpha.core_areas import TEST_RUNS
 from alpha.recipes import RecipeBook
-from alpha.records import Records, record_paths
 from alpha.registry import Registry, default_registry
 from alpha.repo_checks import PALETTE, RepoCheck, principles_entries, repo_checks
 from alpha.toml_write import dumps
@@ -78,7 +77,7 @@ def compute_facts(a: Answers, defaults: dict[str, Any]) -> dict[str, bool]:
 
 def _waits_for_area(principle: dict[str, Any], a: Answers) -> bool:
     """Whether the principle is off because the area that holds its
-    parameters is still open (decision 0034)."""
+    parameters is still open."""
     area = principle.get("settled_by")
     return area is not None and a.areas[area] == "open"
 
@@ -117,7 +116,7 @@ def exhaustive_testing(a: Answers, defaults: dict[str, Any]) -> bool:
 
 def mutation_testing(a: Answers, defaults: dict[str, Any]) -> bool:
     """Whether exhaustive testing also runs each recipe's mutation-testing
-    gate (decision 0029): the answer when the interview set one, else the
+    gate: the answer when the interview set one, else the
     kit's default. It is part of exhaustive testing, never on without it."""
     answer = a.testing.mutants if a.testing is not None else None
     if not exhaustive_testing(a, defaults):
@@ -135,7 +134,7 @@ def mutation_testing(a: Answers, defaults: dict[str, Any]) -> bool:
 
 def workspace_members(a: Answers, defaults: dict[str, Any]) -> frozenset[str]:
     """The components that share their stack's workspace at the repository
-    root (decision 0027): in a monorepo, those whose recipe has one, unless
+    root: in a monorepo, those whose recipe has one, unless
     the answers or the kit's default switch it off."""
     on = a.workspace
     if on is None:
@@ -223,7 +222,6 @@ def build_principles(
     defaults: dict[str, Any],
     a: Answers,
     kit_version: str,
-    records: Records | None = None,
     *,
     registry: Registry | None = None,
 ) -> dict[str, Any]:
@@ -326,7 +324,7 @@ def build_principles(
                 "checked_by": list(p["checked_by"]),
                 "active": bool(names),
                 "components": names,
-                "override_decision": "",
+                "override": "",
                 "params": dict(p.get("params", {})),
                 "component_params": {},
             }
@@ -376,7 +374,6 @@ def build_principles(
         by_id["reproducible"]["component_params"].update(
             {c.name: dict(ml) for c in a.components if c.traits.ml}
         )
-    override_paths = (records or record_paths(a)).overrides
     present = {c.name for c in a.components}
     for i, o in enumerate(a.overrides):
         target = by_id.get(o.principle)
@@ -400,7 +397,8 @@ def build_principles(
                 target["active"] = False
         else:
             target["active"] = False
-        target["override_decision"] = override_paths[i]
+        said = f"{o.change} ({o.scope})" + (f": {o.reason}" if o.reason else "")
+        target["override"] = "; ".join(filter(None, [target["override"], said]))
 
     docs_map = _docs_map(a.documentation)
     protected += a.security.extra_protected

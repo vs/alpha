@@ -244,9 +244,16 @@ def test_glob_matcher_matches_the_hooks():
 # --- baselines: they only shrink ---
 
 BASELINE = ".claude/alpha/baselines/typecheck.api.json"
-RECORD = "# 0020. Keep two type errors\n\nDate: 2026-11-11\nStatus: {status}\n\n" + (
-    "## Context\n\nThe `typecheck:api` baseline grows by one: a stub is wrong.\n"
-)
+
+
+def contributing(*rows: str) -> str:
+    return (
+        "# Contributing\n\n## Exceptions\n\n| Path | Check | Reason |\n"
+        "|---|---|---|\n" + "".join(f"{row}\n" for row in rows)
+    )
+
+
+ROW = "| `api/a.py` | `typecheck:api` | Two type errors from the vendor's stubs. |"
 
 
 def _baseline(repo: Path, counts: dict[str, dict[str, int]]) -> None:
@@ -273,30 +280,31 @@ def baselined(repo: Path) -> Path:
         {"api/b.py": {"E1": 2}},  # the findings move to another file
     ],
 )
-def test_growth_needs_a_decision(baselined: Path, counts: dict[str, dict[str, int]]):
+def test_growth_needs_an_exception(baselined: Path, counts: dict[str, dict[str, int]]):
     _baseline(baselined, counts)
     commit(baselined)
     result = run(baselined, "baselines")
     assert result.returncode == 1
     assert "baselines only shrink" in result.stdout
-    assert "names `typecheck:api`" in result.stdout
+    assert "naming `typecheck:api`" in result.stdout
 
 
-def test_an_accepted_record_naming_the_check_lets_it_grow(baselined: Path):
+def test_an_exception_needs_a_row_in_contributing(baselined: Path):
+    """F4: a baseline grows only with an Exceptions row naming its check."""
     _baseline(baselined, {"api/a.py": {"E1": 3}})
-    (baselined / "docs" / "decisions").mkdir()
-    record = baselined / "docs" / "decisions" / "0020-keep-two-type-errors.md"
-    record.write_text(RECORD.format(status="proposed"))
+    (baselined / "CONTRIBUTING.md").write_text(
+        contributing("| `api/a.py` | `lint:api` | Another check. |")
+    )
     commit(baselined)
     assert run(baselined, "baselines").returncode == 1
-    record.write_text(RECORD.format(status="accepted"))
+    (baselined / "CONTRIBUTING.md").write_text(contributing(ROW))
     commit(baselined)
     result = run(baselined, "baselines")
     assert result.returncode == 0, result.stdout
-    assert "accepted by docs/decisions/0020" in result.stdout
+    assert "accepted by an Exceptions row" in result.stdout
 
 
-def test_new_baseline_file_needs_a_decision(repo: Path):
+def test_new_baseline_file_needs_an_exception(repo: Path):
     _baseline(repo, {"api/a.py": {"E1": 1}})
     commit(repo)
     assert run(repo, "baselines").returncode == 1
@@ -332,28 +340,21 @@ def test_a_newly_listed_check_starts_its_baseline(repo: Path):
     assert "is a new baseline" in result.stdout
 
 
-def test_a_record_from_before_the_branch_doesnt_accept_growth(baselined: Path):
+def test_a_row_from_before_the_branch_doesnt_accept_growth(baselined: Path):
     git(baselined, "checkout", "-q", "main")
-    (baselined / "docs" / "decisions").mkdir()
-    record = baselined / "docs" / "decisions" / "0020-keep-two-type-errors.md"
-    record.write_text(RECORD.format(status="accepted"))
+    (baselined / "CONTRIBUTING.md").write_text(contributing(ROW))
     commit(baselined)
     git(baselined, "checkout", "-q", "-B", "feature")
     _baseline(baselined, {"api/a.py": {"E1": 3}})
     commit(baselined)
     assert run(baselined, "baselines").returncode == 1
-    # Edited on the branch to name it again doesn't count; naming it first does.
-    other = baselined / "docs" / "decisions" / "0007-old.md"
-    git(baselined, "checkout", "-q", "main")
-    other.write_text("# 0007. Old\n\nStatus: accepted\n\nNothing.\n")
-    commit(baselined)
-    git(baselined, "checkout", "-q", "feature")
-    git(baselined, "merge", "-q", "main", "-m", "merge main")
-    other.write_text("# 0007. Old\n\nStatus: accepted\n\nNow `typecheck:api` grows.\n")
+    # A new row naming it on the branch counts.
+    second = "| `api/b.py` | `typecheck:api` | The new finding moved here. |"
+    (baselined / "CONTRIBUTING.md").write_text(contributing(ROW, second))
     commit(baselined)
     result = run(baselined, "baselines")
     assert result.returncode == 0, result.stdout
-    assert "accepted by docs/decisions/0007-old.md" in result.stdout
+    assert "accepted by an Exceptions row" in result.stdout
 
 
 def test_a_branch_behind_the_base_is_compared_where_it_started(baselined: Path):

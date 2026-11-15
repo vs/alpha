@@ -28,7 +28,6 @@ Decide build and hosting up front, so nothing about shipping is left for later (
 - `build.components[].artifact` - `none`, `package`, `container`, `static-site`, `binary`, `app` or `other`.
 - `build.components[].hosting` - where a deployed component runs, in the user's words; `""` for one that isn't deployed.
 - `areas.build` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "build"`.
 
 ## Questions
 
@@ -44,7 +43,7 @@ Round 2 (needs the CI answer):
 - **Artifact per component** - recommend `defaults.build.artifacts[kind]`, adjusted to what the component is (a backend that is a library for others is a `package`). Explain each in a few words: `package` (published to a registry), `container` (an image), `static-site` (files a CDN serves), `binary` (an executable), `app` (a store release), `none` (nothing is shipped), `other`.
 - **Hosting per deployed component** - where does it run? Offer two or three common fits for the artifact and say they're examples; never pick one silently. Record the user's words. Components that aren't deployed get `""` without asking.
 
-When CI is `none`, also save an override `{"principle": "build-hosting-upfront", "scope": "project", "change": "loosen", "params": {}, "reason": "<the user's reason>"}` in `overrides` (send the list whole). When CI or an artifact differs from a default, follow the grilling skill's override protocol (keys `build.ci`, `build.artifacts.<kind>`, e.g. `build.artifacts.backend`). Environments and hosting are per project, so they're recorded in the decision without asking.
+When CI is `none`, also save an override `{"principle": "build-hosting-upfront", "scope": "project", "change": "loosen", "params": {}, "reason": "<the user's reason>"}` in `overrides` (send the list whole). When CI or an artifact differs from a default, follow the grilling skill's override protocol (keys `build.ci`, `build.artifacts.<kind>`, e.g. `build.artifacts.backend`). Environments and hosting are per project, not kit defaults, so the override protocol doesn't apply to them.
 
 ## Writing the answers
 
@@ -52,14 +51,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "build": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `build` set to `"in_progress"`.
 3. When the user confirms the area, save the `build` object `{"ci", "environments", "components": [{"name", "artifact", "hosting"}]}`, with one entry per component. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "build"`:
-   `{"area": "build", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the shape (e.g. "GitHub Actions, container api, static web"); `context` is who ships what, and how often; `decision` gives the CI, environments, artifacts and hosting; `consequences` says what CI checks on every change and that hosting is documented, not provisioned, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `build` set to `"done"`.
+4. In the same call, save `areas` with `build` set to `"done"`.
 
 ## Check
 

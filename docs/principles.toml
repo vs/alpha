@@ -87,7 +87,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -103,7 +103,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -119,7 +119,23 @@ core = true
 checked_by = ["reviewer", "hook:stop_checks"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
+
+[principles.params]
+
+[principles.component_params]
+
+[[principles]]
+id = "exhaustive-testing"
+title = "Exhaustive testing"
+statement = "Tests take every branch both ways: a change's lines and branches are all covered, and a branch no test can reach is deleted or replaced by an assertion. Every failure path is forced in a test by injecting the failure (a failed allocation, read or write, a timeout, a crash between two writes). Everything that reads outside input has a fuzz or property-based test, and every limit is tested at, just below and just above its value. A bug fix starts with a test that fails without it. Every changed line's mutants are caught by a test. Invariants are asserted in the code, and the tests run on the build that ships."
+rationale = "SQLite is trusted on billions of devices because its tests take every branch and force every failure; tests of the expected path miss the bugs that live in error handling and odd input."
+applies = ["exhaustive_testing"]
+core = false
+checked_by = ["reviewer", "ci:diff-coverage", "ci:mutants"]
+active = false
+components = []
+override = ""
 
 [principles.params]
 
@@ -135,7 +151,7 @@ core = false
 checked_by = ["reviewer"]
 active = false
 components = []
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -151,7 +167,7 @@ core = false
 checked_by = ["reviewer"]
 active = false
 components = []
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -167,7 +183,7 @@ core = true
 checked_by = ["reviewer", "hook:stop_checks"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -183,7 +199,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = "docs/decisions/0021-no-ci-checks-run-locally.md"
+override = "loosen (project): mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend."
 
 [principles.params]
 
@@ -199,7 +215,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -215,7 +231,7 @@ core = true
 checked_by = ["reviewer", "hook:stop_checks"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -231,7 +247,7 @@ core = false
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -247,7 +263,7 @@ core = true
 checked_by = ["reviewer", "hook:stop_checks"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -263,7 +279,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -279,7 +295,7 @@ core = true
 checked_by = ["reviewer", "ci:tree"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -295,7 +311,7 @@ core = false
 checked_by = ["reviewer"]
 active = false
 components = []
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -311,7 +327,7 @@ core = false
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -327,7 +343,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -343,7 +359,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -359,7 +375,7 @@ core = false
 checked_by = ["reviewer"]
 active = false
 components = []
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -375,7 +391,7 @@ core = false
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -391,7 +407,7 @@ core = false
 checked_by = ["reviewer"]
 active = false
 components = []
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -407,7 +423,7 @@ core = false
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -426,7 +442,7 @@ core = false
 checked_by = ["reviewer"]
 active = false
 components = []
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -442,7 +458,7 @@ core = false
 checked_by = ["reviewer", "hook:stop_checks", "ci:migrations"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -458,7 +474,7 @@ core = true
 checked_by = ["reviewer", "hook:stop_checks", "ci:secrets"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -474,7 +490,7 @@ core = true
 checked_by = ["reviewer", "hook:stop_checks"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -490,7 +506,7 @@ core = true
 checked_by = ["reviewer", "hook:commit_msg"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -506,7 +522,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -515,14 +531,14 @@ override_decision = ""
 [[principles]]
 id = "never-weaken-checks"
 title = "Never weaken a check to pass it"
-statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong in one place, record why in a decision that names the path and the rule, then make the exception there."
+statement = "No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong in one place, add a row to CONTRIBUTING.md's Exceptions table that names the path, the rule and why, then make the exception there."
 rationale = "A check bent to pass proves nothing; an exception with a recorded reason can be reviewed, and reverted when the reason stops holding."
 applies = ["always"]
 core = true
 checked_by = ["reviewer", "hook:guard_paths"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -538,7 +554,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -554,7 +570,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -570,7 +586,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -586,7 +602,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -602,7 +618,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -618,7 +634,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -627,14 +643,14 @@ override_decision = ""
 [[principles]]
 id = "never-block-on-the-human"
 title = "Never block on the human"
-statement = "Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, record it in the decision log, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people."
+statement = "Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, write it into the docs, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people."
 rationale = "The user supervises asynchronously: a recorded, reversible choice costs less than a stalled session, and the record makes it quick to correct."
 applies = ["always"]
 core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 
@@ -650,7 +666,7 @@ core = true
 checked_by = ["reviewer", "hook:stop_checks"]
 active = true
 components = ["alpha"]
-override_decision = ""
+override = ""
 
 [principles.params]
 

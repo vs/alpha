@@ -7,7 +7,7 @@
 [![Any stack](https://img.shields.io/badge/recipe-any_stack-555)](skills/stack-recipe/SKILL.md)
 
 alpha interviews you about a new project, then writes what agents build on:
-principles, docs, decision records, Claude Code and git hooks, CI, and a test
+principles, docs, Claude Code and git hooks, CI, and a test
 setup per component that passes from the first commit. It writes no app code.
 Each principle is checked, by a hook or by a reviewer agent that must pass
 before a change reaches main.
@@ -39,8 +39,7 @@ recommended answer, for you to confirm or rewrite.
 | `docs/principles.toml` | the one file CLAUDE.md, hooks and reviewer read |
 | `docs/specification.md` | what the product does: requirements and the parts settled so far, the rest listed as not settled yet; features add their own specs in `docs/specs/` |
 | `CONTRIBUTING.md` | how the project is set up, checked, committed, built, released and kept secure |
-| `docs/decisions/` | a record per interview area and per override |
-| `.claude/` | permissions, hooks, the principles reviewer, skills to commit, record a decision, and review a change, the whole repo or its `shortcut:` ledger |
+| `.claude/` | permissions, hooks, the principles reviewer, skills to commit, record a decision in the docs, and review a change, the whole repo or its `shortcut:` ledger |
 | each component | strict lint, types and tests, wired up with no `src/`; a monorepo's Rust components form one Cargo workspace at the root |
 | `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, typos, markdown, links, action pins, agent config) |
 | `.github/` | CI running the same checks, a weekly scheduled run, Dependabot |
@@ -116,7 +115,7 @@ It asks again only what the change affects, and merges into files you edited.
 
 alpha picks a playbook for the task (investigation, feature, bug fix,
 refactoring, perf, specify, prototype, session pickup or pause) and follows
-it step by step, keeping the project's principles, decision records and
+it step by step, keeping the project's principles, docs and
 checks. `/alpha:go settle the performance budgets` settles a part of the
 specification left open, as do `settle the target users` and `settle the
 auth`; a feature that needs one asks about it with its other questions. A feature starts with research and questions, then a spec in
@@ -126,6 +125,19 @@ Claude builds every task, or with subagents, where a fresh one builds each
 task and another reviews it. Each task's tests are written first and fail
 before the code makes them pass. Work can run in its own git worktree. The
 playbooks live in the plugin, not in your project.
+
+## Decisions live in the docs
+
+A project keeps no decision records. A choice changes the doc it governs:
+what the product does in `docs/specification.md`, how the work is done in
+`CONTRIBUTING.md`, a loosened principle as an override listed there, an
+exception to a check as a row of its Exceptions table, and an accepted review
+finding as an `Accepts:` trailer on a commit. Git history keeps when and why.
+A project an older alpha set up with `docs/decisions/` folds them in once:
+
+```text
+/alpha:fold-decisions
+```
 
 ## Update
 

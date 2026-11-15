@@ -86,7 +86,7 @@ Done when:
 
 guard_bash matches only the exact --no-verify, so an abbreviated --no-verif, core.hooksPath set through GIT_CONFIG_* or git --config-env all commit past a failing commit-msg hook; this breaks R3.
 
-Serves `never-weaken-checks`. Dropped by decision 0036.
+Serves `never-weaken-checks`. Dropped: The user chose to drop it: the command guard catches habits, not evasion, since a script file gets past any parser; the plain --no-verify, commit -n and git config core.hooksPath stay blocked.
 
 Done when:
 

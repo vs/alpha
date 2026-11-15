@@ -12,11 +12,11 @@ bootstrap = [
 lockfiles = ["Cargo.lock"]
 ignores = ["target/", "mutants.out*/", "coverage.xml", "pr.diff"]
 # Only this command runs on the nightly: stable Rust records no branches
-# (decision 0028). cargo-llvm-cov leaves test files (tests/, tests.rs) out of
+#. cargo-llvm-cov leaves test files (tests/, tests.rs) out of
 # the report.
 coverage = "cargo +${coverage_toolchain} llvm-cov --branch --cobertura --output-path coverage.xml"
 coverage_report = "coverage.xml"
-# Runs when the project is tested exhaustively (decision 0029), on the pull
+# Runs when the project is tested exhaustively, on the pull
 # request's diff in pr.diff. Exit 2 is a mutant no test caught, which fails;
 # exit 3 is a mutant whose tests timed out, which counts as caught.
 mutants = "cargo mutants --in-diff pr.diff --in-place --timeout-multiplier 3 || [ $? -eq 3 ]"
@@ -74,7 +74,7 @@ lint_file = ""
 "tests/setup.rs" = "setup.rs.tmpl"
 
 # In a monorepo the Rust components form one Cargo workspace at the repository
-# root (decision 0027): one Cargo.lock, toolchain, clippy.toml and target/.
+# root: one Cargo.lock, toolchain, clippy.toml and target/.
 # `layout = "single"` keeps the [files] above.
 [workspace]
 root_ignores = ["target/", "mutants.out*/"]

@@ -99,7 +99,7 @@ Modeled on `mattpocock/skills` → `grilling`:
 
 - Decisions form a **design tree**. The **frontier** is every decision whose
   prerequisites are settled. Each round asks the frontier one question at a
-  time, each with a **recommended answer** (decision 0033). Recommendations
+  time, each with a **recommended answer**. Recommendations
   come from the kit defaults. A question with fixed answers goes in Claude
   Code's `AskUserQuestion` dialog, the recommended option first. A draft the
   user would edit (a name, the requirements) is compact plain text. When the
@@ -113,28 +113,27 @@ Modeled on `mattpocock/skills` → `grilling`:
 - **Facts are the kit's job, decisions are the user's.** Never ask what can be
   looked up (installed tool versions, whether `gh` is authenticated, the latest
   stable version of a framework).
-- **Decisions are recorded as they're made**, as decision records under
-  `docs/decisions/` (ADR-style), not reconstructed at the end. My call on
-  granularity, to avoid 100+ files: **one record per area** summarizing its
-  decisions, plus **a separate record for each override** of a kit default
-  and for each decision made later in the project's life. Each record says
-  its `Kind`: `product` (identity, design language, UI, accessibility: what
-  the product does and for whom) or `technical` (the rest). Claude may supersede a technical
-  record with a recorded reason; a product record, or one that changes a
-  principle, needs the user's agreement, which the reviewer checks.
+- **Decisions update the docs; there are no decision records** (user
+  decision 2026-11-15, docs/specs/2026-11-15-no-decision-records.md). An
+  area's answers are its decisions, rendered into docs/specification.md and
+  CONTRIBUTING.md; a later choice changes the doc it governs, and git history
+  keeps when and why. Overrides keep their reason in the answers and are
+  listed in CONTRIBUTING.md; exceptions are rows of its Exceptions table; an
+  accepted review finding is an `Accepts:` commit trailer. A change to what
+  the product does needs the user's agreement, quoted in the commit, which
+  the reviewer checks.
 - **Done** means the frontier is empty and the user confirms shared
   understanding. Only then are files generated.
 - **Resumable:** interview state is persisted in the target folder, so
   re-running `new-project` picks up where it left off.
 - **Overrides:** whenever the user overrides a kit default, the kit records it
-  in the project's decision log *and* asks: "Make this the default for future
+  in the project's answers *and* asks: "Make this the default for future
   projects too?" (§11).
 
 Order: identity, then components and stacks, then the remaining setup areas.
 Every later area applies to every component.
 
-**Setup first, specification later** (user decision 2026-11-15, decision
-0034). The interview settles only the **setup areas**, what alpha needs to
+**Setup first, specification later** (user decision 2026-11-15). The interview settles only the **setup areas**, what alpha needs to
 wire the tooling: identity (name, slug, value proposition, license,
 copyright), components, testing, documentation, build, security,
 dependencies, releases, git and agent workflow. The **spec areas**
@@ -238,12 +237,12 @@ switch on an area that didn't apply before, or revisit an area's decisions.
 - **Merge** into the kit-owned files (principles file, CLAUDE.md, docs,
   settings, hooks, configs). **Never overwrite the user's edits.** Show the
   proposed changes and confirm before writing.
-- Record a decision record for the change, and commit per the convention.
+- Say why in the commit message, and commit per the convention.
 - Never create or modify app code. Wiring a new component's test runner and
   configs is in scope; writing its code is not.
 - On a folder the kit didn't generate or adopt, refuse and point to `adopt`
   (§5b).
-- **Kit upgrades** (decision 0022). When the manifest's `kit_version` is
+- **Kit upgrades**. When the manifest's `kit_version` is
   older than the running alpha, `alpha update` also brings the project to
   this kit, copied files (hooks, checks, skills, agents, the git hook)
   included. The base of each three-way merge is what the older kit wrote,
@@ -283,7 +282,7 @@ anything.
 1. **Survey (facts, no questions).** Components (from the manifests a
    recipe's `[detect]` table names), stacks, the tools in use and how strict
    they are, the commands that already run (CI, task runners, scripts),
-   docs and decision records already there, license, CI provider, git hook
+   docs (and any decision records of its own), license, CI provider, git hook
    managers, migration folders, test layout, and how many recent commits
    follow the convention. The survey is kept in the interview state.
 2. **Interview: the setup areas, in §4's order.** The spec areas stay open,
@@ -294,14 +293,14 @@ anything.
    component the docs describe whose folder is missing or holds only docs
    has no tools to adopt: the user is asked once whether the kit generates
    its skeleton, and on yes it takes the kit's recipe (or a drafted one), as
-   in a new project (decision 0030).
+   in a new project.
 3. **Assessment.** The audit's lenses (§9, on-demand reports), run per
    active principle over the whole repo, find gaps no tool reports: the
    error format, validation at the edges, contracts, config from the
    environment, timeouts, logs, acceptance checks with no test. Findings
    about the specification's content (open questions or proposals in the
    product docs) aren't compliance work: they go into the final report as
-   `/alpha:go` tasks, not into the plan (decision 0034).
+   `/alpha:go` tasks, not into the plan.
 4. **Preview.** Before anything is written: the kit files to add, the
    files to merge (with diffs and conflicts), the baselines to capture
    (counts per check, component and rule), and the plan's steps. The user
@@ -313,8 +312,8 @@ anything.
    is kept, and component templates are never written over an existing
    manifest. A component on a kit or drafted recipe with no manifest in its
    folder gets that recipe's skeleton, bootstrapped and committed whole as
-   in a new project. New decision records are numbered after any already in
-   `docs/decisions/`. Then the baselines are captured, the components are
+   in a new project. alpha writes no decision records; a folder the repo
+   already has stays its own. Then the baselines are captured, the components are
    bootstrapped green under them, and the result is committed in the
    convention's groups. The user opens the pull request.
 6. **The plan.** `docs/adoption.md` (rendered from the interview state)
@@ -331,8 +330,9 @@ anything.
 | P5 Burn-down | Bring each baseline to zero per component and rule, risk paths first. The last step removes the baseline. |
 | P6 Traceability | Link the product brief's acceptance checks to tests. |
 
-A step may be **dropped** only with a decision record that says why. That
-is a loosening, so it needs the user's agreement (§4).
+A step may be **dropped** only with the reason the user agreed to
+(`alpha adopt drop --reason`), which docs/adoption.md shows. That is a
+loosening, so it needs the user's agreement (§4).
 
 **Git hooks.** When the repo already has a hook manager or a
 `core.hooksPath`, the kit doesn't take the hooks path over: its
@@ -350,7 +350,7 @@ reach it through `alpha update` (§5a).
 
 ## 5c. Working in a project
 
-User decision (2026-11-14, decision 0031): `/alpha:go <task>` replaces
+User decision (2026-11-14): `/alpha:go <task>` replaces
 pstack's `poteto-mode` for projects the kit generated or adopted. It matches
 the task to a playbook (investigation, feature, bug fix, refactoring, perf,
 specify, prototype, session pickup, pause) and works its steps as a todo
@@ -359,7 +359,7 @@ grills the open areas it needs with its other questions and applies them
 after its spec is approved. The
 playbooks live in the plugin (`skills/go/playbooks/`); unlike the
 enforcement (§7), nothing is copied into the project. They read the
-project's principles, decision records and CLAUDE.md at run time, and end
+project's principles, specification, CONTRIBUTING.md and CLAUDE.md at run time, and end
 with the project's definition of done: its checks, `review-change`, the
 `commit` skill and the principles reviewer.
 
@@ -377,7 +377,7 @@ its own git worktree.
 Kit defaults, all kept, each with a when-it-applies condition. ★ = always on.
 The interview may tune conditions and thresholds per project. A component may
 **tighten** a principle. **Loosening or dropping** one for a project or
-component requires an explicit decision record.
+component requires an override with its reason, which the user agrees to.
 
 Each principle in the project's principles file carries: id, statement,
 rationale, when-it-applies, how it's checked (mechanical hook, reviewer, or
@@ -403,8 +403,8 @@ both), and any parameters.
   and the diff-coverage gate (§8a) becomes every changed line and branch.
   The fuzzing and property-testing tools aren't picked by the recipes; a
   project adds each when its first test needs it. Mutation testing is gated
-  where the recipe has a `mutants` command (Rust: cargo-mutants, decision
-  0029; §8a).
+  where the recipe has a `mutants` command (Rust: cargo-mutants;
+  §8a).
 - **A deliberate visual system.** *When: a component has a UI.* The UI is
   built from the declared set of visual tools, not ad-hoc styles.
 - **One design language.** *When: the user defined a design language.* Every
@@ -473,8 +473,9 @@ both), and any parameters.
 - ★ **Never weaken a check to pass it.** No skipped tests, loosened lint, or
   catch-all exception handlers, and no mocking the thing under test. A type
   error from an outdated dependency is fixed by upgrading it, not by removing
-  or downgrading code. If a check is wrong in one place, record why in a
-  decision that names the path and the rule, then make the exception there.
+  or downgrading code. If a check is wrong in one place, add a row to
+  CONTRIBUTING.md's Exceptions table that names the path, the rule and why,
+  then make the exception there.
 - ★ **Stay in scope.** No drive-by refactors of code the task doesn't touch.
 - ★ **Subtract before you add.** In the code a task touches, first remove
   what's dead there: unused code, redundant checks, stubs. A new internal API
@@ -499,8 +500,8 @@ both), and any parameters.
   job, never by line count; between equal-size options, the one correct on
   edge cases.
 - ★ **Never block on the human.** Don't stop to ask about reversible work.
-  When a requirement is ambiguous, make the reasonable choice, record it in
-  the decision log, and say what you chose. Ask first only when the choice
+  When a requirement is ambiguous, make the reasonable choice, write it into
+  the docs, and say what you chose. Ask first only when the choice
   sets product direction or can't be undone: rewriting the main branch,
   deploys, deleting data, messages to people.
 - ★ **Definition of done:** tests written and passing, types and lint clean,
@@ -523,12 +524,11 @@ the builder's, with these constraints:
   (setup/test/run/lint/typecheck), the definition of done, the commit
   convention, and pointers to the principles file and docs. It does not
   duplicate the principles file's parameters.
-- **docs/** (user decision 2026-11-15, decision 0035): the specification,
+- **docs/** (user decision 2026-11-15): the specification,
   `docs/specification.md` (value proposition, users, requirements with
   acceptance checks, the spec areas not settled yet, architecture, errors,
   auth, UI and accessibility, data storage, performance, observability, each
-  where it applies), with feature specs in `docs/specs/`; decisions
-  (ADR-style decision log, seeded by the interview); the dependency log;
+  where it applies), with feature specs in `docs/specs/`; the dependency log;
   glossary (when applicable); design language (when defined); the adoption
   plan (when adopted).
 - **CONTRIBUTING.md**: the development process: setup, components and
@@ -563,7 +563,7 @@ the builder's, with these constraints:
   files until real code is written. In a monorepo, the components of a stack
   whose recipe has a `[workspace]` share it at the repository root (Rust: one
   Cargo workspace with one `Cargo.lock`, toolchain, `clippy.toml` and
-  `target/`; decision 0027); the components answer `"workspace": false`
+  `target/`); the components answer `"workspace": false`
   keeps each a package of its own.
 - **Kit metadata**: which kit version generated the project, and the
   interview state, so the project can be compared with later kit defaults
@@ -581,7 +581,7 @@ fail-helpfully principle: what's wrong, and how to fix it.
 - Before "done" (Stop): the type check and structure check of the affected
   components pass.
 - The full test suite of each changed component passes at one checkpoint,
-  `testing.run` (user decision, 2026-11-13, decision 0024). `at-merge`, the
+  `testing.run` (user decision, 2026-11-13). `at-merge`, the
   default: before Claude's work reaches main (a push to main, or a pull
   request merge). Claude runs `python3 .claude/alpha/hooks/stop_checks.py
   tests`, which remembers a pass while the component's files stay the same,
@@ -604,14 +604,14 @@ fail-helpfully principle: what's wrong, and how to fix it.
   (for Claude, via Claude Code hooks; see §9). Claude may rebase its own
   branch and push it with `--force-with-lease`. The guard catches habits,
   not evasion: it reads git commands as written, not inside `bash -c`,
-  `eval` or wrappers, since a script file gets past any parser (decision
-  0036).
+  `eval` or wrappers, since a script file gets past any parser (user
+  decision 2026-11-15).
 - Git commands that stage, stash or discard changes nobody named (`git add
   -A`/`.`, `commit -a`, `reset --hard` while tracked files have uncommitted
   changes, `checkout .`/`restore .`, `stash`) → block (for Claude); `git clean` stays allowed, except `-x`/`-X`. The tree may hold the
   user's or another session's uncommitted work; Claude names its files.
 - Disabling or skipping tests, or loosening lint/type settings → block,
-  until an accepted decision record names the file and says why.
+  until a row in CONTRIBUTING.md's Exceptions table names the file and says why.
 
 Per-edit hooks must be fast enough not to slow down normal work. Exact
 budgets are the builder's call.
@@ -645,7 +645,7 @@ Decisions:
   `testing.exhaustive` (off, 2026-11-13) joins the testing round the same
   way, and `testing.mutants` (on, 2026-11-14) only decides whether an
   exhaustive project also gets the mutants gate.
-- **D4 Existing projects gain them through `alpha update`** (decision 0022,
+- **D4 Existing projects gain them through `alpha update`**,
   2026-11-13; it replaces "existing projects stay as they are"). When an
   older kit set the project up, `alpha update` upgrades it to the current
   kit, gates included; see §5a.
@@ -684,7 +684,7 @@ where CI runs it: `pr`, `schedule`, or `both`.
 |---|---|---|---|---|---|---|
 | actions | jactionlint | lint `.github/` | `.github/**` | yes | pr | `build.ci == "github-actions"` |
 | secrets | betterleaks | `secret_scan.py`: scan the files git doesn't ignore, `--config .betterleaks.toml` | `**` | no | pr | always |
-| vulns | osv-scanner | `scan source --no-ignore` on each lockfile's folder, not below it (decision 0026) | lockfiles | no | both | any component has lockfiles |
+| vulns | osv-scanner | `scan source --no-ignore` on each lockfile's folder, not below it | lockfiles | no | both | any component has lockfiles |
 | typos | typos | `typos` | `**` | yes | pr | always |
 | markdown | rumdl | `rumdl check .` | `**/*.md` | yes | pr | always |
 | links | lychee | `lychee --offline --no-progress .` | `**/*.md` | yes | pr | always |
@@ -712,11 +712,11 @@ Recipe commands. A stack recipe may add these commands to the ones in §3:
   Rust: `cargo +nightly-YYYY-MM-DD llvm-cov --branch --cobertura
   --output-path coverage.xml`, report `coverage.xml`; stable Rust records no
   branches, so only this command runs on a dated nightly, which the recipe
-  names once under `[vars]` (decision 0028). With exhaustive testing (§6) the
+  names once under `[vars]`. With exhaustive testing (§6) the
   gate is `--fail-under=100 --branch-coverage`: a changed branch with one
   side untested fails too.
-- `mutants`: the mutation-testing gate of an exhaustive project (decision
-  0029), run in the component folder on the pull request's diff in
+- `mutants`: the mutation-testing gate of an exhaustive project,
+  run in the component folder on the pull request's diff in
   `pr.diff`. Rust: `cargo mutants --in-diff pr.diff --in-place
   --timeout-multiplier 3`; a surviving mutant fails, one whose tests time
   out counts as caught. CI runs it as the `mutants` step of the component's
@@ -764,12 +764,12 @@ its files don't change.
   renders the plain command again.
 - **Only shrinking.** Baselines are protected paths, so Claude can't edit
   them, and risk paths, so the reviewer sees every change to them. A
-  baseline grows only through `alpha baseline capture --check <id>
-  --decision <NNNN>`, with an accepted decision record naming the check and
-  why, as loosening a principle needs (§6). The gate is the pull request: the
+  baseline grows only through `alpha baseline capture --check <id>` with a
+  row in CONTRIBUTING.md's Exceptions table naming the check and why, as
+  loosening a principle needs (§6). The gate is the pull request: the
   `baselines` check compares each baseline with where the branch left the
-  base, and fails when a count rises, unless an accepted decision record
-  names the check (in backticks) for the first time on the branch. Capture
+  base, and fails when a count rises, unless an Exceptions row names the
+  check (in backticks) that the table didn't have where the branch started. Capture
   holds to the same rule. A check newly listed in the change starts its
   baseline there, as the adoption's own pull request does. A command guard
   can't tell a capture from a hand-written file; the diff can.
@@ -789,9 +789,9 @@ its files don't change.
 ## 9. The principles reviewer
 
 A Claude Code agent that reviews batched changes against the project's
-principles file and decision log, reporting each problem against the
-specific principle it breaks. Findings block "done" until fixed or accepted,
-and every acceptance is recorded in the decision log. Claude may accept a
+principles file, specification and CONTRIBUTING.md, reporting each problem
+against the specific principle it breaks. Findings block "done" until fixed or
+accepted, and every acceptance is an `Accepts:` trailer on a commit. Claude may accept a
 finding it disproves; the next review reads that disproof and reports it
 again if it doesn't hold. A finding on a risk path is accepted only by the
 user.
@@ -838,7 +838,7 @@ checks and review state. Review starts where the branch leaves main, not at
 its pushed commit, since a feature branch can be pushed before review; a
 rebase onto main, or a merge of main, carries the review along. `gh pr merge`
 is checked in the worktree that has the pull request's branch; a merge alpha
-can't place in a checkout here isn't blocked (decision 0036).
+can't place in a checkout here isn't blocked (user decision 2026-11-15).
 
 **Who it binds (user decision):** review-before-main and the git guardrails
 (no `--no-verify`, no plain force-push, no rewriting main, nothing that
@@ -860,7 +860,7 @@ directly. There is also a **review mode** setting:
 - `every-task`: the reviewer runs every time an agent signals done, whatever
   the size.
 
-Changing the mode or a threshold is recorded in the decision log and goes
+Changing the mode or a threshold is saved in the answers and goes
 through the kit-default question (§11), so `every-task` can become the
 default for all future projects.
 
@@ -902,10 +902,10 @@ CLAUDE.md, where the commit skill already looks.
 - When the user overrides a default in a project, the kit asks: "Make this
   the default for future projects too?" Yes → save it in the user's layer,
   so the next project starts from it. No → the override stays in the
-  project's decision log only. Changing the kit's own defaults is ordinary
+  project's answers only. Changing the kit's own defaults is ordinary
   work on this repo, released by pushing it and updating the plugin.
 - Existing projects change with the kit only through `alpha update`, which
-  upgrades a project an older kit set up (decision 0022, §5a). The manifest
+  upgrades a project an older kit set up (§5a). The manifest
   records the kit version and defaults used.
 
 ## 12. The kit's own quality

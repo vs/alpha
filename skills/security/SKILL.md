@@ -26,14 +26,13 @@ Secrets never live in the repository ("No secrets in the repo"): locally they si
 - `security.auth` - who must prove who they are, and how; `"none"` is a valid answer, and `""` means not settled yet.
 - `security.extra_protected` - globs, relative to the project root, Claude may not edit; often `[]`.
 - `areas.security` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "security"`.
 
 ## Questions
 
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it). The questions are independent, so ask them in one round. None has a kit default: they're per project, so recommend from the answers so far and say it's your suggestion.
 
 - **Secret store** - ask only when a component is deployed. Recommend the secret manager of the hosting the user chose in the build area (`build.components[].hosting`), and mention one or two alternatives as examples. With nothing deployed, save `""` and say in one line that local `.env` files are enough until something is deployed.
-- **Auth** - ask only when the answer is plain from the components: `none` for a local CLI, a library or a pipeline. Otherwise it's part of the product's specification: save `""` without asking (decision 0034), and `/alpha:go settle the auth` settles it when the work needs it. When `alpha:extend` sends you here for it, ask who must prove who they are (end users, other services, admins) and how (sessions, API keys, OAuth, none), and record the user's words.
+- **Auth** - ask only when the answer is plain from the components: `none` for a local CLI, a library or a pipeline. Otherwise it's part of the product's specification: save `""` without asking, and `/alpha:go settle the auth` settles it when the work needs it. When `alpha:extend` sends you here for it, ask who must prove who they are (end users, other services, admins) and how (sessions, API keys, OAuth, none), and record the user's words.
 - **Extra protected paths** - recommend none. Explain: Claude can't edit protected paths, so they suit files where a careless change is costly (e.g. `api/keys/**`, signed migration snapshots). alpha refuses a glob that covers files its own checks may require changing, such as docs or package manifests.
 
 ## Writing the answers
@@ -42,14 +41,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "security": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `security` set to `"in_progress"`.
 3. When the user confirms the area, save the `security` object `{"secret_store", "auth", "extra_protected"}`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "security"`:
-   `{"area": "security", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "Secrets in Fly.io, API keys for publishers"); `context` is what's at risk; `decision` gives the store, the auth approach and any protected paths; `consequences` says what Claude can't edit and how secrets reach production.
-5. In the same call, save `areas` with `security` set to `"done"`.
+4. In the same call, save `areas` with `security` set to `"done"`.
 
 ## Check
 

@@ -27,7 +27,13 @@ sys.exit(1 if found else 0)
 PATTERN = r"^(?P<file>[^:\s]+):\d+: (?P<rule>E\d+)"
 CHECK = "lint:api"
 BASELINE = ".claude/alpha/baselines/lint.api.json"
-RECORD = "# {n:04d}. Keep a finding\n\nDate: 2026-11-11\nStatus: {status}\n\n{body}\n"
+
+
+def exceptions(root: Path, *rows: str) -> None:
+    (root / "CONTRIBUTING.md").write_text(
+        "# Contributing\n\n## Exceptions\n\n| Path | Check | Reason |\n"
+        "|---|---|---|\n" + "".join(f"{row}\n" for row in rows)
+    )
 
 
 def _project(tmp_path: Path, components: list[dict[str, Any]] | None = None) -> Path:
@@ -85,7 +91,7 @@ def test_capture_all_creates_missing_only(tmp_path: Path):
     assert _counts(root) == {}
 
 
-def test_capture_growth_needs_decision(tmp_path: Path):
+def test_capture_growth_needs_an_exceptions_row(tmp_path: Path):
     root = _project(tmp_path)
     assert run_cli("baseline", "capture", str(root), "--check", CHECK).returncode == 0
     (root / "api" / "src" / "app.py").write_text("a = 'BAD'\nb = 'BAD'\nc = 'BAD'\n")
@@ -94,29 +100,15 @@ def test_capture_growth_needs_decision(tmp_path: Path):
     assert "would grow its baseline" in done.stderr
     assert "api/src/app.py E1: 3 now, 2 in the baseline" in done.stderr
     assert _counts(root) == {"api/src/app.py": {"E1": 2}}  # left as it was
-    record = root / "docs" / "decisions" / "0007-keep-a-finding.md"
-    record.write_text(RECORD.format(n=7, status="accepted", body="No check named."))
-    done = run_cli(
-        "baseline", "capture", str(root), "--check", CHECK, "--decision", "7"
-    )
+    assert "Exceptions table in CONTRIBUTING.md" in done.stderr
+    exceptions(root, "| `api/src/app.py` | `typos` | Another check. |")
+    done = run_cli("baseline", "capture", str(root), "--check", CHECK)
     assert done.returncode == 1 and f"`{CHECK}`" in done.stderr
     assert _counts(root) == {"api/src/app.py": {"E1": 2}}
-    record.write_text(RECORD.format(n=7, status="accepted", body=f"`{CHECK}` grows."))
-    done = run_cli(
-        "baseline", "capture", str(root), "--check", CHECK, "--decision", "7"
-    )
+    exceptions(root, f"| `api/src/app.py` | `{CHECK}` | The third one is wanted. |")
+    done = run_cli("baseline", "capture", str(root), "--check", CHECK)
     assert done.returncode == 0, done.stderr
     assert _counts(root) == {"api/src/app.py": {"E1": 3}}
-
-
-def test_capture_names_a_missing_record(tmp_path: Path):
-    root = _project(tmp_path)
-    run_cli("baseline", "capture", str(root), "--check", CHECK)
-    (root / "api" / "src" / "app.py").write_text("x = 'BAD'\n" * 3)
-    done = run_cli(
-        "baseline", "capture", str(root), "--check", CHECK, "--decision", "12"
-    )
-    assert done.returncode == 1 and "No decision record 12" in done.stderr
 
 
 def test_capture_unknown_check(tmp_path: Path):
@@ -188,19 +180,16 @@ def _principles(root: Path) -> dict[str, Any]:
     return tomllib.loads((root / "docs" / "principles.toml").read_text())
 
 
-def test_capture_needs_a_decision_new_to_the_branch(tmp_path: Path, git_env: None):
+def test_capture_needs_a_row_new_to_the_branch(tmp_path: Path, git_env: None):
     root = _project(tmp_path)
     run_cli("baseline", "capture", str(root), "--check", CHECK)
-    record = root / "docs" / "decisions" / "0007-keep-a-finding.md"
-    record.write_text(RECORD.format(n=7, status="accepted", body=f"`{CHECK}` grows."))
+    exceptions(root, f"| `api/src/app.py` | `{CHECK}` | An older finding. |")
     git(root, "add", "-A")
     git(root, "commit", "-q", "-m", "chore: Start")
     git(root, "switch", "-q", "-c", "feature")
     (root / "api" / "src" / "app.py").write_text("x = 'BAD'\n" * 3)
-    done = run_cli(
-        "baseline", "capture", str(root), "--check", CHECK, "--decision", "7"
-    )
-    assert done.returncode == 1 and "already named `lint:api`" in done.stderr
+    done = run_cli("baseline", "capture", str(root), "--check", CHECK)
+    assert done.returncode == 1 and "would grow its baseline" in done.stderr
 
 
 def test_bootstrap_runs_a_just_captured_check_once(tmp_path: Path):

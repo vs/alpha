@@ -30,7 +30,6 @@ Keep the design as simple as the problem allows ("Simplest sufficient architectu
 - `architecture.glossary[].term` - a term, unique regardless of case.
 - `architecture.glossary[].meaning` - what it means here, in one sentence.
 - `areas.architecture` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "architecture"`.
 
 ## Questions
 
@@ -46,7 +45,7 @@ Round 2 (needs the calls):
 - **Contract** - ask only when components talk. Recommend `defaults.architecture.contract_format`, with the file in the called component's folder (e.g. `api/openapi.yaml`). Explain in one line: the interface is written down once, and changes to it are reviewed as risky. When components don't talk, save `{"format": "none", "paths": []}` without asking. If the user now says no component calls another, `components_talk` was wrong: save `components_talk` as `false` (this is the components area's field), save `calls: []` for every component and the `none` contract, and tell the user in one line.
 - **Glossary** - ask when there is more than one component or `identity.domain_jargon` is true. Propose 3 to 8 terms drawn from the requirements, each with a one-sentence meaning. With jargon, at least one term is required. Otherwise save `[]` without asking.
 
-When the contract format differs from `defaults.architecture.contract_format`, follow the grilling skill's override protocol (key `architecture.contract_format`). Responsibilities, calls and terms are per project, so they're recorded in the decision without asking.
+When the contract format differs from `defaults.architecture.contract_format`, follow the grilling skill's override protocol (key `architecture.contract_format`). Responsibilities, calls and terms are per project, not kit defaults, so the override protocol doesn't apply to them.
 
 ## Writing the answers
 
@@ -54,14 +53,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "architecture": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `architecture` set to `"in_progress"`.
 3. When the user confirms the area, save the `architecture` object `{"components": [{"name", "responsibility", "calls"}], "contracts": {"format", "paths"}, "glossary": [{"term", "meaning"}]}`, with one component entry per component. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "architecture"`:
-   `{"area": "architecture", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the shape (e.g. "The web app calls the api through OpenAPI"); `context` is why these boundaries; `decision` gives the responsibilities, calls and contract; `consequences` says what changes are risky and which names are fixed, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `architecture` set to `"done"`.
+4. In the same call, save `areas` with `architecture` set to `"done"`.
 
 ## Check
 

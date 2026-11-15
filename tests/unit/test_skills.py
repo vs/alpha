@@ -42,6 +42,7 @@ ALL_SKILLS = [
     "extend",
     "adopt",
     "go",
+    "fold-decisions",
 ]
 CLI_SKILLS = [s for s in ALL_SKILLS if s != "go"]
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
@@ -273,8 +274,8 @@ REMOVED_DOCS = re.compile(
 
 
 def test_no_kit_file_names_a_removed_doc():
-    """F4: the specification and CONTRIBUTING.md replaced these docs
-    (decision 0035), so nothing the kit ships may send anyone to them."""
+    """F4: the specification and CONTRIBUTING.md replaced these docs, so
+    nothing the kit ships may send anyone to them."""
     shipped = [
         p
         for folder in ("skills", "project-files", "recipes", "src")
@@ -283,6 +284,50 @@ def test_no_kit_file_names_a_removed_doc():
     ]
     assert len(shipped) > 50
     named = [str(p) for p in shipped if REMOVED_DOCS.search(p.read_text())]
+    assert not named, named
+
+
+RECORD_USE = re.compile(
+    r"docs/decisions|decision records? (in|under|that)|decision log|"
+    r"`decisions\[\]`|`Kind: (product|technical)`|--decision"
+)
+
+
+def test_fold_decisions_routes_every_kind_of_record():
+    """F6: every kind of record has a home, the list goes before any other
+    write, and the project ends with nothing left to update."""
+    sort = _section("fold-decisions", "2. Sort every record")
+    for group in (
+        "**Superseded.**",
+        "**Already stated.**",
+        "**An override.**",
+        "**An exception.**",
+        "**A rule still in force.**",
+        "**A dropped adoption step.**",
+    ):
+        assert group in sort, group
+    assert "`docs/specification.md`" in sort and "`CONTRIBUTING.md`" in sort
+    assert f"{CLI} answers drop-decisions <target>" in sort
+    remove = _section("fold-decisions", "3. Remove the records")
+    assert "git rm -r docs/decisions" in remove
+    assert remove.index("update <target> --dry-run") < remove.index("commit-update")
+    assert "prints nothing to change" in _section("fold-decisions", "4. Check")
+
+
+def test_no_kit_file_uses_decision_records():
+    """F5: decisions live in the docs; only the fold skill, which removes old
+    records, and the survey, which finds a repo's own, may name them."""
+    allowed = {
+        PLUGIN_ROOT / "skills" / "fold-decisions" / "SKILL.md",
+        PLUGIN_ROOT / "defaults" / "survey.toml",
+    }
+    shipped = [
+        p
+        for folder in ("skills", "project-files", "recipes", "src", "defaults")
+        for p in (PLUGIN_ROOT / folder).rglob("*")
+        if p.is_file() and p.suffix in (".md", ".py", ".toml") and p not in allowed
+    ]
+    named = [str(p) for p in shipped if RECORD_USE.search(p.read_text())]
     assert not named, named
 
 
@@ -352,7 +397,7 @@ def test_area_fields_exist_in_the_answers_contract(skill: str):
 @pytest.mark.parametrize("skill", AREA_SKILLS)
 def test_area_lists_every_field_it_owns(skill: str):
     area, roots = AREA_SKILLS[skill]
-    expected = {f"areas.{area}", "decisions[]"}
+    expected = {f"areas.{area}"}
     for root in roots:
         expected |= _leaves(root)
     assert expected <= set(_settled_paths(skill))
@@ -636,9 +681,10 @@ def test_extend_runs_the_update_loop():
         assert part in text, part
 
 
-def test_extend_keeps_earlier_decisions():
+def test_extend_keeps_earlier_overrides():
     text = _text("extend")
-    assert "add one new decision" in text and "unchanged" in text
+    assert "Keep every existing entry of `overrides` unchanged" in text
+    assert "not in a record" in text
 
 
 def test_extend_explains_a_kit_upgrade():
@@ -704,11 +750,10 @@ def test_new_project_hands_generated_projects_to_extend():
     assert "arrives in a later version" not in text
 
 
-def test_extend_sends_whole_decision_arrays():
+def test_extend_sends_whole_override_arrays():
     what = _section("extend", "2. What changes")
-    assert "send the whole `decisions` array" in what
-    assert "every existing entry verbatim, then the new one" in what
-    assert "Do the same for `overrides`" in what
+    assert "send the whole `overrides` array" in what
+    assert "every existing entry verbatim, plus any new one" in what
 
 
 def test_extend_asks_when_a_revisit_repeats():

@@ -17,9 +17,11 @@ from typing import Any, cast
 
 import ratchet
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
+import _common
+
 APPROVAL = "alpha: migration edit approved"
 BASELINES = ".claude/alpha/baselines"
-DECISIONS = "docs/decisions/"
 
 
 def _match_parts(path: list[str], pat: list[str]) -> bool:
@@ -148,22 +150,16 @@ def _baselined(text: str) -> set[str]:
     }
 
 
-def _names_first_here(ref: str, check: str) -> str | None:
-    """An accepted decision record that names `check` (in backticks) and didn't
-    at `ref`: added on this branch, or edited here to name it."""
-    named = f"`{check}`"
-    for record in sorted(Path(DECISIONS).glob("*.md")):
-        try:
-            text = record.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        lines = [ln.strip() for ln in text.splitlines()]
-        if "Status: accepted" not in lines or named not in text:
-            continue
-        before = git("show", f"{ref}:{record.as_posix()}")
-        if before.returncode != 0 or named not in before.stdout:
-            return record.as_posix()
-    return None
+def _excepted_here(ref: str, check: str) -> bool:
+    """Whether CONTRIBUTING.md's Exceptions table names `check` for a path it
+    didn't at `ref`."""
+    contributing = _common.CONTRIBUTING
+    try:
+        now = Path(contributing).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    before = git("show", f"{ref}:{contributing}").stdout
+    return _common.newly_excepted(now, before, check)
 
 
 def baselines() -> int:
@@ -200,18 +196,17 @@ def baselines() -> int:
         if check in listed_now and check not in listed_before:
             print(f"alpha: {path} is a new baseline: {check} is listed in this change.")
             continue
-        record = _names_first_here(ref, check)
-        if record is not None:
-            print(f"alpha: {path} grows, accepted by {record}.")
+        if _excepted_here(ref, check):
+            print(f"alpha: {path} grows, accepted by an Exceptions row.")
             continue
         failed = True
         print(f"alpha: {path} grows against {base}; baselines only shrink:")
         for file, rule, n, b in grown:
             print(f"  {file} {rule}: {n} findings, {b} before")
         print(
-            "  Fix the new findings, or, if they're right to keep, record why in "
-            f"an accepted decision under {DECISIONS} that names `{check}` and "
-            "didn't name it before this branch."
+            "  Fix the new findings, or, if they're right to keep, add a row to "
+            f"the Exceptions table in {_common.CONTRIBUTING} naming `{check}` "
+            "and why."
         )
     return 1 if failed else 0
 

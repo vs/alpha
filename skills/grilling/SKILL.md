@@ -88,9 +88,9 @@ Never ask the user for anything you can look up: installed tool versions, `git c
 
 When the user's answer differs from a kit default:
 
-1. Record it. Ask for the reason if the user hasn't given one. Save with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` (one line, each `'` inside written as `'\''`), sending `overrides` or `decisions` whole.
+1. Record it. Ask for the reason if the user hasn't given one. Save with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` (one line, each `'` inside written as `'\''`), sending `overrides` whole.
    - A change to a principle goes in `overrides[]` as `{"principle", "scope", "change", "params", "reason"}`: `principle` is an id from `defaults.principles[].id`; `scope` is `"project"` or `"component:<name>"`; `change` is `"tighten"`, `"loosen"` or `"drop"`; `params` holds any changed parameters (`{}` if none); `reason` is required for `loosen` and `drop`.
-   - Any other setting goes in the current area's `decisions[]` entry: name the default in `context` and the choice in `decision`.
+   - Any other setting is the area's answer itself; nothing else records it.
 2. Ask exactly: "Make this the default for future projects too?"
 3. On yes, for a setting, run:
    `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults set --key <dotted key> --value <value> --project <slug> --reason "<user's reason>"`
@@ -100,7 +100,7 @@ When the user's answer differs from a kit default:
 4. Read the exit code. Never tell the user a default was saved unless the command exits 0.
    - If it exits 0, tell the user the new default is saved with their own defaults (the path it prints), so their next project starts from it.
    - If it exits 3, show the user its message and follow the fix it names, then run it again.
-5. On yes for a principle override: the kit can't save principle defaults yet; note the wish in the current area's decision `consequences`.
+5. On yes for a principle override: the kit can't save principle defaults yet; tell the user so.
 6. On no, the override stays in this project only.
 
 ## Done

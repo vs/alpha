@@ -124,23 +124,15 @@ def main() -> None:
         _common.block(
             f"This edit weakens a check ({', '.join(found)}) in {rel}. Principle "
             "never-weaken-checks: fix the cause instead. If the check is wrong "
-            "here, record why with the decision skill, naming the path "
-            f"{rel} and the rule, then retry; the principles-reviewer checks "
-            "that reason."
+            "here, add a row to CONTRIBUTING.md's Exceptions table naming the "
+            f"path {rel}, the rule and why, then retry; the principles-reviewer "
+            "checks that reason."
         )
     sys.exit(0)
 
 
 def recorded_exception(root: Path, rel: str) -> bool:
-    for _n, _title, status, path in _common.decision_index(root)[0]:
-        if status != "accepted":
-            continue
-        try:
-            if rel in (root / path).read_text(encoding="utf-8"):
-                return True
-        except (OSError, UnicodeDecodeError):
-            continue
-    return False
+    return any(e.path == rel for e in _common.exception_rows(root))
 
 
 if __name__ == "__main__":

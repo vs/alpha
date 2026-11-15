@@ -800,11 +800,12 @@ def open_finding(
 
 
 def accepts_record(project: Project, finding_id: str) -> None:
-    project.write(
-        "docs/decisions/0001-accept-it.md",
-        "# 0001. Accept it\n\nDate: 2026-10-23\nStatus: accepted\n"
-        f"Accepts: {finding_id}\n\n## Context\n\nc\n\n## Decision\n\nd\n\n"
-        "## Consequences\n\nq\n",
+    project.git(
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        f"chore: Accept it\n\nAccepts: {finding_id} the reason it stands",
     )
 
 
@@ -817,7 +818,7 @@ def test_open_findings_block_with_ids_and_how_to_accept(project: Project) -> Non
         "F-abc123 fail-helpfully api/src/x.py:3: The except clause swallows every "
         "error. Fix: Catch the specific error." in text
     )
-    assert "record the disproof with the decision skill" in text
+    assert "commit the disproof as a trailer" in text
     assert "Accepts: <id>" in text
     assert "risk paths" not in text
 
@@ -850,7 +851,7 @@ def test_accepted_but_unrecorded_findings_block(project: Project) -> None:
     commit_all(project)
     open_finding(project, accepted=True)
     text = reason(run(project))
-    assert "decision skill" in text and "Accepts: F-abc123" in text
+    assert "trailer" in text and "Accepts: F-abc123" in text
 
 
 def test_accepted_and_recorded_findings_clear_the_review(project: Project) -> None:

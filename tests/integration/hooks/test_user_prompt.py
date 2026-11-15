@@ -52,7 +52,7 @@ def test_the_exact_command_accepts(project: Project, text: str) -> None:
         "the user accepted F-aaa111: fail-helpfully api/src/x.py: problem F-aaa111"
         in (text_out)
     )
-    assert 'decision skill (an "Accepts: F-aaa111" header line' in text_out
+    assert 'commit trailer ("Accepts: F-aaa111 <why it stands>")' in text_out
 
 
 def test_several_ids_at_once(project: Project) -> None:

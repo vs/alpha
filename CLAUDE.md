@@ -8,11 +8,11 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - `uv run pytest`
 - `uv run ruff check` and `uv run ruff format`
 - `uv run pyright`
-- `bin/alpha generate|bootstrap|commit-skeleton <folder>`: a new project from finished answers (`answers check` first; `answers write <target> --json '…'` saves an area). `bin/alpha update <project> [--dry-run]`, then `bin/alpha commit-update <project>`, merges changed answers into a generated or adopted project, and upgrades one an older kit set up to this kit (spec §5a, decision 0022).
+- `bin/alpha generate|bootstrap|commit-skeleton <folder>`: a new project from finished answers (`answers check` first; `answers write <target> --json '…'` saves an area; `answers drop-decisions <target>` removes an older kit's decisions list, for `/alpha:fold-decisions`). `bin/alpha update <project> [--dry-run]`, then `bin/alpha commit-update <project>`, merges changed answers into a generated or adopted project, and upgrades one an older kit set up to this kit (spec §5a).
 - `bin/alpha recipe list|check|try|save`, `bin/alpha registry list|show|stale` and `bin/alpha defaults show|set`: the kit's stacks and drafted recipes, the reviewed tool registry (`stale` names tools not reviewed in 180 days) and the merged defaults.
 - `bin/alpha adopt survey <repo> [--save]`: what an existing repo already has, in facts (spec §5b): candidate components from the recipes' `[detect]` markers, the files `defaults/survey.toml` names, branch, clean tree and commit convention. An adopted recipe (`"adopted": true`, optionally `"extends": "<kit stack>"`) runs the repo's own tools; `alpha recipe try` proves it on a throwaway worktree of the repo's HEAD, where a failing check passes only if its baseline reader reads its findings.
 - `bin/alpha adopt apply <repo> [--dry-run]`: with finished adoption answers, writes alpha's files onto the repo on `alpha/adopt` (from the default branch): new files (with the skeleton of each component that is on a kit or drafted recipe and has no manifest yet), a mechanical merge of `.gitignore` and `.claude/settings.json`, and a two-sided proposal for every other file the repo already has, merged by hand as `/alpha:extend` does. Then `alpha bootstrap <repo> --capture-baselines` and `alpha commit-update`. `adoption.git_hooks` is `alpha` (alpha sets `core.hooksPath`) or `chain` (the repo's hook manager calls alpha's commit-msg check). A kit recipe's `[adopt]` table holds the command variants an adopted recipe uses, so a root component's tools skip `.claude/`.
-- `bin/alpha adopt gaps|next|start|done|drop <repo>`: the compliance plan of an adopted repo (spec §5b, step 6), kept in `adoption.steps` and rendered as `docs/adoption.md`. `gaps [--save]` adds the mechanical steps (chained hooks, formatting, missing checks and coverage, a burn-down per baseline); `next` names the next ready step; `done` marks a step only when every condition of its acceptance holds (`run`, `recipe`, `no_baseline`, `commit_hook`, `confirm` with `--confirmed-by-user`); `drop --decision N` needs an accepted record naming the step. Then `alpha update` and `alpha commit-update` refresh the doc.
+- `bin/alpha adopt gaps|next|start|done|drop <repo>`: the compliance plan of an adopted repo (spec §5b, step 6), kept in `adoption.steps` and rendered as `docs/adoption.md`. `gaps [--save]` adds the mechanical steps (chained hooks, formatting, missing checks and coverage, a burn-down per baseline); `next` names the next ready step; `done` marks a step only when every condition of its acceptance holds (`run`, `recipe`, `no_baseline`, `commit_hook`, `confirm` with `--confirmed-by-user`); `drop --reason '…'` needs the reason the user agreed to. Then `alpha update` and `alpha commit-update` refresh the doc.
 - `bin/alpha baseline show|capture|tighten <project>`: the per-file, per-rule baselines of legacy findings (spec §8b). Only a project whose answers list `adoption.baselines` has any. `alpha bootstrap <project> --capture-baselines` records the missing ones once each toolchain is installed. The patterns that read each tool's findings are matched against real output in `tests/fixtures/baseline-output/`; re-record those when a pinned tool's version changes.
 - `bin/alpha-evals run [scenario ...]`: the interview evals (spec §12). Each scenario runs the real `/alpha:new-project` headlessly, with a simulated user answering from `evals/briefs/<scenario>.toml`, then checks the generated skeleton and probes the reviewer. It spends real tokens: each call gets the scenario's remaining `--max-usd` budget ($20 by default), and a call that fails or times out counts as $0, so check the cost column in the `summary.md` it prints. The $20 default stops an Opus interview before generation (see below); a complete run needs about `--max-usd 60`, or a cheaper `--interviewer-model`. `bin/alpha-evals check <project> <scenario>` reruns only the skeleton checks.
 
@@ -27,7 +27,7 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - **Fail fast, fail helpfully**: Detect errors as early as possible. Every error message describes the problem and tells the user how to proceed.
 - **Tests are as important as the core**: Test design and writing get the same effort and intensity as the logic. Tests trace back to acceptance checks. Risky logic (a branch, a parser, money, security, data writes, a bug fix) gets a test that fails when it breaks: one good test, not coverage. A trivial change (a rename, a constant, wiring) may go without one, with the reason recorded.
 - **Docs move with the code**: A change to public behavior updates the docs in the same change.
-- **Build and hosting are decided up front**: Build and hosting are decided up front and runnable in CI. (overridden: see docs/decisions/0021-no-ci-checks-run-locally.md)
+- **Build and hosting are decided up front**: Build and hosting are decided up front and runnable in CI. (overridden: see CONTRIBUTING.md, Overrides)
 - **Validate at the edges, trust the inside**: External input is parsed into typed data once, at the boundary. Inside, code doesn't re-check what its own modules return; each remaining cast or runtime check says which boundary or invariant it serves.
 - **Strict types**: TypeScript `strict`, Python type-checked in strict mode.
 - **Logic in the middle, side effects at the edges**: Business logic is kept pure and in the middle; side effects live at the edges.
@@ -44,32 +44,32 @@ alpha is a Claude Code plugin that interviews you about a new project and genera
 - **Every new dependency has a recorded reason**: Every new dependency has a recorded reason and is pinned.
 - **Clean, readable history**: Each commit is one logical change, holds only the files changed for it, passes checks on its own, and has a message that explains why.
 - **Evidence before "done"**: No claim of success without running the check that shows it.
-- **Never weaken a check to pass it**: No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong in one place, record why in a decision that names the path and the rule, then make the exception there.
+- **Never weaken a check to pass it**: No skipped tests, loosened lint, or catch-all exception handlers, and no mocking the thing under test. A type error from an outdated dependency is fixed by upgrading it, not by removing or downgrading code. If a check is wrong in one place, add a row to CONTRIBUTING.md's Exceptions table that names the path, the rule and why, then make the exception there.
 - **Stay in scope**: No drive-by refactors of code the task doesn't touch.
 - **Subtract before you add**: In the code a task touches, first remove what's dead there: unused code, redundant checks, stubs. A new internal API replaces the old one in the same change: every caller migrated, the old one deleted, no compatibility layer.
 - **Smallest complete change**: Take the first option that fully works: skip what nobody asked for, then reuse what the codebase has, then the standard library or platform, then an installed dependency, then one line a reader gets at a glance, and only then new code. No new dependency for a few lines, and no abstraction, wrapper, option, config or "for later" code nobody asked for; keep values in the form the platform already gives you, and keep the structure the codebase already has. Never cut validation at trust boundaries, error handling that prevents data loss, security, accessibility, or anything the user asked for.
 - **Scope before writing**: Before changing code, list every place the change must reach (callers, tests, fixtures, config, exports) and what it could break for users (data lost or exposed, callers that stop working), then finish every part of it. Features nobody asked for aren't scope.
 - **Fix bugs at the root**: Before a bug fix, find every caller of the function it touches and fix the root cause once, in the shared code, not in one caller. Code that is moved or merged keeps its error handling and validation.
 - **Lean structure**: Near-copies that must change together are merged into one. A function is split by job, never by line count, and never into helpers that only make it shorter. Between options of equal size, the one that is correct on edge cases wins.
-- **Never block on the human**: Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, record it in the decision log, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people.
+- **Never block on the human**: Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, write it into the docs, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people.
 - **Definition of done**: Tests written and passing, types and lint clean, docs updated, committed per the history principle, reviewer passed.
 
 `docs/principles.toml` is the source of truth, with each principle's parameters, rationale and overrides.
 
 ## Working rules
 
-- Before you change code, docs or config, read the decision records in docs/decisions/ that bear on the change (an index is added to your context at the start of each session) and the principle's parameters in docs/principles.toml. Follow them.
-- A change that contradicts an accepted decision needs a new decision that supersedes it, recorded with the decision skill. A `Kind: technical` record you may supersede yourself, giving the reason; ask the user first for a `Kind: product` record or one that changes a principle.
+- Before you change code, docs or config, read the parts of docs/specification.md and CONTRIBUTING.md that bear on the change and the principle's parameters in docs/principles.toml. Follow them.
+- A decision updates the docs, as the decision skill says: what the product does goes in docs/specification.md and needs the user's yes; how the work is done goes in CONTRIBUTING.md, with the reason in the commit; a changed principle is an override in the answers, which the user agrees to first.
 - When a requirement is ambiguous, make the reasonable choice, record it with the decision skill and say what you chose; don't stop to ask about reversible work. Ask first only about product direction or what can't be undone (rewriting main, deploys, deleting data, messages to people).
 - Read a file in full before you edit it, and every file a wide change touches; search snippets aren't enough.
 - Look up a dependency's API in its installed source or types instead of guessing it.
 - Remove dead code and replaced internal APIs without asking, but ask before removing code or behavior that looks intentional.
 - Commit only the files you changed for the work, staged by path. Other changes in the tree may be the user's or another session's, so don't stage, stash or reset them; the hooks block the commands that would.
-- Subagents work under the same principles, decisions and checks.
+- Subagents work under the same principles, docs and checks.
 - Before you report work as done, re-read every changed file top to bottom as a stranger would.
 - At the end of a planned piece of work, run the principles-reviewer agent.
 - When you add a code generator, add a `generate` task to `mise.toml` and to the `ci` task's `depends`; commit what it regenerates with the change.
-- Never disable a lint rule to pass; an exception names one path and one rule, and a decision record that names that path gives the reason.
+- Never disable a lint rule to pass; an exception names one path and one rule, and a row in CONTRIBUTING.md's Exceptions table names that path, the rule and the reason.
 - A security suppression (osv-scanner, betterleaks) needs a reason and a review date: in the `osv-scanner.toml` next to the lockfile it applies to, `ignoreUntil` and `reason`; in `.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly above the entry.
 
 ## Communication
@@ -127,7 +127,6 @@ Follow the commit skill (`.claude/skills/commit/SKILL.md`, which the user runs a
 - [Specification](docs/specification.md): what the product does, settled as the work needs it; each feature adds its own spec in `docs/specs/`
 - [Contributing](CONTRIBUTING.md): how the project is built, checked, released and kept secure
 - [Dependencies](docs/dependencies.md)
-- [Decisions](docs/decisions/)
 - [Glossary](docs/glossary.md)
 - [Adoption plan](docs/adoption.md): the steps that bring this repo's code up to the principles; `/alpha:adopt` resumes it
 
@@ -144,7 +143,7 @@ To bring an existing repo in, run `/alpha:adopt ~/code/that-repo` (clean tree, c
 
 To change a project alpha generated (add a component, revisit an area's decisions), run `/alpha:extend <what to change>` from inside it. It re-asks only what the change affects, merges alpha's files without overwriting your edits, and commits.
 
-To work a task in a generated or adopted project, run `/alpha:go <task>`. It follows a playbook from `skills/go/playbooks/` (decision 0031); a feature goes through a spec in `docs/specs/` that the user approves before any code. The interview settles only the setup areas; the spec areas start `open` and `/alpha:go` settles each when the work needs it (decision 0034).
+To work a task in a generated or adopted project, run `/alpha:go <task>`. It follows a playbook from `skills/go/playbooks/`; a feature goes through a spec in `docs/specs/` that the user approves before any code. The interview settles only the setup areas; the spec areas start `open` and `/alpha:go` settles each when the work needs it.
 
 Optional: to stop Claude Code asking before each alpha CLI call during the interview, add `"Bash(<alpha checkout>/bin/alpha *)"` with the absolute path of this checkout to `permissions.allow` in `~/.claude/settings.json` (for an installed plugin, use the `bin/alpha` path the prompt shows).
 

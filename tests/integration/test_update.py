@@ -45,13 +45,6 @@ from alpha.update import (
 SCENARIO = "web-ts-plus-python-api"
 SOURCE = Source(PLUGIN_ROOT, True)
 TODAY = date(2026, 11, 2)
-DECISION = {
-    "area": "agent_workflow",
-    "title": "Smaller review batches",
-    "context": "Reviews of 200 lines took too long to read well.",
-    "decision": "Review at most 120 changed lines at a time.",
-    "consequences": "More reviews, each one shorter.",
-}
 
 
 def answers(target: Path) -> dict[str, Any]:
@@ -83,7 +76,6 @@ def commit(target: Path, message: str) -> None:
 
 def smaller_reviews(data: dict[str, Any]) -> None:
     data["agent_workflow"]["max_lines"] = 120
-    data["decisions"].append(dict(DECISION))
 
 
 def move_component(data: dict[str, Any], name: str, new: str) -> None:
@@ -99,7 +91,7 @@ def move_component(data: dict[str, Any], name: str, new: str) -> None:
         return value
 
     for key in list(data):
-        if key not in ("decisions", "overrides", "manifest"):
+        if key not in ("overrides", "manifest"):
             data[key] = moved(data[key])
     for c in data["components"]:
         if c["name"] == name:
@@ -109,9 +101,7 @@ def move_component(data: dict[str, Any], name: str, new: str) -> None:
 def remove_component(data: dict[str, Any], name: str) -> None:
     data["components"] = [c for c in data["components"] if c["name"] != name]
     for key, section in data.items():
-        if key in ("decisions", "overrides", "manifest") or not isinstance(
-            section, dict
-        ):
+        if key in ("overrides", "manifest") or not isinstance(section, dict):
             continue
         entries: object = cast(dict[str, Any], section).get("components")
         if isinstance(entries, list):
@@ -208,14 +198,14 @@ def test_invalid_answers_name_the_area_to_revisit(
     assert str(err.value).startswith("Revisit the architecture area:")
 
 
-def test_changed_decision_is_refused(
+def test_answers_that_still_hold_decisions_point_to_folding(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, SCENARIO)
     data = answers(tmp_path)
-    data["decisions"][0]["title"] = "A better title"
-    save(tmp_path, data)
-    with pytest.raises(GenerateError, match=r"decisions\[0\] changed"):
+    data["decisions"] = [{"area": "git", "title": "x"}]
+    (tmp_path / PROJECT_JSON).write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(GenerateError, match="/alpha:fold-decisions"):
         plan(tmp_path)
 
 
@@ -246,7 +236,6 @@ def test_settling_an_open_area_applies_it(tmp_path: Path, git_env: None):
     opened = json.loads(path.read_text())
     opened["areas"]["ui"] = "open"
     del opened["ui"]
-    opened["decisions"] = [d for d in opened["decisions"] if d["area"] != "ui"]
     path.write_text(json.dumps(opened))
     generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, TODAY)
     git(tmp_path, "init", "-q", "-b", "main")
@@ -263,7 +252,6 @@ def test_settling_an_open_area_applies_it(tmp_path: Path, git_env: None):
     data = answers(tmp_path)
     data["areas"]["ui"] = "done"
     data["ui"] = full["ui"]
-    data["decisions"].append(next(d for d in full["decisions"] if d["area"] == "ui"))
     save(tmp_path, data)
     apply_update(tmp_path, plan(tmp_path))
 
@@ -276,29 +264,6 @@ def test_settling_an_open_area_applies_it(tmp_path: Path, git_env: None):
     )
     assert visual["active"] is True
     assert "settle the UI" not in spec.read_text()
-
-
-def test_new_decision_is_numbered_after_the_projects_own_records(
-    tmp_path: Path, git_env: None
-):
-    target = generated_repo(tmp_path, SCENARIO)
-    records = target / "docs" / "decisions"
-    (records / "0020-use-sqlite.md").write_text("# 0020. Use SQLite\n")
-    commit(target, "docs: Record the SQLite decision")
-    earlier = {p.name: p.read_bytes() for p in records.iterdir()}
-    data = answers(target)
-    data["decisions"].append(dict(DECISION))
-    save(target, data)
-    p = plan(target)
-    new = "docs/decisions/0021-smaller-review-batches.md"
-    assert kinds(p)[new] == "new"
-    apply_update(target, p)
-    assert "Date: 2026-11-02\n" in (target / new).read_text()
-    assert {
-        name: path.read_bytes()
-        for name, path in ((p.name, p) for p in records.iterdir())
-        if name in earlier
-    } == earlier
 
 
 def test_overlapping_edit_leaves_the_file_and_writes_a_proposal(
@@ -339,7 +304,6 @@ def test_stale_files_are_listed_not_deleted(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
     data["releases"]["changelog"] = "none"
-    data["decisions"].append({**DECISION, "area": "releases", "title": "No changelog"})
     save(target, data)
     p = plan(target)
     assert kinds(p)["CHANGELOG.md"] == "stale"
@@ -354,9 +318,6 @@ def test_added_component_gets_templates_ci_and_dated_rows(
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
     clone_component(data, "api", "worker", "worker")
-    data["decisions"].append(
-        {**DECISION, "area": "components", "title": "Add a worker"}
-    )
     save(target, data)
     p = plan(target)
     assert p.new_components == ("worker",)
@@ -398,7 +359,7 @@ def test_moved_component_waits_for_its_files(
         plan(tmp_path)
 
 
-OVERRIDE_RECORD = "docs/decisions/0019-override-observability.md"
+OVERRIDE_ROW = "| observability | loosen | component:api |"
 
 
 def test_removing_a_component_with_a_scoped_override_plans_cleanly(
@@ -407,15 +368,14 @@ def test_removing_a_component_with_a_scoped_override_plans_cleanly(
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
     assert data["overrides"][0]["scope"] == "component:api"
-    assert OVERRIDE_RECORD in (target / "docs/principles.toml").read_text()
+    assert OVERRIDE_ROW in (target / "CONTRIBUTING.md").read_text()
     remove_component(data, "api")
     data["architecture"]["contracts"] = {"format": "none", "paths": []}
-    data["decisions"].append({**DECISION, "area": "components", "title": "Drop api"})
     save(target, data)
     p = plan(target)
-    assert OVERRIDE_RECORD not in kinds(p)
+    assert OVERRIDE_ROW in text_of(p, "CONTRIBUTING.md")
     principles = text_of(p, "docs/principles.toml")
-    assert OVERRIDE_RECORD not in principles
+    assert "loosen (component:api)" not in principles
     apply_update(target, p)
     commit_the_update(target)
     data = answers(target)
@@ -433,13 +393,9 @@ def test_renaming_a_component_leaves_its_override_inert(tmp_path: Path, git_env:
     next(c for c in data["architecture"]["components"] if c["name"] == "web")[
         "calls"
     ] = ["backend"]
-    data["decisions"].append(
-        {**DECISION, "area": "components", "title": "Rename api to backend"}
-    )
     save(target, data)
     p = plan(target)
-    assert OVERRIDE_RECORD not in kinds(p)
-    assert OVERRIDE_RECORD not in text_of(p, "docs/principles.toml")
+    assert "loosen (component:api)" not in text_of(p, "docs/principles.toml")
 
 
 def test_override_for_a_component_that_never_existed_is_refused(
@@ -474,9 +430,6 @@ def test_moved_component_merges_against_its_old_files(tmp_path: Path, git_env: N
     commit(target, "refactor: Move the API to backend")
     data = answers(target)
     move_component(data, "api", "backend")
-    data["decisions"].append(
-        {**DECISION, "area": "components", "title": "Move the API to backend"}
-    )
     save(target, data)
     p = plan(target)
     assert [c.path for c in p.changes if c.kind == "conflict"] == []
@@ -536,7 +489,7 @@ def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env: 
         "update", str(target), "--dry-run", env={"ALPHA_SOURCE": str(PLUGIN_ROOT)}
     )
     assert out.returncode == 0, out.stderr
-    assert "files to change" in out.stdout
+    assert "alpha update: 1 file to change" in out.stdout
     assert "--- a/docs/principles.toml" in out.stdout.splitlines()
     assert git(target, "status", "--porcelain") == f"M {PROJECT_JSON}"
 
@@ -544,9 +497,6 @@ def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env: 
 def add_worker(target: Path) -> None:
     data = answers(target)
     clone_component(data, "api", "worker", "worker")
-    data["decisions"].append(
-        {**DECISION, "area": "components", "title": "Add a worker"}
-    )
     save(target, data)
 
 
@@ -566,7 +516,7 @@ def test_commit_update_commits_only_alphas_files_in_groups(
     hashes, notes = commit_the_update(target)
     subjects = git(target, "log", "--reverse", "--format=%s", f"{base}..HEAD")
     expected = [
-        "docs: Update docs and decision records",
+        "docs: Update the docs",
         "chore: Update Claude Code rules and settings",
         "build: Pin the repository's check tools",
         "build(worker): Set up python toolchain and tests",
@@ -638,7 +588,6 @@ def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env: None):
     commit(target, "docs: Review smaller batches")
     data = answers(target)
     data["agent_workflow"]["max_lines"] = 120
-    data["decisions"].append(dict(DECISION))
     save(target, data)
     apply_update(target, plan(target))
     _, notes = commit_the_update(target)
@@ -656,7 +605,6 @@ def conflicting_update(target: Path) -> Path:
     commit(target, "docs: Review smaller batches")
     data = answers(target)
     data["agent_workflow"]["max_lines"] = 120
-    data["decisions"].append(dict(DECISION))
     save(target, data)
     apply_update(target, plan(target))
     return principles
@@ -717,7 +665,6 @@ def test_later_update_leaves_an_earlier_kept_proposal(tmp_path: Path, git_env: N
     commit_the_update(target)
     kept = (target / PROPOSALS / "docs/principles.toml").read_bytes()
     data = answers(target)
-    data["decisions"].append({**DECISION, "title": "Another decision"})
     save(target, data)
     apply_update(target, plan(target))
     assert (target / PROPOSALS / "docs/principles.toml").read_bytes() == kept
@@ -853,7 +800,6 @@ def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env: 
     commit(target, "docs: Review smaller batches")
     data = answers(target)
     data["agent_workflow"]["max_lines"] = 120
-    data["decisions"].append(dict(DECISION))
     save(target, data)
     apply_update(target, plan(target))
     loaded = load_project_principles(target)
@@ -911,6 +857,16 @@ def pre_branch_project(tmp_path: Path, git_env: None) -> Path:
     return project_from_kit(tmp_path, PRE_BRANCH)[0]
 
 
+def fold_decisions(target: Path) -> None:
+    """What /alpha:fold-decisions leaves behind: no records and no decisions
+    list in the answers."""
+    data = answers(target)
+    del data["decisions"]
+    (target / PROJECT_JSON).write_text(json.dumps(data, indent=2) + "\n")
+    shutil.rmtree(target / "docs" / "decisions")
+    commit(target, "docs: Fold the decision records into the docs")
+
+
 def test_update_of_an_older_kit_project_upgrades_it(pre_branch_project: Path):
     """Spec §5a: alpha update brings a project an older kit set up to this
     kit, each file merged against what that kit wrote there."""
@@ -918,8 +874,7 @@ def test_update_of_an_older_kit_project_upgrades_it(pre_branch_project: Path):
     assert not (target / "mise.toml").exists()
     claude = target / "CLAUDE.md"
     claude.write_text(claude.read_text() + "\nOur own rule.\n")
-    record = target / "docs/decisions/0001-product-identity.md"
-    dated = next(line for line in record.read_text().splitlines() if "Date:" in line)
+    fold_decisions(target)
     add_worker(target)
     commit(target, "chore: Add a worker to the answers")
     p = plan(target)
@@ -934,8 +889,7 @@ def test_update_of_an_older_kit_project_upgrades_it(pre_branch_project: Path):
         assert (target / rel).read_bytes() == src.read_bytes(), rel
         assert (target / rel).stat().st_mode & 0o777 == src.stat().st_mode & 0o777
     assert claude.read_text().endswith("Our own rule.\n")
-    assert "Kind: product" in record.read_text()
-    assert dated in record.read_text()  # history keeps its date
+    assert not (target / "docs/decisions").exists()
     assert answers(target)["manifest"]["kit_version"] == VERSION
     commit_the_update(target)
     assert describe(plan(target), target) == "alpha update: nothing to change"
@@ -944,6 +898,7 @@ def test_update_of_an_older_kit_project_upgrades_it(pre_branch_project: Path):
 def test_kit_upgrade_finds_a_released_kit_by_its_tag(tmp_path: Path, git_env: None):
     target, kit = project_from_kit(tmp_path, "v0.4.2")
     shutil.rmtree(kit)  # gone from the folder the manifest names
+    fold_decisions(target)
     found = kinds(plan(target))
     assert found[".claude/alpha/checks/secret_scan.py"] == "new"
     assert found[".claude/alpha/hooks/guard_bash.py"] == "change"
@@ -1001,8 +956,6 @@ def test_a_project_from_before_the_design_language_area_can_define_one(
     data = json.loads(dest.read_text())
     language = data.pop("design_language")
     del data["areas"]["design_language"]
-    decision = next(d for d in data["decisions"] if d["area"] == "design_language")
-    data["decisions"].remove(decision)
     dest.write_text(json.dumps(data))
     generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, date(2026, 10, 19))
     git(tmp_path, "init", "-q", "-b", "main")
@@ -1014,7 +967,6 @@ def test_a_project_from_before_the_design_language_area_can_define_one(
     data = answers(tmp_path)
     data["design_language"] = language
     data["areas"]["design_language"] = "done"
-    data["decisions"].append(decision)
     save(tmp_path, data)
     p = plan(tmp_path)
     found = kinds(p)
@@ -1022,5 +974,4 @@ def test_a_project_from_before_the_design_language_area_can_define_one(
     assert found["docs/principles.toml"] == "change"
     assert "- **One design language**: " in text_of(p, "CLAUDE.md")
     assert '"docs/design-language.md"' in text_of(p, "docs/principles.toml")
-    record = "docs/decisions/0019-a-flat-high-contrast-design-language.md"
-    assert "Kind: product" in text_of(p, record)
+    assert "docs/decisions" not in " ".join(kinds(p))

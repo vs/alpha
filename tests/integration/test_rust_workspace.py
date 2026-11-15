@@ -1,4 +1,4 @@
-"""A monorepo's Rust components as one Cargo workspace (decision 0027)."""
+"""A monorepo's Rust components as one Cargo workspace."""
 
 import json
 import tomllib

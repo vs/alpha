@@ -109,11 +109,9 @@ def test_edits_in_a_worktree_are_checked_against_it(project: Project) -> None:
     proc = project.run_hook("guard_paths.py", edit)
     assert proc.returncode == 2
     assert "in api/src/a.py." in proc.stderr
-    record = wt / "docs/decisions/0001-keep-the-ignore.md"
-    record.parent.mkdir(parents=True)
-    record.write_text(
-        "# 0001. Keep the ignore\n\nDate: 2026-11-11\nStatus: accepted\n\n"
-        "## Decision\n\napi/src/a.py keeps `# type: ignore`.\n"
+    (wt / "CONTRIBUTING.md").write_text(
+        "# Contributing\n\n## Exceptions\n\n| Path | Check | Reason |\n|---|---|---|\n"
+        "| `api/src/a.py` | `# type: ignore` | Untyped upstream. |\n"
     )
     assert project.run_hook("guard_paths.py", edit).returncode == 0
     secret = {"tool_name": "Write", "tool_input": {"file_path": str(wt / ".env")}}

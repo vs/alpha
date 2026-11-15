@@ -34,11 +34,10 @@ Migrations are append-only: the Stop hook blocks any edit to a migration that ex
 - `data.ml.seeds` - how randomness is fixed, e.g. `"fixed seeds recorded in the run config"`.
 - `data.ml.tracking` - where experiments are recorded, e.g. `"MLflow"`.
 - `areas.data` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "data"`.
 
 ## Questions
 
-When no component stores data or does ML, ask nothing: save `{"components": [], "ml": null}` and a decision saying nothing is stored, so the safe-migrations principle doesn't apply.
+When no component stores data or does ML, ask nothing: save `{"components": [], "ml": null}`, so the safe-migrations principle doesn't apply.
 
 Otherwise run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it). There are no kit defaults here: every project's storage is its own. Facts first: look up what the component's stack usually uses and recommend from that.
 
@@ -51,14 +50,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "data": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `data` set to `"in_progress"`.
 3. When the user confirms the area (or right away, when nothing applies), save the `data` object `{"components": [{"name", "storage", "migration_tool", "migrations", "reversible"}], "ml": null or {"versioning", "seeds", "tracking"}}`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "data"`:
-   `{"area": "data", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "PostgreSQL with Alembic migrations"); `context` is what is stored and why; `decision` gives each component's storage and migrations, and the ML setup; `consequences` says that migrations are append-only.
-5. In the same call, save `areas` with `data` set to `"done"`.
+4. In the same call, save `areas` with `data` set to `"done"`.
 
 ## Check
 

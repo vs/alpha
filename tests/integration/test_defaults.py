@@ -133,11 +133,11 @@ def test_reversible_work_does_not_wait_for_the_user():
     ids = {p["id"] for p in d["principles"]}
     assert "ask-when-ambiguous" not in ids
     statement = principle(d, "never-block-on-the-human")["statement"]
-    assert "record it in the decision log" in statement
+    assert "write it into the docs" in statement
     assert "can't be undone" in statement
     weaken = principle(d, "never-weaken-checks")["statement"]
     assert "raise it with the user" not in weaken
-    assert "names the path and the rule" in weaken
+    assert "names the path, the rule and why" in weaken
 
 
 def hook_checks() -> set[tuple[str, str]]:

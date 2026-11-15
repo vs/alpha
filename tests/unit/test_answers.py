@@ -11,9 +11,11 @@ from helpers import place_answers, proven, shell_recipe, single_component
 
 from alpha import cli
 from alpha.answers import (
+    PROJECT_JSON,
     AnswersError,
     answers_snapshot,
     area_of,
+    drop_decisions,
     load_answers,
     parse_answers,
     write_answers,
@@ -48,7 +50,6 @@ def test_valid_fixture_loads():
     assert a.git and a.git.scopes == ("api", "web")
     assert a.agent_workflow and a.agent_workflow.max_lines == 200
     assert a.overrides[0].scope == "component:api"
-    assert {d.area for d in a.decisions} == set(AREAS)
 
 
 def test_manifest_key_is_ignored(tmp_path: Path):
@@ -81,10 +82,9 @@ def test_pending_area_fails_by_default(tmp_path: Path):
 
 
 def test_open_is_allowed_only_for_spec_areas(tmp_path: Path):
-    """F2: a spec area may stay open with no decision; a setup area may not."""
+    """F2: a spec area may stay open; a setup area may not."""
     d = valid()
     d["areas"]["ui"] = "open"
-    d["decisions"] = [x for x in d["decisions"] if x["area"] != "ui"]
     assert check(tmp_path, d).ui is None
     d["areas"]["git"] = "open"
     with pytest.raises(
@@ -107,6 +107,18 @@ def test_a_pending_spec_area_is_pointed_at_open(tmp_path: Path):
     d["areas"]["ui"] = "pending"
     with pytest.raises(AnswersError, match=r'areas\.ui: .*Set areas\.ui to "open"'):
         check(tmp_path, d)
+
+
+def test_drop_decisions_removes_only_the_list(tmp_path: Path):
+    path = tmp_path / PROJECT_JSON
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps({"schema": 1, "decisions": [{}, {}], "layout": "single"})
+    )
+    assert drop_decisions(tmp_path) == 2
+    assert json.loads(path.read_text()) == {"schema": 1, "layout": "single"}
+    with pytest.raises(AnswersError, match=r"decisions: isn't in the answers"):
+        drop_decisions(tmp_path)
 
 
 def test_every_area_is_either_setup_or_spec():
@@ -331,10 +343,11 @@ def test_agent_workflow_rules(tmp_path: Path):
         check(tmp_path, d)
 
 
-def test_decision_required_for_each_done_area(tmp_path: Path):
+def test_a_decisions_list_is_refused(tmp_path: Path):
+    """F1: decisions live in the docs; old answers are pointed at folding."""
     d = valid()
-    d["decisions"] = [x for x in d["decisions"] if x["area"] != "git"]
-    with pytest.raises(AnswersError, match=r"decisions: .*git.*Add"):
+    d["decisions"] = [{"area": "git", "title": "Trunk"}]
+    with pytest.raises(AnswersError, match=r"decisions: .*fold-decisions"):
         check(tmp_path, d)
 
 
@@ -418,7 +431,6 @@ def answers_write(
 START: dict[str, Any] = {
     "schema": 1,
     "areas": dict.fromkeys(AREAS, "pending"),
-    "decisions": [],
 }
 
 
@@ -604,7 +616,6 @@ def test_old_interview_without_new_areas_still_loads(tmp_path: Path):
     d["areas"] = dict.fromkeys(OLD_AREAS, "done")
     for key in ("documentation", "build"):
         del d[key]
-    d["decisions"] = [x for x in d["decisions"] if x["area"] in OLD_AREAS]
     a = check(tmp_path, d, require_areas=["identity"])
     assert a.areas["documentation"] == "pending"
     assert a.areas["build"] == "pending"
@@ -632,7 +643,7 @@ def test_external_folder_must_be_under_docs(tmp_path: Path, path: str):
 
 @pytest.mark.parametrize(
     "path",
-    ["docs/build.md", "docs/principles.toml", "docs/decisions", "docs/decisions/x"],
+    ["docs/build.md", "docs/principles.toml", "docs/specs", "docs/specs/x"],
 )
 def test_external_folder_stays_clear_of_generated_docs(tmp_path: Path, path: str):
     d = valid()
@@ -758,7 +769,7 @@ def test_area_of_maps_fields_to_their_area():
         "recipes.rust.commands",
     ):
         assert area_of(where) == "components"
-    for where in ("decisions", "overrides[0].principle", "schema", ""):
+    for where in ("overrides[0].principle", "schema", ""):
         assert area_of(where) is None
 
 
@@ -776,12 +787,12 @@ def test_snapshot_leaves_out_the_manifest():
     top: dict[str, Any] = {
         "schema": 1,
         "manifest": {"files": {}},
-        "decisions": [{"area": "git"}],
+        "overrides": [{"principle": "timeouts"}],
     }
     snap = answers_snapshot(top)
-    assert snap == {"schema": 1, "decisions": [{"area": "git"}]}
-    snap["decisions"].append({})
-    assert len(top["decisions"]) == 1
+    assert snap == {"schema": 1, "overrides": [{"principle": "timeouts"}]}
+    snap["overrides"].append({})
+    assert len(top["overrides"]) == 1
 
 
 def test_write_json_keeps_old_file_when_write_fails(tmp_path: Path):
@@ -798,7 +809,6 @@ def test_answers_from_before_the_design_language_area_read_as_skipped(tmp_path: 
     d = valid()
     del d["design_language"]
     del d["areas"]["design_language"]
-    d["decisions"] = [x for x in d["decisions"] if x["area"] != "design_language"]
     a = check(tmp_path, d)
     assert a.design_language == DesignLanguage(defined=False)
     assert a.areas["design_language"] == "done"

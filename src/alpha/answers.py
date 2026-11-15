@@ -128,7 +128,6 @@ _TOP_KEYS = frozenset(
         "accessibility",
         "performance",
         "overrides",
-        "decisions",
         "recipes",
         "manifest",
         "adoption",
@@ -231,15 +230,6 @@ class Override:
     reason: str
 
 
-@dataclass(frozen=True)
-class Decision:
-    area: str
-    title: str
-    context: str
-    decision: str
-    consequences: str
-
-
 PHASES = ("P0", "P1", "P2", "P3", "P4", "P5", "P6")
 STEP_STATUSES = ("pending", "in_progress", "done", "dropped")
 CONDITIONS = ("run", "recipe", "no_baseline", "commit_hook", "confirm")
@@ -255,7 +245,7 @@ _STEP_KEYS = frozenset(
         "acceptance",
         "status",
         "branch",
-        "decision",
+        "reason",
     }
 )
 
@@ -297,7 +287,7 @@ class Step:
     acceptance: tuple[Condition, ...]
     status: str
     branch: str | None
-    decision: int | None
+    reason: str | None
 
 
 @dataclass(frozen=True)
@@ -325,7 +315,6 @@ class Answers:
     accessibility: Accessibility | None
     performance: Performance | None
     overrides: tuple[Override, ...]
-    decisions: tuple[Decision, ...]
     recipes: dict[str, Recipe]
     # Checks that run through the ratchet (spec §8b): `<step>:<component>` or
     # a repository check id. Only an adopted project has any.
@@ -339,7 +328,7 @@ class Answers:
     # The compliance plan of an adopted repo, in order.
     steps: tuple["Step", ...] = ()
     # Whether a monorepo's components of a stack whose recipe has a workspace
-    # share it (decision 0027); None takes `defaults.components.workspace`.
+    # share it; None takes `defaults.components.workspace`.
     workspace: bool | None = None
 
     def book(self) -> RecipeBook:
@@ -599,11 +588,11 @@ def _documentation(raw: object) -> Documentation:
                 f"{path!r} is not a folder under docs/",
                 'Use a folder inside docs/, e.g. "docs/guide"',
             )
-        if parts[1] == "decisions" or parts[-1].endswith((".md", ".toml")):
+        if parts[1] == "specs" or parts[-1].endswith((".md", ".toml")):
             raise fail(
                 "documentation.external_path",
                 f"{path!r} is where alpha writes its own docs (docs/*.md, "
-                "docs/principles.toml, docs/decisions/)",
+                "docs/principles.toml, docs/specs/)",
                 'Use a folder of its own, e.g. "docs/guide"',
             )
     elif path:
@@ -756,15 +745,11 @@ def _override(raw: object, i: int, names: set[str] | None) -> Override:
     )
 
 
-def _decision(raw: object, i: int) -> Decision:
-    where = f"decisions[{i}]"
-    d = obj(raw, where)
-    return Decision(
-        choice(d, "area", where, AREAS),
-        string(d, "title", where),
-        string(d, "context", where),
-        string(d, "decision", where),
-        string(d, "consequences", where),
+def _no_decisions() -> AnswersError:
+    return fail(
+        "decisions",
+        "is no longer part of the answers: choices live in the docs",
+        "Run /alpha:fold-decisions to fold them into the docs and remove the list",
     )
 
 
@@ -964,14 +949,12 @@ def _steps(
                 "Name what proves the step done, e.g. a command that must pass",
             )
         status = choice(e, "status", where, STEP_STATUSES)
-        decision: int | None = None
-        if "decision" in e:
-            decision = pos_int(e, "decision", where)
-        if status == "dropped" and decision is None:
+        reason = string(e, "reason", where) if "reason" in e else None
+        if status == "dropped" and reason is None:
             raise fail(
-                f"{where}.decision",
+                f"{where}.reason",
                 "is missing for a dropped step",
-                "Drop it with alpha adopt drop, which records the decision",
+                "Drop it with alpha adopt drop --reason, saying why it isn't needed",
             )
         steps.append(
             Step(
@@ -985,7 +968,7 @@ def _steps(
                 acceptance=acceptance,
                 status=status,
                 branch=string(e, "branch", where) if "branch" in e else None,
-                decision=decision,
+                reason=reason,
             )
         )
     return tuple(steps)
@@ -1053,6 +1036,8 @@ def parse_answers(
     former: Collection[str] = (),
 ) -> Answers:
     for key in top:
+        if key == "decisions":
+            raise _no_decisions()
         if key not in _TOP_KEYS:
             raise fail(
                 key,
@@ -1207,22 +1192,7 @@ def parse_answers(
         if active("performance")
         else None
     )
-    decisions = tuple(
-        _decision(x, i)
-        for i, x in enumerate(as_list(top.get("decisions", []), "decisions"))
-    )
     baselines = _adoption(top.get("adoption", {}), comps_or_none, RecipeBook(drafted))
-    have = {d.area for d in decisions}
-    for area in AREAS:
-        if area == _DESIGN and predates_design_area:
-            continue
-        if areas[area] == "done" and area not in have:
-            raise fail(
-                "decisions",
-                f"no decision recorded for the done area {area!r}",
-                f'Add a decision with "area": "{area}" '
-                "(title, context, decision, consequences)",
-            )
     return Answers(
         1,
         areas,
@@ -1247,7 +1217,6 @@ def parse_answers(
         accessibility,
         performance,
         overrides,
-        decisions,
         drafted,
         baselines,
         _git_hooks(top.get("adoption", {})),
@@ -1280,6 +1249,8 @@ def write_answers(target: Path, text: str) -> Path:
                 "is written by alpha generate, not by the interview",
                 "Leave it out",
             )
+        if key == "decisions":
+            raise _no_decisions()
         if key not in _TOP_KEYS:
             raise fail(
                 key,
@@ -1315,6 +1286,30 @@ def write_answers(target: Path, text: str) -> Path:
             "Check the folder's permissions and free space, then retry",
         ) from None
     return path
+
+
+def drop_decisions(target: Path) -> int:
+    """Remove the decisions list a kit before the docs replaced it left in the
+    answers, once /alpha:fold-decisions has folded it; returns its length."""
+    path = target / PROJECT_JSON
+    try:
+        data: object = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise fail(
+            str(path),
+            f"can't be read as the answers ({e})",
+            "Run it in a project alpha generated or adopted",
+        ) from None
+    if not isinstance(data, dict) or "decisions" not in data:
+        raise fail(
+            "decisions",
+            "isn't in the answers, so there is nothing to drop",
+            "Nothing to do: the project already keeps its decisions in the docs",
+        )
+    top = cast(dict[str, Any], data)
+    dropped = top.pop("decisions")
+    write_json(path, top)
+    return len(cast(list[object], dropped)) if isinstance(dropped, list) else 0
 
 
 def write_json(path: Path, data: Mapping[str, Any]) -> None:

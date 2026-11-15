@@ -12,7 +12,6 @@ from alpha.answers import (
     Identity,
 )
 from alpha.recipes import OPTIONAL_STEPS, check_commands
-from alpha.records import Records, record_number, record_paths
 from alpha.registry import Registry, default_registry
 from alpha.render import area_docs
 from alpha.render.ci import WORKFLOW
@@ -29,14 +28,13 @@ _DONE = (
     "Reviewer passed.",
 )
 _WORKING_RULES = (
-    "- Before you change code, docs or config, read the decision records in "
-    "docs/decisions/ that bear on the change (an index is added to your context "
-    "at the start of each session) and the principle's parameters in "
-    "docs/principles.toml. Follow them.",
-    "- A change that contradicts an accepted decision needs a new decision that "
-    "supersedes it, recorded with the decision skill. A `Kind: technical` record "
-    "you may supersede yourself, giving the reason; ask the user first for a "
-    "`Kind: product` record or one that changes a principle.",
+    "- Before you change code, docs or config, read the parts of "
+    "docs/specification.md and CONTRIBUTING.md that bear on the change and the "
+    "principle's parameters in docs/principles.toml. Follow them.",
+    "- A decision updates the docs, as the decision skill says: what the product "
+    "does goes in docs/specification.md and needs the user's yes; how the work "
+    "is done goes in CONTRIBUTING.md, with the reason in the commit; a changed "
+    "principle is an override in the answers, which the user agrees to first.",
     "- When a requirement is ambiguous, make the reasonable choice, record it "
     "with the decision skill and say what you chose; don't stop to ask about "
     "reversible work. Ask first only about product direction or what can't be "
@@ -50,7 +48,7 @@ _WORKING_RULES = (
     "- Commit only the files you changed for the work, staged by path. Other "
     "changes in the tree may be the user's or another session's, so don't stage, "
     "stash or reset them; the hooks block the commands that would.",
-    "- Subagents work under the same principles, decisions and checks.",
+    "- Subagents work under the same principles, docs and checks.",
     "- Before you report work as done, re-read every changed file top to bottom "
     "as a stranger would.",
     "- At the end of a planned piece of work, run the principles-reviewer agent.",
@@ -68,7 +66,6 @@ _TEST_RUNS = {
         "every time you finish a turn."
     ),
 }
-PRODUCT_AREAS = frozenset({"identity", "design_language", "ui", "accessibility"})
 _COMMUNICATION = (
     "- Answer a question before making edits or running commands for it.",
     "- When responding to feedback or a review, say first whether you agree, "
@@ -88,7 +85,8 @@ _GENERATOR_WITH_CI = "CI fails when checks change tracked files."
 _GENERATOR_WITHOUT_CI = "commit what it regenerates with the change."
 _CHECK_RULES = (
     "- Never disable a lint rule to pass; an exception names one path and one "
-    "rule, and a decision record that names that path gives the reason.",
+    "rule, and a row in CONTRIBUTING.md's Exceptions table names that path, "
+    "the rule and the reason.",
     "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
     "review date: in the `osv-scanner.toml` next to the lockfile it applies "
     "to, `ignoreUntil` and `reason`; in "
@@ -148,7 +146,7 @@ def _docs_section(docs: Documentation) -> list[str]:
     lines = [
         "## Documentation",
         "",
-        "Internal docs (design, decisions, how we work) live in `docs/`. "
+        "Internal docs (the specification, the principles) live in `docs/`. "
         + _external(docs),
         "",
     ]
@@ -166,18 +164,11 @@ def _docs_section(docs: Documentation) -> list[str]:
     return lines
 
 
-def _build_section(
-    a: Answers, principles: dict[str, Any], records: Records
-) -> list[str]:
+def _build_section(a: Answers, principles: dict[str, Any]) -> list[str]:
     assert a.build is not None
     lines = ["## Build, CI and hosting", "", "### CI", ""]
     if a.build.ci == "none":
-        record = next(
-            path
-            for o, path in zip(a.overrides, records.overrides, strict=True)
-            if o.principle == "build-hosting-upfront"
-        )
-        lines.append(f"No CI. Why: see [the decision]({record}).")
+        lines.append("No CI: see build-hosting-upfront under Overrides below.")
     else:
         lines += [
             f"GitHub Actions runs `{WORKFLOW}` on every push to main and every "
@@ -257,11 +248,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     lines = [f"# {ident.name}", "", ident.value_proposition, "", "## Principles", ""]
     lines += [
         f"- **{p['title']}**: {p['statement']}"
-        + (
-            f" (overridden: see {p['override_decision']})"
-            if p["override_decision"]
-            else ""
-        )
+        + (" (overridden: see CONTRIBUTING.md, Overrides)" if p["override"] else "")
         for p in principles["principles"]
         if p["active"]
     ]
@@ -321,7 +308,6 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "- [Contributing](CONTRIBUTING.md): how the project is built, checked, "
         "released and kept secure",
         "- [Dependencies](docs/dependencies.md)",
-        "- [Decisions](docs/decisions/)",
     ]
     docs = _documentation(a)
     if docs.external == "folder":
@@ -380,7 +366,6 @@ def _contributing(
     a: Answers,
     principles: dict[str, Any],
     checks: list[RepoCheck],
-    records: Records,
 ) -> str:
     assert a.git is not None
     git = principles["git"]
@@ -452,20 +437,22 @@ def _contributing(
         + " before its work reaches main: a push to main, or merging a pull "
         "request. People can push by hand.",
         "",
-        *_build_section(a, principles, records),
+        *_build_section(a, principles),
         "",
         *area_docs.releases_section(a),
         "",
         *area_docs.security_section(a, principles),
         "",
         *area_docs.data_rules_sections(a, principles),
+        *_overrides_section(a),
+        *EXCEPTIONS_SECTION,
     ]
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
 def _specification(a: Answers) -> str:
     """What the product does, in one file; features add their own specs in
-    docs/specs/ (decision 0035)."""
+    docs/specs/."""
     ident = _identity(a)
     lines = [
         f"# {ident.name}: specification",
@@ -577,22 +564,31 @@ def _dependencies(a: Answers, today: date, added: Mapping[str, date]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def decision_record(
-    number: int,
-    title: str,
-    day: date,
-    context: str,
-    decision: str,
-    cons: str,
-    extra: str = "",
-) -> str:
-    head = f"# {number:04d}. {title}\n\nDate: {day.isoformat()}\nStatus: accepted\n"
-    if extra:
-        head += extra + "\n"
-    return (
-        f"{head}\n## Context\n\n{context}\n\n## Decision\n\n{decision}\n\n"
-        f"## Consequences\n\n{cons}\n"
-    )
+def _overrides_section(a: Answers) -> list[str]:
+    """Each principle the project tightened, loosened or dropped, with the
+    reason the principles require."""
+    if not a.overrides:
+        return []
+    lines = [
+        "## Overrides",
+        "",
+        "| Principle | Change | Scope | Reason |",
+        "|---|---|---|---|",
+    ]
+    lines += [row(o.principle, o.change, o.scope, o.reason or "-") for o in a.overrides]
+    return [*lines, ""]
+
+
+# Agents add rows under the header by hand; alpha update keeps them.
+EXCEPTIONS_SECTION = (
+    "## Exceptions",
+    "",
+    "A check skipped or loosened in one place, or a baseline loosened, needs a row "
+    "here naming the path and the check, with the reason; the checks look for it.",
+    "",
+    "| Path | Check | Reason |",
+    "|---|---|---|",
+)
 
 
 def render_docs(
@@ -601,16 +597,14 @@ def render_docs(
     year: int,
     today: date,
     root: Path = Path(),
-    records: Records | None = None,
     added: Mapping[str, date] | None = None,
     registry: Registry | None = None,
 ) -> dict[str, str]:
-    records = records or record_paths(a)
     checks = repo_checks(a, principles, registry or default_registry())
     out = {
         "README.md": _readme(a, principles),
         "LICENSE": _license(a, year, root),
-        "CONTRIBUTING.md": _contributing(a, principles, checks, records),
+        "CONTRIBUTING.md": _contributing(a, principles, checks),
         "CLAUDE.md": _claude_md(a, principles),
         "docs/specification.md": _specification(a),
         "docs/dependencies.md": _dependencies(a, today, added or {}),
@@ -629,26 +623,5 @@ def render_docs(
         out[f"{docs.external_path}/README.md"] = (
             f"# {_identity(a).name} guide\n\n"
             f"User-facing documentation for {_identity(a).name} lives here.\n"
-        )
-    for d, path in zip(a.decisions, records.decisions, strict=True):
-        kind = "product" if d.area in PRODUCT_AREAS else "technical"
-        out[path] = decision_record(
-            record_number(path),
-            d.title,
-            today,
-            d.context,
-            d.decision,
-            d.consequences,
-            f"Kind: {kind}",
-        )
-    for o, path in zip(a.overrides, records.overrides, strict=True):
-        out[path] = decision_record(
-            record_number(path),
-            f"Override {o.principle}",
-            today,
-            o.reason,
-            f"{o.change.capitalize()} {o.principle} for {o.scope}.",
-            "See docs/principles.toml for the resulting parameters.",
-            f"Principle: {o.principle} ({o.change}, scope {o.scope})",
         )
     return out

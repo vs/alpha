@@ -20,7 +20,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 Decide when the agents' changes get a judgment-based review against the project's principles: once, before they reach main; in batches once a change grows past a size threshold or touches a risky path; or after every task. The cheap mechanical checks (hooks on every edit, stop and commit) are always on and need no answers here.
 
-The project gets a principles-reviewer agent that reads these settings from the principles file. It runs before work reaches main (a push to main, or merging a pull request) in every mode; in batched mode also when the unreviewed changes cross the thresholds or touch a risky path, and in every-task mode after every task. Its findings stop Claude from finishing until they're fixed or accepted (Claude may accept one it disproves, except on a risk path, where only the user does), and every acceptance is recorded in the decision log.
+The project gets a principles-reviewer agent that reads these settings from the principles file. It runs before work reaches main (a push to main, or merging a pull request) in every mode; in batched mode also when the unreviewed changes cross the thresholds or touch a risky path, and in every-task mode after every task. Its findings stop Claude from finishing until they're fixed or accepted (Claude may accept one it disproves, except on a risk path, where only the user does), and every acceptance is recorded as an `Accepts:` trailer in the commit that settles it.
 
 ## Fields this area settles
 
@@ -29,7 +29,6 @@ The project gets a principles-reviewer agent that reads these settings from the 
 - `agent_workflow.max_files` - a whole number above 0.
 - `agent_workflow.extra_risk_paths` - a list of globs, often empty.
 - `areas.agent_workflow` - `"in_progress"` while you work, `"done"` at the end.
-- `decisions[]` - one entry with `"area": "agent_workflow"`.
 
 ## Questions
 
@@ -45,9 +44,9 @@ Round 2 (only when the mode is `batched`):
 - **Max lines** - recommend `defaults.review.max_lines`. Explain in one line: a review starts once this many lines have changed since the last one (tests and docs, `defaults.review.exclude`, don't count).
 - **Max files** - recommend `defaults.review.max_files`. Explain in one line: a review starts once this many files have changed, even when each change is small.
 
-With `at-merge` or `every-task`, still record `max_lines` and `max_files` at the defaults without asking, so switching to `batched` later needs no new decision.
+With `at-merge` or `every-task`, still record `max_lines` and `max_files` at the defaults without asking, so switching to `batched` later changes only the mode.
 
-When an answer differs from a default, follow the grilling skill's override protocol (keys `review.mode`, `review.max_lines`, `review.max_files`; extra risk paths are per project, so they're recorded in the decision without asking).
+When an answer differs from a default, follow the grilling skill's override protocol (keys `review.mode`, `review.max_lines`, `review.max_files`; extra risk paths are per project, so they don't go through the protocol).
 
 ## Writing the answers
 
@@ -55,14 +54,12 @@ Save every change with one call, the JSON object on one line in single quotes (w
 
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "agent_workflow": "in_progress"…}}'`
 
-Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` and `decisions` whole, with the entries you aren't changing kept. Never edit project.json directly.
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `agent_workflow` set to `"in_progress"`.
 3. When the user confirms the area, save the `agent_workflow` object `{"review_mode", "max_lines", "max_files", "extra_risk_paths"}`. Keep the exact field names.
-4. In the same call, save `decisions` with one entry for this area, replacing any earlier one with `"area": "agent_workflow"`:
-   `{"area": "agent_workflow", "title": "…", "context": "…", "decision": "…", "consequences": "…"}`. `title` names the choice (e.g. "Batched review"); `context` weighs review speed against unreviewed risk; `decision` gives the mode and thresholds; `consequences` says when agents stop for review, plus any defaults wish from the override protocol.
-5. In the same call, save `areas` with `agent_workflow` set to `"done"`.
+4. In the same call, save `areas` with `agent_workflow` set to `"done"`.
 
 ## Check
 

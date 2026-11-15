@@ -4,13 +4,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from helpers import TODAY, clone_component, override_record, single_component
+from helpers import TODAY, clone_component, single_component
 
 from alpha.answers import Answers, load_answers
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles
-from alpha.records import slug as _slug
 from alpha.render.docs import render_docs
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
@@ -77,19 +76,8 @@ def test_claude_md_says_where_code_and_tests_live(tmp_path: Path):
     assert "`web/**/node_modules/**`" in commands
 
 
-def decision_records(data: dict[str, Any]) -> set[str]:
-    areas = {
-        f"docs/decisions/{i:04d}-{_slug(d['title'])}.md"
-        for i, d in enumerate(data["decisions"], 1)
-    }
-    return areas | {
-        override_record(data, o["principle"], i)
-        for i, o in enumerate(data["overrides"])
-    }
-
-
-def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
-    fixture = json.loads(FIXTURE.read_text())
+def test_output_keys_hold_no_decision_records(tmp_path: Path):
+    """F1: the docs say how things are; no decision records are written."""
     out = render(load(tmp_path))
     assert set(out) == {
         "README.md",
@@ -102,22 +90,33 @@ def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
         "docs/glossary.md",
         "docs/design-language.md",
         "CHANGELOG.md",
-    } | decision_records(fixture)
-    first = out["docs/decisions/0001-product-identity.md"]
-    assert first.startswith("# 0001. Product identity")
-    for heading in ("Status: accepted", "## Context", "## Decision", "## Consequences"):
-        assert heading in first
-    assert "Status: accepted\nKind: product\n" in first
-    kinds = {
-        path: "Kind: product" in text
-        for path, text in out.items()
-        if path.startswith("docs/decisions/") and "Principle:" not in text
     }
-    assert any(kinds.values()) and not all(kinds.values())
-    assert all(("Kind: technical" in out[p]) != product for p, product in kinds.items())
-    override = out[override_record(fixture, "observability")]
-    assert "Principle: observability (loosen, scope component:api)" in override
-    assert "single-process prototype" in override
+
+
+def test_overrides_are_listed_with_their_reason(tmp_path: Path):
+    """F2: each override is a row of CONTRIBUTING.md's Overrides table, and
+    CLAUDE.md marks its principle overridden."""
+    out = render(load(tmp_path))
+    contributing = out["CONTRIBUTING.md"]
+    table = contributing.split("## Overrides\n")[1].split("\n## ")[0]
+    assert "| Principle | Change | Scope | Reason |" in table
+    assert "| observability | loosen | component:api | The api is a single-process" in (
+        table
+    )
+    assert "\n## Exceptions\n" in contributing
+    line = next(
+        x for x in out["CLAUDE.md"].splitlines() if x.startswith("- **Observability**")
+    )
+    assert line.endswith("(overridden: see CONTRIBUTING.md, Overrides)")
+
+
+def test_no_overrides_means_no_overrides_table(tmp_path: Path):
+    def none(data: dict[str, Any]) -> None:
+        data["overrides"] = []
+
+    contributing = render(load(tmp_path, none))["CONTRIBUTING.md"]
+    assert "## Overrides" not in contributing
+    assert "\n## Exceptions\n" in contributing
 
 
 def test_mit_license_has_year_and_holder(tmp_path: Path):
@@ -195,14 +194,6 @@ def test_dependencies_md_dates_each_row_in_full(tmp_path: Path):
     assert f"| pytest | api | Test runner | {TODAY.isoformat()} |" in md
 
 
-def test_decision_title_without_ascii_letters_gets_a_name(tmp_path: Path):
-    def mutate(data: dict[str, Any]) -> None:
-        data["decisions"][0]["title"] = "製品の方向性"
-
-    out = render(load(tmp_path, mutate))
-    assert "docs/decisions/0001-decision.md" in out
-
-
 def no_ci(data: dict[str, Any]) -> None:
     data["build"]["ci"] = "none"
     data["overrides"].append(
@@ -237,11 +228,7 @@ def test_build_section_lists_ci_checks_artifacts_and_environments(tmp_path: Path
 
 def test_build_section_without_ci_points_at_the_override(tmp_path: Path):
     doc = build_section(render(load(tmp_path, no_ci)))
-    assert "No CI" in doc
-    data = json.loads(FIXTURE.read_text())
-    no_ci(data)
-    path = override_record(data, "build-hosting-upfront", 1)
-    assert f"({path})" in doc
+    assert "No CI: see build-hosting-upfront under Overrides below." in doc
     assert "ci.yml" not in doc
 
 
@@ -303,14 +290,13 @@ def test_elsewhere_and_no_external_docs(tmp_path: Path):
 
 
 WORKING_RULES = [
-    "- Before you change code, docs or config, read the decision records in "
-    "docs/decisions/ that bear on the change (an index is added to your context "
-    "at the start of each session) and the principle's parameters in "
-    "docs/principles.toml. Follow them.",
-    "- A change that contradicts an accepted decision needs a new decision that "
-    "supersedes it, recorded with the decision skill. A `Kind: technical` record "
-    "you may supersede yourself, giving the reason; ask the user first for a "
-    "`Kind: product` record or one that changes a principle.",
+    "- Before you change code, docs or config, read the parts of "
+    "docs/specification.md and CONTRIBUTING.md that bear on the change and the "
+    "principle's parameters in docs/principles.toml. Follow them.",
+    "- A decision updates the docs, as the decision skill says: what the product "
+    "does goes in docs/specification.md and needs the user's yes; how the work "
+    "is done goes in CONTRIBUTING.md, with the reason in the commit; a changed "
+    "principle is an override in the answers, which the user agrees to first.",
     "- When a requirement is ambiguous, make the reasonable choice, record it "
     "with the decision skill and say what you chose; don't stop to ask about "
     "reversible work. Ask first only about product direction or what can't be "
@@ -324,14 +310,15 @@ WORKING_RULES = [
     "- Commit only the files you changed for the work, staged by path. Other "
     "changes in the tree may be the user's or another session's, so don't stage, "
     "stash or reset them; the hooks block the commands that would.",
-    "- Subagents work under the same principles, decisions and checks.",
+    "- Subagents work under the same principles, docs and checks.",
     "- Before you report work as done, re-read every changed file top to bottom "
     "as a stranger would.",
     "- At the end of a planned piece of work, run the principles-reviewer agent.",
     "- When you add a code generator, add a `generate` task to `mise.toml` and to "
     "the `ci` task's `depends`; CI fails when checks change tracked files.",
     "- Never disable a lint rule to pass; an exception names one path and one "
-    "rule, and a decision record that names that path gives the reason.",
+    "rule, and a row in CONTRIBUTING.md's Exceptions table names that path, "
+    "the rule and the reason.",
     "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
     "review date: in the `osv-scanner.toml` next to the lockfile it applies "
     "to, `ignoreUntil` and `reason`; in "
@@ -360,13 +347,6 @@ def test_claude_md_has_working_rules(tmp_path: Path):
     headings = ("## Principles", "## Working rules", "## Communication", "## Commands")
     order = [md.index(h) for h in headings]
     assert order == sorted(order)
-
-
-def test_overridden_principle_names_its_record(tmp_path: Path):
-    md = render(load(tmp_path))["CLAUDE.md"]
-    record = override_record(json.loads(FIXTURE.read_text()), "observability")
-    line = next(x for x in md.splitlines() if x.startswith("- **Observability**"))
-    assert line.endswith(f"(overridden: see {record})")
 
 
 def test_contributing_names_the_review_checkpoint(tmp_path: Path):
@@ -515,7 +495,8 @@ def test_claude_md_rules_for_generators_lint_and_suppressions(tmp_path: Path):
         "- When you add a code generator, add a `generate` task to `mise.toml` and "
         "to the `ci` task's `depends`; CI fails when checks change tracked files.",
         "- Never disable a lint rule to pass; an exception names one path and one "
-        "rule, and a decision record that names that path gives the reason.",
+        "rule, and a row in CONTRIBUTING.md's Exceptions table names that path, "
+        "the rule and the reason.",
         "- A security suppression (osv-scanner, betterleaks) needs a reason and a "
         "review date: in the `osv-scanner.toml` next to the lockfile it applies "
         "to, `ignoreUntil` and `reason`; in "
@@ -574,9 +555,3 @@ def test_claude_md_points_visual_work_at_the_design_language(tmp_path: Path):
         "from it." in md
     )
     assert md.count("design-language.md") == 1
-    record = next(
-        text
-        for path, text in out.items()
-        if path.startswith("docs/decisions/") and "design-language" in path
-    )
-    assert "Status: accepted\nKind: product\n" in record

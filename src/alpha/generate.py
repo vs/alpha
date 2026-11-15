@@ -30,7 +30,6 @@ from alpha.recipes import (
     render_component,
     render_workspace,
 )
-from alpha.records import Records, record_paths
 from alpha.registry import Registry, default_registry, load_registry
 from alpha.render.ci import render_ci, render_dependabot
 from alpha.render.claude_settings import render_settings
@@ -170,14 +169,12 @@ def render_project(
     defaults: dict[str, Any],
     year: int,
     today: date,
-    records: Records | None = None,
     added: Mapping[str, date] | None = None,
     *,
     registry: Registry | None = None,
 ) -> Rendered:
-    records = records or record_paths(a)
     registry = registry or default_registry()
-    principles = build_principles(defaults, a, VERSION, records, registry=registry)
+    principles = build_principles(defaults, a, VERSION, registry=registry)
     book = a.book()
     texts: dict[str, str] = {PRINCIPLES_TOML: render_principles(principles)}
     texts.update(
@@ -187,7 +184,6 @@ def render_project(
             year,
             today,
             root=target,
-            records=records,
             added=added,
             registry=registry,
         )
@@ -269,16 +265,9 @@ def generate(
             "files out first."
         )
     a = a or load_answers(answers_path)
-    records = record_paths(a)
     today = today or date.today()
     rendered = render_project(
-        target,
-        a,
-        load_defaults(source),
-        year,
-        today,
-        records,
-        registry=load_registry(source),
+        target, a, load_defaults(source), year, today, registry=load_registry(source)
     )
     texts = rendered.texts
     copies = copied_files(plugin_root)
@@ -303,7 +292,6 @@ def generate(
         "defaults": source_info(source),
         "files": file_hashes(target, generated),
         "applied": answers_snapshot(data),
-        "records": records.to_json(),
         "added": {c.name: today.isoformat() for c in a.components},
     }
     write_json(answers_path, data)
@@ -373,8 +361,10 @@ def load_project_principles(target: Path) -> dict[str, Any]:
     return data
 
 
+# shortcut: readers index checked dicts, parse into dataclasses past a few more fields
 def _principles_problem(data: dict[str, Any]) -> str | None:
-    """What's wrong with the fields alpha's commands read, or None."""
+    """What's wrong with the fields alpha's commands read, or None. A command
+    that starts reading a new field checks it here in the same change."""
     project: object = data.get("project")
     if not isinstance(project, dict):
         return "project is missing" if project is None else "project must be a table"
