@@ -147,8 +147,9 @@
             "run": "uv run pytest -k \"abbreviated_no_verify or env_hooks_path or config_env\""
           }
         ],
-        "status": "done",
-        "branch": "alpha/p4-guard-hook-bypasses"
+        "status": "dropped",
+        "branch": "alpha/p4-guard-hook-bypasses",
+        "decision": 36
       },
       {
         "id": "p4-relative-license-file",
@@ -1015,8 +1016,9 @@
                 "run": "uv run pytest -k \"abbreviated_no_verify or env_hooks_path or config_env\""
               }
             ],
-            "status": "done",
-            "branch": "alpha/p4-guard-hook-bypasses"
+            "status": "dropped",
+            "branch": "alpha/p4-guard-hook-bypasses",
+            "decision": 36
           },
           {
             "id": "p4-relative-license-file",
@@ -1787,7 +1789,7 @@
       "CONTRIBUTING.md": "sha256:428cdc9449b4cef01ce2e1d363ab3ed268043cd55d3625b0a67e371665815af1",
       "README.md": "sha256:a0f932d41a23ddaa94e6316b840403d6c1e963c21dc51496a008323319c58718",
       "_typos.toml": "sha256:7dae72444e3298536402e16e40864fc21ceebe37d52d37ef8b3c9678eb4cf21b",
-      "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
+      "docs/adoption.md": "sha256:0e6d587b163ed3251b5f0322230a5daf439bc23d9c72c12841dbe455bac4c95c",
       "docs/decisions/0001-product-identity.md": "sha256:a7e7451a1c79f049dbe5dbd9e9a0d1007546be029c279f9e641a7665a5070a16",
       "docs/decisions/0002-single-python-cli.md": "sha256:f6785c9e980a26218310969fffaa82f8eee5b0c43806e3d612a78a9243301c0c",
       "docs/decisions/0003-one-component-no-contracts.md": "sha256:e598195c766a586942bfa3dead075136cfffb16980d524d5b5d343037fd6b4a4",
