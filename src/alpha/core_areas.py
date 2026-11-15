@@ -409,7 +409,7 @@ def security(raw: object, comps: "Sequence[Component] | None") -> Security:
     protected = strings(d, "extra_protected", w)
     for i, glob in enumerate(protected):
         relative(glob, f"{w}.extra_protected[{i}]")
-    return Security(store, string(d, "auth", w), protected)
+    return Security(store, string(d, "auth", w, blank=True), protected)
 
 
 def dependencies(raw: object) -> Dependencies:

@@ -239,6 +239,44 @@ def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env: None):
     assert "scopes: api, web, deps," in text
 
 
+def test_settling_an_open_area_applies_it(tmp_path: Path, git_env: None):
+    """F6: an area left open at setup is applied once it is settled."""
+    path = place_answers(tmp_path, SCENARIO)
+    full = json.loads(path.read_text())
+    opened = json.loads(path.read_text())
+    opened["areas"]["ui"] = "open"
+    del opened["ui"]
+    opened["decisions"] = [d for d in opened["decisions"] if d["area"] != "ui"]
+    path.write_text(json.dumps(opened))
+    generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, TODAY)
+    git(tmp_path, "init", "-q", "-b", "main")
+    commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
+    assert not (tmp_path / "docs/ui.md").exists()
+    visual = next(
+        x
+        for x in load_project_principles(tmp_path)["principles"]
+        if x["id"] == "visual-system"
+    )
+    assert visual["active"] is False
+
+    data = answers(tmp_path)
+    data["areas"]["ui"] = "done"
+    data["ui"] = full["ui"]
+    data["decisions"].append(next(d for d in full["decisions"] if d["area"] == "ui"))
+    save(tmp_path, data)
+    apply_update(tmp_path, plan(tmp_path))
+
+    library = full["ui"]["components"][0]["library"]
+    assert library in (tmp_path / "docs/ui.md").read_text()
+    visual = next(
+        x
+        for x in load_project_principles(tmp_path)["principles"]
+        if x["id"] == "visual-system"
+    )
+    assert visual["active"] is True
+    assert "settle the UI" not in (tmp_path / "docs/product.md").read_text()
+
+
 def test_new_decision_is_numbered_after_the_projects_own_records(
     tmp_path: Path, git_env: None
 ):

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from alpha.answers import PROJECT_JSON
+from alpha.areas import SPEC_AREAS
 from alpha.generate import PRINCIPLES_TOML
 from alpha.generate import digest as generated_digest
 from alpha_evals.scenario import Brief, compare
@@ -80,8 +81,9 @@ def check_answers(project: Path, brief: Brief) -> Check:
         problems.append("no areas recorded")
     else:
         for area, state in cast(dict[str, Any], areas).items():
-            if state != "done":
-                problems.append(f"area {area} is {state}")
+            expected = "open" if area in SPEC_AREAS else "done"
+            if state != expected:
+                problems.append(f"area {area} is {state}, not {expected}")
     for m in compare(brief.answers, actual, brief.expect):
         got = "nothing" if m.missing else json.dumps(m.actual)
         problems.append(f"{m.pointer}: expected {json.dumps(m.expected)}, got {got}")

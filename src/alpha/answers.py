@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 from alpha import core_areas
+from alpha.areas import AREAS, SPEC_AREAS
 from alpha.baseline import (
     BASELINE_STEPS,
     NOT_BASELINED,
@@ -61,26 +62,6 @@ PROJECT_JSON = ".claude/alpha/project.json"
 PRINCIPLES_FILE = "docs/principles.toml"
 DEPENDENCY_LOG = "docs/dependencies.md"
 DESIGN_LANGUAGE_DOC = "docs/design-language.md"
-AREAS: tuple[str, ...] = (
-    "identity",
-    "components",
-    "architecture",
-    "errors",
-    "testing",
-    "design_language",
-    "ui",
-    "documentation",
-    "build",
-    "security",
-    "dependencies",
-    "observability",
-    "releases",
-    "data",
-    "accessibility",
-    "performance",
-    "git",
-    "agent_workflow",
-)
 _DESIGN = "design_language"
 _COMPONENTS_FIELDS = ("layout", "workspace", "components_talk", "components", "recipes")
 
@@ -108,7 +89,7 @@ ARTIFACTS: tuple[str, ...] = (
     "app",
     "other",
 )
-_STATUSES = ("done", "in_progress", "pending")
+_STATUSES = ("done", "in_progress", "pending", "open")
 _LAYOUTS = ("monorepo", "single")
 _CHANGES = ("tighten", "loosen", "drop")
 _REVIEW_MODES = ("at-merge", "batched", "every-task")
@@ -482,12 +463,14 @@ def _identity(raw: object, base: Path) -> Identity:
         name=string(d, "name", where),
         slug=slug,
         value_proposition=string(d, "value_proposition", where),
-        target_users=string(d, "target_users", where),
+        target_users=string(d, "target_users", where, blank=True),
         requirements=tuple(reqs),
         license=license_,
         license_file=license_file,
         copyright_holder=string(d, "copyright_holder", where),
-        domain_jargon=boolean(d, "domain_jargon", where),
+        domain_jargon=boolean(d, "domain_jargon", where)
+        if "domain_jargon" in d
+        else False,
     )
 
 
@@ -1092,16 +1075,32 @@ def parse_answers(
     predates_design_area = _DESIGN not in areas_raw and _DESIGN not in top
     if predates_design_area:
         areas[_DESIGN] = "done"
-    for area in require_areas:
-        if areas[area] != "done":
+    for area, status in areas.items():
+        if status == "open" and area not in SPEC_AREAS:
             raise fail(
                 f"areas.{area}",
-                f"is {areas[area]}, not done",
+                "is open, but only a spec area can stay open "
+                f"({', '.join(SPEC_AREAS)}); {area} is part of the setup",
                 f"Finish the {area} part of the interview, then retry",
             )
+    # The whole project may leave spec areas open; a check of one area
+    # (an area skill's own) needs it done.
+    whole = set(require_areas) == set(AREAS)
+    for area in require_areas:
+        status = areas[area]
+        if status == "done" or (whole and status == "open"):
+            continue
+        if area in SPEC_AREAS and status == "pending":
+            fix = (
+                f'Set areas.{area} to "open": the setup interview leaves spec '
+                "areas for /alpha:go to settle when the work needs them"
+            )
+        else:
+            fix = f"Finish the {area} part of the interview, then retry"
+        raise fail(f"areas.{area}", f"is {status}, not done", fix)
 
     def active(area: str) -> bool:
-        return area in require_areas or areas[area] == "done"
+        return areas[area] == "done"
 
     drafted = drafted_recipes(
         top.get("recipes", {}),

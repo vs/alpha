@@ -11,7 +11,6 @@ from helpers import place_answers, proven, shell_recipe, single_component
 
 from alpha import cli
 from alpha.answers import (
-    AREAS,
     AnswersError,
     answers_snapshot,
     area_of,
@@ -20,6 +19,7 @@ from alpha.answers import (
     write_answers,
     write_json,
 )
+from alpha.areas import AREAS, SETUP_AREAS, SPEC_AREAS
 from alpha.core_areas import DesignLanguage
 from alpha.validate import fail
 
@@ -78,6 +78,53 @@ def test_pending_area_fails_by_default(tmp_path: Path):
     d["areas"]["git"] = "pending"
     with pytest.raises(AnswersError, match=r"areas\.git: .*pending.*Finish"):
         check(tmp_path, d)
+
+
+def test_open_is_allowed_only_for_spec_areas(tmp_path: Path):
+    """F2: a spec area may stay open with no decision; a setup area may not."""
+    d = valid()
+    d["areas"]["ui"] = "open"
+    d["decisions"] = [x for x in d["decisions"] if x["area"] != "ui"]
+    assert check(tmp_path, d).ui is None
+    d["areas"]["git"] = "open"
+    with pytest.raises(
+        AnswersError, match=r"areas\.git: is open, but only a spec area.*setup"
+    ):
+        check(tmp_path, d)
+
+
+def test_an_area_check_needs_the_area_done(tmp_path: Path):
+    """An area skill's own check fails while the area is still open, so a
+    settled area left marked open can't pass silently."""
+    d = valid()
+    d["areas"]["ui"] = "open"
+    with pytest.raises(AnswersError, match=r"areas\.ui: is open, not done"):
+        check(tmp_path, d, require_areas=["ui"])
+
+
+def test_a_pending_spec_area_is_pointed_at_open(tmp_path: Path):
+    d = valid()
+    d["areas"]["ui"] = "pending"
+    with pytest.raises(AnswersError, match=r'areas\.ui: .*Set areas\.ui to "open"'):
+        check(tmp_path, d)
+
+
+def test_every_area_is_either_setup_or_spec():
+    assert set(SETUP_AREAS) | set(SPEC_AREAS) == set(AREAS)
+    assert not set(SETUP_AREAS) & set(SPEC_AREAS)
+
+
+def test_setup_identity_needs_no_requirements_users_or_jargon(tmp_path: Path):
+    """F3: identity at setup leaves the product's details to /alpha:go."""
+    d = valid()
+    d["identity"]["requirements"] = []
+    d["identity"]["target_users"] = ""
+    del d["identity"]["domain_jargon"]
+    d["security"]["auth"] = ""
+    a = check(tmp_path, d)
+    assert a.identity and a.identity.requirements == ()
+    assert a.identity.target_users == "" and a.identity.domain_jargon is False
+    assert a.security and a.security.auth == ""
 
 
 def test_partial_check_only_requires_named_area(tmp_path: Path):

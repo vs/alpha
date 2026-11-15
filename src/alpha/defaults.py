@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha import toml_write
+from alpha.areas import SPEC_AREAS
 
 CONDITIONS: frozenset[str] = frozenset(
     {
@@ -125,6 +126,12 @@ def load_defaults(source: Source) -> dict[str, Any]:
                     f'Principle "{principle.get("id")}" has unknown condition '
                     f'"{condition}". Use one of: {", ".join(sorted(CONDITIONS))}.'
                 )
+        area = principle.get("settled_by")
+        if area is not None and area not in SPEC_AREAS:
+            raise DefaultsError(
+                f'Principle "{principle.get("id")}" has settled_by "{area}", which '
+                f"isn't a spec area. Use one of: {', '.join(SPEC_AREAS)}."
+            )
     return merged
 
 

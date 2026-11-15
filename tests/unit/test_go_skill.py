@@ -111,3 +111,21 @@ def test_pause_and_pickup_share_the_resume_note():
     assert note in _playbook("pause.md")
     assert note in _playbook("session-pickup.md")
     assert "git worktree list" in _playbook("session-pickup.md")
+
+
+def test_open_areas_are_settled_by_specify_and_before_a_feature():
+    """F8: Specify settles an open area through extend; a feature settles the
+    open areas it needs, applied only after the spec is approved."""
+    specify = _playbook("specify.md")
+    assert "`/alpha:extend settle the <area>`" in specify
+    assert "Not settled yet" in specify
+    feature = _playbook("feature.md")
+    before = feature.split("approval of the spec, every time")[0]
+    assert "still open (project.json's `areas`)" in before
+    assert "Nothing is settled yet." in before
+    after = feature.split("approval of the spec, every time")[1]
+    assert after.index("git switch -c") < after.index("Specify playbook's steps 3")
+    assert "saves them without asking again" in after
+    extend = (PLUGIN_ROOT / "skills" / "extend" / "SKILL.md").read_text()
+    assert "Answers an approved feature spec already records" in extend
+    assert "`open`" in _router().split("## 2. Pick the playbook")[0]

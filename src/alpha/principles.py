@@ -1,13 +1,13 @@
 from typing import Any, cast
 
 from alpha.answers import (
-    AREAS,
     DESIGN_LANGUAGE_DOC,
     Answers,
     AnswersError,
     Component,
     Documentation,
 )
+from alpha.areas import SETUP_AREAS
 from alpha.baseline import BASELINE_GLOB, ratchet_command
 from alpha.core_areas import TEST_RUNS
 from alpha.recipes import RecipeBook
@@ -74,6 +74,13 @@ def compute_facts(a: Answers, defaults: dict[str, Any]) -> dict[str, bool]:
     facts["exhaustive_testing"] = exhaustive_testing(a, defaults)
     facts["design_language"] = bool(a.design_language and a.design_language.defined)
     return facts
+
+
+def _waits_for_area(principle: dict[str, Any], a: Answers) -> bool:
+    """Whether the principle is off because the area that holds its
+    parameters is still open (decision 0034)."""
+    area = principle.get("settled_by")
+    return area is not None and a.areas[area] == "open"
 
 
 def _dedupe(items: list[str]) -> list[str]:
@@ -220,25 +227,28 @@ def build_principles(
     *,
     registry: Registry | None = None,
 ) -> dict[str, Any]:
-    missing = [area for area in AREAS if area != "components" and not getattr(a, area)]
+    missing = [
+        area for area in SETUP_AREAS if area != "components" and not getattr(a, area)
+    ]
     if missing:
         raise AnswersError(
             f"Answers are incomplete: {', '.join(missing)} must be done. Finish "
             "the interview areas, then retry."
         )
     assert a.git and a.agent_workflow and a.documentation and a.identity
-    assert a.security and a.architecture and a.ui and a.data and a.accessibility
-    assert a.design_language
-    migration_paths = _dedupe([g for d in a.data.components for g in d.migrations])
+    assert a.security
+    data = a.data.components if a.data else ()
+    migration_paths = _dedupe([g for d in data for g in d.migrations])
     squawk_paths = _dedupe(
         [
             g
-            for d in a.data.components
+            for d in data
             if "postgres" in d.storage.lower() and writes_sql(d.migration_tool)
             for g in d.migrations
         ]
     )
-    tokens = {u.name: u.tokens for u in a.ui.components}
+    tokens = {u.name: u.tokens for u in a.ui.components} if a.ui else {}
+    defined_language = a.design_language is not None and a.design_language.defined
     review = dict(defaults["review"])
     review["mode"] = a.agent_workflow.review_mode
     review["max_lines"] = a.agent_workflow.max_lines
@@ -249,10 +259,10 @@ def build_principles(
         [
             *defaults["review"]["risk_paths"],
             *a.agent_workflow.extra_risk_paths,
-            *a.architecture.contracts.paths,
+            *(a.architecture.contracts.paths if a.architecture else ()),
             *migration_paths,
             *(p for t in tokens.values() for p in (t, f"{t}/**")),
-            *([DESIGN_LANGUAGE_DOC] if a.design_language.defined else []),
+            *([DESIGN_LANGUAGE_DOC] if defined_language else []),
         ]
     )
 
@@ -302,7 +312,9 @@ def build_principles(
     project = compute_facts(a, defaults)
     principles: list[dict[str, Any]] = []
     for p in defaults["principles"]:
-        names = _applicable(list(p["applies"]), a, project)
+        names = (
+            [] if _waits_for_area(p, a) else _applicable(list(p["applies"]), a, project)
+        )
         principles.append(
             {
                 "id": p["id"],
@@ -321,11 +333,11 @@ def build_principles(
         )
 
     by_id = {p["id"]: p for p in principles}
-    if a.accessibility.level:
+    if a.accessibility is not None and a.accessibility.level:
         by_id["accessibility"]["params"]["level"] = a.accessibility.level
     visuals: dict[str, Any] = {}
     language = a.design_language
-    if language.defined:
+    if language is not None and language.defined:
         listed = defaults.get("design_language", {}).get("visuals")
         if "design-language" not in by_id or listed is None:
             raise AnswersError(
@@ -350,9 +362,12 @@ def build_principles(
         {name: {"tokens": t} for name, t in tokens.items()}
     )
     by_id["accessibility"]["component_params"].update(
-        {c.name: {"checks": c.checks} for c in a.accessibility.components}
+        {
+            c.name: {"checks": c.checks}
+            for c in (a.accessibility.components if a.accessibility else ())
+        }
     )
-    if a.data.ml is not None:
+    if a.data is not None and a.data.ml is not None:
         ml = {
             "data_versioning": a.data.ml.versioning,
             "seeds": a.data.ml.seeds,

@@ -24,9 +24,9 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 
 Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` (one line; each top-level key sent replaces that key in project.json), never by editing the file. Type the JSON straight into that one command: never build it with python3, a heredoc, a script or a temporary file, which Claude Code would ask about on every save. If Claude Code asks to allow it, tell the user that choosing "don't ask again" covers every later save.
 
-- If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done and which are pending (from its `areas`; an area missing from `areas`, because the interview started on an older alpha, is pending), then continue with the first area in the order below that isn't done.
+- If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done, which are pending and which are open (from its `areas`; an area missing from `areas`, because the interview started on an older alpha, is pending). A spec area an older alpha left pending becomes open: save it so with `answers write`. Then continue with the first area in the order below that isn't done.
 - Otherwise create it:
-  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "pending", "errors": "pending", "testing": "pending", "design_language": "pending", "ui": "pending", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "pending", "releases": "pending", "data": "pending", "accessibility": "pending", "performance": "pending", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
+  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "open", "errors": "open", "testing": "pending", "design_language": "open", "ui": "open", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "open", "releases": "pending", "data": "open", "accessibility": "open", "performance": "open", "git": "pending", "agent_workflow": "pending"}, "overrides": [], "decisions": []}'`
 
 ## 3. Load the kit defaults
 
@@ -42,26 +42,20 @@ If the command fails, show the user its message, then stop, and tell the user to
 
 ## 4. Interview, area by area
 
-Run the areas in this order, one at a time, never skipping one and never shortcutting one to save time:
+The interview settles the setup: what alpha needs to wire the project's tooling. Run these areas in this order, one at a time, never skipping one and never shortcutting one to save time:
 
 1. Identity: `alpha:identity`
 2. Components and stacks: `alpha:components`
-3. Architecture: `alpha:architecture`
-4. Errors: `alpha:errors`
-5. Testing: `alpha:testing`
-6. Design language: `alpha:design-language` (the user may skip it inside the area; you still run the area)
-7. UI: `alpha:ui`
-8. Documentation: `alpha:documentation`
-9. Build, CI and hosting: `alpha:build-and-hosting`
-10. Security and secrets: `alpha:security`
-11. Dependencies: `alpha:dependencies`
-12. Observability: `alpha:observability`
-13. Versioning and releases: `alpha:releases`
-14. Data and migrations: `alpha:data`
-15. Accessibility: `alpha:accessibility`
-16. Performance: `alpha:performance`
-17. Git history: `alpha:git-history`
-18. Agent workflow: `alpha:agent-workflow`
+3. Testing: `alpha:testing`
+4. Documentation: `alpha:documentation`
+5. Build, CI and hosting: `alpha:build-and-hosting`
+6. Security and secrets: `alpha:security`
+7. Dependencies: `alpha:dependencies`
+8. Versioning and releases: `alpha:releases`
+9. Git history: `alpha:git-history`
+10. Agent workflow: `alpha:agent-workflow`
+
+The spec areas (architecture, errors, design language, UI, observability, data, accessibility, performance) describe the product, which the user often can't know yet. They stay open: don't run them here. `/alpha:go` settles each one when the work needs it (decision 0034). Only when the user asks to settle one now, invoke its skill after the setup areas.
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 
@@ -69,7 +63,7 @@ Before each area, tell the user in one line which area comes next and what it se
 
 ## 5. Summary and confirmation
 
-Show a summary of every answer in plain words, grouped by area: identity (with each requirement and its acceptance check), components (kind, stack, path, traits; layout; whether they talk), architecture (responsibilities, calls, contract, glossary), errors (format per component; categories), testing (levels per component), design language (character, palette, typography and diagram style, how firmly the palette is held, third-party paths; or skipped, so nothing about visuals is enforced), UI (per UI component: library, tokens, theming, visual regression; or no UI), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, auth, extra protected paths), dependencies (updates and schedule), observability (per deployed component, or not applicable), releases (scheme, changelog, scope, process), data (per component that stores data: storage and migrations; ML data versioning, seeds and tracking; or nothing stored), accessibility (level and checks per UI component, or no UI), performance (budgets per component, or none), git history, agent workflow, and any overrides and defaults wishes. Ask: "Generate the project with these answers?" and wait.
+Show a summary of every answer in plain words, grouped by area: identity (name, value proposition, license), components (kind, stack, path, traits; layout; whether they talk), testing (levels per component), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, extra protected paths), dependencies (updates and schedule), releases (scheme, changelog, scope, process), git history, agent workflow, any spec area the user chose to settle now, and any overrides and defaults wishes. Then list the open spec areas in one line, saying `/alpha:go` settles each when the work needs it. Ask: "Generate the project with these answers?" and wait.
 
 If the user wants a change, save it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '<object>'` on one line (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
 
@@ -103,4 +97,5 @@ Tell the user, briefly:
   - Every `shortcut:` comment names when to upgrade it (the `shortcuts` repository check).
 - **Reports on request:** `/review-change` (a change), `/audit` (the whole repo) and `/debt` (the deliberate shortcuts); each changes no code.
 - **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved to the kit.
-- **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building.
+- **Not settled yet:** the open spec areas, each with the `/alpha:go` request that settles it (docs/product.md lists them); their principles stay off until then.
+- **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building with `/alpha:go <task>`.

@@ -171,9 +171,11 @@ def test_deployed_projects_need_a_secret_store(tmp_path: Path):
         check(tmp_path, d)
 
 
-def test_auth_is_required(tmp_path: Path):
+def test_auth_may_wait_but_must_be_text(tmp_path: Path):
     d = valid()
     d["security"]["auth"] = ""
+    assert check(tmp_path, d).security is not None
+    d["security"]["auth"] = None
     with pytest.raises(AnswersError, match=r"security\.auth"):
         check(tmp_path, d)
 

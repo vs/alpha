@@ -23,6 +23,7 @@ from helpers import (
     place_answers,
     proven,
     run_cli,
+    setup_only,
     shell_recipe,
     single_component,
 )
@@ -38,6 +39,68 @@ from alpha.principles import render_principles
 ROOT = PLUGIN_ROOT
 SRC = Source(ROOT, True)
 PROJECT_JSON = ".claude/alpha/project.json"
+
+
+def test_open_areas_render_as_not_settled(tmp_path: Path):
+    """F3, F4: open areas are listed in product.md and get no doc of their own."""
+    path = place_answers(tmp_path, "web-ts-plus-python-api")
+    data = json.loads(path.read_text())
+    setup_only(data)
+    path.write_text(json.dumps(data))
+    written = generate(tmp_path, ROOT, SRC, 2026, TODAY)
+    product = (tmp_path / "docs/product.md").read_text()
+    assert "None yet: each feature built with `/alpha:go`" in product
+    assert "`/alpha:go settle the target users`" in product
+    not_settled = product.split("## Not settled yet")[1]
+    for request in (
+        "settle the architecture",
+        "settle the error handling",
+        "settle the design language",
+        "settle the UI",
+        "settle the observability",
+        "settle the data and migrations",
+        "settle the accessibility target",
+        "settle the performance budgets",
+    ):
+        assert f"`/alpha:go {request}`" in not_settled, request
+    architecture = (tmp_path / "docs/architecture.md").read_text()
+    assert "`/alpha:go settle the architecture`" in architecture
+    assert "`/alpha:go settle the error handling`" in architecture
+    assert "`/alpha:go settle the auth`" in (tmp_path / "docs/security.md").read_text()
+    for doc in (
+        "docs/design-language.md",
+        "docs/ui.md",
+        "docs/data.md",
+        "docs/performance.md",
+        "docs/observability.md",
+        "docs/glossary.md",
+    ):
+        assert doc not in written and not (tmp_path / doc).exists(), doc
+    records = "\n".join(p.name for p in (tmp_path / "docs/decisions").iterdir())
+    assert "architecture" not in records and "performance" not in records
+
+
+def test_open_areas_that_cannot_apply_are_not_listed(tmp_path: Path):
+    """F4: a CLI with no UI, deployment or stored data isn't told to settle
+    its UI, accessibility, observability or data."""
+    path = place_answers(tmp_path, "rust-cli")
+    data = json.loads(path.read_text())
+    setup_only(data)
+    path.write_text(json.dumps(data))
+    generate(tmp_path, ROOT, SRC, 2026, TODAY)
+    listed = (tmp_path / "docs/product.md").read_text().split("## Not settled yet")[1]
+    for request in ("UI", "accessibility target", "observability", "data and"):
+        assert f"settle the {request}" not in listed, request
+    for request in ("architecture", "error handling", "design language", "perf"):
+        assert f"settle the {request}" in listed, request
+
+
+def test_done_areas_have_no_not_settled_section(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    assert "Not settled yet" not in (tmp_path / "docs/product.md").read_text()
+    assert "Not settled yet" not in (tmp_path / "docs/architecture.md").read_text()
 
 
 def test_refuses_non_empty_folder(tmp_path: Path):

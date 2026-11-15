@@ -10,7 +10,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 `<target>` is the folder `/alpha:new-project` is working in; when the user calls this skill directly, it's the current working directory. The answers live in `<target>/.claude/alpha/project.json`. Check it first:
 
-- No project.json: tell the user to start with `/alpha:new-project`, which runs every area in order, and stop.
+- No project.json: tell the user to start with `/alpha:new-project`, which runs the setup areas in order, and stop.
 - project.json has a `manifest` key: the project is already generated. If the `alpha:extend` skill sent you here, go on as it says. Otherwise invoke `alpha:extend` with the Skill tool and follow it; it brings you back here.
 - project.json has an `adoption` key and no `manifest`: `alpha:adopt` is bringing an existing repo in. Go on as it says; its rules win over this skill's, and don't point to `/alpha:new-project` afterwards.
 - `areas.build` isn't `"done"`: tell the user the earlier areas come first and to run `/alpha:new-project`, and stop.
@@ -23,17 +23,17 @@ Secrets never live in the repository ("No secrets in the repo"): locally they si
 ## Fields this area settles
 
 - `security.secret_store` - where production secrets live, in the user's words; `""` when nothing is deployed.
-- `security.auth` - who must prove who they are, and how; `"none"` is a valid answer.
+- `security.auth` - who must prove who they are, and how; `"none"` is a valid answer, and `""` means not settled yet.
 - `security.extra_protected` - globs, relative to the project root, Claude may not edit; often `[]`.
 - `areas.security` - `"in_progress"` while you work, `"done"` at the end.
 - `decisions[]` - one entry with `"area": "security"`.
 
 ## Questions
 
-Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it). The three questions are independent, so ask them in one round. None has a kit default: they're per project, so recommend from the answers so far and say it's your suggestion.
+Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it). The questions are independent, so ask them in one round. None has a kit default: they're per project, so recommend from the answers so far and say it's your suggestion.
 
 - **Secret store** - ask only when a component is deployed. Recommend the secret manager of the hosting the user chose in the build area (`build.components[].hosting`), and mention one or two alternatives as examples. With nothing deployed, save `""` and say in one line that local `.env` files are enough until something is deployed.
-- **Auth** - who must prove who they are (end users, other services, admins), and how (sessions, API keys, OAuth, none)? Recommend from the requirements and kinds: `none` for a local CLI or a pipeline, a concrete approach for anything users sign in to. Record the user's words.
+- **Auth** - ask only when the answer is plain from the components: `none` for a local CLI, a library or a pipeline. Otherwise it's part of the product's specification: save `""` without asking (decision 0034), and `/alpha:go settle the auth` settles it when the work needs it. When `alpha:extend` sends you here for it, ask who must prove who they are (end users, other services, admins) and how (sessions, API keys, OAuth, none), and record the user's words.
 - **Extra protected paths** - recommend none. Explain: Claude can't edit protected paths, so they suit files where a careless change is costly (e.g. `api/keys/**`, signed migration snapshots). alpha refuses a glob that covers files its own checks may require changing, such as docs or package manifests.
 
 ## Writing the answers

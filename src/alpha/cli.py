@@ -16,6 +16,7 @@ from alpha import (
     registry,
     toml_write,
 )
+from alpha.areas import AREAS
 from alpha.generate import (
     PRINCIPLES_TOML,
     PROJECT_JSON,
@@ -52,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument(
         "--area",
         action="append",
-        choices=answers.AREAS,
+        choices=AREAS,
         help="only require this area to be done (repeatable)",
     )
     awrite = asub.add_parser(
@@ -223,7 +224,7 @@ def _answers(args: argparse.Namespace) -> int:
         print("ok")
         return 0
     try:
-        answers.load_answers(args.path, args.area or answers.AREAS)
+        answers.load_answers(args.path, args.area or AREAS)
     except answers.AnswersError as e:
         print(e, file=sys.stderr)
         return 1

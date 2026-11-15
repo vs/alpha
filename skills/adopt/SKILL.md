@@ -21,7 +21,7 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 
 - A `manifest` with `adopted_at`: the repo is adopted. Go to step 9.
 - A `manifest` without `adopted_at`: alpha generated it. Invoke `alpha:extend` with the Skill tool for any change, and stop here.
-- An `adoption` key: an adoption is under way. Report which areas are done, then go on at the first step not finished (step 4 while an area is pending, else step 5).
+- An `adoption` key: an adoption is under way. Report which areas are done (a spec area an older alpha left pending becomes open: save it so), then go on at the first step not finished (step 4 while an area is pending, else step 5).
 - Anything else: start at step 2.
 
 ## 2. Survey
@@ -29,7 +29,7 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt survey <target> --save`. If it refuses, show its message and stop. If `git.clean` is false, tell the user alpha installs onto committed code only, list `git.dirty`, and stop until they commit or stash.
 
 Then save the start, keeping what the survey saved in `adoption`:
-`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {…every area as in /alpha:new-project, all "pending"…}, "overrides": [], "decisions": [], "adoption": {…the saved adoption…}}'`
+`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {…every area as in /alpha:new-project: the setup areas "pending", the spec areas "open"…}, "overrides": [], "decisions": [], "adoption": {…the saved adoption…}}'`
 
 Tell the user in a few lines what the survey found: candidate components and stacks, CI, docs and decision records, hook managers, and how many recent commits follow the convention. A repo with docs and no code yet has no candidates: say that alpha generates the skeleton of each component the interview settles.
 
@@ -39,14 +39,13 @@ As `/alpha:new-project` step 3: run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults 
 
 ## 4. Interview
 
-Run every area in `/alpha:new-project`'s order, invoking each area's skill with the Skill tool, `<target>` as its target: `alpha:identity`, `alpha:components`, `alpha:architecture`, `alpha:errors`, `alpha:testing`, `alpha:design-language`, `alpha:ui`, `alpha:documentation`, `alpha:build-and-hosting`, `alpha:security`, `alpha:dependencies`, `alpha:observability`, `alpha:releases`, `alpha:data`, `alpha:accessibility`, `alpha:performance`, `alpha:git-history`, `alpha:agent-workflow`. Move on only after its check prints `ok`. These rules win over the area skill's own:
+Run the setup areas in `/alpha:new-project`'s order, invoking each area's skill with the Skill tool, `<target>` as its target: `alpha:identity`, `alpha:components`, `alpha:testing`, `alpha:documentation`, `alpha:build-and-hosting`, `alpha:security`, `alpha:dependencies`, `alpha:releases`, `alpha:git-history`, `alpha:agent-workflow`. Move on only after its check prints `ok`. The spec areas stay open, as for a new project, even where the repo's docs already describe them: `/alpha:go` settles each when the work needs it (decision 0034). These rules win over the area skill's own:
 
 - Recommend what the repo already does when it meets the principle, else the kit default; say which it is. Never ask what the survey or the repo's files answer: read the README for identity, the manifests, lockfiles and CI for components and build, `LICENSE` for `identity.license_file` (keep the repo's license).
 - Where the repo falls short of an active principle, say so in one line and note it as a gap for step 5. Change no app code during the interview.
 - Components: start from the survey's candidates, and add the parts the repo's docs describe that have no code yet. A component whose folder holds code gets an adopted recipe, with or without a manifest, drafted with `alpha:stack-recipe` (named `<component>-<stack>`, extending the kit's recipe when the repo's tools are the kit's). Prove each with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <recipe>`; each check it reports with findings goes into `adoption.baselines` as `<step>:<component>`.
 - A component with no project structure yet (its folder is missing or holds only docs, so the survey lists no candidate for it) has no tools to adopt. Don't stop the interview over it, and never write its files yourself: alpha generates its skeleton, as `/alpha:new-project` would. In the components round, ask one question for each, recommending yes: "<component> has no project structure yet. Generate alpha's <stack> skeleton for it in <path>?" On yes, set its `stack` to the kit's recipe (`recipe list` names it), or for a stack the kit lacks to one `alpha:stack-recipe` drafts and proves as for a new project. It gets no adopted recipe and no baselines. Step 7 then writes its manifest, strict settings and setup test beside whatever its folder holds, installs its toolchain and commits it. A component at the repository root: after step 7.4, commit what its bootstrap made beyond the lockfile, as that step's note says. On no, leave the component out and tell the user `/alpha:extend` adds it later; if no component is left, say alpha has nothing to enforce there yet, and stop.
 - Git history: set `adoption.git_hooks` to `alpha` when the survey found no hook manager and no `hooks_path`, else `chain` (the repo's manager stays in charge and calls alpha's check). Commits already in history stay as they are.
-- Design language: recommend defining it only when the repo already has one (a brand or style guide, a tokens or theme file, themed diagrams), and read its colors, typefaces and diagram style from there; otherwise recommend skipping. Recommend `palette_check` `advise`, never `enforce`: the palette check has no baseline, so the repo's existing colors would fail it.
 - Documentation: an existing decision-record folder keeps its numbers; alpha's records follow them.
 - Repository checks: offer to baseline the ones the repo likely fails today (`typos`, `markdown`, `links`, `agent-config`, `actions`) by adding them to `adoption.baselines`.
 
@@ -54,7 +53,7 @@ Run every area in `/alpha:new-project`'s order, invoking each area's skill with 
 
 Dispatch one general-purpose subagent with the Agent tool. Its prompt: read `${CLAUDE_PLUGIN_ROOT}/project-files/skills/audit/SKILL.md` and follow its lenses over `<target>`, judged against every active principle in the kit defaults and the answers in project.json, with no limit on findings and no code changes; return a JSON list of findings, each `{"principle", "component", "title", "why", "evidence": "<file:line>", "severity": "must|should|nice", "acceptance": "<a command that would pass once fixed, preferably a test to add>"}`.
 
-Group the findings with the gaps from step 4. With `alpha:grilling`, ask the user about each must and should finding, recommending a phase: P4 for rework, P6 for linking acceptance checks to tests, P3 only to move a component to the kit's own tool. Save the confirmed ones as steps in `adoption.steps` (each `{"id", "phase", "title", "why", "component", "principles", "acceptance": [{"run": "…"}], "status": "pending"}`; use `{"confirm": "…"}` only when no command can prove it), then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt gaps <target> --save` to add the mechanical steps.
+Leave out findings about the specification's content: open questions, proposals and gaps in the product docs, requirements or designs. They aren't compliance work; keep them for step 8's report. Group the remaining findings with the gaps from step 4. With `alpha:grilling`, ask the user about each must and should finding, recommending a phase: P4 for rework, P6 for linking acceptance checks to tests, P3 only to move a component to the kit's own tool. Save the confirmed ones as steps in `adoption.steps` (each `{"id", "phase", "title", "why", "component", "principles", "acceptance": [{"run": "…"}], "status": "pending"}`; use `{"confirm": "…"}` only when no command can prove it), then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt gaps <target> --save` to add the mechanical steps.
 
 ## 6. Preview and confirm
 
@@ -71,7 +70,7 @@ In order; if a step fails, show its message, fix the cause with the user, and re
 
 ## 8. Report
 
-Tell the user: the commits on `alpha/adopt`; what is enforced now (as `/alpha:new-project` step 7, plus: only new findings fail; baselines shrink as findings are fixed and never grow without a decision); the baselines (`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline show <target>`); the plan's phases with step counts (`docs/adoption.md`); what wasn't checked. Pushing and opening the pull request are theirs to do, or ask whether you should. Next: alpha's hooks and settings load only when a session starts, so this session still runs without them. Start a new Claude Code session in `<target>` (with the same plugin flags), and run `/alpha:adopt` there to begin the first step.
+Tell the user: the commits on `alpha/adopt`; what is enforced now (as `/alpha:new-project` step 7, plus: only new findings fail; baselines shrink as findings are fixed and never grow without a decision); the baselines (`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline show <target>`); the plan's phases with step counts (`docs/adoption.md`); the open spec areas, and the specification findings step 5 left out, each as a `/alpha:go` request; what wasn't checked. Pushing and opening the pull request are theirs to do, or ask whether you should. Next: alpha's hooks and settings load only when a session starts, so this session still runs without them. Start a new Claude Code session in `<target>` (with the same plugin flags), and run `/alpha:adopt` there to begin the first step.
 
 ## 9. The plan
 

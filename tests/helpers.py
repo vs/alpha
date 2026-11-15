@@ -10,6 +10,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
+from alpha.areas import SPEC_AREAS
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import generate, load_project_principles
@@ -45,8 +46,28 @@ def run_cli(*args: str, env: dict[str, str] | None = None):
     )
 
 
-def generated_repo(tmp_path: Path, scenario: str) -> Path:
-    place_answers(tmp_path, scenario)
+def setup_only(data: dict[str, Any]) -> None:
+    """Answers as the setup interview leaves them: every spec area open, no
+    requirements, target users or auth yet (decision 0034)."""
+    for area in SPEC_AREAS:
+        data["areas"][area] = "open"
+        data.pop(area, None)
+    data["decisions"] = [d for d in data["decisions"] if d["area"] not in SPEC_AREAS]
+    data["overrides"] = []
+    data["identity"].update(requirements=[], target_users="")
+    data["security"]["auth"] = ""
+
+
+def generated_repo(
+    tmp_path: Path,
+    scenario: str,
+    edit: Callable[[dict[str, Any]], None] | None = None,
+) -> Path:
+    path = place_answers(tmp_path, scenario)
+    if edit is not None:
+        data = json.loads(path.read_text())
+        edit(data)
+        path.write_text(json.dumps(data))
     generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
     git(tmp_path, "init", "-q", "-b", "main")
     commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
