@@ -1,7 +1,7 @@
 # alpha rewrite: specification
 
 Date: 2026-11-15
-Status: draft, revised after a review; waiting for the user's approval, and nothing is built before it
+Status: approved by the user on 2026-11-15, built native in the worktree
 Requirements: [requirements.md](requirements.md). Research: [research.md](research.md). Plan: [plan.md](plan.md).
 
 ## Why
