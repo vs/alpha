@@ -359,6 +359,8 @@ def _check_row(c: RepoCheck) -> str:
 
 
 CHAINED_COMMIT_MSG = 'sh .claude/alpha/githooks/commit-msg "$1"'
+CHAIN_BEGIN = "# alpha:begin"
+CHAIN_END = "# alpha:end"
 
 
 def _contributing(
@@ -373,10 +375,13 @@ def _contributing(
     if git.get("hooks") == "chain":
         lines += [
             "The project's own git hook manager runs the commit check. Its "
-            "commit-msg hook must call:",
+            "commit-msg hook must call it, between the lines that mark it as "
+            "alpha's:",
             "",
             "```sh",
+            CHAIN_BEGIN,
             CHAINED_COMMIT_MSG,
+            CHAIN_END,
             "```",
         ]
     else:

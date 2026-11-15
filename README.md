@@ -146,6 +146,15 @@ new alpha. alpha merges its
 newer hooks, checks and files into yours and keeps your edits; where they
 overlap, it leaves a proposal for you to merge by hand.
 
+## Switching the hooks off
+
+`bin/alpha uninstall <project>` is the one way to switch alpha's hooks off: it
+takes alpha's hook entries out of `.claude/settings.json` and its commit-msg
+hook out of git (`core.hooksPath`, or the call between `# alpha:begin` and
+`# alpha:end` in your own hook manager's file). It deletes no file and commits
+nothing. `bin/alpha hooks on <project>` puts back what it took out, as
+`/alpha:install` does when it finds the hooks off.
+
 When you override a default, alpha asks whether to keep it for your next
 projects. A yes goes to `~/.config/alpha/overrides.toml`, a recipe drafted in
 an interview to `~/.config/alpha/recipes/`. Both apply on top of the installed

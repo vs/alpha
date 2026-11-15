@@ -51,19 +51,24 @@ def render_settings(
         allow.update((book or RecipeBook()).get(stack).allow)
     return {
         "permissions": {"allow": sorted(allow), "deny": list(_DENY)},
-        "hooks": {
-            "SessionStart": [_entry(_hook("session_start.py"))],
-            "PreToolUse": [
-                _entry(_hook("guard_bash.py"), "Bash"),
-                _entry(_hook("guard_paths.py"), _EDIT_TOOLS),
-            ],
-            "PostToolUse": [_entry(_hook("post_edit.py"), _EDIT_TOOLS)],
-            "Stop": [_entry(_hook("stop_checks.py", _STOP_TIMEOUT_SECONDS))],
-            "SubagentStart": [_entry(_hook("subagent_start.py"))],
-            "SubagentStop": [
-                _entry(_hook("stop_checks.py", _STOP_TIMEOUT_SECONDS)),
-                _entry(_hook("review_record.py"), "principles-reviewer"),
-            ],
-            "UserPromptSubmit": [_entry(_hook("accept.py", _PROMPT_TIMEOUT_SECONDS))],
-        },
+        "hooks": alpha_hooks(),
+    }
+
+
+def alpha_hooks() -> dict[str, Any]:
+    """The Claude Code hooks table that runs alpha's hook scripts."""
+    return {
+        "SessionStart": [_entry(_hook("session_start.py"))],
+        "PreToolUse": [
+            _entry(_hook("guard_bash.py"), "Bash"),
+            _entry(_hook("guard_paths.py"), _EDIT_TOOLS),
+        ],
+        "PostToolUse": [_entry(_hook("post_edit.py"), _EDIT_TOOLS)],
+        "Stop": [_entry(_hook("stop_checks.py", _STOP_TIMEOUT_SECONDS))],
+        "SubagentStart": [_entry(_hook("subagent_start.py"))],
+        "SubagentStop": [
+            _entry(_hook("stop_checks.py", _STOP_TIMEOUT_SECONDS)),
+            _entry(_hook("review_record.py"), "principles-reviewer"),
+        ],
+        "UserPromptSubmit": [_entry(_hook("accept.py", _PROMPT_TIMEOUT_SECONDS))],
     }
