@@ -2,9 +2,9 @@
 
 You own one part of the specification, settled when the work needs it. The user decides; you bring the options and the evidence.
 
-1. Name what to settle and why now: a spec area left open (architecture, errors, design language, UI, observability, data, accessibility, performance), the target users (identity area) or the auth (security area), and the task that needs it or the user's request. A spec area already settled is changed with `/alpha:extend` directly, not here.
+1. Name what to settle and why now: a spec area left open (architecture, errors, design language, UI, observability, data, accessibility, performance), the requirements, or the auth, and the task that needs it or the user's request. A spec area already settled is revisited with `/alpha:specify` directly, not here.
 2. Research before asking. Run Investigation steps 1 to 3 over what the project's code and docs already imply for it, read the kit's default, and when the choice is open, lay out two or three options with what each costs and rules out. Give a slow lookup (a library's limits, a standard's level) to a subagent. A choice you could settle by running something goes to the Prototype playbook first.
-3. Settle it through `/alpha:extend settle the <area>` (`settle the target users`, `settle the auth`), with your findings as the recommendations. It runs the area's questions with the user, saves the answers, and `alpha update` writes the area's doc and switches on the principles it gates.
+3. Settle it through `/alpha:specify <area>` (`requirements`, `auth`, …), with your findings as the recommendations. It runs the area's questions with the user, saves the answers, and `alpha update` writes the area's doc and switches on the principles it gates.
 4. Verify on the real files: docs/alpha/specification.md no longer lists it under "Not settled yet" and has its section where the area applies, and docs/alpha/principles.toml shows its principles active where they apply. Run the project's checks: a principle that just switched on can flag code written before it; fix that, or record why not with the `decision` skill.
 5. Finish with Done (SKILL.md section 3).
 

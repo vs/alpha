@@ -24,7 +24,7 @@ claude plugin install alpha@alpha
 ```
 
 ```text
-/alpha:new-project ~/code/my-app
+/alpha:install ~/code/my-app
 ```
 
 alpha asks one question at a time, each with a recommended answer. A choice
@@ -84,7 +84,7 @@ component on another stack (Go, say) needs its own toolchain installed too.
 ## Bring an existing repo in
 
 ```text
-/alpha:adopt ~/code/old-service
+/alpha:install ~/code/old-service
 ```
 
 alpha surveys the repo and interviews you with what it already does as the
@@ -94,7 +94,7 @@ part that has docs but no build files yet gets the skeleton a new project
 would, after one question.
 Today's lint, type, test and docs findings are baselined, so only new ones
 fail, and a baseline only shrinks. What's left is a compliance plan in
-`docs/alpha/adoption.md`: run `/alpha:adopt` again to work through it one step at a
+`docs/alpha/adoption.md`: run `/alpha:install` again to work through it one step at a
 time, each step done only when its check passes.
 
 ## Change it later

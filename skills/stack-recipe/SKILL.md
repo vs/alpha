@@ -1,6 +1,6 @@
 ---
 name: stack-recipe
-description: Draft and prove a recipe for a stack alpha's kit has no recipe for (e.g. Go, Swift, Kotlin, Elixir) in the alpha interview - the commands, files and CI setup a component on that stack needs - so it can be generated. Use only inside an alpha project interview (/alpha:new-project), inside /alpha:adopt to adopt a repo's own tools, or when the user asks to set up a stack the kit lacks.
+description: Draft and prove a recipe for a stack alpha's kit has no recipe for (e.g. Go, Swift, Kotlin, Elixir) in the alpha interview - the commands, files and CI setup a component on that stack needs - so it can be generated. Use only inside /alpha:install or /alpha:extend (for a new project's stack, or to adopt an existing repo's own tools), or when the user asks to set up a stack the kit lacks.
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -10,9 +10,9 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 You need `<target>` (the folder the interview is setting up) and `<stack>` (the stack's name, lowercase with hyphens, e.g. `go`, `swift`, `kotlin`). The answers live in `<target>/.claude/alpha/project.json`.
 
-- No project.json: tell the user to start with `/alpha:new-project`, and stop.
-- `alpha:adopt` sent you for a component of an existing repo: draft an adopted recipe as "Adopting a repo's tools" below says, whether or not the kit has the stack.
-- `alpha:adopt` sent you for a component with no project structure yet: there are no tools to adopt. Go on as for a new project: the next line, then the steps below.
+- No project.json: tell the user to start with `/alpha:install`, and stop.
+- An adoption (`/alpha:install` on an existing repo) sent you for a component of that repo: draft an adopted recipe as "Adopting a repo's tools" below says, whether or not the kit has the stack.
+- An adoption sent you for a component with no project structure yet: there are no tools to adopt. Go on as for a new project: the next line, then the steps below.
 - Otherwise, `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe list` names the stack: the kit already has a recipe; use it, and stop.
 
 ## Purpose
@@ -65,14 +65,14 @@ Leave out `proven`: a drafted recipe is always less proven, and alpha marks it s
 
 ## Adopting a repo's tools
 
-For `alpha:adopt`, the recipe runs the tools the repo already uses, on its real code (spec §5b):
+For an adoption, the recipe runs the tools the repo already uses, on its real code (spec §5b):
 
 - Name it `<component>-<stack>` (e.g. `api-python`), set `"adopted": true`, and set it as the component's `stack`. When the repo's tools are the kit's (`recipe list`), add `"extends": "<kit stack>"` and give only what differs: it takes the kit's commands, globs, CI setup, rules and readers.
 - Facts come from the repo: its manifests and lockfile, its CI workflow and task runner (`Makefile`, `package.json` scripts) for the commands it already runs, and its real test layout for `test_globs` (e.g. `spec/**`, `**/__tests__/**`). Use those commands as they are.
 - `bootstrap` stays `[]` and `templates` `{}`: adopting installs nothing. A check the repo lacks stays `""`, and so does `test` when it has no tests; the adoption plan adds them later. Set `format_check` to `""` when today's code isn't formatted.
 - For every check that fails on today's code, add `[baseline.<step>]` (see above) so its findings can be baselined.
-- `recipe try` proves it on a throwaway worktree of the repo's HEAD: `setup` must pass, a failing check only when its reader reads the findings, and it lists them as `<step>: N findings` to baseline. Tell `alpha:adopt` which ones, as `<step>:<component>`.
+- `recipe try` proves it on a throwaway worktree of the repo's HEAD: `setup` must pass, a failing check only when its reader reads the findings, and it lists them as `<step>: N findings` to baseline. Hand them back to the adoption as `<step>:<component>`.
 
 ## Done
 
-The recipe is done when `recipe try` prints `ok`. Go back to the components area, which can now finish. After the project is generated, `/alpha:new-project` asks whether to save the recipe to the kit for future projects.
+The recipe is done when `recipe try` prints `ok`. Go back to the components area, which can now finish. After the project is generated, `/alpha:install` asks whether to save the recipe for future projects.

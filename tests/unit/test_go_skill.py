@@ -41,7 +41,7 @@ def test_each_playbook_has_a_title_and_ends_with_its_reply(name: str):
 
 def test_the_router_stops_outside_an_alpha_project():
     check = _router().split("## 1. Check the project")[1].split("\n## ")[0]
-    assert "`installed` key" in check and "/alpha:adopt" in check
+    assert "`installed` key" in check and "/alpha:install" in check
     assert "and stop" in check
 
 
@@ -114,10 +114,10 @@ def test_pause_and_pickup_share_the_resume_note():
 
 
 def test_open_areas_are_settled_by_specify_and_before_a_feature():
-    """F8: Specify settles an open area through extend; a feature settles the
+    """F8: Specify settles an open area through /alpha:specify; a feature settles the
     open areas it needs, applied only after the spec is approved."""
     specify = _playbook("specify.md")
-    assert "`/alpha:extend settle the <area>`" in specify
+    assert "`/alpha:specify <area>`" in specify
     assert "Not settled yet" in specify
     feature = _playbook("feature.md")
     before = feature.split("approval of the spec, every time")[0]
@@ -126,6 +126,6 @@ def test_open_areas_are_settled_by_specify_and_before_a_feature():
     after = feature.split("approval of the spec, every time")[1]
     assert after.index("git switch -c") < after.index("Specify playbook's steps 3")
     assert "saves them without asking again" in after
-    extend = (PLUGIN_ROOT / "skills" / "extend" / "SKILL.md").read_text()
-    assert "Answers an approved feature spec already records" in extend
+    specify_skill = (PLUGIN_ROOT / "skills" / "specify" / "SKILL.md").read_text()
+    assert "Answers a feature spec already records are the user's" in specify_skill
     assert "`open`" in _router().split("## 2. Pick the playbook")[0]

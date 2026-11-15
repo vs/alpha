@@ -533,7 +533,7 @@ def adoption_doc(a: Answers) -> str | None:
         "",
         "alpha adopted this repo. These steps bring its code up to the "
         "principles in [principles.toml](principles.toml), phase by phase. Run "
-        "`/alpha:adopt` to pick up the next one: each step gets a branch of its "
+        "`/alpha:install` to pick up the next one: each step gets a branch of its "
         "own, and it's done only when everything under its *Done when* holds.",
         "",
         "## Progress",

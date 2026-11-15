@@ -36,7 +36,7 @@ Interview the user until you reach a shared understanding. Map the decisions as 
 
 ## Rounds
 
-Work the tree in **rounds**. The **frontier** is every decision whose prerequisites are already settled: the questions you can ask _now_ without guessing at answers you haven't heard yet. A round is the frontier, asked **one question at a time**: put one question to the user with your recommended answer, wait for the answer, then ask the next. Only when the `AskUserQuestion` tool isn't in your tool list (Claude Code runs headless, as in the evals, and no person is waiting), ask the whole round in one message, each question in the plain-text format below, one blank line between them.
+Work the tree in **rounds**. The **frontier** is every decision whose prerequisites are already settled: the questions you can ask _now_ without guessing at answers you haven't heard yet. A round is the frontier, asked **one question at a time**: put one question to the user with your recommended answer, wait for the answer, then ask the next. Only when the `AskUserQuestion` tool isn't in your tool list (Claude Code runs headless, and no person is waiting), ask the whole round in one message, each question in the plain-text format below, one blank line between them.
 
 ### A choice: in the dialog
 
@@ -51,7 +51,7 @@ When the question has a few fixed answers (a license, a review mode, a yes or no
 
 ### A draft: in plain text
 
-Ask in plain text when your recommendation is a draft the user would edit rather than pick (a name, the value proposition, the requirements, a sentence per component), when only the user's own words can answer, and for every question when the tool isn't in your tool list (Claude Code runs headless, as in the evals). Format it like so:
+Ask in plain text when your recommendation is a draft the user would edit rather than pick (a name, the value proposition, the requirements, a sentence per component), when only the user's own words can answer, and for every question when the tool isn't in your tool list (Claude Code runs headless). Format it like so:
 
 <!-- rumdl-disable MD013 -->
 <!-- The template's long lines are literal text Claude copies. -->
@@ -76,7 +76,7 @@ Each answer reshapes the tree: settled decisions push the frontier outward and u
 
 ## Where recommendations come from
 
-- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show --json` once per session and keep the result. Its `defaults` object holds the kit's preferred answers (the area skill names the key for each question, e.g. `defaults.review.max_lines`).
+- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show --json` once per session and keep the result. Its `defaults` object holds the kit's preferred answers (the area guide names the key for each question, e.g. `defaults.review.max_lines`).
 - Build on the project's earlier answers in `<target>/.claude/alpha/project.json` (`<target>` is the folder the interview is setting up): a later question's recommendation follows from what the user already decided.
 - When neither gives you a basis (a product name, say), draft a recommendation from what the user has told you so far, and say it is your suggestion.
 
