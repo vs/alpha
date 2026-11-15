@@ -14,13 +14,14 @@ from typing import Any, NoReturn, cast
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
 import review
+import untested
 
 TIMEOUT = 600
 BUDGET = 1100
 MAX_BLOCKS = 3
 MAX_SCAN_BYTES = 1_000_000
 SNIFF_BYTES = 8192
-DEPENDENCY_LOG = "docs/dependencies.md"
+DEPENDENCY_LOG = "docs/alpha/dependencies.md"
 # Lockfiles that also hold the project's own version, which a release bumps.
 SELF_VERSIONED = ("uv.lock", "Cargo.lock")
 HASH_CONTENT_BYTES = 1_000_000
@@ -259,16 +260,6 @@ TESTS_LIMIT = 24 * 3600
 TESTS_COMMAND = "python3 .claude/alpha/hooks/stop_checks.py tests"
 
 
-def tests_at_merge(principles: dict[str, Any]) -> bool:
-    """Whether the full test suite waits for the checkpoint before main, not
-    for every Stop. A principles file from before the setting runs it at Stop."""
-    testing: object = principles.get("testing")
-    return (
-        isinstance(testing, dict)
-        and cast("dict[str, Any]", testing).get("run") == "at-merge"
-    )
-
-
 def component_label(comp: dict[str, Any]) -> str:
     return str(comp.get("name", comp.get("path", ".")))
 
@@ -357,10 +348,16 @@ def runs_commands(comp: dict[str, Any], files: list[str]) -> bool:
 
 
 def components_to_test(root: Path, principles: dict[str, Any]) -> list[dict[str, Any]]:
-    """The components this checkout changed since it left main."""
+    """The components this checkout changed since it left main; every one
+    when the repository has no main to compare against."""
+    base = review.main_base(root)
+    names = changed_since(root, base)
+    if base is None:
+        tracked = git_lines(root, "ls-files") or names
+        names = sorted({*tracked, *names})
     by_comp: dict[str, list[str]] = {}
     found: dict[str, dict[str, Any]] = {}
-    for rel in changed_since(root, review.main_base(root)):
+    for rel in names:
         for comp in _common.components_for(rel, principles):
             name = component_label(comp)
             found[name] = comp
@@ -371,8 +368,6 @@ def components_to_test(root: Path, principles: dict[str, Any]) -> list[dict[str,
 def untested_blocker(root: Path, principles: dict[str, Any]) -> str | None:
     """Why this checkout's work can't reach main yet: a changed component's
     test suite hasn't passed on the files as they are now."""
-    if not tests_at_merge(principles):
-        return None
     waiting: list[str] = []
     for comp in components_to_test(root, principles):
         steps = step_commands(comp, principles, TESTS)
@@ -397,7 +392,7 @@ def run_tests() -> NoReturn:
     principles = _common.load_principles(root)
     if principles is None:
         print(
-            "stop_checks.py: no docs/principles.toml here. Run it from the "
+            "stop_checks.py: no docs/alpha/principles.toml here. Run it from the "
             "project root.",
             file=sys.stderr,
         )
@@ -700,7 +695,7 @@ def find_problems(
                 components.append(comp)
             by_comp.setdefault(key, []).append(rel)
 
-    noted = review.untested_notes(root)
+    noted = untested.notes(root)
     for comp in components:
         name = str(comp.get("name"))
         if not _common.principle_applies(principles, "tests-first-class", name):
@@ -712,11 +707,12 @@ def find_problems(
                 f"{comp.get('name')}: source changed ({', '.join(src)}) but no tests "
                 "changed. Principle tests-first-class: add or update tests. If a "
                 "file needs none (a rename, a constant, wiring), say why: python3 "
-                '.claude/alpha/hooks/review.py untested "<why>" <path> ...; the '
+                '.claude/alpha/hooks/untested.py "<why>" <path> ...; the '
                 "principles-reviewer checks the reason."
             )
 
-    if DEPENDENCY_LOG not in changed:
+    log = str(principles.get("dependency_log", DEPENDENCY_LOG))
+    if log not in changed:
         since = base or head_sha(root)
         for comp in components:
             name = str(comp.get("name"))
@@ -728,7 +724,7 @@ def find_problems(
             for rel in by_comp[str(comp.get("name"))]:
                 problem = (
                     f"Dependencies changed ({rel}) without an entry in "
-                    f"{DEPENDENCY_LOG}. Record what was added and why."
+                    f"{log}. Record what was added and why."
                 )
                 # A workspace's lockfile is every member's: report it once.
                 if (
@@ -763,11 +759,7 @@ def find_problems(
     if not run_commands:
         return problems
     deadline = time.monotonic() + BUDGET
-    keys = tuple(
-        key
-        for key in COMMAND_PRINCIPLES
-        if key not in TESTS or not tests_at_merge(principles)
-    )
+    keys = tuple(key for key in COMMAND_PRINCIPLES if key not in TESTS)
     for comp in components:
         if runs_commands(comp, by_comp[str(comp.get("name"))]):
             problems.extend(command_problems(comp, principles, root, deadline, keys))
@@ -830,45 +822,6 @@ def subagent_stop(root: Path, principles: dict[str, Any], agent: str) -> NoRetur
     block(listing)
 
 
-def safe_gate(root: Path, principles: dict[str, Any]) -> str | None:
-    try:
-        return review.gate(root, principles)
-    except review.SnapshotError as e:
-        flag(
-            f"alpha review: can't measure review debt ({e}). Fix that so the "
-            "principles reviewer can run; pushes stay blocked until then."
-        )
-
-
-def review_block(root: Path, inp: dict[str, Any], reason: str) -> NoReturn:
-    marker = _common.state_path(root, "review-blocked")
-    digest = hashlib.sha256(reason.encode()).hexdigest()
-    try:
-        repeated = marker.read_text().strip() == digest
-    except OSError:
-        repeated = False
-    if inp.get("stop_hook_active") and repeated:
-        flag(
-            f"{reason}\n\nalpha: the same review block came up twice in this turn, "
-            "so Claude stopped here instead of looping. Ask Claude to carry on (run "
-            "the principles-reviewer, or fix the findings), or accept a finding; the "
-            "review gate applies again at the next stop."
-        )
-    marker.write_text(digest + "\n")
-    print(json.dumps({"decision": "block", "reason": reason}))
-    sys.exit(0)
-
-
-def review_or_flag(
-    root: Path, principles: dict[str, Any], inp: dict[str, Any], listing: str
-) -> None:
-    verdict = safe_gate(root, principles)
-    if verdict:
-        review_block(
-            root, inp, f"{verdict}\n\nThese checks are still failing too:\n{listing}"
-        )
-
-
 def main() -> None:
     _common.check_python()
     if sys.argv[1:] == ["tests"]:
@@ -883,9 +836,6 @@ def main() -> None:
         if not isinstance(agent, str) or not agent:
             sys.exit(0)
         subagent_stop(root, principles, agent)
-    if not inp.get("stop_hook_active"):
-        _common.state_path(root, "review-blocked").unlink(missing_ok=True)
-    review.note_turn_end(root)
     base = session_base(root)
     changed = changed_since(root, base)
     counter = _common.state_path(root, "stop-blocks")
@@ -900,10 +850,6 @@ def main() -> None:
         head = head_sha(root)
         if head is not None:
             _common.write_baseline(root, head)
-        verdict = safe_gate(root, principles)
-        if verdict:
-            review_block(root, inp, verdict)
-        _common.state_path(root, "review-blocked").unlink(missing_ok=True)
         sys.exit(0)
     listing = "\n".join(f"{n}. {p}" for n, p in enumerate(problems, start=1))
     if secrets:
@@ -914,7 +860,6 @@ def main() -> None:
     except OSError:
         given_up = False
     if given_up:
-        review_or_flag(root, principles, inp, listing)
         flag(
             "alpha: still open; the user was told after 3 attempts, so alpha won't "
             f"block on these again until they change:\n{listing}"
@@ -923,7 +868,6 @@ def main() -> None:
     if count >= MAX_BLOCKS:
         write_count(counter, 0)
         accepted.write_text(fingerprint + "\n")
-        review_or_flag(root, principles, inp, listing)
         flag(
             "alpha: checks still failing after 3 attempts; stopping so the user can "
             f"decide:\n{listing}"

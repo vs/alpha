@@ -8,7 +8,6 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
-import review
 
 HOOKS_PATH = ".claude/alpha/githooks"
 
@@ -31,12 +30,12 @@ def principles_problem(path: Path) -> str | None:
             tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
         return (
-            f"docs/principles.toml is not valid TOML: {e}. Fix the file (it is the "
-            "single source of truth for alpha's checks), or restore it with "
-            '"git checkout docs/principles.toml".'
+            f"docs/alpha/principles.toml is not valid TOML: {e}. Fix the file (it is "
+            "the single source of truth for alpha's checks), or restore it with "
+            '"git checkout docs/alpha/principles.toml".'
         )
     except OSError as e:
-        return f"docs/principles.toml is unreadable: {e}. Check its permissions."
+        return f"docs/alpha/principles.toml is unreadable: {e}. Check its permissions."
     return None
 
 
@@ -103,7 +102,7 @@ def hook_problem(root: Path, principles: dict[str, Any]) -> str | None:
 def main() -> None:
     inp = _common.read_input()
     root = _common.project_root(inp)
-    principles = root / "docs" / "principles.toml"
+    principles = root / "docs" / "alpha" / "principles.toml"
     if not principles.is_file():
         sys.exit(0)
     problem = _common.python_problem()
@@ -128,12 +127,6 @@ def main() -> None:
             _common.state_path(root, "session-start").write_text(head + "\n")
         _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
     parts: list[str] = []
-    if problem is None:
-        state = review.ensure_state(root)
-        notice = state.pop("notice", None)
-        if notice:
-            parts.append(str(notice))
-            review.save_state(root, state)
     if problem is None:
         loaded = _common.load_principles(root)
         if loaded is not None:

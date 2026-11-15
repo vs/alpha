@@ -15,11 +15,12 @@ import review
 
 AGENT = "principles-reviewer"
 CONTRACT = (
-    'End your report with one fenced json block: {"tree": …, "findings": '
-    '[{"principle", "file", "line", "problem", "fix"}]}, the tree being '
-    "the Tree line of `python3 .claude/alpha/hooks/review.py brief`, line a "
-    'number, the other fields non-empty text. Use "findings": [] when the '
-    "changes comply."
+    'End your report with one fenced json block: {"tree": …, "checked": '
+    '[{"id", "status"}], "findings": [{"principle", "file", "line", "problem", '
+    '"fix"}]}, the tree being the Tree line of `python3 '
+    ".claude/alpha/hooks/review.py brief`, each checked finding's status "
+    '"fixed", "accepted" or "open", line a number, the other fields non-empty '
+    'text. Use "findings": [] when the changes comply.'
 )
 _BLOCK = re.compile(r"```json[ \t]*\n(.*?)```", re.S)
 _TREE = re.compile(r"[0-9a-f]{40}")
@@ -107,7 +108,7 @@ def latest_turn(path: object) -> str:
     return "\n".join(said)
 
 
-def parse(root: Path, message: str) -> tuple[str, list[dict[str, Any]]]:
+def parse(root: Path, message: str) -> dict[str, Any]:
     blocks = _BLOCK.findall(message)
     if not blocks:
         send_back("Your report has no json block.")
@@ -125,15 +126,19 @@ def parse(root: Path, message: str) -> tuple[str, list[dict[str, Any]]]:
         or not is_tree(root, tree)
     ):
         send_back(f"{tree!r} isn't the tree from the brief.")
-    if tree not in review.load_state(root).get("briefed", []):
+    brief = next(
+        (b for b in reversed(review.briefs(root)) if b.get("tree") == tree), None
+    )
+    if brief is None:
         send_back(
             f"{tree} isn't a tree a brief handed out: copy the brief's Tree line, "
-            "not its Reviewed line (run the brief first if you haven't)."
+            "not its Base line (run the brief first if you haven't)."
         )
     raw = report.get("findings")
     if not isinstance(raw, list):
         send_back('"findings" must be a list.')
     findings: list[dict[str, Any]] = []
+    fresh = {str(f) for f in brief.get("fresh", [])}
     for i, item in enumerate(cast("list[Any]", raw)):
         if not isinstance(item, dict):
             send_back(f"findings[{i}] must be an object.")
@@ -142,8 +147,48 @@ def parse(root: Path, message: str) -> tuple[str, list[dict[str, Any]]]:
         texts_ok = all(isinstance(f.get(k), str) and f[k].strip() for k in _TEXT_KEYS)
         if not texts_ok or not isinstance(line, int) or isinstance(line, bool):
             send_back(f"findings[{i}] is incomplete.")
+        if brief.get("kind") == "fix-check" and f["file"] not in fresh:
+            send_back(
+                f"findings[{i}] is on {f['file']}, which this fix check doesn't review "
+                f"afresh: report on its findings in checked, and raise new findings "
+                f"only on {', '.join(sorted(fresh)) or 'no file'}."
+            )
         findings.append({k: f[k] for k in (*_TEXT_KEYS[:2], "line", *_TEXT_KEYS[2:])})
-    return tree, findings
+    checked: dict[str, str] = {}
+    for i, item in enumerate(cast("list[Any]", report.get("checked", []) or [])):
+        c = cast("dict[str, Any]", item) if isinstance(item, dict) else {}
+        if c.get("status") not in review.STATUSES or not isinstance(c.get("id"), str):
+            send_back(
+                f'checked[{i}] needs an id and a status: "fixed", "accepted" or "open".'
+            )
+        checked[str(c["id"])] = str(c["status"])
+    return {"tree": tree, "brief": brief, "findings": findings, "checked": checked}
+
+
+def record(root: Path, report: dict[str, Any], principles: dict[str, Any]) -> None:
+    """Write the review as a note on its tree. A finding the fix check was given
+    keeps its id and gets the status reported for it; only the user accepts
+    one on a risk path."""
+    brief: dict[str, Any] = report["brief"]
+    previous = [cast("dict[str, Any]", f) for f in brief.get("findings", [])]
+    carried: list[dict[str, Any]] = []
+    for f in previous:
+        status = report["checked"].get(str(f["id"]), "open")
+        if status == "accepted" and review.on_risk_path(principles, str(f["file"])):
+            status = "open"
+        carried.append({**f, "status": status})
+    new = [{"id": finding_id(f), **f, "status": "open"} for f in report["findings"]]
+    review.write_note(
+        root,
+        report["tree"],
+        {
+            "kind": brief.get("kind", "review"),
+            "branch": brief.get("branch", ""),
+            "base": brief.get("base", ""),
+            "recorded": int(time.time()),
+            "findings": carried + new,
+        },
+    )
 
 
 def main() -> None:
@@ -153,7 +198,7 @@ def main() -> None:
     if inp.get("agent_type") != AGENT:
         sys.exit(0)
     root = _common.project_root(inp)
-    if _common.load_principles(root) is None:
+    if _common.checkout_of(root.resolve()) is None:
         sys.exit(0)
     message = inp.get("last_assistant_message")
     text = message if isinstance(message, str) else ""
@@ -163,20 +208,11 @@ def main() -> None:
         if attempt:
             time.sleep(TRANSCRIPT_WAIT)
         text = latest_turn(inp.get("agent_transcript_path")) or text
-    tree, findings = parse(root, text)
-    state = review.ensure_state(root)
-    accepted = {
-        str(f.get("id")) for f in state.get("findings", []) if f.get("accepted")
-    }
-    recorded = [
-        {"id": (fid := finding_id(f)), **f, "accepted": fid in accepted}
-        for f in findings
-    ]
-    if not recorded:
-        state["reviewed_tree"] = tree
-    state["findings"] = recorded
-    state["reviewed_for"] = tree
-    review.save_state(root, state)
+    report = parse(root, text)
+    try:
+        record(root, report, _common.load_principles(root) or {})
+    except review.ReviewError as e:
+        send_back(f"{e}.")
     sys.exit(0)
 
 

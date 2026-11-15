@@ -64,6 +64,40 @@ def texts(tool: str, tool_input: dict[str, Any], current: Path) -> tuple[str, st
     return "\n".join(olds), "\n".join(news)
 
 
+def edited(tool: str, tool_input: dict[str, Any], current: str) -> str:
+    """The whole file as the edit would leave it."""
+    if tool == "Write":
+        content = tool_input.get("content")
+        return content if isinstance(content, str) else ""
+    pairs: list[Any] = [tool_input] if tool == "Edit" else []
+    edits = tool_input.get("edits")
+    if tool == "MultiEdit" and isinstance(edits, list):
+        pairs = list(cast("list[Any]", edits))
+    text = current
+    for pair in pairs:
+        if not isinstance(pair, dict):
+            continue
+        fields = cast("dict[str, object]", pair)
+        old, new = fields.get("old_string"), fields.get("new_string")
+        if isinstance(old, str) and isinstance(new, str) and old:
+            text = text.replace(old, new, -1 if fields.get("replace_all") else 1)
+    return text
+
+
+def wiring_problem(rel: str, before: str, after: str) -> str | None:
+    """Why an edit of a settings file would switch alpha's hooks off."""
+    if not before.strip() and rel == _common.LOCAL_SETTINGS:
+        before = "{}"
+    if _common.disables_hooks(after) and not _common.disables_hooks(before):
+        return f"disableAllHooks in {rel} switches every hook off"
+    if rel == _common.SETTINGS:
+        was = _common.alpha_hook_entries(before)
+        now = _common.alpha_hook_entries(after)
+        if was is not None and now != was:
+            return f"the edit changes alpha's hook entries in {rel}"
+    return None
+
+
 def weakened(old: str, new: str) -> list[str]:
     return [
         label
@@ -99,15 +133,27 @@ def main() -> None:
     if not isinstance(file_path, str) or not file_path:
         sys.exit(0)
     root = _common.project_root(inp, file_path)
-    principles = _common.load_principles(root)
-    if principles is None:
+    if _common.checkout_of(root.resolve()) is None:
         sys.exit(0)
+    principles = _common.load_principles(root) or {}
     rel = _common.rel_to_root(root, file_path)
     if rel is None:
         sys.exit(0)
     glob = _common.protected_glob(rel, principles)
     if glob is not None:
         _common.block(_common.protected_message(rel, glob, principles))
+    if rel in (_common.SETTINGS, _common.LOCAL_SETTINGS):
+        current = root / rel
+        try:
+            before = current.read_text() if current.is_file() else ""
+        except OSError:
+            before = ""
+        problem = wiring_problem(rel, before, edited(str(tool), args, before))
+        if problem:
+            _common.block(
+                f"{problem}. Only {_common.UNINSTALL} switches alpha's hooks off; "
+                "ask the user to run it if that is what they want."
+            )
     if rel == _common.PRINCIPLES:
         ask(
             f"{_common.PRINCIPLES} is the project's single source of truth: every "

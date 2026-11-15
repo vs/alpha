@@ -22,8 +22,14 @@ from types import ModuleType
 from typing import Any, NamedTuple, NoReturn, cast
 
 STATE_DIR = ".claude/alpha/state"
+ALPHA_DIR = ".claude/alpha"
+HOOKS_DIR = ".claude/alpha/hooks"
+NOTES_DIR = ".claude/alpha/notes"
+SETTINGS = ".claude/settings.json"
+LOCAL_SETTINGS = ".claude/settings.local.json"
+UNINSTALL = "/alpha:uninstall"
 BASELINE_DIR = ".claude/alpha/baselines"  # spec §8b; only shrinks
-PRINCIPLES = "docs/principles.toml"
+PRINCIPLES = "docs/alpha/principles.toml"
 NOT_FOUND = 127
 TAIL_LINES = 60
 
@@ -152,10 +158,12 @@ def read_input() -> dict[str, Any]:
 
 
 def checkout_of(path: Path) -> Path | None:
-    """The alpha project checkout (the main one or a worktree) holding path."""
+    """The alpha project checkout (the main one or a worktree) holding path:
+    one with alpha's hooks, even when its principles file is gone."""
     for folder in (path, *path.parents):
         if (folder / ".git").exists():
-            return folder if (folder / PRINCIPLES).is_file() else None
+            alpha = (folder / PRINCIPLES).is_file() or (folder / HOOKS_DIR).is_dir()
+            return folder if alpha else None
     return None
 
 
@@ -172,7 +180,7 @@ def project_root(inp: dict[str, Any], path: str | None = None) -> Path:
 
 
 def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:
-    path = root / "docs" / "principles.toml"
+    path = root / "docs" / "alpha" / "principles.toml"
     if not path.is_file():
         return None
     import tomllib  # noqa: PLC0415 - absent on 3.9; check_python() has exited by then
@@ -182,9 +190,9 @@ def load_principles(root: Path, fail_code: int = 0) -> dict[str, Any] | None:
             return tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
         print(
-            f"docs/principles.toml is not valid TOML: {e}. Fix the file (it is the "
-            "single source of truth for alpha's checks), or restore it with "
-            '"git checkout docs/principles.toml".',
+            f"docs/alpha/principles.toml is not valid TOML: {e}. Fix the file (it is "
+            "the single source of truth for alpha's checks), or restore it with "
+            '"git checkout docs/alpha/principles.toml".',
             file=sys.stderr,
         )
         sys.exit(fail_code)
@@ -466,7 +474,7 @@ def writing_principles(principles: dict[str, Any]) -> list[str]:
 
 def context_text(root: Path, principles: dict[str, Any]) -> str:
     lines = [
-        "alpha: what the product does is in docs/specification.md and how the "
+        "alpha: what the product does is in docs/alpha/specification.md and how the "
         "work is done in CONTRIBUTING.md; read the parts that bear on your change "
         "before changing anything, and record a decision there with the decision "
         "skill."
@@ -480,7 +488,10 @@ def context_text(root: Path, principles: dict[str, Any]) -> str:
         lines += ["Principle overrides:", *(f"- {o}" for o in overrides)]
     writing = writing_principles(principles)
     if writing:
-        lines += ["Write code by these principles (docs/principles.toml):", *writing]
+        lines += [
+            "Write code by these principles (docs/alpha/principles.toml):",
+            *writing,
+        ]
     return "\n".join(lines)
 
 
@@ -508,31 +519,108 @@ def record_agent_file(root: Path, agent_id: str, rel: str) -> None:
 
 
 STATE_GLOB = f"{STATE_DIR}/**"
+ALPHA_GLOB = f"{ALPHA_DIR}/**"
+# What a shell command may not write, besides alpha's own folder: the files
+# whose change switches alpha's hooks off. An edit of the settings files is
+# judged entry by entry (guard_paths), a shell write can't be.
+SHELL_WIRING = (SETTINGS, LOCAL_SETTINGS, PRINCIPLES)
 
 
-def protected_glob(rel: str, principles: dict[str, Any]) -> str | None:
+def _covers(rel: str, folder: str) -> bool:
+    return rel == folder or rel.startswith(f"{folder}/") or folder.startswith(f"{rel}/")
+
+
+def protected_glob(
+    rel: str, principles: dict[str, Any], shell: bool = False
+) -> str | None:
+    """The protection `rel` falls under, or None. `shell`: a shell command's
+    write, which may not touch the hook wiring at all."""
     rel = rel.rstrip("/")
-    if (
-        rel == STATE_DIR
-        or rel.startswith(f"{STATE_DIR}/")
-        or STATE_DIR.startswith(f"{rel}/")
-    ):
+    if _covers(rel, STATE_DIR):
         return STATE_GLOB
+    if rel.startswith(f"{BASELINE_DIR}/"):
+        for glob in principles.get("protected", {}).get("paths", []):
+            if matches(rel, [str(glob)]):
+                return str(glob)
+    if rel.startswith(f"{NOTES_DIR}/"):
+        return None  # a paused session's resume notes, gitignored
+    if _covers(rel, ALPHA_DIR):
+        return ALPHA_GLOB
+    if shell and any(rel == w or w.startswith(f"{rel}/") for w in SHELL_WIRING):
+        return rel
     for glob in principles.get("protected", {}).get("paths", []):
         if matches(rel, [str(glob)]):
             return str(glob)
     return None
 
 
+def alpha_hook_entries(text: str) -> list[str] | None:
+    """alpha's hook entries in a settings file's text, as comparable strings
+    (event, matcher, command), or None when it isn't a JSON object."""
+    try:
+        data: object = json.loads(text) if text.strip() else {}
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    found: list[str] = []
+    hooks: object = cast("dict[str, Any]", data).get("hooks")
+    events = cast("dict[str, Any]", hooks) if isinstance(hooks, dict) else {}
+    for event, groups in events.items():
+        listed = cast("list[object]", groups) if isinstance(groups, list) else []
+        for group in listed:
+            if not isinstance(group, dict):
+                continue
+            g = cast("dict[str, Any]", group)
+            raw: object = g.get("hooks")
+            entries = cast("list[object]", raw) if isinstance(raw, list) else []
+            for entry in entries:
+                command: object = (
+                    cast("dict[str, Any]", entry).get("command")
+                    if isinstance(entry, dict)
+                    else None
+                )
+                if isinstance(command, str) and f"{HOOKS_DIR}/" in command:
+                    found.append(f"{event}\t{g.get('matcher', '')}\t{command}")
+    return sorted(found)
+
+
+def disables_hooks(text: str) -> bool:
+    try:
+        data: object = json.loads(text) if text.strip() else {}
+    except ValueError:
+        return False
+    return isinstance(data, dict) and bool(
+        cast("dict[str, Any]", data).get("disableAllHooks")
+    )
+
+
 def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
+    if glob == ALPHA_GLOB:
+        how = (
+            " Change the answers with alpha answers write, then alpha update."
+            if rel.endswith("project.json")
+            else " alpha update rewrites alpha's own files."
+        )
+        return (
+            f"{rel} is alpha's own ({ALPHA_DIR}/): its hooks, checks and answers, "
+            f"which only {UNINSTALL} switches off.{how} Ask the user if it's wrong."
+        )
+    if rel in SHELL_WIRING:
+        return (
+            f"{rel} wires alpha's hooks, so a shell command may not write it; only "
+            f"{UNINSTALL} switches the hooks off. Edit it with the Edit tool (a "
+            "permission, say), or ask the user."
+        )
     if glob == STATE_GLOB:
         return (
             f"{rel} is protected: alpha's hooks keep their state there "
             f"({STATE_DIR}/), including the review record, and nothing else may "
-            "write or delete it. Read it if you need to; ask the user if it's wrong."
+            "write or delete it; only /alpha:uninstall switches alpha's hooks off. "
+            "Read it if you need to; ask the user if it's wrong."
         )
     head = (
-        f"{rel} is protected (`{glob}` in docs/principles.toml), so Claude can't "
+        f"{rel} is protected (`{glob}` in docs/alpha/principles.toml), so Claude can't "
         "edit it."
     )
     if rel.startswith(f"{BASELINE_DIR}/"):

@@ -32,7 +32,8 @@ COMMIT_VALUE_FLAGS = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--te
 COMMIT_VALUE_LETTERS = "mFCct"
 HOOKS_CONFIG_MESSAGE = (
     "Changing core.hooksPath switches off the project's commit checks. Keep it "
-    "at .claude/alpha/githooks; if the hook itself is wrong, tell the user."
+    "at .claude/alpha/githooks; only /alpha:uninstall switches alpha's hooks off. "
+    "If the hook itself is wrong, tell the user."
 )
 HOOKS_PATH = ".claude/alpha/githooks"
 CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--list", "-l", "get", "list"}
@@ -222,9 +223,39 @@ def git_folder(segment: list[str]) -> str | None:
     return None
 
 
+NOTES_MESSAGE = (
+    "alpha's review notes are written only by its review hooks (the reviewer's "
+    "record, the user's accept) and stay in this clone. Run the "
+    "principles-reviewer instead."
+)
+NOTES_WRITES = {"add", "append", "copy", "edit", "merge", "remove", "prune"}
+
+
+def review_notes_written(raw: list[str], sub: str, args: list[str]) -> bool:
+    """Whether a git command writes alpha's review notes or moves them between
+    clones."""
+    named = " ".join(raw).count(review.NOTES_REF) > 0
+    if sub == "notes":
+        words = [a for a in args if not a.startswith("-")]
+        return named and bool(set(words) & NOTES_WRITES)
+    if sub == "update-ref":
+        return named
+    if sub == "push":
+        notes = [a for a in args if "refs/notes/" in a]
+        return "--mirror" in args or named or any("*" in a for a in notes)
+    if sub == "fetch":
+        return named
+    return False
+
+
 def check_command(command: str, root: Path, here: Path) -> None:
     for raw in split_segments(command) or []:
         segment = strip_prefix(raw)
+        invocation = git_invocation(segment)
+        if invocation is not None and review_notes_written(
+            raw, invocation[0], invocation[1]
+        ):
+            _common.block(NOTES_MESSAGE)
         if segment[:1] == ["cd"] and len(segment) > 1 and segment[1] != "-":
             here = here / Path(segment[1]).expanduser()
         folder = git_folder(segment) if segment[:1] == ["git"] else None
@@ -369,7 +400,7 @@ def check_writes(
         rel = _common.rel_to_root(root, str(target))
         if rel is None:
             continue
-        glob = _common.protected_glob(rel, principles)
+        glob = _common.protected_glob(rel, principles, shell=True)
         if glob is not None:
             _common.block(_common.protected_message(rel, glob, principles))
 
@@ -392,7 +423,7 @@ def check_review(root: Path) -> None:
     principles = _common.load_principles(root)
     if principles is None:
         return
-    reason = review.merge_blocker(root, principles) or stop_checks.untested_blocker(
+    reason = review.gate(root, principles) or stop_checks.untested_blocker(
         root, principles
     )
     if reason:
@@ -456,11 +487,38 @@ def checkout_with(root: Path, branch: str) -> Path | None:
     return None
 
 
+def pr_head(root: Path, target: str) -> str | None:
+    """The commit a pull request's head is at on GitHub, or None."""
+    try:
+        proc = subprocess.run(
+            ["gh", "pr", "view", target.lstrip("#"), "--json", "headRefOid"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        oid = json.loads(proc.stdout).get("headRefOid")
+    except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
+        return None
+    return oid if proc.returncode == 0 and isinstance(oid, str) else None
+
+
 def check_merge(root: Path, words: list[str]) -> None:
-    branch = pr_branch(root, merge_target(words))
+    target = merge_target(words)
+    branch = pr_branch(root, target)
     checkout = checkout_with(root, branch) if branch else None
-    if checkout is not None:
-        check_review(checkout)
+    if checkout is None:
+        return
+    remote = pr_head(checkout, target or branch or "")
+    local = (git_output(checkout, "rev-parse", "HEAD") or "").strip()
+    if remote and local and remote != local:
+        _common.block(
+            f"The pull request's head on GitHub ({remote[:12]}) isn't this "
+            f"checkout's HEAD ({local[:12]}): push the branch first, so what merges "
+            "is what was reviewed and tested."
+        )
+    check_review(checkout)
 
 
 def gh_command(segment: list[str]) -> list[str] | None:
@@ -472,71 +530,40 @@ def gh_command(segment: list[str]) -> list[str] | None:
     return words
 
 
-SHARED = "some may be the user's or another session's"
-WHOLE_TREE = {".", "./", ":", ":/", "*"}
-STAGE_ALL = {"-A", "--all", "-u", "--update", "--no-ignore-removal"}
-STASH_READS = {"list", "show"}
-
-
 def pathspecs(raw_args: list[str]) -> list[str]:
     cut = raw_args.index("--") if "--" in raw_args else len(raw_args)
     words = [a for a in raw_args[:cut] if not a.startswith("-")]
     return words + raw_args[cut + 1 :]
 
 
-def uncommitted(root: Path) -> list[str]:
-    out = git_output(root, "status", "--porcelain", "--untracked-files=no") or ""
-    return [line[3:] for line in out.splitlines() if line.strip()]
+def git_wiring_paths(sub: str, raw_args: list[str], args: list[str]) -> list[str]:
+    """The paths a git command removes, moves or brings back from another
+    revision: `git rm`, `git mv`, `git checkout <rev> -- <path>`,
+    `git restore --source`."""
+    if sub in ("rm", "mv"):
+        return pathspecs(raw_args)
+    if sub == "checkout" and "--" in raw_args:
+        before = [a for a in raw_args[: raw_args.index("--")] if not a.startswith("-")]
+        return raw_args[raw_args.index("--") + 1 :] if before else []
+    if sub == "restore" and any(a.startswith(("--source", "-s")) for a in args):
+        return [p for p in pathspecs(raw_args) if not p.startswith("--source")]
+    return []
 
 
-def check_shared_work(
+def check_git_wiring(
     sub: str, raw_args: list[str], args: list[str], root: Path
 ) -> None:
-    whole = next((p for p in pathspecs(raw_args) if p in WHOLE_TREE), None)
-    if sub == "add":
-        flag = next(
-            (a for a in args if a in STAGE_ALL or set("Au") & set(short_flags(a, sub))),
-            None,
-        )
-        if flag or whole:
-            _common.block(
-                f"git add {flag or whole} stages every change in the tree, and "
-                f"{SHARED}. Stage the files you changed by path: git add <path> …"
-            )
-    if sub == "commit":
-        flag = next(
-            (a for a in args if a == "--all" or "a" in short_flags(a, sub)), None
-        )
-        if flag:
-            _common.block(
-                f"git commit {flag} commits every tracked change, and {SHARED}. "
-                "Stage the files you changed by path (git add <path> …), then "
-                "commit without -a."
-            )
-    dirty = uncommitted(root) if sub == "reset" and "--hard" in args else []
-    if dirty:
-        _common.block(
-            f"git reset --hard would discard uncommitted changes to tracked files "
-            f"({', '.join(dirty[:5])}), and {SHARED}. Commit your own "
-            "files or put them back by path (git restore <path>); on a clean tree "
-            "reset --hard is allowed."
-        )
-    # restore --staged alone only unstages; the files themselves stay.
-    staged_only = bool({"--staged", "-S"} & set(args)) and not (
-        {"--worktree", "-W"} & set(args)
-    )
-    if sub in ("checkout", "restore") and whole and not staged_only:
-        _common.block(
-            f"git {sub} {whole} discards every uncommitted change under it, and "
-            f"{SHARED}. Put back your own files by path (git restore <path>), or "
-            "ask the user to run it."
-        )
-    if sub == "stash" and not (raw_args and raw_args[0] in STASH_READS):
-        _common.block(
-            f"git stash takes uncommitted changes out of the tree, and {SHARED}; "
-            "a forgotten stash loses them. Commit or put back your own files by "
-            "path instead, or ask the user to run it."
-        )
+    principles = _common.load_principles(root) or {}
+    for path in git_wiring_paths(sub, raw_args, args):
+        rel = _common.rel_to_root(root, str(root / path))
+        if rel is None:
+            continue
+        glob = _common.protected_glob(rel, principles, shell=True)
+        if (
+            glob in (_common.ALPHA_GLOB, _common.STATE_GLOB)
+            or rel in _common.SHELL_WIRING
+        ):
+            _common.block(_common.protected_message(rel, glob or rel, principles))
 
 
 def check_segment(segment: list[str], root: Path) -> None:
@@ -557,16 +584,7 @@ def check_segment(segment: list[str], root: Path) -> None:
             _common.block(NO_VERIFY_MESSAGE)
     if sub == "push":
         check_push(root, raw_args, args)
-    if sub == "clean" and any(
-        a in ("-x", "-X") or ("x" in short_flags(a, sub) or "X" in short_flags(a, sub))
-        for a in args
-    ):
-        _common.block(
-            f"git clean -x/-X deletes ignored files, including alpha's review state "
-            f"in {_common.STATE_DIR}/. Delete the files you mean by name, or ask the "
-            "user to run it."
-        )
-    check_shared_work(sub, raw_args, args, root)
+    check_git_wiring(sub, raw_args, args, root)
     if sub == "commit" and "--amend" in args:
         branches = on_main_remote(root)
         if branches:
@@ -638,9 +656,9 @@ def main() -> None:
     _common.check_python()
     inp = _common.read_input()
     root = _common.project_root(inp)
-    principles = _common.load_principles(root)
-    if principles is None:
+    if _common.checkout_of(root.resolve()) is None:
         sys.exit(0)
+    principles = _common.load_principles(root) or {}
     if inp.get("tool_name") != "Bash":
         sys.exit(0)
     tool_input: object = inp.get("tool_input")

@@ -1,3 +1,18 @@
+"""alpha's principles review, kept in git notes on the trees it reviewed.
+
+The review runs once, before work reaches main (rewrite spec, R9 and R10).
+Reviewing a tree adds a note to that tree object under refs/notes/alpha-review.
+To find the last review, the branch's history since main is walked, each
+commit mapped to its tree; after a rebase, the newest note recorded for the
+branch. Only the files the branch changed since that review are reviewed, and
+a review's findings are the only thing that blocks after it: the next review
+is a fix check, which judges them and reviews afresh only the changed files
+no finding names, so a fix never starts another full review. The notes stay
+local; another clone reviews again.
+
+Usage, from the project root: review.py brief
+"""
+
 from __future__ import annotations
 
 import json
@@ -5,135 +20,16 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
-import time
 from pathlib import Path
 from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
+import untested
 
-STATE = "review.json"
+NOTES_REF = "alpha-review"
+RENDERED_REF = "alpha-rendered"
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-INDEX_FILE = "alpha-review-index"
-_STALE_LOCK_SECONDS = 120
-
-
-class SnapshotError(Exception):
-    pass
-
-
-def _run(
-    root: Path, *args: str, env: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str] | None:
-    try:
-        return subprocess.run(  # quotepath off: non-ASCII names as they are
-            ["git", "-c", "core.quotepath=false", *args],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=False,
-            env=env,
-        )
-    except OSError:
-        return None
-
-
-def _git(root: Path, *args: str, env: dict[str, str] | None = None) -> str | None:
-    proc = _run(root, *args, env=env)
-    return proc.stdout if proc is not None and proc.returncode == 0 else None
-
-
-def _must(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
-    proc = _run(root, *args, env=env)
-    if proc is None:
-        raise SnapshotError("git couldn't be run")
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout).strip().splitlines()
-        raise SnapshotError(f"git {args[0]} failed: {detail[0] if detail else '?'}")
-    return proc.stdout
-
-
-def snapshot(root: Path) -> str:
-    git_dir = Path(_must(root, "rev-parse", "--absolute-git-dir").strip())
-    index = git_dir / INDEX_FILE
-    lock = git_dir / f"{INDEX_FILE}.lock"
-    try:  # a hook killed mid-snapshot leaves its lock behind
-        if time.time() - lock.stat().st_mtime > _STALE_LOCK_SECONDS:
-            lock.unlink()
-    except OSError:
-        pass
-    env = {**os.environ, "GIT_INDEX_FILE": str(index)}
-    head = _git(root, "rev-parse", "--verify", "-q", "HEAD^{tree}")
-    if head and index.is_file():
-        # --reset keeps the stat info of unchanged entries, and doesn't refuse
-        # an index that is out of date with the working tree as -m does.
-        _must(root, "read-tree", "--reset", head.strip(), env=env)
-    elif head:
-        _must(root, "read-tree", head.strip(), env=env)
-    else:
-        _must(root, "read-tree", "--empty", env=env)
-    # Not an exclude pathspec: in generated projects the state folder is
-    # gitignored, and git add exits 1 when a pathspec names an ignored path.
-    _must(root, "add", "-A", "--", ".", env=env)
-    _must(
-        root,
-        "rm",
-        "-rqf",
-        "--cached",
-        "--ignore-unmatch",
-        "--",
-        _common.STATE_DIR,
-        env=env,
-    )
-    return _must(root, "write-tree", env=env).strip()
-
-
-def load_state(root: Path) -> dict[str, Any]:
-    path = _common.state_path(root, STATE)
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, ValueError):
-        return {"unreadable": True}
-    if not isinstance(data, dict):
-        return {"unreadable": True}
-    state = cast("dict[str, Any]", data)
-    findings: object = state.get("findings", [])
-    if not isinstance(findings, list) or not all(
-        _well_formed(f) for f in cast("list[object]", findings)
-    ):
-        return {"unreadable": True}
-    return state
-
-
-_FINDING_TEXT = ("id", "principle", "file", "problem", "fix")
-
-
-def _well_formed(finding: object) -> bool:
-    if not isinstance(finding, dict):
-        return False
-    f = cast("dict[str, Any]", finding)
-    return (
-        all(isinstance(f.get(k), str) for k in _FINDING_TEXT)
-        and isinstance(f.get("line"), int)
-        and isinstance(f.get("accepted", False), bool)
-    )
-
-
-def save_state(root: Path, state: dict[str, Any]) -> None:
-    path = _common.state_path(root, STATE)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f"{STATE}.")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(json.dumps(state, indent=2) + "\n")
-        os.replace(tmp, path)
-    except OSError:
-        Path(tmp).unlink(missing_ok=True)
-        raise
-
-
 MAIN_REFS = (
     "refs/remotes/origin/HEAD",
     "refs/remotes/origin/main",
@@ -141,189 +37,235 @@ MAIN_REFS = (
     "refs/heads/main",
     "refs/heads/master",
 )
+STATUSES = ("open", "fixed", "accepted")
+IDENTITY = {
+    "GIT_AUTHOR_NAME": "alpha",
+    "GIT_AUTHOR_EMAIL": "alpha@localhost",
+    "GIT_COMMITTER_NAME": "alpha",
+    "GIT_COMMITTER_EMAIL": "alpha@localhost",
+}
+
+
+class ReviewError(Exception):
+    """The review can't run as things are; the message says what to do."""
+
+
+def _run(
+    root: Path, *args: str, stdin: str | None = None, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(  # quotepath off: non-ASCII names as they are
+            ["git", "-c", "core.quotepath=false", *args],
+            cwd=root,
+            input=stdin,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, **(env or {})},
+        )
+    except OSError:
+        return None
+
+
+def _git(root: Path, *args: str) -> str | None:
+    proc = _run(root, *args)
+    return proc.stdout if proc is not None and proc.returncode == 0 else None
 
 
 def main_base(root: Path) -> str | None:
-    """Where this checkout's own work leaves main. A pushed feature branch isn't
-    reviewed work, so the branch's upstream doesn't count."""
+    """Where this branch leaves main: the merge base with the first main ref
+    that exists, or None when the repository has none."""
     for ref in MAIN_REFS:
         if _git(root, "rev-parse", "--verify", "-q", ref):
             out = _git(root, "merge-base", "HEAD", ref)
-            if out:
-                return out.strip()
-    head = _git(root, "rev-parse", "--verify", "-q", "HEAD")
-    return head.strip() if head else None
-
-
-def _tree(root: Path, commit: str | None) -> str:
-    out = _git(root, "rev-parse", "--verify", "-q", f"{commit}^{{tree}}")
-    return out.strip() if commit and out else EMPTY_TREE
-
-
-def ensure_state(root: Path) -> dict[str, Any]:
-    state = load_state(root)
-    base = main_base(root)
-    if not isinstance(state.get("reviewed_tree"), str):
-        fresh: dict[str, Any] = {
-            "reviewed_tree": _tree(root, base),
-            "findings": [],
-            "reviewed_for": "",
-            "base": base,
-        }
-        if state.get("unreadable"):
-            fresh["notice"] = (
-                "alpha: the review state was unreadable, so review restarted from "
-                "where this branch leaves main."
-            )
-        save_state(root, fresh)
-        return fresh
-    if base and isinstance(state.get("base"), str) and state["base"] != base:
-        _carry(root, state, _tree(root, state["base"]), _tree(root, base))
-        state["base"] = base
-        save_state(root, state)
-    elif base and "base" not in state:
-        state["base"] = base
-        save_state(root, state)
-    return state
-
-
-def _numstat(root: Path, old: str, new: str) -> list[tuple[int, str]]:
-    out = _git(root, "diff", "--numstat", "-z", "--no-renames", old, new)
-    if not out:
-        return []
-    rows: list[tuple[int, str]] = []
-    for entry in out.split("\0"):
-        parts = entry.split("\t")
-        if len(parts) != 3:
-            continue
-        added, deleted, path = parts
-        count = (int(added) if added.isdigit() else 0) + (
-            int(deleted) if deleted.isdigit() else 0
-        )
-        rows.append((count, path))
-    return rows
-
-
-def debt(root: Path, principles: dict[str, Any]) -> dict[str, Any]:
-    state = ensure_state(root)
-    reviewed = str(state["reviewed_tree"])
-    current = snapshot(root)
-    empty: dict[str, Any] = {
-        "files": [],
-        "counted_files": 0,
-        "counted_lines": 0,
-        "risky": [],
-        "tree": current,
-    }
-    if current == reviewed:
-        return empty
-    review: dict[str, Any] = principles.get("review", {})
-    excluded = [str(g) for g in review.get("exclude", [])]
-    risk_globs = [str(g) for g in review.get("risk_paths", [])]
-    manifests: list[str] = []
-    new_folders: list[str] = []
-    for comp in principles.get("components", []):
-        manifests += [str(m) for m in comp.get("manifests", [])]
-        path = str(comp.get("path", ".")).strip("/")
-        if (
-            path not in ("", ".")
-            and _git(root, "cat-file", "-e", f"{reviewed}:{path}") is None
-        ):
-            new_folders.append(path)
-    files: list[str] = []
-    risky: list[str] = []
-    counted_files = counted_lines = 0
-    for count, path in _numstat(root, reviewed, current):
-        files.append(path)
-        if not _common.matches(path, excluded):
-            counted_files += 1
-            counted_lines += count
-        if (
-            _common.matches(path, risk_globs)
-            or path in manifests
-            or any(path.startswith(f"{folder}/") for folder in new_folders)
-        ):
-            risky.append(path)
-    return {
-        "files": files,
-        "counted_files": counted_files,
-        "counted_lines": counted_lines,
-        "risky": risky,
-        "tree": current,
-    }
-
-
-def review_due(principles: dict[str, Any], debt: dict[str, Any]) -> str | None:
-    if not debt["files"]:
-        return None
-    review: dict[str, Any] = principles.get("review", {})
-    if review.get("mode") == "at-merge":
-        return None
-    if review.get("mode") == "every-task":
-        return "review mode is every-task"
-    if debt["risky"]:
-        return f"risky paths changed: {', '.join(debt['risky'])}"
-    max_lines = int(review.get("max_lines", 200))
-    max_files = int(review.get("max_files", 5))
-    if debt["counted_lines"] > max_lines or debt["counted_files"] >= max_files:
-        return (
-            f"{debt['counted_lines']} lines in {debt['counted_files']} files changed "
-            f"since the last review (limits: max_lines {max_lines}, "
-            f"max_files {max_files})"
-        )
+            return out.strip() if out else None
     return None
 
 
-DIFF_LINES = 1500
-USAGE = (
-    "Run it as: python3 .claude/alpha/hooks/review.py brief (or snapshot, or "
-    'absorb <before-tree> <after-tree>, or untested "<why>" <path> ...), from '
-    "the root of an alpha project (one with docs/principles.toml)."
-)
+def tree_of(root: Path, commit: str | None) -> str:
+    out = (
+        _git(root, "rev-parse", "--verify", "-q", f"{commit}^{{tree}}")
+        if commit
+        else None
+    )
+    return out.strip() if out else EMPTY_TREE
 
 
-def _blob(root: Path, rel: str) -> str:
-    out = _git(root, "hash-object", "--", rel) if (root / rel).is_file() else None
-    return out.strip() if out else "deleted"
+def current_branch(root: Path) -> str:
+    return (_git(root, "branch", "--show-current") or "").strip()
 
 
-def note_untested(root: Path, reason: str, paths: list[str]) -> list[str]:
-    """Record why these source changes need no test; returns the paths that
-    aren't in the project."""
-    rels = [_common.rel_to_root(root, str(Path.cwd() / p)) for p in paths]
-    outside = [p for p, rel in zip(paths, rels, strict=True) if rel is None]
-    if outside:
-        return outside
-    state = ensure_state(root)
-    kept = [
-        n
-        for n in state.get("untested", [])
-        if n["path"] not in rels and _blob(root, n["path"]) == n["blob"]
+def _noted(root: Path, ref: str) -> dict[str, str]:
+    """The objects a notes ref annotates, each with its note's blob."""
+    out = _git(root, "notes", f"--ref={ref}", "list") or ""
+    pairs = (line.split() for line in out.splitlines())
+    return {p[1]: p[0] for p in pairs if len(p) == 2}
+
+
+def read_note(root: Path, obj: str) -> dict[str, Any] | None:
+    out = _git(root, "notes", f"--ref={NOTES_REF}", "show", obj)
+    if not out:
+        return None
+    try:
+        data: object = json.loads(out)
+    except ValueError:
+        return None
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else None
+
+
+def write_note(root: Path, tree: str, note: dict[str, Any]) -> None:
+    text = json.dumps(note, indent=2, sort_keys=True)
+    proc = _run(
+        root,
+        "notes",
+        f"--ref={NOTES_REF}",
+        "add",
+        "-f",
+        "-F",
+        "-",
+        tree,
+        stdin=text,
+        env=IDENTITY,
+    )
+    if proc is None or proc.returncode != 0:
+        detail = proc.stderr.strip() if proc is not None else "git couldn't run"
+        raise ReviewError(f"git couldn't record the review on {tree}: {detail}")
+
+
+def last_review(root: Path) -> tuple[str, dict[str, Any]] | None:
+    """The last reviewed tree and its note: the first commit since main whose
+    tree has one, walked newest first in topological order; when a rebase
+    gave every commit a new tree, the newest note recorded for this branch.
+    A note on main's history carries nothing into the branch."""
+    noted = _noted(root, NOTES_REF)
+    if not noted:
+        return None
+    base = main_base(root)
+    walk = _git(
+        root, "log", "--topo-order", "--format=%T", f"{base}..HEAD" if base else "HEAD"
+    )
+    for tree in (walk or "").split():
+        if tree in noted:
+            note = read_note(root, tree)
+            if note is not None:
+                return tree, note
+    branch = current_branch(root)
+    newest: tuple[int, str, dict[str, Any]] | None = None
+    for obj in noted:
+        note = read_note(root, obj)
+        if note is None or not branch or note.get("branch") != branch:
+            continue
+        stamp = note.get("recorded")
+        when = stamp if isinstance(stamp, int) else 0
+        if newest is None or when > newest[0]:
+            newest = (when, obj, note)
+    return (newest[1], newest[2]) if newest else None
+
+
+def open_findings(note: dict[str, Any] | None) -> list[dict[str, Any]]:
+    raw: object = note.get("findings", []) if note else []
+    items = cast("list[object]", raw) if isinstance(raw, list) else []
+    return [
+        cast("dict[str, Any]", f)
+        for f in items
+        if isinstance(f, dict) and cast("dict[str, Any]", f).get("status") == "open"
     ]
-    kept += [
-        {"path": rel, "reason": reason, "blob": _blob(root, rel)}
-        for rel in rels
-        if rel is not None
-    ]
-    state["untested"] = kept
-    save_state(root, state)
-    return []
 
 
-def untested_notes(root: Path) -> dict[str, str]:
-    """Paths noted as needing no test, while their content is still the noted one."""
-    notes: object = load_state(root).get("untested", [])
-    if not isinstance(notes, list):
-        return {}
+def _blobs(root: Path, treeish: str) -> dict[str, str]:
+    out = _git(root, "ls-tree", "-r", "-z", treeish) or ""
     found: dict[str, str] = {}
-    for n in cast("list[object]", notes):
-        if isinstance(n, dict):
-            note = cast("dict[str, Any]", n)
-            path, reason = note.get("path"), note.get("reason")
-            if isinstance(path, str) and isinstance(reason, str):
-                if _blob(root, path) == note.get("blob"):
-                    found[path] = reason
+    for row in out.split("\0"):
+        meta, _, path = row.partition("\t")
+        parts = meta.split()
+        if len(parts) == 3 and parts[1] == "blob":
+            found[path] = parts[2]
     return found
+
+
+def render_blobs(root: Path) -> dict[str, str]:
+    """The blobs of alpha's own render at HEAD (alpha.rendered): files equal
+    to it are alpha's writes, not the branch's work."""
+    noted = _noted(root, RENDERED_REF)
+    if not noted:
+        return {}
+    for commit in (_git(root, "rev-list", "--topo-order", "HEAD") or "").split():
+        if commit in noted:
+            render = (_git(root, "cat-file", "blob", noted[commit]) or "").strip()
+            return _blobs(root, render) if render else {}
+    return {}
+
+
+def _names(root: Path, old: str, new: str) -> list[str]:
+    out = _git(root, "diff", "--name-only", "-z", "--no-renames", old, new) or ""
+    return [p for p in out.split("\0") if p]
+
+
+def files_to_review(root: Path, last_tree: str | None) -> list[str]:
+    """What the branch changed since main, and since the last review if any,
+    leaving out each file whose content is alpha's render."""
+    head = tree_of(root, "HEAD")
+    files = _names(root, tree_of(root, main_base(root)), head)
+    if last_tree is not None:
+        since = set(_names(root, last_tree, head))
+        files = [f for f in files if f in since]
+    render = render_blobs(root)
+    if render:
+        current = _blobs(root, head)
+        files = [
+            f for f in files if render.get(f) is None or render[f] != current.get(f)
+        ]
+    return files
+
+
+def dirty(root: Path) -> list[str]:
+    out = _git(root, "status", "--porcelain", "--untracked-files=no") or ""
+    return [line[3:] for line in out.splitlines() if line.strip()]
+
+
+def _briefs_path(root: Path) -> Path:
+    common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    folder = Path(common.strip()) / "alpha" if common else root / ".git" / "alpha"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / "briefs.json"
+
+
+def briefs(root: Path) -> list[dict[str, Any]]:
+    try:
+        data: object = json.loads(_briefs_path(root).read_text())
+    except (OSError, ValueError):
+        return []
+    items = cast("list[object]", data) if isinstance(data, list) else []
+    return [cast("dict[str, Any]", b) for b in items if isinstance(b, dict)]
+
+
+def _remember(root: Path, brief: dict[str, Any]) -> None:
+    kept = [b for b in briefs(root) if b.get("tree") != brief["tree"]][-9:]
+    _briefs_path(root).write_text(json.dumps([*kept, brief], indent=2))
+
+
+def on_risk_path(principles: dict[str, Any], path: str) -> bool:
+    globs = [str(g) for g in principles.get("review", {}).get("risk_paths", [])]
+    return _common.matches(path, globs)
+
+
+def accepts_since(root: Path, tree: str | None) -> list[str]:
+    """The `Accepts:` lines of the commits since the reviewed tree's commit."""
+    out = _git(root, "log", "--format=%T %H") or ""
+    since: list[str] = []
+    for row in out.splitlines():
+        found_tree, _, commit = row.partition(" ")
+        if found_tree == tree:
+            break
+        since.append(commit)
+    lines: list[str] = []
+    for commit in since:
+        body = _git(root, "log", "-1", "--format=%B", commit) or ""
+        lines += [line for line in body.splitlines() if line.startswith("Accepts: F-")]
+    return lines
+
+
+DIFF_LINES = 1500
 
 
 def _relevant_principles(
@@ -486,24 +428,55 @@ def _changed_visuals(
     return lines
 
 
+def _finding_line(f: dict[str, Any]) -> str:
+    return f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
+
+
 def brief(root: Path) -> str:
+    """What the principles-reviewer reviews next: a review of the files the
+    branch changed since the last one, or a fix check of its open findings."""
+    stale = dirty(root)
+    if stale:
+        raise ReviewError(
+            f"tracked files have uncommitted changes ({', '.join(stale[:5])}). The "
+            "review covers the committed tree: commit or stash them, then run the "
+            "brief again."
+        )
     principles = _common.load_principles(root) or {}
-    state = ensure_state(root)
-    reviewed = str(state["reviewed_tree"])
-    current = snapshot(root)
-    state["briefed"] = [*state.get("briefed", []), current][-5:]
-    save_state(root, state)
-    stats = _numstat(root, reviewed, current)
-    files = [path for _, path in stats]
+    head = tree_of(root, "HEAD")
+    last = last_review(root)
+    previous = open_findings(last[1]) if last else []
+    files = files_to_review(root, last[0] if last else None)
+    named = {str(f["file"]) for f in previous}
+    fresh = [f for f in files if f not in named]
+    base = last[0] if last else tree_of(root, main_base(root))
+    kind = "fix-check" if previous else "review"
+    _remember(
+        root,
+        {
+            "tree": head,
+            "kind": kind,
+            "base": base,
+            "fresh": fresh,
+            "findings": previous,
+            "branch": current_branch(root),
+        },
+    )
     load = str(principles.get("review", {}).get("expected_load", "")) or (
         "not recorded: infer it from the README and deploy config, and say "
         "which load you assumed"
     )
-    lines = [f"Tree: {current}", f"Reviewed: {reviewed}", f"Expected load: {load}"]
+    lines = [
+        f"Tree: {head}",
+        f"Base: {base}",
+        f"Kind: {kind}",
+        f"Expected load: {load}",
+    ]
+    shown = sorted({*fresh, *named})
+    touched = _touched(principles, shown)
     lines += ["", "## Principles", ""]
-    touched = _touched(principles, files)
     lines += [
-        _principle_line(p, touched) for p in _relevant_principles(principles, files)
+        _principle_line(p, touched) for p in _relevant_principles(principles, shown)
     ]
     rules = _stack_rules(principles, touched)
     if rules:
@@ -512,315 +485,98 @@ def brief(root: Path) -> str:
     if exceptions:
         lines += ["", "## Exceptions (CONTRIBUTING.md)", ""]
         lines += [e.row for e in exceptions]
-    logged = _common.accepted_findings(root)
-    by_user = [f for f in state.get("findings", []) if f.get("accepted")]
-    if by_user:
-        lines += ["", "## Findings the user accepted (don't report these again)", ""]
-        lines += [
-            f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
-            for f in by_user
-        ]
-    by_claude = [
-        f
-        for f in state.get("findings", [])
-        if not f.get("accepted") and settled(principles, f, logged)
-    ]
-    if by_claude:
+    if previous:
         lines += [
             "",
-            "## Findings Claude accepted (read the `Accepts:` trailer of each in "
-            "git log; report it as a new finding if its reason doesn't hold)",
+            "## Findings to check (a fix check: report each one's status; raise new "
+            "findings only on the files under Review afresh)",
             "",
+            *(_finding_line(f) for f in previous),
         ]
-        lines += [
-            f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
-            for f in by_claude
-        ]
-    findings = [
-        f for f in state.get("findings", []) if not settled(principles, f, logged)
-    ]
-    if findings:
-        lines += ["", "## Open findings", ""]
-        lines += [
-            f"- {f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']}"
-            for f in findings
-        ]
-    untested = untested_notes(root)
-    if untested:
+        accepts = accepts_since(root, base)
+        if accepts:
+            lines += ["", "## Accepts trailers since the review", "", *accepts]
+    noted = untested.notes(root)
+    if noted:
         lines += [
             "",
             "## Source changes Claude says need no test (check each reason)",
             "",
         ]
-        lines += [f"- {path}: {reason}" for path, reason in sorted(untested.items())]
-    lines += ["", "## Changed files", ""]
-    lines += [f"{count}\t{path}" for count, path in stats]
-    lines += _changed_visuals(root, reviewed, current, principles, files)
+        lines += [f"- {path}: {reason}" for path, reason in sorted(noted.items())]
+    lines += ["", "## Review afresh" if previous else "## Changed files", ""]
+    lines += [f"- {path}" for path in fresh] or ["(none)"]
+    lines += _changed_visuals(root, base, head, principles, fresh)
     lockfiles = {
         str(lock)
         for comp in principles.get("components", [])
         for lock in comp.get("lockfiles", [])
     }
-    changed_locks = [path for path in files if path in lockfiles]
+    changed_locks = [path for path in shown if path in lockfiles]
     lines += ["", "## Diff", ""]
     if changed_locks:
-        lines += [
-            f"Lockfiles changed (diff left out): {', '.join(changed_locks)}",
-            "",
-        ]
-    lines += _diff(root, reviewed, current, changed_locks)
+        lines += [f"Lockfiles changed (diff left out): {', '.join(changed_locks)}", ""]
+    diffed = [p for p in shown if p not in lockfiles]
+    lines += _diff(root, base, head, diffed) if diffed else ["(no diff)"]
     return "\n".join(lines) + "\n"
+
+
+def gate(root: Path, principles: dict[str, Any]) -> str | None:
+    """Why the branch can't reach main yet, or None."""
+    stale = dirty(root)
+    if stale:
+        return (
+            "Commit or stash the changes to tracked files first "
+            f"({', '.join(stale[:5])}): the review covers the committed tree."
+        )
+    last = last_review(root)
+    previous = open_findings(last[1]) if last else []
+    if previous:
+        ids = ", ".join(str(f["id"]) for f in previous)
+        risky = [
+            str(f["id"]) for f in previous if on_risk_path(principles, str(f["file"]))
+        ]
+        users = (
+            f" {', '.join(risky)} touch risk paths: only the user accepts those, by "
+            f'replying "accept {risky[0]}".'
+            if risky
+            else ""
+        )
+        return (
+            f"Nothing reaches main with open review findings ({ids}). Fix them, or "
+            "commit why one stands as a trailer, `Accepts: <id> <reason>`, then run "
+            f"the principles-reviewer to check them.{users}"
+        )
+    head = tree_of(root, "HEAD")
+    if last is not None and last[0] == head:
+        return None
+    files = files_to_review(root, last[0] if last else None)
+    if not files:
+        return None
+    noun = "file" if len(files) == 1 else "files"
+    return (
+        "Nothing reaches main unreviewed: run the principles-reviewer agent first "
+        f"({len(files)} {noun} changed since the last review)."
+    )
+
+
+USAGE = (
+    "Run it as: python3 .claude/alpha/hooks/review.py brief, from the root of an "
+    "alpha project."
+)
 
 
 def main() -> None:
     _common.check_python()
     root = _common.project_root({"cwd": os.getcwd()})
-    args = sys.argv[1:]
-    valid = (
-        args in (["brief"], ["snapshot"])
-        or (len(args) == 3 and args[0] == "absorb")
-        or (len(args) >= 3 and args[0] == "untested")
-    )
-    if not valid or not (root / "docs" / "principles.toml").is_file():
+    if sys.argv[1:] != ["brief"] or _common.checkout_of(root.resolve()) is None:
         print(USAGE, file=sys.stderr)
         sys.exit(1)
     try:
-        if args[0] == "untested":
-            if len(args[1].split()) < 2:
-                print(
-                    'review.py: give the reason in a few words, e.g. "renames '
-                    'the field only", before the paths.',
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            outside = note_untested(root, args[1], args[2:])
-            if outside:
-                print(
-                    f"review.py: {', '.join(outside)} isn't in this project; name "
-                    "files from its root.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            print("noted: the principles-reviewer checks the reason")
-        elif args[0] == "brief":
-            print(brief(root), end="")
-        elif args[0] == "snapshot":
-            print(snapshot(root))
-        else:
-            if not absorb(root, args[1], args[2]):
-                print(
-                    "review.py: some of alpha's changes clash with edits the "
-                    "reviewer hasn't seen; they stay under review.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-    except SnapshotError as e:
-        print(
-            f"review.py: can't snapshot the working tree ({e}). Fix that, then run "
-            "the brief again.",
-            file=sys.stderr,
-        )
+        print(brief(root), end="")
+    except ReviewError as e:
+        print(f"review.py: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-def on_risk_path(principles: dict[str, Any], finding: dict[str, Any]) -> bool:
-    globs = [str(g) for g in principles.get("review", {}).get("risk_paths", [])]
-    return _common.matches(str(finding.get("file", "")), globs)
-
-
-def settled(
-    principles: dict[str, Any], finding: dict[str, Any], logged: set[str]
-) -> bool:
-    if finding.get("accepted"):
-        return True
-    return finding["id"] in logged and not on_risk_path(principles, finding)
-
-
-def gate(root: Path, principles: dict[str, Any]) -> str | None:
-    state = ensure_state(root)
-    findings: list[dict[str, Any]] = list(state.get("findings", []))
-    logged = _common.accepted_findings(root)
-    still_open = [f for f in findings if not settled(principles, f, logged)]
-    if still_open:
-        listing = "\n".join(
-            f"{f['id']} {f['principle']} {f['file']}:{f['line']}: {f['problem']} "
-            f"Fix: {f['fix']}"
-            for f in still_open
-        )
-        risky = [str(f["id"]) for f in still_open if on_risk_path(principles, f)]
-        escalate = (
-            f" {', '.join(risky)} touch risk paths: only the user accepts those, "
-            f'by replying "accept {risky[0]}".'
-            if risky
-            else ""
-        )
-        return (
-            f"alpha review: open findings:\n{listing}\nFix them and run the "
-            "principles-reviewer agent again. A finding you can disprove: commit "
-            "the disproof as a trailer, `Accepts: <id> <why it's wrong>` (an empty "
-            f"commit works), and carry on.{escalate}"
-        )
-    unrecorded = [str(f["id"]) for f in findings if f["id"] not in logged]
-    if unrecorded:
-        lines = ", ".join(f"Accepts: {i} <why it stands>" for i in unrecorded)
-        return (
-            "alpha review: the user accepted findings that no commit records yet. "
-            f"Add a trailer per finding to a commit (an empty one works): {lines}."
-        )
-    if findings:
-        state["reviewed_tree"] = state["reviewed_for"]
-        state["findings"] = []
-        save_state(root, state)
-    reason = review_due(principles, debt(root, principles))
-    if reason:
-        return (
-            f"alpha review: run the principles-reviewer agent before finishing "
-            f"({reason})."
-        )
-    return None
-
-
-def merge_blocker(root: Path, principles: dict[str, Any]) -> str | None:
-    state = ensure_state(root)
-    logged = _common.accepted_findings(root)
-    pending = [
-        str(f["id"])
-        for f in state.get("findings", [])
-        if not settled(principles, f, logged) or f["id"] not in logged
-    ]
-    if pending:
-        return (
-            "Nothing reaches main unreviewed: resolve the review findings first "
-            f"({', '.join(pending)}): fix them and run the principles-reviewer "
-            "again, or commit why one stands as a trailer, `Accepts: <id> "
-            "<reason>` (a finding on a risk path needs the user's "
-            '"accept <id>" too).'
-        )
-    try:
-        files = debt(root, principles)["files"]
-    except SnapshotError as e:
-        return (
-            "Nothing reaches main unreviewed, but alpha can't measure the review "
-            f"debt ({e}). Fix that and retry; the snapshot error says what's wrong."
-        )
-    if files:
-        noun = "file" if len(files) == 1 else "files"
-        return (
-            "Nothing reaches main unreviewed: run the principles-reviewer agent "
-            f"first ({len(files)} {noun} changed since the last review)."
-        )
-    return None
-
-
-_ALPHA_IDENTITY = {
-    "GIT_AUTHOR_NAME": "alpha",
-    "GIT_AUTHOR_EMAIL": "alpha@localhost",
-    "GIT_COMMITTER_NAME": "alpha",
-    "GIT_COMMITTER_EMAIL": "alpha@localhost",
-}
-
-
-def note_turn_end(root: Path) -> None:
-    state = ensure_state(root)
-    try:
-        state["left_tree"] = snapshot(root)
-    except SnapshotError:
-        state.pop("left_tree", None)
-    save_state(root, state)
-
-
-def _commit(root: Path, tree: str) -> str | None:
-    """A throwaway commit object for a tree, so merge-tree can use it."""
-    env = {**os.environ, **_ALPHA_IDENTITY}
-    out = _git(root, "commit-tree", tree, "-m", "alpha review snapshot", env=env)
-    return out.strip() if out else None
-
-
-def _carry(root: Path, state: dict[str, Any], left: str, right: str) -> bool:
-    reviewed = state.get("reviewed_tree")
-    if not isinstance(reviewed, str):
-        return False
-    if right == left:
-        return True
-    commits = [_commit(root, t) for t in (left, reviewed, right)]
-    if not all(commits):
-        return False
-    base, ours, theirs = cast("list[str]", commits)
-    merged = _git(
-        root, "merge-tree", "--write-tree", f"--merge-base={base}", ours, theirs
-    )
-    if not merged:
-        return False
-    state["reviewed_tree"] = merged.splitlines()[0].strip()
-    return True
-
-
-def absorb_outside_changes(root: Path) -> None:
-    state = load_state(root)
-    left = state.get("left_tree")
-    if not isinstance(left, str) or not isinstance(state.get("reviewed_tree"), str):
-        return
-    state.pop("left_tree", None)
-    try:
-        current = snapshot(root)
-    except SnapshotError:
-        save_state(root, state)
-        return
-    _carry(root, state, left, current)
-    save_state(root, state)
-
-
-def _entries(root: Path, tree: str, paths: list[str]) -> dict[str, tuple[str, str]]:
-    out = _git(root, "ls-tree", "-z", tree, "--", *paths)
-    entries: dict[str, tuple[str, str]] = {}
-    for row in (out or "").split("\0"):
-        meta, _, path = row.partition("\t")
-        parts = meta.split()
-        if len(parts) == 3 and path:
-            entries[path] = (parts[0], parts[2])
-    return entries
-
-
-def _carry_paths(root: Path, state: dict[str, Any], before: str, after: str) -> bool:
-    reviewed = state.get("reviewed_tree")
-    names = _git(root, "diff", "--name-only", "-z", "--no-renames", before, after)
-    if not isinstance(reviewed, str) or names is None:
-        return False
-    paths = [p for p in names.split("\0") if p]
-    was = _entries(root, before, paths)
-    now = _entries(root, reviewed, paths)
-    new = _entries(root, after, paths)
-    take = [p for p in paths if now.get(p) == was.get(p)]
-    if take:
-        git_dir = Path(_must(root, "rev-parse", "--absolute-git-dir").strip())
-        index = git_dir / f"{INDEX_FILE}.absorb"
-        env = {**os.environ, "GIT_INDEX_FILE": str(index)}
-        try:
-            _must(root, "read-tree", reviewed, env=env)
-            for p in take:
-                if p in new:
-                    mode, blob = new[p]
-                    info = f"{mode},{blob},{p}"
-                    _must(root, "update-index", "--add", "--cacheinfo", info, env=env)
-                else:
-                    _must(root, "update-index", "--force-remove", "--", p, env=env)
-            state["reviewed_tree"] = _must(root, "write-tree", env=env).strip()
-        except SnapshotError:
-            return False
-        finally:
-            index.unlink(missing_ok=True)
-    return len(take) == len(paths)
-
-
-def absorb(root: Path, before: str, after: str) -> bool:
-    state = load_state(root)
-    if not isinstance(state.get("reviewed_tree"), str):
-        return True
-    done = _carry(root, state, before, after) or _carry_paths(
-        root, state, before, after
-    )
-    save_state(root, state)
-    return done
 
 
 if __name__ == "__main__":
