@@ -58,7 +58,9 @@ def test_reviewer_agent_contract():
     for piece in (
         "python3 .claude/alpha/hooks/review.py brief",
         '"tree"',
+        '"checked"',
         '"findings"',
+        "`Kind: fix-check`",
         '"principle"',
         '"file"',
         '"line"',
