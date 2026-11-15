@@ -114,24 +114,6 @@ def exhaustive_testing(a: Answers, defaults: dict[str, Any]) -> bool:
     return defaults.get("testing", {}).get("exhaustive") is True
 
 
-def mutation_testing(a: Answers, defaults: dict[str, Any]) -> bool:
-    """Whether exhaustive testing also runs each recipe's mutation-testing
-    gate: the answer when the interview set one, else the
-    kit's default. It is part of exhaustive testing, never on without it."""
-    answer = a.testing.mutants if a.testing is not None else None
-    if not exhaustive_testing(a, defaults):
-        if answer:
-            raise fail(
-                "testing.mutants",
-                "is true but mutation testing is part of exhaustive testing",
-                'Set "exhaustive": true in testing, or leave mutants out',
-            )
-        return False
-    if answer is not None:
-        return answer
-    return defaults.get("testing", {}).get("mutants") is True
-
-
 def workspace_members(a: Answers, defaults: dict[str, Any]) -> frozenset[str]:
     """The components that share their stack's workspace at the repository
     root: in a monorepo, those whose recipe has one, unless
@@ -268,7 +250,6 @@ def build_principles(
     protected = list(defaults["protected"]["paths"])
     book = a.book()
     members = workspace_members(a, defaults)
-    mutants = mutation_testing(a, defaults)
     for c in a.components:
         recipe = book.get(c.stack)
         member = c.name in members
@@ -303,7 +284,6 @@ def build_principles(
                 # The files at the repository root that alpha writes for the
                 # workspace this component is a member of.
                 **({"workspace": shared} if member else {}),
-                **({"mutants": recipe.mutants} if mutants and recipe.mutants else {}),
             }
         )
 

@@ -94,7 +94,7 @@ def test_workspace_root_holds_the_lockfile_ignores_and_updates(tmp_path: Path):
     protected = principles["protected"]["paths"]
     assert "Cargo.lock" in protected and "cli/Cargo.lock" not in protected
     ignored = (tmp_path / ".gitignore").read_text().splitlines()
-    assert ignored.count("/target/") == 1 and "/mutants.out*/" in ignored
+    assert ignored.count("/target/") == 1
     assert "cli/**/coverage.xml" in ignored
     assert not [
         line for line in ignored if line.endswith("/target/") and line[0] != "/"
@@ -182,18 +182,3 @@ def test_update_moves_separate_crates_into_the_workspace(tmp_path: Path, git_env
     commit_update(tmp_path, load_project_principles(tmp_path), [])
     tracked = git(tmp_path, "ls-files").splitlines()
     assert {*ROOT_FILES, "Cargo.lock"} <= set(tracked)
-
-
-def test_member_s_mutants_diff_names_files_from_the_workspace_root(tmp_path: Path):
-    generated(tmp_path, exhaustive=True)
-    step = jobs(tmp_path)["core"]["mutants"]
-    # cargo-mutants mutates the workspace's tree, whose root is the repository's.
-    assert step["run"].startswith('git diff "origin/${BASE_REF}"...HEAD > pr.diff && ')
-    mise = tomllib.loads((tmp_path / "mise.toml").read_text())["tasks"]
-    assert (
-        'git diff "$ALPHA_BASE"...HEAD > pr.diff' in mise["check:mutants:core"]["run"]
-    )
-    assert {"check:mutants:cli", "check:mutants:core"} <= set(mise["ci"]["depends"])
-    # One tree, mutated in place: the members' runs never overlap.
-    assert "depends" not in mise["check:mutants:cli"]
-    assert mise["check:mutants:core"]["depends"] == ["check:mutants:cli"]

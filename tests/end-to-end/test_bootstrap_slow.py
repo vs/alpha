@@ -569,10 +569,6 @@ _SIDE_BELOW = (
     "use super::side;\n\n#[test]\nfn below() {\n    assert_eq!(side(-1), -1);\n}\n"
 )
 _SIDE_AT = "\n#[test]\nfn at() {\n    assert_eq!(side(0), 1);\n}\n"
-_SIDE_FAR = (
-    "\n#[test]\nfn far() {\n"
-    "    assert_eq!(side(100), 1);\n    assert_eq!(side(101), 2);\n}\n"
-)
 _TWICE = (
     "//! Doubling.\n\n"
     "/// Twice the side of zero `n` is on.\n"
@@ -607,7 +603,7 @@ def _commit(project: Path, message: str, *paths: str) -> None:
 
 def _add_side(crate: Path) -> None:
     """A module whose `if` only one test side reaches, on one line: every
-    line runs, and the mutant `<` as `<=` survives."""
+    line runs, and only branch coverage tells the sides apart."""
     (crate / "src/side").mkdir(parents=True)
     (crate / "src/lib.rs").write_text("//! Tidy.\n\npub mod side;\n")
     (crate / "src/side.rs").write_text(_SIDE)
@@ -663,56 +659,9 @@ def test_exhaustive_gate_catches_a_half_tested_rust_branch(
 
 @pytest.mark.slow
 @NEEDS_CARGO
-def test_mutants_gate_catches_a_surviving_mutant(tmp_path: Path, git_env: None):
-    """Decision 0029, for a crate of its own in a monorepo's subfolder: the
-    diff must name files from that crate's root, or the gate checks nothing."""
-    place_rust_monorepo(tmp_path, workspace=False, exhaustive=True)
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
-    principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
-    bootstrap(tmp_path, principles, only=["core"])
-    commit_skeleton(tmp_path, principles, [])
-    git(tmp_path, "branch", "-M", "main")
-    git(tmp_path, "switch", "-c", "feature")
-    core = tmp_path / "core"
-    mutants = _ci_steps(tmp_path, "core")["mutants"]
-    env = {**os.environ, "BASE_REF": "main"}
-    env.pop("CI", None)  # the mise task leaves the gate to CI's own job there
-
-    _add_side(core)
-    _commit(tmp_path, "feat(core): Add side", "core/src")
-    done = _sh(mutants, core, env)
-    assert done.returncode != 0, done.stdout + done.stderr
-    assert "MISSED" in done.stdout and "replace < with <=" in done.stdout, done.stdout
-    local = subprocess.run(
-        ["mise", "run", "check:mutants:core"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        env={**env, "ALPHA_BASE": "main"},
-    )
-    assert local.returncode != 0 and "MISSED" in local.stdout + local.stderr
-    skipped = subprocess.run(
-        ["mise", "run", "check:mutants:core"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert skipped.returncode == 0 and "mutants skipped" in skipped.stdout
-
-    (core / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT)
-    _commit(tmp_path, "test(core): Cover the boundary", "core/src")
-    done = _sh(mutants, core, env)
-    assert done.returncode == 0, done.stdout + done.stderr
-    # The diff and cargo-mutants' output are ignored: CI's tree check passes.
-    assert git(tmp_path, "status", "--porcelain") == ""
-
-
-@pytest.mark.slow
-@NEEDS_CARGO
 def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
-    """Decisions 0027 to 0029 on real tools: two Rust components in one Cargo
-    workspace beside a Python one, with exhaustive testing."""
+    """Two Rust components in one Cargo workspace beside a Python one, with
+    exhaustive testing, on real tools."""
     place_rust_monorepo(tmp_path, exhaustive=True)
     generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
     principles = tomllib.loads((tmp_path / "docs/principles.toml").read_text())
@@ -721,7 +670,7 @@ def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
     assert git(tmp_path, "status", "--porcelain") == ""
     tracked = git(tmp_path, "ls-files").splitlines()
     assert {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml"} <= set(tracked)
-    assert not [f for f in tracked if f.startswith(("target/", "mutants.out"))]
+    assert not [f for f in tracked if f.startswith("target/")]
     for member in ("cli", "core"):
         assert not (tmp_path / member / "Cargo.lock").exists()
         assert not (tmp_path / member / "target").exists()
@@ -729,7 +678,6 @@ def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
     by_name = {c["name"]: c for c in principles["components"]}
     cli, core = tmp_path / "cli", tmp_path / "core"
     env = {**os.environ, "BASE_REF": "main"}
-    env.pop("CI", None)  # the mise task leaves the gate to CI's own job there
     git(tmp_path, "branch", "-M", "main")
     git(tmp_path, "switch", "-c", "feature")
 
@@ -746,11 +694,7 @@ def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
 
     # A branch covered on one side only fails the exhaustive gate.
     steps = _ci_steps(tmp_path, "core")
-    coverage, diff, mutants = (
-        steps["test with coverage"],
-        steps["diff coverage"],
-        steps["mutants"],
-    )
+    coverage, diff = steps["test with coverage"], steps["diff coverage"]
     assert diff.endswith("--branch-coverage")
     (core / "src/side").mkdir(parents=True)
     (core / "src/lib.rs").write_text("//! Tidy's core.\n\npub mod side;\n")
@@ -768,16 +712,11 @@ def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
     done = _sh(diff, core, env)
     assert done.returncode != 0, done.stdout + done.stderr
     assert "side.rs" in done.stdout + done.stderr
-    # ... and its surviving mutant (`<` as `<=`) fails the mutants gate.
-    done = _sh(mutants, core, env)
-    assert done.returncode != 0 and "MISSED" in done.stdout, done.stdout + done.stderr
 
     (core / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT)
     _commit(tmp_path, "test(core): Cover both sides", "core/src")
     assert _sh(coverage, core).returncode == 0
     done = _sh(diff, core, env)
-    assert done.returncode == 0, done.stdout + done.stderr
-    done = _sh(mutants, core, env)
     assert done.returncode == 0, done.stdout + done.stderr
 
     # One component depends on the other; every command still passes from
@@ -801,9 +740,8 @@ def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
     steps = _ci_steps(tmp_path, "cli")
     assert _sh(steps["test with coverage"], cli).returncode == 0
     assert "core/src" not in (cli / "coverage.xml").read_text()
-    for step in ("diff coverage", "mutants"):
-        done = _sh(steps[step], cli, env)
-        assert done.returncode == 0, f"{step}: {done.stdout}{done.stderr}"
+    done = _sh(steps["diff coverage"], cli, env)
+    assert done.returncode == 0, done.stdout + done.stderr
     assert git(tmp_path, "status", "--porcelain") == ""
 
     # Each command covers only the member it runs in.
@@ -824,41 +762,4 @@ def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
     passes("cli", "structure")
     for f, data in saved.items():
         f.write_bytes(data)
-    assert git(tmp_path, "status", "--porcelain") == ""
-
-    # A test-free change to an `if` gets a missed mutant and fails the check,
-    # in CI's step and in `mise run ci` on a diff.
-    git(tmp_path, "switch", "main")
-    git(tmp_path, "merge", "-q", "--ff-only", "feature")
-    git(tmp_path, "switch", "-c", "untested")
-    (core / "src/side.rs").write_text(
-        side.replace(
-            "if n < 0 { -1 } else { 1 }",
-            "if n < 0 {\n        -1\n    } else if n > 100 {\n        2\n"
-            "    } else {\n        1\n    }",
-        )
-    )
-    passes("core", "format_check")
-    passes("core", "test")
-    _commit(tmp_path, "feat(core): Add a far side", "core/src")
-    done = _sh(mutants, core, env)
-    assert done.returncode != 0, done.stdout + done.stderr
-    assert "MISSED" in done.stdout and "side.rs" in done.stdout, done.stdout
-    local = subprocess.run(
-        ["mise", "run", "check:mutants:core"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        env={**env, "ALPHA_BASE": "main"},
-    )
-    assert local.returncode != 0 and "MISSED" in local.stdout + local.stderr
-    cli_mutants = _sh(_ci_steps(tmp_path, "cli")["mutants"], cli, env)
-    assert cli_mutants.returncode == 0, cli_mutants.stdout  # not its change
-
-    (core / "src/side/tests.rs").write_text(_SIDE_BELOW + _SIDE_AT + _SIDE_FAR)
-    _commit(tmp_path, "test(core): Cover the far side", "core/src")
-    done = _sh(mutants, core, env)
-    assert done.returncode == 0, done.stdout + done.stderr
-    # The reports, the diff and cargo-mutants' output are ignored, so CI's
-    # tree check still passes.
     assert git(tmp_path, "status", "--porcelain") == ""

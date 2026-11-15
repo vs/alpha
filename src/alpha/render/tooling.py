@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Any
 
-from alpha.recipes import check_commands, mutants_run
+from alpha.recipes import check_commands
 from alpha.registry import Registry
 from alpha.repo_checks import BETTERLEAKS_CONFIG, TOOLCHAIN, RepoCheck
 from alpha.toml_write import dumps
@@ -46,17 +46,6 @@ _BETTERLEAKS_HEADER = """\
 # secrets belong in .env files). paths holds regular expressions, searched for
 # in each file's path.
 """
-
-
-# The mutation-testing gate needs a diff and the component's toolchain: it
-# runs here when ALPHA_BASE names the base (e.g. `ALPHA_BASE=main mise run
-# ci`), and in CI in the component's own job, not in the one that runs this.
-_MUTANTS = (
-    'if [ -z "${{ALPHA_BASE:-}}" ] || [ -n "${{CI:-}}" ]; then '
-    'echo "alpha: mutants skipped (set ALPHA_BASE to the base branch to run '
-    "them here; in CI the component's job runs them)\"; "
-    "else {run}; fi"
-)
 
 
 def _escape(ch: str) -> str:
@@ -115,27 +104,12 @@ def _mise(
             "dir": c["path"],
             "run": [command for _, command in check_commands(c["commands"])],
         }
-    gated = [c for c in components if c.get("mutants")]
-    last_member: dict[str, str] = {}
-    for c in gated:
-        name = f"check:mutants:{c['name']}"
-        tasks[name] = {
-            "dir": c["path"],
-            "run": _MUTANTS.format(run=mutants_run('"$ALPHA_BASE"', c)),
-        }
-        if c.get("workspace"):
-            # Members are mutated in place in one tree, with one output
-            # folder: one run at a time, each after the member before it.
-            if c["stack"] in last_member:
-                tasks[name]["depends"] = [last_member[c["stack"]]]
-            last_member[c["stack"]] = name
     tasks["ci"] = {
         "description": "Run the repository checks CI runs on a pull request"
         if ci
         else "Run the repository checks",
         "depends": [
             *(f"check:{c.id}" for c in checks if c.when in ("pr", "both")),
-            *(f"check:mutants:{c['name']}" for c in gated),
         ],
     }
     tasks["scheduled"] = {

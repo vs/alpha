@@ -20,7 +20,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 Tests get the same care as the code they test ("Tests are as important as the core"). Decide which levels of test each component needs, so effort matches risk: unit tests always, and more where a component talks to other things or users depend on whole flows. Each level's tests live under `tests/<level>/` in the component. A test that covers an acceptance check names its requirement id (e.g. `R1`), so every check in the product brief traces to a test. The Stop hook already blocks a source change that comes with no test change.
 
-A project that must not fail (a library or tool others build on, a data store, anything handling money or safety) can opt into **exhaustive testing**, modeled on [how SQLite is tested](https://www.sqlite.org/testing.html). It switches on the "Exhaustive testing" principle: every branch taken both ways, every failure path forced by an injected failure, fuzz or property-based tests for whatever reads outside input, limits tested on both sides, a failing test before each bug fix, invariants asserted in the code, and tests run on the build that ships. The reviewer checks every change against it, and pull requests must cover every line and branch they change (Rust records branches too, on a pinned nightly used only for the coverage run). A Rust component also gets a mutation-testing gate: a mutant of a changed line that no test catches fails the pull request. It takes several times more test code than product code, so it is off unless the user wants it.
+A project that must not fail (a library or tool others build on, a data store, anything handling money or safety) can opt into **exhaustive testing**, modeled on [how SQLite is tested](https://www.sqlite.org/testing.html). It switches on the "Exhaustive testing" principle: every branch taken both ways, every failure path forced by an injected failure, fuzz or property-based tests for whatever reads outside input, limits tested on both sides, a failing test before each bug fix, invariants asserted in the code, and tests run on the build that ships. The reviewer checks every change against it, and pull requests must cover every line and branch they change (Rust records branches too, on a pinned nightly used only for the coverage run). It takes several times more test code than product code, so it is off unless the user wants it.
 
 ## Fields this area settles
 
@@ -28,7 +28,6 @@ A project that must not fail (a library or tool others build on, a data store, a
 - `testing.components[].levels` - from `unit`, `integration`, `end-to-end`, `contract`; always includes `unit`, each level once.
 - `testing.diff_coverage` - optional whole percentage, 0 to 100: the share of the lines a pull request changes that its tests must cover (0 turns the check off). Leave it out to take `defaults.testing.diff_coverage`. Only components whose recipe has a `coverage` command are checked.
 - `testing.exhaustive` - optional `true` or `false`: whether the project is tested exhaustively. Leave it out to take `defaults.testing.exhaustive`. When it is on, the diff coverage check is 100% of changed lines and branches, so leave `diff_coverage` out.
-- `testing.mutants` - optional `true` or `false`, only with exhaustive testing: whether a pull request also fails when a mutant of a line it changes survives the tests. Leave it out to take `defaults.testing.mutants` (on). Only components whose recipe has a `mutants` command are checked (Rust, with cargo-mutants).
 - `testing.run` - optional, `"at-merge"` or `"at-stop"`: when alpha's hooks run a component's full test suite. `at-merge`: once, before Claude's work reaches main (a push to main, or merging a pull request). `at-stop`: every time Claude finishes a turn in which the component changed, which suits a suite that takes seconds. Leave it out to take `defaults.testing.run`.
 - `areas.testing` - `"in_progress"` while you work, `"done"` at the end.
 
@@ -58,7 +57,7 @@ Each top-level key you send replaces that key in project.json; the others stay a
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `testing` set to `"in_progress"`.
-3. When the user confirms the area, save the `testing` object `{"components": [{"name", "levels"}]}`, with one entry per component, plus `"diff_coverage": <0-100>`, `"exhaustive": <true|false>`, `"mutants": <true|false>` and `"run": "<at-merge|at-stop>"`, each only when the user chose a value other than the default. Keep the exact field names.
+3. When the user confirms the area, save the `testing` object `{"components": [{"name", "levels"}]}`, with one entry per component, plus `"diff_coverage": <0-100>`, `"exhaustive": <true|false>` and `"run": "<at-merge|at-stop>"`, each only when the user chose a value other than the default. Keep the exact field names.
 4. In the same call, save `areas` with `testing` set to `"done"`.
 
 ## Check

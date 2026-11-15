@@ -70,9 +70,6 @@ class Recipe:
     # (relative to the component). A stack with both gets a diff coverage check.
     coverage: str = ""
     coverage_report: str = ""
-    # Optional: the mutation-testing gate of an exhaustively tested project,
-    # run in the component folder on the diff in MUTANTS_DIFF.
-    mutants: str = ""
     workspace: Workspace | None = None
     # How each step's findings read, for a baseline (spec §8b); keyed by step.
     baselines: Mapping[str, Baseline] = field(default_factory=lambda: {})
@@ -110,7 +107,6 @@ _RECIPE_KEYS = frozenset(
         "rules",
         "coverage",
         "coverage_report",
-        "mutants",
         "vars",
         "workspace",
         "baseline",
@@ -168,9 +164,6 @@ _TEMPLATE_NAMES = "name|slug|members|root"
 _TEMPLATE_VALUE = re.compile(
     rf"(?<!\$)\$(?:\{{({_TEMPLATE_NAMES})\}}|({_TEMPLATE_NAMES})\b)"
 )
-# The file a mutation-testing command reads the pull request's diff from,
-# in the component folder.
-MUTANTS_DIFF = "pr.diff"
 _VAR = re.compile(r"\$\{([a-z][a-z0-9_]*)\}")
 _VAR_NAME = re.compile(r"[a-z][a-z0-9_]*")
 # `${dir}` is the component's folder in a CI step; the rest fill templates.
@@ -567,11 +560,9 @@ def recipe_from_data(
         )
     coverage = data.get("coverage", "")
     coverage_report = data.get("coverage_report", "")
-    mutants = data.get("mutants", "")
     for key, value in (
         ("coverage", coverage),
         ("coverage_report", coverage_report),
-        ("mutants", mutants),
     ):
         if not isinstance(value, str):
             raise _fail(f"{where}.{key}", "must be text", 'Write it, or "" for none')
@@ -627,7 +618,7 @@ def recipe_from_data(
             "has no setup test (no template matches test_globs)",
             "Add a test that checks the toolchain itself, e.g. tests/setup.<ext>",
         )
-    tools = {_first_word(c) for c in [*bootstrap, *commands.values(), mutants] if c}
+    tools = {_first_word(c) for c in [*bootstrap, *commands.values()] if c}
     for i, rule in enumerate(lists["allow"]):
         found = _ALLOW.fullmatch(rule)
         if found is None or found.group(1) not in tools:
@@ -658,7 +649,6 @@ def recipe_from_data(
         rules=_rules(data.get("rules", []), f"{where}.rules"),
         coverage=coverage,
         coverage_report=coverage_report,
-        mutants=mutants,
         workspace=workspace,
         baselines=_baselines(data.get("baseline", {}), f"{where}.baseline", commands),
         detect=_detect(data.get("detect", {}), f"{where}.detect"),
@@ -797,18 +787,6 @@ def render_template(text: str, values: Mapping[str, str]) -> str:
     one the caller has no value for stays as written."""
     return _TEMPLATE_VALUE.sub(
         lambda m: values.get(m.group(1) or m.group(2), m.group(0)), text
-    )
-
-
-def mutants_run(base: str, component: Mapping[str, Any]) -> str:
-    """The component's mutation-testing gate on what the branch changed since
-    `base` (a shell word), run in its folder. The diff names files from the
-    root of the tree the tool mutates: the component's folder, or the
-    repository's for a workspace member. A diff from the wrong root matches
-    nothing, and the gate would pass unchecked."""
-    relative = "" if component.get("workspace") else " --relative"
-    return (
-        f"git diff{relative} {base}...HEAD > {MUTANTS_DIFF} && {component['mutants']}"
     )
 
 

@@ -33,7 +33,7 @@ mise run check
 
 `mise install` installs the pinned tools; `mise run check` runs every component's checks and the repository checks below, the same as CI.
 
-The principles in `docs/principles.toml` name them in `checked_by` as `ci:<name>`: a name in the table is that check, and `ci:tree` is when every CI job ends by checking that the checks left the tree unchanged; `ci:diff-coverage` is when a pull request's job fails when its tests cover less of the changed lines than `testing.diff_coverage`; `ci:mutants` is when under exhaustive testing, a pull request's job fails when a mutant of a changed line survives the tests, in a component whose stack has a mutation-testing tool (Rust: cargo-mutants).
+The principles in `docs/principles.toml` name them in `checked_by` as `ci:<name>`: a name in the table is that check, and `ci:tree` is when every CI job ends by checking that the checks left the tree unchanged; `ci:diff-coverage` is when a pull request's job fails when its tests cover less of the changed lines than `testing.diff_coverage`.
 
 | Check | What it checks | Runs |
 |---|---|---|

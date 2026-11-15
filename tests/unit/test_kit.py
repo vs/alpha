@@ -39,3 +39,4 @@ def test_R14_1_dropped_features_are_gone():
     for gone in ("src/alpha_evals", "bin/alpha-evals", "evals"):
         assert not (PLUGIN_ROOT / gone).exists(), gone
     assert _naming("alpha-evals", "alpha_evals") == []
+    assert _naming("cargo-mutants", "ci:mutants", "mutants::skip") == []

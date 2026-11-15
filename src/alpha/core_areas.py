@@ -101,9 +101,6 @@ class Testing:
     diff_coverage: int | None = None
     exhaustive: bool | None = None
     run: str | None = None
-    # Whether exhaustive testing also gates on mutation testing, where the
-    # stack's recipe has a command for it; None takes `defaults.testing.mutants`.
-    mutants: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -388,8 +385,7 @@ def testing(raw: object, comps: "Sequence[Component] | None", talk: bool) -> Tes
             )
     exhaustive = boolean(d, "exhaustive", w) if "exhaustive" in d else None
     run = choice(d, "run", w, TEST_RUNS) if "run" in d else None
-    mutants = boolean(d, "mutants", w) if "mutants" in d else None
-    return Testing(tuple(entries), diff_coverage, exhaustive, run, mutants)
+    return Testing(tuple(entries), diff_coverage, exhaustive, run)
 
 
 def security(raw: object, comps: "Sequence[Component] | None") -> Security:

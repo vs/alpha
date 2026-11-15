@@ -128,11 +128,11 @@ override = ""
 [[principles]]
 id = "exhaustive-testing"
 title = "Exhaustive testing"
-statement = "Tests take every branch both ways: a change's lines and branches are all covered, and a branch no test can reach is deleted or replaced by an assertion. Every failure path is forced in a test by injecting the failure (a failed allocation, read or write, a timeout, a crash between two writes). Everything that reads outside input has a fuzz or property-based test, and every limit is tested at, just below and just above its value. A bug fix starts with a test that fails without it. Every changed line's mutants are caught by a test. Invariants are asserted in the code, and the tests run on the build that ships."
+statement = "Tests take every branch both ways: a change's lines and branches are all covered, and a branch no test can reach is deleted or replaced by an assertion. Every failure path is forced in a test by injecting the failure (a failed allocation, read or write, a timeout, a crash between two writes). Everything that reads outside input has a fuzz or property-based test, and every limit is tested at, just below and just above its value. A bug fix starts with a test that fails without it. Invariants are asserted in the code, and the tests run on the build that ships."
 rationale = "SQLite is trusted on billions of devices because its tests take every branch and force every failure; tests of the expected path miss the bugs that live in error handling and odd input."
 applies = ["exhaustive_testing"]
 core = false
-checked_by = ["reviewer", "ci:diff-coverage", "ci:mutants"]
+checked_by = ["reviewer", "ci:diff-coverage"]
 active = false
 components = []
 override = ""
