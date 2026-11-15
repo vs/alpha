@@ -312,6 +312,7 @@ WORKING_RULES = [
     "changes in the tree may be the user's or another session's, so don't stage, "
     "stash or reset them.",
     "- Subagents work under the same principles, docs and checks.",
+    "- Run `/alpha:uninstall` or `/alpha:purge` only when the user asks for it.",
     "- Before you report work as done, re-read every changed file top to bottom "
     "as a stranger would.",
     "- Run the principles-reviewer agent once, before your work reaches main: "

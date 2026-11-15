@@ -1,0 +1,55 @@
+# Build, CI and hosting
+
+## Before you start
+
+`/alpha:install` reads this guide for a new project's or an adoption's interview, and `/alpha:extend` when a change revisits this area. `<target>` is their target folder; the answers live in `<target>/.claude/alpha/project.json`. Their rules win over this guide's where they differ. When the user asks to revisit this area outside them, run `/alpha:extend` with the request.
+
+## Purpose
+
+Decide build and hosting up front, so nothing about shipping is left for later ("Build and hosting are decided up front"). CI runs each component's checks (setup, format check, lint, typecheck, test) on every push to main and every pull request, the same commands alpha runs when it sets the project up, so the first run is green. alpha records what each component builds into and where it runs in the Build, CI and hosting section of `CONTRIBUTING.md`. It creates no cloud resources and no deploy jobs; say so plainly.
+
+## Fields this area settles
+
+- `build.ci` - `"github-actions"` or `"none"`.
+- `build.environments` - environment names, lowercase with hyphens (e.g. `["staging", "production"]`); `[]` when nothing is deployed.
+- `build.components[].name` - one entry per component, by name.
+- `build.components[].artifact` - `none`, `package`, `container`, `static-site`, `binary`, `app` or `other`.
+- `build.components[].hosting` - where a deployed component runs, in the user's words; `""` for one that isn't deployed.
+- `areas.build` - `"in_progress"` while you work, `"done"` at the end.
+
+## Questions
+
+Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds. Base recommendations on the components, their kinds and their `deployed` traits.
+
+Round 1:
+
+- **CI** - recommend `defaults.build.ci`. Explain in one line: GitHub Actions runs every component's checks on each push and pull request, from `.github/workflows/ci.yml`. If the user wants another provider, say this version of alpha sets up GitHub Actions only and ask them to accept it or choose `none`. `none` loosens the build-hosting-upfront principle, so it needs a reason (see below).
+- **Environments** - ask only when a component is deployed; recommend `["production"]`, or `["staging", "production"]` when the users' requirements make a broken release costly. With nothing deployed, save `[]` without asking.
+
+Round 2 (needs the CI answer):
+
+- **Artifact per component** - recommend `defaults.build.artifacts[kind]`, adjusted to what the component is (a backend that is a library for others is a `package`). Explain each in a few words: `package` (published to a registry), `container` (an image), `static-site` (files a CDN serves), `binary` (an executable), `app` (a store release), `none` (nothing is shipped), `other`.
+- **Hosting per deployed component** - where does it run? Offer two or three common fits for the artifact and say they're examples; never pick one silently. Record the user's words. Components that aren't deployed get `""` without asking.
+
+When CI is `none`, also save an override `{"principle": "build-hosting-upfront", "scope": "project", "change": "loosen", "params": {}, "reason": "<the user's reason>"}` in `overrides` (send the list whole). When CI or an artifact differs from a default, follow the grilling skill's override protocol (keys `build.ci`, `build.artifacts.<kind>`, e.g. `build.artifacts.backend`). Environments and hosting are per project, not kit defaults, so the override protocol doesn't apply to them.
+
+## Writing the answers
+
+Save every change with one call, the JSON object on one line in single quotes (write each `'` inside it as `'\''`):
+
+`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"areas": {…every area, with "build": "in_progress"…}}'`
+
+Each top-level key you send replaces that key in project.json; the others stay as they are. So always send `areas` whole, with the entries you aren't changing kept. Never edit project.json directly.
+
+1. Read `<target>/.claude/alpha/project.json`.
+2. When you start asking, save `areas` with `build` set to `"in_progress"`.
+3. When the user confirms the area, save the `build` object `{"ci", "environments", "components": [{"name", "artifact", "hosting"}]}`, with one entry per component. Keep the exact field names.
+4. In the same call, save `areas` with `build` set to `"done"`.
+
+## Check
+
+Run:
+
+`"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json --area build`
+
+It prints `ok`, or one problem with its fix. Fix project.json (ask the user when the fix needs a decision) and re-run until it prints `ok`.

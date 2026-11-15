@@ -1,6 +1,6 @@
 # alpha
 
-alpha is a Claude Code plugin that interviews you about a new project and generates a skeleton: config, docs, test wiring and enforcement, with no app code. `/alpha:adopt` brings an existing repo under the same enforcement, with baselines for its legacy findings and a compliance plan it then works through (spec §5b). Design: [docs/superpowers/specs/2026-10-19-project-kit-design.md](docs/superpowers/specs/2026-10-19-project-kit-design.md).
+alpha is a Claude Code plugin that interviews you about a new project and generates a skeleton: config, docs, test wiring and enforcement, with no app code. `/alpha:install` on an existing repo brings it under the same enforcement, with baselines for its legacy findings and a compliance plan it then works through (spec §5b). Design: [docs/superpowers/specs/2026-10-19-project-kit-design.md](docs/superpowers/specs/2026-10-19-project-kit-design.md).
 
 ## Dev commands
 
@@ -130,7 +130,7 @@ Follow the commit skill (`.claude/skills/commit/SKILL.md`, which the user runs a
 - [Contributing](CONTRIBUTING.md): how the project is built, checked, released and kept secure
 - [Dependencies](docs/dependencies.md)
 - [Glossary](docs/glossary.md)
-- [Adoption plan](docs/adoption.md): the steps that bring this repo's code up to the principles; `/alpha:adopt` resumes it
+- [Adoption plan](docs/adoption.md): the steps that bring this repo's code up to the principles; `/alpha:install` resumes it
 
 ## Install and verify
 
@@ -138,10 +138,10 @@ Try alpha without installing it: start Claude Code with the plugin loaded for th
 
 ```sh
 claude --plugin-dir ~/workspace/alpha
-/alpha:new-project ~/code/my-new-project
+/alpha:install ~/code/my-new-project
 ```
 
-To bring an existing repo in, run `/alpha:adopt ~/code/that-repo` (clean tree, committed code); it installs on branch `alpha/adopt`, and running it again in the adopted repo carries out the next step of `docs/adoption.md`.
+To bring an existing repo in, run `/alpha:install ~/code/that-repo` (clean tree, committed code); it installs on branch `alpha/adopt`, and running it again in the adopted repo carries out the next step of `docs/adoption.md`.
 
 To change a project alpha generated (add a component, revisit an area's decisions), run `/alpha:extend <what to change>` from inside it. It re-asks only what the change affects, merges alpha's files without overwriting your edits, and commits.
 
