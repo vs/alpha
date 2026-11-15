@@ -10,6 +10,20 @@ Then set up each component:
 
 - `alpha`: `cd . && uv sync`
 
+## Components
+
+Layout: single.
+
+| Name | Path | Kind | Stack | Traits |
+|---|---|---|---|---|
+| alpha | . | cli | alpha-python | network_calls, persisted_data, nontrivial_logic |
+
+Components do not communicate with each other.
+
+### Tool choices
+
+- alpha-python: the stack's own toolchain. Commands: `uv sync`, `uv run pytest`, `uv run ruff check src tests project-files`, `uv run ruff format src tests project-files`, `uv run ruff format --check src tests project-files`, `uv run pyright`, `uv run deptry . --extend-exclude .claude` (less proven: recipe drafted for this project)
+
 ## Checks
 
 ```sh
@@ -19,7 +33,7 @@ mise run check
 
 `mise install` installs the pinned tools; `mise run check` runs every component's checks and the repository checks below, the same as CI.
 
-The principles in `docs/principles.toml` name them in `checked_by` as `ci:<name>`: a name in the table is that check, and `ci:tree` is when every CI job ends by checking that the checks left the tree unchanged.
+The principles in `docs/principles.toml` name them in `checked_by` as `ci:<name>`: a name in the table is that check, and `ci:tree` is when every CI job ends by checking that the checks left the tree unchanged; `ci:diff-coverage` is when a pull request's job fails when its tests cover less of the changed lines than `testing.diff_coverage`; `ci:mutants` is when under exhaustive testing, a pull request's job fails when a mutant of a changed line survives the tests, in a component whose stack has a mutation-testing tool (Rust: cargo-mutants).
 
 | Check | What it checks | Runs |
 |---|---|---|
@@ -51,7 +65,7 @@ Conventional commits: `type(scope): description`.
 
 Put each level's tests under `tests/<level>/` in the component.
 
-A test that covers an acceptance check names its requirement id (e.g. `R1`) in its name, so each check in docs/product.md traces to a test.
+A test that covers an acceptance check names its requirement id (e.g. `R1`) in its name, so each check in docs/specification.md traces to a test.
 
 ## Documentation
 
@@ -69,3 +83,51 @@ The Stop hook blocks a change to these paths that leaves the docs untouched.
 Feature branches: short-lived branches merged into main through pull requests, each leaving the checks green. Before opening a pull request, rebase the branch on main into small, ordered commits and push it with --force-with-lease; the hooks block a plain --force and any rewrite of main.
 
 Claude runs the principles reviewer and each changed component's full test suite before its work reaches main: a push to main, or merging a pull request. People can push by hand.
+
+## Build, CI and hosting
+
+### CI
+
+No CI. Why: see [the decision](docs/decisions/0021-no-ci-checks-run-locally.md).
+
+### Artifacts and hosting
+
+| Component | Artifact | Hosting |
+|---|---|---|
+| alpha | package | - |
+
+### Environments
+
+None: nothing is deployed.
+
+Hosting is decided and documented here; alpha creates no cloud resources and no deploy jobs.
+
+## Releases
+
+Semantic versioning (MAJOR.MINOR.PATCH): a breaking change bumps MAJOR, a new feature MINOR, a fix PATCH.
+
+One version for the whole repository.
+
+Changes are written up in the GitHub release notes for each version.
+
+### Cutting a release
+
+Bump the version in .claude-plugin/plugin.json, pyproject.toml and src/alpha/__init__.py (plus uv.lock) in a chore: Release X.Y.Z commit on main, tag vX.Y.Z and publish a GitHub release with its notes. Users get it with claude plugin marketplace update alpha.
+
+## Security
+
+### Secrets
+
+Nothing is deployed.
+
+Locally, secrets live in `.env` files, which git ignores; never commit them. Claude can't edit them, and the Stop hook blocks a change that adds a secret to the repository.
+
+### Protected paths
+
+Claude can't edit these. Lockfiles change only through the package manager; change the others by hand.
+
+- `**/.env`
+- `**/.env.*`
+- `**/*.pem`
+- `**/*.key`
+- `uv.lock`

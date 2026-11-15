@@ -2,7 +2,7 @@
 
 Date: 2026-11-15
 Status: approved by the user on 2026-11-15, built native in this checkout
-Serves: R2 in docs/product.md (what a generated skeleton holds)
+Serves: R2 in docs/specification.md (what a generated skeleton holds)
 
 ## Why
 
