@@ -19,7 +19,7 @@ import time
 from collections.abc import Generator
 from pathlib import Path
 from types import ModuleType
-from typing import Any, NoReturn, cast
+from typing import Any, NamedTuple, NoReturn, cast
 
 STATE_DIR = ".claude/alpha/state"
 BASELINE_DIR = ".claude/alpha/baselines"  # spec §8b; only shrinks
@@ -379,17 +379,21 @@ def write_baseline(root: Path, sha: str) -> None:
 
 CONTRIBUTING = "CONTRIBUTING.md"
 GIT_LOG_TIMEOUT = 30  # seconds: reading the branch's commit messages
-_FINDING = re.compile(r"F-[0-9a-f]{6}")
+_ACCEPTS = re.compile(r"^Accepts: (F-[0-9a-f]{6})\b", re.M)
 
 
-def exception_rows(root: Path) -> list[str]:
-    """The rows of CONTRIBUTING.md's Exceptions table: a path, a check and why
-    the check doesn't hold there."""
-    try:
-        text = (root / CONTRIBUTING).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return []
-    rows: list[str] = []
+class ExceptionRow(NamedTuple):
+    """A row of CONTRIBUTING.md's Exceptions table: a path, a check and why the
+    check doesn't hold there."""
+
+    path: str
+    check: str
+    row: str
+
+
+def parse_exceptions(text: str) -> list[ExceptionRow]:
+    """The rows of the Exceptions table in a CONTRIBUTING.md's text."""
+    found: list[ExceptionRow] = []
     inside = False
     for line in text.splitlines():
         if line.startswith("## "):
@@ -397,16 +401,34 @@ def exception_rows(root: Path) -> list[str]:
         elif (
             inside and line.startswith("|") and not line.startswith(("| Path", "|---"))
         ):
-            rows.append(line.strip())
-    return rows
+            cells = [c.strip().strip("`") for c in line.strip().strip("|").split("|")]
+            if len(cells) >= 2:
+                found.append(ExceptionRow(cells[0], cells[1], line.strip()))
+    return found
+
+
+def exception_rows(root: Path) -> list[ExceptionRow]:
+    try:
+        return parse_exceptions((root / CONTRIBUTING).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return []
+
+
+def newly_excepted(now: str, before: str, check: str) -> bool:
+    """Whether the Exceptions table in `now` names `check` for a path the table
+    in `before` didn't: rewording an older row's reason doesn't count."""
+    old = {(e.path, e.check) for e in parse_exceptions(before)}
+    return any(
+        e.check == check and (e.path, e.check) not in old for e in parse_exceptions(now)
+    )
 
 
 def accepted_findings(root: Path) -> set[str]:
-    """The review findings an `Accepts: F-xxxxxx <reason>` trailer settles in
-    the last commits."""
+    """The review findings an `Accepts: F-xxxxxx <reason>` line settles in the
+    last commits' messages, in any paragraph: only its first id counts."""
     try:
         proc = subprocess.run(
-            ["git", "log", "-n", "500", "--format=%(trailers:key=Accepts,valueonly)"],
+            ["git", "log", "-n", "500", "--format=%B"],
             cwd=root,
             capture_output=True,
             text=True,
@@ -415,7 +437,7 @@ def accepted_findings(root: Path) -> set[str]:
         )
     except (OSError, subprocess.TimeoutExpired):
         return set()
-    return set(_FINDING.findall(proc.stdout)) if proc.returncode == 0 else set()
+    return set(_ACCEPTS.findall(proc.stdout)) if proc.returncode == 0 else set()
 
 
 def overrides_in_effect(principles: dict[str, Any]) -> list[str]:
@@ -451,7 +473,8 @@ def context_text(root: Path, principles: dict[str, Any]) -> str:
     ]
     exceptions = exception_rows(root)
     if exceptions:
-        lines += ["Exceptions in effect (CONTRIBUTING.md):", *exceptions]
+        lines += ["Exceptions in effect (CONTRIBUTING.md):"]
+        lines += [e.row for e in exceptions]
     overrides = overrides_in_effect(principles)
     if overrides:
         lines += ["Principle overrides:", *(f"- {o}" for o in overrides)]

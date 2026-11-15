@@ -17,9 +17,11 @@ from typing import Any, cast
 
 import ratchet
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
+import _common
+
 APPROVAL = "alpha: migration edit approved"
 BASELINES = ".claude/alpha/baselines"
-CONTRIBUTING = "CONTRIBUTING.md"
 
 
 def _match_parts(path: list[str], pat: list[str]) -> bool:
@@ -148,28 +150,16 @@ def _baselined(text: str) -> set[str]:
     }
 
 
-def _exception_rows(text: str) -> list[str]:
-    rows: list[str] = []
-    inside = False
-    for line in text.splitlines():
-        if line.startswith("## "):
-            inside = line.strip() == "## Exceptions"
-        elif (
-            inside and line.startswith("|") and not line.startswith(("| Path", "|---"))
-        ):
-            rows.append(line.strip())
-    return rows
-
-
 def _excepted_here(ref: str, check: str) -> bool:
-    """Whether CONTRIBUTING.md's Exceptions table has a row naming `check` (in
-    backticks) that it didn't have at `ref`."""
+    """Whether CONTRIBUTING.md's Exceptions table names `check` for a path it
+    didn't at `ref`."""
+    contributing = _common.CONTRIBUTING
     try:
-        now = _exception_rows(Path(CONTRIBUTING).read_text(encoding="utf-8"))
+        now = Path(contributing).read_text(encoding="utf-8")
     except OSError:
         return False
-    before = set(_exception_rows(git("show", f"{ref}:{CONTRIBUTING}").stdout))
-    return any(f"`{check}`" in row and row not in before for row in now)
+    before = git("show", f"{ref}:{contributing}").stdout
+    return _common.newly_excepted(now, before, check)
 
 
 def baselines() -> int:
@@ -215,7 +205,8 @@ def baselines() -> int:
             print(f"  {file} {rule}: {n} findings, {b} before")
         print(
             "  Fix the new findings, or, if they're right to keep, add a row to "
-            f"the Exceptions table in {CONTRIBUTING} naming `{check}` and why."
+            f"the Exceptions table in {_common.CONTRIBUTING} naming `{check}` "
+            "and why."
         )
     return 1 if failed else 0
 

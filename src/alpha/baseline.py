@@ -379,37 +379,21 @@ def _run_ratchet(target: Path, *args: str, frozen: bool = False) -> Ran:
     return done
 
 
-CONTRIBUTING = "CONTRIBUTING.md"
-
-
-def exception_rows(text: str) -> list[str]:
-    """The rows of CONTRIBUTING.md's Exceptions table."""
-    rows: list[str] = []
-    inside = False
-    for line in text.splitlines():
-        if line.startswith("## "):
-            inside = line.strip() == "## Exceptions"
-        elif (
-            inside and line.startswith("|") and not line.startswith(("| Path", "|---"))
-        ):
-            rows.append(line.strip())
-    return rows
-
-
 def excepted_on_branch(target: Path, check: str) -> bool:
-    """Whether an Exceptions row names `check` (in backticks) that wasn't there
-    where the branch started: the pull request check counts only those."""
+    """Whether CONTRIBUTING.md's Exceptions table names `check` for a path it
+    didn't where the branch started: the pull request check counts only those."""
+    common = ratchet()._common
+    contributing = common.CONTRIBUTING
     try:
-        now = exception_rows((target / CONTRIBUTING).read_text(encoding="utf-8"))
+        now = (target / contributing).read_text(encoding="utf-8")
     except OSError:
         return False
-    named = [row for row in now if f"`{check}`" in row]
     point = _branch_point(target)
-    if point is None or not named:
-        return bool(named)
+    if point is None:
+        return common.newly_excepted(now, "", check)
     try:
         shown = subprocess.run(
-            ["git", "show", f"{point}:{CONTRIBUTING}"],
+            ["git", "show", f"{point}:{contributing}"],
             cwd=target,
             capture_output=True,
             text=True,
@@ -417,14 +401,12 @@ def excepted_on_branch(target: Path, check: str) -> bool:
         )
     except subprocess.TimeoutExpired:
         raise BaselineError(
-            f"git show took longer than {GIT_TIMEOUT:g}s reading {CONTRIBUTING} "
+            f"git show took longer than {GIT_TIMEOUT:g}s reading {contributing} "
             "where the branch started; check the repository isn't locked, then "
             "retry."
         ) from None
-    before: set[str] = (
-        set(exception_rows(shown.stdout)) if shown.returncode == 0 else set()
-    )
-    return any(row not in before for row in named)
+    before = shown.stdout if shown.returncode == 0 else ""
+    return common.newly_excepted(now, before, check)
 
 
 def _branch_point(target: Path) -> str | None:
@@ -461,7 +443,7 @@ def capture(target: Path, check: str) -> str:
             f"Capturing {check} would grow its baseline:\n"
             + "\n".join(lines)
             + "\nFix those findings, or, with the user's agreement, add a row to "
-            f"the Exceptions table in {CONTRIBUTING} naming the files and "
+            "the Exceptions table in CONTRIBUTING.md naming the files and "
             f"`{check}` with why they stay, then rerun."
         )
     return done.out.strip()

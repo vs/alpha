@@ -140,6 +140,18 @@ def test_an_exceptions_row_naming_the_file_lets_it_through(project: Project) -> 
     assert "api/b.py" in reason(other)
 
 
+def test_a_row_must_name_the_exact_path(project: Project) -> None:
+    """A longer path that ends in this one, or a reason that mentions it, isn't
+    an exception for it."""
+    exceptions(
+        project,
+        "| `src/api/a.py` | `# type: ignore` | untyped upstream |",
+        "| `api/b.py` | `# type: ignore` | as in api/a.py |",
+    )
+    proc = edit(project, "api/a.py", "x = f()", "x = f()  # type: ignore")
+    assert "never-weaken-checks" in reason(proc)
+
+
 def test_a_row_outside_the_exceptions_table_does_not_count(project: Project) -> None:
     exceptions(project, "| `api/a.py` | `# type: ignore` | x |", section="Overrides")
     proc = edit(project, "api/a.py", "x = f()", "x = f()  # type: ignore")

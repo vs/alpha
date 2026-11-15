@@ -132,7 +132,7 @@ def main() -> None:
 
 
 def recorded_exception(root: Path, rel: str) -> bool:
-    return any(rel in row for row in _common.exception_rows(root))
+    return any(e.path == rel for e in _common.exception_rows(root))
 
 
 if __name__ == "__main__":

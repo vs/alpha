@@ -510,7 +510,8 @@ def brief(root: Path) -> str:
         lines += ["", "## Stack rules", "", *rules]
     exceptions = _common.exception_rows(root)
     if exceptions:
-        lines += ["", "## Exceptions (CONTRIBUTING.md)", "", *exceptions]
+        lines += ["", "## Exceptions (CONTRIBUTING.md)", ""]
+        lines += [e.row for e in exceptions]
     logged = _common.accepted_findings(root)
     by_user = [f for f in state.get("findings", []) if f.get("accepted")]
     if by_user:
