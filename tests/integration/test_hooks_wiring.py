@@ -156,7 +156,10 @@ def test_R2_2_an_unmarked_chained_call_is_left_to_the_user(chained: Path) -> Non
     (chained / ".husky/commit-msg").write_text(unmarked)
     done = run_cli("uninstall", str(chained))
     assert done.returncode == 0, done.stderr
-    assert "line 4 calls it without the # alpha:begin and # alpha:end" in done.stdout
+    assert (
+        ".husky/commit-msg:4: it calls it without the # alpha:begin and # alpha:end"
+        in (done.stdout)
+    )
     assert (chained / ".husky/commit-msg").read_text() == unmarked
 
 
@@ -164,3 +167,23 @@ def test_a_folder_without_alpha_has_no_hooks_to_switch(tmp_path: Path) -> None:
     done = run_cli("uninstall", str(tmp_path))
     assert done.returncode == 1
     assert "alpha isn't installed in" in done.stderr
+
+
+def test_R2_2_husky_9_keeps_alphas_call_behind_its_launcher(chained: Path) -> None:
+    """husky 9 points core.hooksPath at .husky/_, whose generated commit-msg
+    runs .husky/commit-msg, where alpha's call is."""
+    launcher = chained / ".husky/_/commit-msg"
+    launcher.parent.mkdir()
+    launcher.write_text('#!/bin/sh\nset -e\nsh "$(dirname "$0")/../commit-msg" "$1"\n')
+    launcher.chmod(0o755)
+    git(chained, "config", "core.hooksPath", ".husky/_")
+    path = chained / ".claude/alpha/project.json"
+    data = json.loads(path.read_text())
+    data["adoption"]["survey"] = {"git": {"hook_managers": [".husky/commit-msg"]}}
+    path.write_text(json.dumps(data))
+    assert bad_commit(chained).returncode != 0
+    done = run_cli("uninstall", str(chained))
+    assert "took alpha's call out of .husky/commit-msg" in done.stdout, done.stdout
+    assert bad_commit(chained).returncode == 0
+    assert run_cli("hooks", "on", str(chained)).returncode == 0
+    assert (chained / ".husky/commit-msg").read_text() == CHAINED

@@ -375,9 +375,9 @@ def _contributing(
     lines = ["# Contributing", "", "## One-time setup", ""]
     if git.get("hooks") == "chain":
         lines += [
-            "The project's own git hook manager runs the commit check. Its "
-            "commit-msg hook must call it, between the lines that mark it as "
-            "alpha's:",
+            "The project's own git hook manager runs alpha's commit check "
+            "(`.claude/alpha/githooks/commit-msg`): its commit-msg hook must call it, "
+            "between the lines that mark it as alpha's:",
             "",
             "```sh",
             CHAIN_BEGIN,

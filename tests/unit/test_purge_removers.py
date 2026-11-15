@@ -163,3 +163,8 @@ def test_settings_lose_alphas_hooks_and_permissions() -> None:
         "hooks": {"Stop": [alphas_stop]},
     }
     assert clean_settings(only_alpha, alpha) == {}
+
+
+def test_the_chain_marks_are_alphas_lines() -> None:
+    text = "# Setup\n\n```sh\n# alpha:begin\nsh x\n# alpha:end\n```\n\nMore.\n"
+    assert clean_markdown(text, REMOVED) == "# Setup\n\n```sh\nsh x\n```\n\nMore.\n"

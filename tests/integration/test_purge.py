@@ -1,5 +1,6 @@
 """alpha purge on real repositories (rewrite spec, R3.1, R3.3 and R3.4)."""
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -198,3 +199,60 @@ def test_purge_needs_an_installed_project(tmp_path: Path) -> None:
     done = run_cli("purge", str(tmp_path))
     assert done.returncode == 1
     assert "nothing to purge" in done.stderr
+
+
+def test_uninstall_then_purge_removes_alpha_in_one_commit(project: Path) -> None:
+    before = git(project, "rev-parse", "HEAD")
+    assert run_cli("uninstall", str(project)).returncode == 0
+    done = run_cli("purge", str(project))
+    assert done.returncode == 0, done.stderr
+    assert git(project, "rev-parse", "HEAD~1") == before
+    assert git(project, "status", "--porcelain") == ""
+    assert hooks_path(project) is None
+
+
+def test_purge_in_a_clone_without_the_recipe_proof(
+    tmp_path: Path, git_env: None
+) -> None:
+    repo = existing_repo(tmp_path / "repo")
+    adoption_answers(repo)  # its adopted recipe, proven in this clone only
+    install(repo)
+    commit(repo, load_project_principles(repo), [])
+    (repo / ".claude/alpha/state/proofs.json").unlink()
+    (repo / "notes.md").write_text("uncommitted, and not purge's\n")
+    done = run_cli("purge", str(repo))
+    assert done.returncode == 0, done.stderr
+    assert git(repo, "status", "--porcelain").strip() == "?? notes.md"
+
+
+def test_a_wrapped_depends_stops_purge(project: Path) -> None:
+    mise = project / "mise.toml"
+    text = mise.read_text()
+    line = next(x for x in text.splitlines() if x.startswith('depends = ["check:'))
+    names = line.removeprefix("depends = [").removesuffix("]").split(", ")
+    wrapped = "depends = [\n" + "".join(f"  {n},\n" for n in names) + "]"
+    mise.write_text(text.replace(line, wrapped, 1))
+    git(project, "commit", "-q", "-am", "build: Wrap the ci depends")
+    head = git(project, "rev-parse", "HEAD")
+    done = run_cli("purge", str(project))
+    assert done.returncode == 1
+    assert "check:secrets" in done.stderr and "wrote nothing" in done.stderr
+    assert git(project, "rev-parse", "HEAD") == head
+
+
+def test_purge_keeps_the_repos_own_permission_rules(
+    tmp_path: Path, git_env: None
+) -> None:
+    own = {"permissions": {"allow": ["Bash(git status:*)", "Bash(make *)"]}}
+    repo = existing_repo(
+        tmp_path / "repo", {**EXISTING, ".claude/settings.json": json.dumps(own)}
+    )
+    head = git(repo, "rev-parse", "HEAD")
+    adoption_answers(repo, survey={"git": {"head": head}})
+    install(repo)
+    shutil.rmtree(repo / ".claude/alpha/state/update", ignore_errors=True)
+    commit(repo, load_project_principles(repo), [])
+    done = run_cli("purge", str(repo))
+    assert done.returncode == 0, done.stderr
+    kept = json.loads((repo / ".claude/settings.json").read_text())
+    assert kept["permissions"]["allow"] == ["Bash(git status:*)", "Bash(make *)"]
