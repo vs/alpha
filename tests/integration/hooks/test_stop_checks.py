@@ -11,6 +11,7 @@ import _common
 import pytest
 import review
 import stop_checks
+import untested
 
 from .conftest import HOOKS, STUB, Project
 
@@ -18,13 +19,6 @@ FAIL = "python3 -c \"import sys; print('boom'); sys.exit(1)\""
 PAYLOAD: dict[str, Any] = {"hook_event_name": "Stop", "stop_hook_active": False}
 AWS_KEY = "AKIA" + "A" * 16
 PASSWORD = "hunter2" * 2
-
-
-@pytest.fixture(autouse=True)
-def tests_at_stop(project: Project) -> None:
-    """This file covers what a Stop checks with the test suite among it; the
-    tests of `at-merge` set that mode themselves."""
-    project.set_test_run("at-stop")
 
 
 EVERY_STEP = tuple(stop_checks.COMMAND_PRINCIPLES)
@@ -95,9 +89,9 @@ def test_source_without_tests_blocks(project: Project) -> None:
     assert "Principle tests-first-class: add or update tests." in text
 
 
-def untested(project: Project, *args: str) -> subprocess.CompletedProcess[str]:
+def run_untested(project: Project, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(HOOKS / "review.py"), "untested", *args],
+        [sys.executable, str(HOOKS / "untested.py"), *args],
         cwd=project.root,
         env={**os.environ, "CLAUDE_PROJECT_DIR": str(project.root)},
         capture_output=True,
@@ -105,15 +99,16 @@ def untested(project: Project, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_a_noted_trivial_change_needs_no_test_until_it_changes(
+def test_R12_6_an_untested_note_holds_until_the_file_changes(
     project: Project,
 ) -> None:
     commit_all(project)
     project.write("api/src/app.py", "x = 1\n")
     assert "If a file needs none (a rename, a constant, wiring)" in reason(run(project))
-    done = untested(project, "renames a constant only", "api/src/app.py")
+    done = run_untested(project, "renames a constant only", "api/src/app.py")
     assert done.returncode == 0, done.stderr
     assert done.stdout == "noted: the principles-reviewer checks the reason\n"
+    assert untested.notes(project.root) == {"api/src/app.py": "renames a constant only"}
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
     assert (
@@ -135,7 +130,7 @@ def test_an_untested_note_needs_a_reason_and_a_project_file(
     project: Project, args: list[str], says: str
 ) -> None:
     commit_all(project)
-    done = untested(project, *args)
+    done = run_untested(project, *args)
     assert done.returncode == 1
     assert says in done.stderr
 
@@ -153,7 +148,7 @@ def test_source_and_tests_pass_and_reset_counter(project: Project) -> None:
     project.write(".claude/alpha/state/stop-blocks", '{"count": 2}')
     project.write("api/src/app.py", "x = 1\n")
     project.write("api/tests/test_app.py", "x = 1\n")
-    project.set_commands("api", test=marker_cmd("t.marker"))
+    project.set_commands("api", typecheck=marker_cmd("t.marker"))
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
     assert (project.root / "api" / "t.marker").exists()
@@ -173,6 +168,22 @@ def test_lockfile_without_dependency_log_blocks(project: Project) -> None:
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
     assert counter(project) == 0
+
+
+def test_R6_2_the_dependency_log_path_comes_from_the_principles(
+    project: Project,
+) -> None:
+    data = project.principles()
+    data["dependency_log"] = "docs/deps.md"
+    project.write_principles(data)
+    commit_all(project)
+    project.write("api/uv.lock", "version = 1\n")
+    assert "without an entry in docs/deps.md." in reason(run(project))
+    project.write("docs/alpha/dependencies.md", "- httpx\n")
+    assert "without an entry in docs/deps.md." in reason(run(project))
+    project.write("docs/deps.md", "- httpx\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == ""
 
 
 UV_LOCK = """version = 1
@@ -324,42 +335,38 @@ def test_docs_drift_with_hand_set_docs_map(project: Project) -> None:
     assert counter(project) == 0
 
 
-def test_failing_test_blocks_with_tail(project: Project) -> None:
+def test_failing_check_blocks_with_tail(project: Project) -> None:
     project.set_commands(
         "api",
-        test="python3 -c \"print('\\n'.join(f'L{i}' for i in range(100))); "
+        typecheck="python3 -c \"print('\\n'.join(f'L{i}' for i in range(100))); "
         'raise SystemExit(1)"',
     )
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
     text = reason(run(project))
-    assert "api: test failed (python3 -c" in text
+    assert "api: typecheck failed (python3 -c" in text
     assert "L99" in text and "L40" in text and "L39\n" not in text
 
 
-def test_typecheck_runs_before_test_and_failure_blocks(project: Project) -> None:
-    project.set_commands("api", typecheck=FAIL, test=marker_cmd("t.marker"))
+def test_R13_1_stop_runs_types_structure_and_fast_checks(project: Project) -> None:
+    enable_repo_checks(project, "typos")
+    project.set_commands(
+        "api", typecheck=FAIL, structure=FAIL, test=marker_cmd("t.marker")
+    )
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
-    text = reason(run(project))
-    assert "api: typecheck failed" in text
-    assert (project.root / "api" / "t.marker").exists()
-
-
-def test_stop_runs_structure(project: Project) -> None:
-    project.set_commands("api", structure=FAIL, test=marker_cmd("t.marker"))
-    commit_all(project)
-    project.write("api/src/a.py", "x\n")
-    project.write("api/tests/test_a.py", "x\n")
-    text = reason(run(project))
-    assert "api: structure failed" in text
-    assert (project.root / "api" / "t.marker").exists()
+    text = reason(run_with(project, fake_mise(project)))
+    assert "api: typecheck failed" in text and "api: structure failed" in text
+    assert calls(project) == ["run check:typos"]
+    assert not (project.root / "api" / "t.marker").exists()  # no test suite
 
 
 def test_missing_tool_gives_setup_hint(project: Project) -> None:
-    project.set_commands("api", test="definitely-not-a-tool-xyz", setup="make setup")
+    project.set_commands(
+        "api", typecheck="definitely-not-a-tool-xyz", setup="make setup"
+    )
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
@@ -369,8 +376,8 @@ def test_missing_tool_gives_setup_hint(project: Project) -> None:
 
 
 def test_only_affected_components_run(project: Project) -> None:
-    project.set_commands("web", test=marker_cmd("w.marker"))
-    project.set_commands("api", test=marker_cmd("a.marker"))
+    project.set_commands("web", typecheck=marker_cmd("w.marker"))
+    project.set_commands("api", typecheck=marker_cmd("a.marker"))
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
@@ -397,7 +404,7 @@ def test_three_blocks_then_gives_up(project: Project) -> None:
 
 
 def test_clean_tree_runs_nothing_and_resets(project: Project) -> None:
-    project.set_commands("api", test=marker_cmd("t.marker"), typecheck=STUB)
+    project.set_commands("api", typecheck=marker_cmd("t.marker"))
     commit_all(project)
     project.write(".claude/alpha/state/stop-blocks", '{"count": 2}')
     proc = run(project)
@@ -457,7 +464,7 @@ def test_non_ancestor_baseline_falls_back_to_head(project: Project) -> None:
 
 
 def test_readme_only_change_runs_nothing(project: Project) -> None:
-    project.set_commands("api", test=marker_cmd("t.marker"))
+    project.set_commands("api", typecheck=marker_cmd("t.marker"))
     project.write("api/README.md", "a\n")
     commit_all(project)
     project.write("api/README.md", "b\n")
@@ -527,10 +534,10 @@ def test_dropped_docs_with_code_does_not_block(project: Project) -> None:
     assert proc.returncode == 0 and proc.stdout == ""
 
 
-def test_dropped_strict_types_and_done_skip_commands(project: Project) -> None:
-    project.set_commands("api", typecheck=FAIL, test=FAIL)
+def test_dropped_strict_types_and_dead_code_skip_commands(project: Project) -> None:
+    project.set_commands("api", typecheck=FAIL, structure=FAIL)
     project.drop_principle("strict-types", component="api")
-    project.drop_principle("definition-of-done", component="api")
+    project.drop_principle("no-dead-code", component="api")
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
@@ -548,7 +555,7 @@ def test_flat_layout_source_is_checked(project: Project) -> None:
 
 
 def test_vendored_files_are_not_source(project: Project) -> None:
-    project.set_commands("api", typecheck=FAIL, test=FAIL)
+    project.set_commands("api", typecheck=FAIL)
     commit_all(project)
     project.write("api/.venv/lib/site.py", "x = 1\n")
     project.write("api/build/lib/main.py", "x = 1\n")
@@ -627,13 +634,13 @@ def test_unchanged_tree_reuses_command_results(project: Project) -> None:
     fail_and_mark = (
         "python3 -c \"open('../t.marker', 'a').write('x'); raise SystemExit(1)\""
     )
-    project.set_commands("api", test=fail_and_mark)
+    project.set_commands("api", typecheck=fail_and_mark)
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
     first = reason(run(project))
     second = reason(run(project))
-    assert first == second and "api: test failed" in first
+    assert first == second and "api: typecheck failed" in first
     marker = project.root / "t.marker"
     assert marker.read_text() == "x"
     project.write("api/src/a.py", "y\n")
@@ -642,7 +649,7 @@ def test_unchanged_tree_reuses_command_results(project: Project) -> None:
 
 
 def test_changed_command_is_rerun(project: Project) -> None:
-    project.set_commands("api", test=marker_cmd("../t.marker"))
+    project.set_commands("api", typecheck=marker_cmd("../t.marker"))
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
@@ -650,12 +657,12 @@ def test_changed_command_is_rerun(project: Project) -> None:
     assert run(project).stdout == ""
     marker = project.root / "t.marker"
     assert marker.read_text() == "x"
-    project.set_commands("api", test=FAIL)
-    assert "api: test failed" in reason(run(project))
+    project.set_commands("api", typecheck=FAIL)
+    assert "api: typecheck failed" in reason(run(project))
 
 
 def test_missing_tool_is_not_cached(project: Project) -> None:
-    project.set_commands("api", test="definitely-not-a-tool-xyz")
+    project.set_commands("api", typecheck="definitely-not-a-tool-xyz")
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
@@ -755,7 +762,7 @@ def test_subagent_implementing_tests_the_session_wrote_is_not_blocked(
 def test_subagent_stop_leaves_component_commands_to_the_main_stop(
     project: Project,
 ) -> None:
-    project.set_commands("api", test=FAIL, typecheck=FAIL)
+    project.set_commands("api", typecheck=FAIL, structure=FAIL)
     commit_all(project)
     project.write("api/src/x.py", "y = 2\n")
     project.write("api/tests/test_x.py", "y = 2\n")
@@ -1042,13 +1049,13 @@ def test_cached_failed_repo_check_is_reported_without_rerunning(
 
 
 def test_component_and_repo_check_failures_both_block(project: Project) -> None:
-    project.set_commands("api", test=FAIL)
+    project.set_commands("api", typecheck=FAIL)
     enable_repo_checks(project, "typos")
     commit_all(project)
     project.write("api/src/a.py", "x\n")
     project.write("api/tests/test_a.py", "x\n")
     text = reason(run_with(project, fake_mise(project, code=2)))
-    assert "api: test failed" in text
+    assert "api: typecheck failed" in text
     assert "repo check typos failed" in text
 
 
@@ -1099,32 +1106,9 @@ def marks(project: Project, rel: str) -> int:
     return path.stat().st_size if path.exists() else 0
 
 
-def test_at_merge_a_stop_leaves_the_test_suite_alone(project: Project) -> None:
-    project.set_test_run("at-merge")
-    project.set_commands("api", typecheck=marker_cmd("tc.marker"), test=FAIL)
-    commit_all(project)
-    project.write("api/src/a.py", "x\n")
-    project.write("api/tests/test_a.py", "x\n")
-    proc = run(project)
-    assert proc.returncode == 0 and proc.stdout == ""
-    assert marks(project, "api/tc.marker") == 1
-
-
-def test_principles_from_before_the_setting_test_at_stop(project: Project) -> None:
-    data = project.principles()
-    del data["testing"]["run"]
-    project.write_principles(data)
-    project.set_commands("api", test=FAIL)
-    commit_all(project)
-    project.write("api/src/a.py", "x\n")
-    project.write("api/tests/test_a.py", "x\n")
-    assert "api: test failed" in reason(run(project))
-
-
 def test_tests_command_runs_the_changed_components_once_per_tree(
     project: Project,
 ) -> None:
-    project.set_test_run("at-merge")
     project.set_commands("api", test=marker_cmd("../t.marker"))
     project.set_commands("web", test=marker_cmd("../w.marker"))
     commit_all(project)
@@ -1142,7 +1126,6 @@ def test_tests_command_runs_the_changed_components_once_per_tree(
 
 
 def test_tests_command_fails_with_the_suites_output(project: Project) -> None:
-    project.set_test_run("at-merge")
     project.set_commands("api", test=FAIL)
     commit_all(project)
     project.write("api/src/a.py", "x\n")
@@ -1153,7 +1136,6 @@ def test_tests_command_fails_with_the_suites_output(project: Project) -> None:
 
 
 def test_tests_command_with_nothing_changed_says_so(project: Project) -> None:
-    project.set_test_run("at-merge")
     commit_all(project)
     proc = project.run_tests()
     assert proc.returncode == 0
@@ -1161,7 +1143,6 @@ def test_tests_command_with_nothing_changed_says_so(project: Project) -> None:
 
 
 def test_a_failed_tests_run_is_tried_again_on_the_same_files(project: Project) -> None:
-    project.set_test_run("at-merge")
     flaky = (
         'python3 -c "import os, sys; '
         "sys.exit(0 if os.path.exists('../service-up') else 1)\""
@@ -1177,7 +1158,6 @@ def test_a_failed_tests_run_is_tried_again_on_the_same_files(project: Project) -
 def test_tests_command_is_not_held_to_the_stop_limits(
     project: Project, monkeypatch: Any
 ) -> None:
-    project.set_test_run("at-merge")
     data = project.principles()
     limits: list[float] = []
 
@@ -1209,8 +1189,8 @@ def share_workspace(project: Project) -> None:
 
 def test_workspace_manifest_change_runs_every_member_s_checks(project: Project) -> None:
     share_workspace(project)
-    project.set_commands("api", test=marker_cmd("t.marker"))
-    project.set_commands("web", test=marker_cmd("w.marker"))
+    project.set_commands("api", typecheck=marker_cmd("t.marker"))
+    project.set_commands("web", typecheck=marker_cmd("w.marker"))
     project.write("api/tests/test_x.py")
     project.write("web/tests/x.test.ts")
     commit_all(project)

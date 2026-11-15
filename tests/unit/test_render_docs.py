@@ -314,7 +314,9 @@ WORKING_RULES = [
     "- Subagents work under the same principles, docs and checks.",
     "- Before you report work as done, re-read every changed file top to bottom "
     "as a stranger would.",
-    "- At the end of a planned piece of work, run the principles-reviewer agent.",
+    "- Run the principles-reviewer agent once, before your work reaches main: "
+    "the merge guard asks for it, and it reviews only what changed since its "
+    "last review.",
     "- When you add a code generator, add a `generate` task to `mise.toml` and to "
     "the `ci` task's `depends`; CI fails when checks change tracked files.",
     "- Never disable a lint rule to pass; an exception names one path and one "

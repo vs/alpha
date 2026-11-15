@@ -45,6 +45,7 @@ known_first_party = [
     "review",
     "ratchet",
     "stop_checks",
+    "untested",
 ]
 
 [tool.coverage.run]

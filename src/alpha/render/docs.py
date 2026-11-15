@@ -51,21 +51,17 @@ _WORKING_RULES = (
     "- Subagents work under the same principles, docs and checks.",
     "- Before you report work as done, re-read every changed file top to bottom "
     "as a stranger would.",
-    "- At the end of a planned piece of work, run the principles-reviewer agent.",
+    "- Run the principles-reviewer agent once, before your work reaches main: "
+    "the merge guard asks for it, and it reviews only what changed since its "
+    "last review.",
 )
-_TEST_RUNS = {
-    "at-merge": (
-        "The hooks leave the full test suites to one checkpoint: before your "
-        "work reaches main (a push to main, or merging a pull request), run "
-        "`python3 .claude/alpha/hooks/stop_checks.py tests`. It runs the suite "
-        "of each component you changed and remembers a pass until those files "
-        "change. While you work, run the tests your change touches."
-    ),
-    "at-stop": (
-        "The Stop hook runs the full test suite of each component you changed "
-        "every time you finish a turn."
-    ),
-}
+_TEST_RUN = (
+    "The hooks leave the full test suites to one checkpoint: before your "
+    "work reaches main (a push to main, or merging a pull request), run "
+    "`python3 .claude/alpha/hooks/stop_checks.py tests`. It runs the suite "
+    "of each component you changed and remembers a pass until those files "
+    "change. While you work, run the tests your change touches."
+)
 _COMMUNICATION = (
     "- Answer a question before making edits or running commands for it.",
     "- When responding to feedback or a review, say first whether you agree, "
@@ -278,7 +274,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "Run every check: `mise run check`"
         + (" (CI runs the same checks)." if has_ci else "."),
         "",
-        _TEST_RUNS[principles["testing"]["run"]],
+        _TEST_RUN,
         "",
     ]
     scopes = ", ".join([*a.git.scopes, "or another area it touches"])
@@ -431,14 +427,9 @@ def _contributing(
         "",
         branching,
         "",
-        "Claude runs the principles reviewer"
-        + (
-            " and each changed component's full test suite"
-            if principles["testing"]["run"] == "at-merge"
-            else ""
-        )
-        + " before its work reaches main: a push to main, or merging a pull "
-        "request. People can push by hand.",
+        "Claude runs the principles reviewer and each changed component's full "
+        "test suite before its work reaches main: a push to main, or merging a "
+        "pull request. People can push by hand.",
         "",
         *_build_section(a, principles),
         "",

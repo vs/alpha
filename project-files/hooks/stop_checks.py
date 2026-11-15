@@ -14,6 +14,7 @@ from typing import Any, NoReturn, cast
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
 import review
+import untested
 
 TIMEOUT = 600
 BUDGET = 1100
@@ -259,16 +260,6 @@ TESTS_LIMIT = 24 * 3600
 TESTS_COMMAND = "python3 .claude/alpha/hooks/stop_checks.py tests"
 
 
-def tests_at_merge(principles: dict[str, Any]) -> bool:
-    """Whether the full test suite waits for the checkpoint before main, not
-    for every Stop. A principles file from before the setting runs it at Stop."""
-    testing: object = principles.get("testing")
-    return (
-        isinstance(testing, dict)
-        and cast("dict[str, Any]", testing).get("run") == "at-merge"
-    )
-
-
 def component_label(comp: dict[str, Any]) -> str:
     return str(comp.get("name", comp.get("path", ".")))
 
@@ -377,8 +368,6 @@ def components_to_test(root: Path, principles: dict[str, Any]) -> list[dict[str,
 def untested_blocker(root: Path, principles: dict[str, Any]) -> str | None:
     """Why this checkout's work can't reach main yet: a changed component's
     test suite hasn't passed on the files as they are now."""
-    if not tests_at_merge(principles):
-        return None
     waiting: list[str] = []
     for comp in components_to_test(root, principles):
         steps = step_commands(comp, principles, TESTS)
@@ -706,7 +695,7 @@ def find_problems(
                 components.append(comp)
             by_comp.setdefault(key, []).append(rel)
 
-    noted = review.untested_notes(root)
+    noted = untested.notes(root)
     for comp in components:
         name = str(comp.get("name"))
         if not _common.principle_applies(principles, "tests-first-class", name):
@@ -718,11 +707,12 @@ def find_problems(
                 f"{comp.get('name')}: source changed ({', '.join(src)}) but no tests "
                 "changed. Principle tests-first-class: add or update tests. If a "
                 "file needs none (a rename, a constant, wiring), say why: python3 "
-                '.claude/alpha/hooks/review.py untested "<why>" <path> ...; the '
+                '.claude/alpha/hooks/untested.py "<why>" <path> ...; the '
                 "principles-reviewer checks the reason."
             )
 
-    if DEPENDENCY_LOG not in changed:
+    log = str(principles.get("dependency_log", DEPENDENCY_LOG))
+    if log not in changed:
         since = base or head_sha(root)
         for comp in components:
             name = str(comp.get("name"))
@@ -734,7 +724,7 @@ def find_problems(
             for rel in by_comp[str(comp.get("name"))]:
                 problem = (
                     f"Dependencies changed ({rel}) without an entry in "
-                    f"{DEPENDENCY_LOG}. Record what was added and why."
+                    f"{log}. Record what was added and why."
                 )
                 # A workspace's lockfile is every member's: report it once.
                 if (
@@ -769,11 +759,7 @@ def find_problems(
     if not run_commands:
         return problems
     deadline = time.monotonic() + BUDGET
-    keys = tuple(
-        key
-        for key in COMMAND_PRINCIPLES
-        if key not in TESTS or not tests_at_merge(principles)
-    )
+    keys = tuple(key for key in COMMAND_PRINCIPLES if key not in TESTS)
     for comp in components:
         if runs_commands(comp, by_comp[str(comp.get("name"))]):
             problems.extend(command_problems(comp, principles, root, deadline, keys))
