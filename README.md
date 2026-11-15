@@ -165,7 +165,6 @@ git clone https://github.com/vs/alpha ~/workspace/alpha
 claude --plugin-dir ~/workspace/alpha   # this checkout, for this session only
 mise install && mise run check   # every check the kit runs on itself
 uv run pytest -m slow   # also bootstraps real projects; needs uv, pnpm, network
-bin/alpha-evals run   # real interviews; spends tokens
 ```
 
 ## Setup and test

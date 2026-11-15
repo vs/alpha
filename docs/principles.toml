@@ -199,7 +199,7 @@ core = true
 checked_by = ["reviewer"]
 active = true
 components = ["alpha"]
-override = "loosen (project): mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend."
+override = "loosen (project): mise run check runs locally before each commit, and the slow tests need real toolchains that CI should not spend."
 
 [principles.params]
 

@@ -2,6 +2,8 @@ import ast
 import copy
 import json
 import os
+import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -19,7 +21,7 @@ from alpha.recipes import recipe_hash
 
 GenerateScenario = Callable[[Path, str], list[str]]
 
-SCENARIOS = PLUGIN_ROOT / "evals" / "scenarios"
+SCENARIOS = PLUGIN_ROOT / "tests" / "fixtures" / "scenarios"
 SHIM = PLUGIN_ROOT / "bin" / "alpha"
 TODAY = date(2026, 10, 19)
 
@@ -271,3 +273,53 @@ def adoption_answers(target: Path, **adoption: Any) -> dict[str, Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2))
     return data
+
+
+# --- a seeded violation per repository check ---
+
+
+def _aws_key_pair(_: str | None) -> str:
+    # Random, so the scanner can't skip it as a well-known example key.
+    key_id = "AKIA" + "".join(
+        secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567") for _ in range(16)
+    )
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/+"
+    secret = "".join(secrets.choice(alphabet) for _ in range(40))
+    return f"# Deploy\n\nAWS_ACCESS_KEY_ID={key_id}\nAWS_SECRET_ACCESS_KEY={secret}\n"
+
+
+def _append(extra: str) -> Callable[[str | None], str]:
+    return lambda text: (text or "") + extra
+
+
+# check id -> (registry tool, the file it changes, how it changes it, what the
+# failing output says: proof that the tool found the seed rather than crashed)
+REPO_SEEDS: dict[str, tuple[str, str, Callable[[str | None], str], str]] = {
+    "actions": (
+        "jactionlint",
+        ".github/workflows/ci.yml",
+        lambda text: re.sub(r"@[0-9a-f]{40}", "@v7", text or "", count=1),
+        'action "actions/checkout@v7" must be pinned',
+    ),
+    # betterleaks names no file without --verbose, only the count.
+    "secrets": ("betterleaks", "docs/x.md", _aws_key_pair, "leaks found: 1"),
+    "typos": ("typos", "README.md", _append("\nteh\n"), "`teh` should be `the`"),
+    "markdown": (
+        "rumdl",
+        "docs/x.md",
+        lambda _: "# Notes\n\n### Skips a level\n\nText.\n",
+        "docs/x.md:3:1: [MD001]",
+    ),
+    "links": (
+        "lychee",
+        "README.md",
+        _append("\nSee [notes](docs/missing.md).\n"),
+        "docs/missing.md (at ",
+    ),
+    "agent-config": (
+        "agnix",
+        ".claude/agents/committer.md",
+        lambda text: (text or "").replace("model: inherit\n", "model: [inherit\n", 1),
+        "committer.md:5:8 error: Failed to parse agent frontmatter",
+    ),
+}

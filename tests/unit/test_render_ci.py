@@ -291,7 +291,9 @@ def test_no_coverage_steps_when_zero():
 
 
 def test_drafted_recipe_without_coverage(tmp_path: Path):
-    scenario = Path(__file__).parents[2] / "evals" / "scenarios" / "rust-cli.json"
+    scenario = (
+        Path(__file__).parents[2] / "tests" / "fixtures" / "scenarios" / "rust-cli.json"
+    )
     data = json.loads(scenario.read_text())
     data["components"][0]["stack"] = "shell"
     data["recipes"] = {"shell": proven(shell_recipe())}

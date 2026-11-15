@@ -41,7 +41,6 @@ extend-exclude = ["docs", ".superpowers"]
 # The kit's packages, and the hook and check modules that import each other.
 known_first_party = [
     "alpha",
-    "alpha_evals",
     "_common",
     "review",
     "ratchet",

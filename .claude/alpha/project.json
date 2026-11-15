@@ -441,7 +441,7 @@
       "scope": "project",
       "change": "loosen",
       "params": {},
-      "reason": "mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend."
+      "reason": "mise run check runs locally before each commit, and the slow tests need real toolchains that CI should not spend."
     }
   ],
   "identity": {
@@ -1189,7 +1189,7 @@
           "scope": "project",
           "change": "loosen",
           "params": {},
-          "reason": "mise run check runs locally before each commit, and the slow tests and evals need real toolchains and paid tokens that CI should not spend."
+          "reason": "mise run check runs locally before each commit, and the slow tests need real toolchains that CI should not spend."
         }
       ],
       "identity": {
@@ -1502,7 +1502,7 @@
       ".claude/alpha/githooks/commit-msg": "sha256:cf04bd88851198263c0dd79b1eb4b8833a195ac1163db0888bb986d2fa8bd60c",
       ".claude/alpha/hooks/_common.py": "sha256:7f2238cc548e7b3a66712f1f8c957a0a7d0fc939233928be031c7cbbd0ce04d9",
       ".claude/alpha/hooks/commit_msg.py": "sha256:35ab2b248f2939272ea9abb414cd1bf601650fcccd24dca774744cba9d4f8dae",
-      ".claude/alpha/hooks/guard_bash.py": "sha256:9c28dbe45067488fc4f197b09574b7b899a0585020bff64249e2be5025a7de72",
+      ".claude/alpha/hooks/guard_bash.py": "sha256:eee2424e03326111a22210748719d0ce433550d89fd02fd2727489f126ee69d4",
       ".claude/alpha/hooks/guard_paths.py": "sha256:6fd6dedab1d8e8c626e3ed9b3715fcf74bcb7b52379a83366aa053fc9e26ee0e",
       ".claude/alpha/hooks/post_edit.py": "sha256:7942ac13f8cc87d29998b1551afba5cb8e686c1e4e488580d1ea56b8b887dd93",
       ".claude/alpha/hooks/review.py": "sha256:6990fd27cd38862cca087f5712a0a298689e0f5a12b0bbf7e1152c624c917331",
@@ -1519,17 +1519,17 @@
       ".claude/skills/review-change/SKILL.md": "sha256:56b5a776f6346ca474f5035420f3c663c384b6670a5f9a3ba240b4cf11ac2c97",
       ".gitignore": "sha256:9be686545b4216343ef6d4537ddf799bc0329ac88ecbfcc4856b2377d0eec821",
       ".rumdl.toml": "sha256:f19f0dada5082aa3f2fffff55f0f976e0ced4ffdfd1b1d3ddd3e4b3a9575bcad",
-      "CLAUDE.md": "sha256:90d32bd62bef102f47f68d32c89c4f68d69c71bdcd64391477421f9067bf83d9",
-      "CONTRIBUTING.md": "sha256:095fb138ffb8eef58e643210c6f239cdb239ed4dd126be8456d08e957d9caf98",
-      "README.md": "sha256:a0f932d41a23ddaa94e6316b840403d6c1e963c21dc51496a008323319c58718",
+      "CLAUDE.md": "sha256:b3d2125cf1da4a7d4af39ea698483f9869ad6adc5370b4470dbf45890a220c45",
+      "CONTRIBUTING.md": "sha256:8287922afeb95518938f1a2d538ad6921f8b77a68f34c3c37da00b8920b1a0d6",
+      "README.md": "sha256:7d036db55ebf6512c5bc1901a608712a1f6767e4c908e2c3f7146332a769f3d4",
       "_typos.toml": "sha256:7dae72444e3298536402e16e40864fc21ceebe37d52d37ef8b3c9678eb4cf21b",
       "docs/adoption.md": "sha256:82bcee02519030caf8cad5e7d2af1692151590b0a5220ad6863173187e919261",
       "docs/dependencies.md": "sha256:c879cd9787bfded10887c6232d0c5feb1056a81a7c749c3224f6f6ea8a40eddf",
       "docs/glossary.md": "sha256:ada005b93a27478627d61f55954278ac338ba999a38c5f3d0b34d03c798e1982",
-      "docs/principles.toml": "sha256:c5ac33424473f26e40a1ff0289a9c4509914cb16b3ea7251550d08412d8dc779",
+      "docs/principles.toml": "sha256:892053710e6a195d593ba6aceb5186caa6c9bebcb05c48e4bc39eed66257750d",
+      "docs/specification.md": "sha256:38a6d3f52c85cc4abbe000ceaa8b0c3f1d60424121a9a2e37f8bf16eb98ba961",
       "lychee.toml": "sha256:aa99805d677595788d9c6a8bf45442a1bb764aec33145e24af5eca2f648de9bb",
-      "mise.toml": "sha256:a6d3c71404ed1b4b1ace0f91001d7c84a8ccba8b2821ec8c636f1d31090f7af2",
-      "docs/specification.md": "sha256:38a6d3f52c85cc4abbe000ceaa8b0c3f1d60424121a9a2e37f8bf16eb98ba961"
+      "mise.toml": "sha256:a6d3c71404ed1b4b1ace0f91001d7c84a8ccba8b2821ec8c636f1d31090f7af2"
     },
     "updated_at": "2026-11-15"
   }

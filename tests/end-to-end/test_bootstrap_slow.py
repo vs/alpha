@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 import yaml
 from helpers import (
+    REPO_SEEDS as SEEDS,
+)
+from helpers import (
     TODAY,
     GenerateScenario,
     git,
@@ -21,7 +24,6 @@ from alpha.defaults import Source
 from alpha.generate import bootstrap, generate, project_book
 from alpha.gitops import commit_skeleton
 from alpha.registry import load_registry
-from alpha_evals.seeded import REPO_SEEDS as SEEDS
 
 NEEDS_CARGO = pytest.mark.skipif(
     shutil.which("cargo") is None, reason="needs the Rust toolchain (cargo)"

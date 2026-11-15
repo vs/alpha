@@ -229,7 +229,7 @@ def test_manifest_records_kit_defaults_and_hashes(
 ):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     original = json.loads(
-        (ROOT / "evals/scenarios/web-ts-plus-python-api.json").read_text()
+        (ROOT / "tests/fixtures/scenarios/web-ts-plus-python-api.json").read_text()
     )
     files = generate_scenario(tmp_path, "web-ts-plus-python-api")
     data = json.loads((tmp_path / PROJECT_JSON).read_text())
