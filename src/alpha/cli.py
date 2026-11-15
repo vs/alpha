@@ -14,6 +14,7 @@ from alpha import (
     baseline,
     defaults,
     hooks_wiring,
+    purge,
     recipe_cli,
     registry,
     toml_write,
@@ -30,6 +31,15 @@ from alpha.gitops import commit
 from alpha.status import status
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
+_PROJECT_COMMANDS = (
+    "apply",
+    "bootstrap",
+    "commit",
+    "update",
+    "uninstall",
+    "hooks",
+    "purge",
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -162,6 +172,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="switch alpha's hooks off; deletes no file and commits nothing",
     )
     un.add_argument("target", type=Path, help="a project alpha is installed in")
+    pu = sub.add_parser(
+        "purge", help="remove alpha's hooks and files, and commit the removal"
+    )
+    pu.add_argument("target", type=Path, help="a project alpha is installed in")
+    pu.add_argument("--trailer", action="append", default=[], help="commit trailer")
     ho = sub.add_parser("hooks", help="switch alpha's hooks back on")
     hosub = ho.add_subparsers(dest="hooks_command", required=True)
     hon = hosub.add_parser("on", help="put back what uninstall took out")
@@ -461,6 +476,14 @@ def _wiring(target: Path, on: bool) -> None:
     print("\n".join(done) if done else f"alpha's hooks were already {state}.")
 
 
+def _purge(target: Path, trailers: list[str]) -> None:
+    source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
+    head, notes = purge.purge(target, PLUGIN_ROOT, source, date.today(), trailers)
+    _show_commits(target, [head])
+    for note in notes:
+        print(note)
+
+
 def _status(target: Path) -> int:
     found = status(target)
     print(found.name + (f": {found.detail}" if found.detail else ""))
@@ -475,6 +498,8 @@ def _project(args: argparse.Namespace) -> int:
             _apply(target, args.dry_run, args.command == "update")
         elif args.command == "bootstrap":
             _bootstrap(target, args.component, args.capture_baselines)
+        elif args.command == "purge":
+            _purge(target, args.trailer)
         elif args.command in ("uninstall", "hooks"):
             _wiring(target, args.command == "hooks")
         else:
@@ -519,7 +544,7 @@ def main(argv: list[str] | None = None) -> int:
         return _adopt(args)
     if args.command == "status":
         return _status(args.target)
-    if args.command in ("apply", "bootstrap", "commit", "update", "uninstall", "hooks"):
+    if args.command in _PROJECT_COMMANDS:
         return _project(args)
     return 2  # unreachable: argparse rejects unknown commands
 

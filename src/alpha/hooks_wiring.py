@@ -48,7 +48,7 @@ def _chained(answers: dict[str, Any]) -> bool:
     )
 
 
-def _commit_msg_hook(target: Path) -> HookFile:
+def commit_msg_hook(target: Path) -> HookFile:
     hooks = Path(git_output(target, "rev-parse", "--git-path", "hooks") or ".git/hooks")
     hook = (hooks if hooks.is_absolute() else target / hooks) / "commit-msg"
     try:
@@ -119,19 +119,30 @@ def _settings_on(target: Path) -> bool:
     return True
 
 
+def marked_block(lines: list[str]) -> tuple[int, int] | None:
+    """The first and last line of alpha's marked call, when both marks are
+    there."""
+    stripped = [line.strip() for line in lines]
+    if CHAIN_BEGIN not in stripped:
+        return None
+    start = stripped.index(CHAIN_BEGIN)
+    if CHAIN_END not in stripped[start:]:
+        return None
+    return start, stripped.index(CHAIN_END, start)
+
+
 def _chain_off(target: Path) -> list[str]:
     """Move alpha's marked call out of the hook manager's file into state."""
     if (target / CHAIN_STATE).is_file():
         return []
-    hook = _commit_msg_hook(target)
+    hook = commit_msg_hook(target)
     try:
         lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
     except FileNotFoundError:
         return []
-    stripped = [line.strip() for line in lines]
-    if CHAIN_BEGIN in stripped and CHAIN_END in stripped[stripped.index(CHAIN_BEGIN) :]:
-        start = stripped.index(CHAIN_BEGIN)
-        end = stripped.index(CHAIN_END, start)
+    found = marked_block(lines)
+    if found is not None:
+        start, end = found
         block = lines[start : end + 1]
         state = target / CHAIN_STATE
         state.parent.mkdir(parents=True, exist_ok=True)
@@ -140,7 +151,7 @@ def _chain_off(target: Path) -> list[str]:
         )
         hook.path.write_text("".join(lines[:start] + lines[end + 1 :]))
         return [f"took alpha's call out of {hook.rel}"]
-    unmarked = [n for n, line in enumerate(stripped, 1) if CHAINED_COMMIT_MSG in line]
+    unmarked = [n for n, line in enumerate(lines, 1) if CHAINED_COMMIT_MSG in line]
     if unmarked:
         return [
             f"left alpha's commit check in {hook.rel}: line {unmarked[0]} calls "

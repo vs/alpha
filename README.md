@@ -155,6 +155,15 @@ hook out of git (`core.hooksPath`, or the call between `# alpha:begin` and
 nothing. `bin/alpha hooks on <project>` puts back what it took out, as
 `/alpha:install` does when it finds the hooks off.
 
+`bin/alpha purge <project>` removes alpha altogether, in one commit: it
+uninstalls the hooks, deletes `.claude/alpha/`, `docs/alpha/` and alpha's
+agents and skills (even edited ones), and takes out only what points at them
+from the files you keep: lines in `CLAUDE.md`, `CONTRIBUTING.md` and
+`README.md`, alpha's entries in `.claude/settings.json`, the tool configs,
+`.gitignore`, and the `mise.toml` tasks that ran alpha's scripts. Your
+components' scaffolding stays, so the project still builds and tests. A file
+it can't clean stops it before it writes anything, naming the line to fix.
+
 When you override a default, alpha asks whether to keep it for your next
 projects. A yes goes to `~/.config/alpha/overrides.toml`, a recipe drafted in
 an interview to `~/.config/alpha/recipes/`. Both apply on top of the installed
