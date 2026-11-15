@@ -210,7 +210,10 @@ def clean_toml_arrays(text: str, removed: Removed) -> str:
 # secrets in ignored files (.env) don't fail it; the same pipeline in the
 # shell mise runs tasks in keeps that without alpha's script.
 SECRET_SCAN = "python3 .claude/alpha/checks/secret_scan.py "
-LISTED_FILES = "git ls-files -z --cached --others --exclude-standard | xargs -0 -r "
+LISTED_FILES = (
+    "git rev-parse --git-dir >/dev/null && "
+    "git ls-files -z --cached --others --exclude-standard | xargs -0 -r "
+)
 
 
 def unwrapped_secret_scan(text: str) -> str:
@@ -467,10 +470,12 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
     removed = Removed(
         frozenset(deletions),
         tuple(
-            sorted({p.split("/")[2] for p in copied if p.startswith(".claude/skills/")})
+            sorted(
+                {p.split("/")[2] for p in deletions if p.startswith(".claude/skills/")}
+            )
         ),
         tuple(
-            sorted({Path(p).stem for p in copied if p.startswith(".claude/agents/")})
+            sorted({Path(p).stem for p in deletions if p.startswith(".claude/agents/")})
         ),
     )
     plain = _plain_commands(a, source)
@@ -486,7 +491,7 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
     if text is not None:
         kept = unwrapped_secret_scan(unratcheted(text, plain, MISE))
         edits[MISE], gone = clean_mise(kept, removed)
-        dangling = _dangling_depends(edits[MISE])
+        dangling = _dangling_depends(edits[MISE], gone)
         if dangling:
             raise Uncleanable(
                 f"{MISE} still lists {', '.join(dangling)} under a `depends` alpha "
@@ -538,9 +543,7 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
     if chain is not None:
         edits[chain[0]] = chain[1]
     calls = (
-        unmarked_calls(hook_files(target, top))
-        if _chained(top) and chain is None
-        else []
+        unmarked_calls(hook_files(target)) if _chained(top) and chain is None else []
     )
     edits = {
         rel: new for rel, new in edits.items() if rel in tracked and new != read(rel)
@@ -582,7 +585,7 @@ def _chain_edit(target: Path, top: dict[str, Any]) -> tuple[str, str] | None:
     """The hook manager's file that holds alpha's marked call, without it."""
     if not _chained(top):
         return None
-    for hook in hook_files(target, top):
+    for hook in hook_files(target):
         lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
         block = marked_block(lines)
         if block is not None:
@@ -590,8 +593,8 @@ def _chain_edit(target: Path, top: dict[str, Any]) -> tuple[str, str] | None:
     return None
 
 
-def _dangling_depends(text: str) -> list[str]:
-    """Task names a `depends` lists that mise.toml no longer defines."""
+def _dangling_depends(text: str, gone: list[str]) -> list[str]:
+    """The removed tasks a `depends` still lists."""
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
@@ -605,7 +608,7 @@ def _dangling_depends(text: str) -> list[str]:
             for name in cast(
                 list[object], cast(dict[str, Any], task).get("depends", [])
             )
-            if str(name) not in tasks
+            if str(name) in gone
         }
     )
 
@@ -641,17 +644,23 @@ def purge(
     target: Path, plugin_root: Path, source: Source, today: date, trailers: list[str]
 ) -> tuple[str, list[str]]:
     """Plan, then uninstall, write and commit; returns the commit and notes."""
-    if (target / HOOKS_STATE).exists() or (target / CHAIN_STATE).exists():
+    was_off = (target / HOOKS_STATE).exists() or (target / CHAIN_STATE).exists()
+    if was_off:
         hooks_on(target)  # put back what uninstall took out, so it's committed
-    p = plan(target, plugin_root, source, today)
-    paths = [*p.deletions, *p.edits]
-    dirty = status_paths(target, *paths, command="purge", untracked="no")
-    if dirty:
-        raise GenerateError(
-            f"{', '.join(sorted(dirty))} has uncommitted changes, and purge would "
-            "edit or delete it. Commit or stash those changes, then rerun alpha "
-            "purge."
-        )
+    try:
+        p = plan(target, plugin_root, source, today)
+        paths = [*p.deletions, *p.edits]
+        dirty = status_paths(target, *paths, command="purge", untracked="no")
+        if dirty:
+            raise GenerateError(
+                f"{', '.join(sorted(dirty))} has uncommitted changes, and purge "
+                "would edit or delete it. Commit or stash those changes, then "
+                "rerun alpha purge."
+            )
+    except GenerateError:
+        if was_off:
+            uninstall(target)
+        raise
     notes = uninstall(target)
     for rel, text in p.edits.items():
         (target / rel).write_text(text, encoding="utf-8")

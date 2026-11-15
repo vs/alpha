@@ -176,11 +176,7 @@ def test_R2_2_husky_9_keeps_alphas_call_behind_its_launcher(chained: Path) -> No
     launcher.parent.mkdir()
     launcher.write_text('#!/bin/sh\nset -e\nsh "$(dirname "$0")/../commit-msg" "$1"\n')
     launcher.chmod(0o755)
-    git(chained, "config", "core.hooksPath", ".husky/_")
-    path = chained / ".claude/alpha/project.json"
-    data = json.loads(path.read_text())
-    data["adoption"]["survey"] = {"git": {"hook_managers": [".husky/commit-msg"]}}
-    path.write_text(json.dumps(data))
+    git(chained, "config", "core.hooksPath", ".husky/_")  # no survey names it
     assert bad_commit(chained).returncode != 0
     done = run_cli("uninstall", str(chained))
     assert "took alpha's call out of .husky/commit-msg" in done.stdout, done.stdout

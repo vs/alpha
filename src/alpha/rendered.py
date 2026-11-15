@@ -172,3 +172,11 @@ def forget(target: Path) -> None:
     """Drop alpha's renders and their notes (purge)."""
     _git(target, "update-ref", "-d", RENDERED_REF)
     _git(target, "update-ref", "-d", f"refs/notes/{NOTES_REF}")
+    _git(
+        target,
+        "config",
+        "--unset-all",
+        "--fixed-value",
+        "notes.rewriteRef",
+        f"refs/notes/{NOTES_REF}",
+    )

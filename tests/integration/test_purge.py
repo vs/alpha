@@ -18,6 +18,7 @@ from helpers import (
 
 from alpha.generate import load_project_principles
 from alpha.gitops import commit
+from alpha.status import status
 
 ALPHA_PATHS = (".claude/alpha/", "docs/alpha/")
 KEPT_FILES_ALPHA_WROTE = (
@@ -78,6 +79,13 @@ def test_R3_1_purge_removes_alpha_in_one_commit(project: Path) -> None:
     assert hooks_path(project) is None
     assert git(project, "status", "--porcelain") == ""
     assert "alpha" not in refs(project)
+    leftover = subprocess.run(
+        ["git", "config", "--get-all", "notes.rewriteRef"],
+        cwd=project,
+        capture_output=True,
+        text=True,
+    )
+    assert "alpha" not in leftover.stdout
     changed = changed_in_head(project)
     assert {
         ".claude/skills/commit/SKILL.md",
@@ -142,8 +150,10 @@ def test_R3_4_purge_commits_only_alphas_paths(project: Path) -> None:
 
 def test_R3_4_purge_keeps_the_repos_own_files(tmp_path: Path, git_env: None) -> None:
     own = "# Our committer\n\nWe commit our own way.\n"
+    readme = EXISTING["README.md"] + "\nCommit with the committer agent.\n"
     repo = existing_repo(
-        tmp_path / "repo", {**EXISTING, ".claude/agents/committer.md": own}
+        tmp_path / "repo",
+        {**EXISTING, "README.md": readme, ".claude/agents/committer.md": own},
     )
     adoption_answers(repo)
     install(repo)
@@ -155,6 +165,7 @@ def test_R3_4_purge_keeps_the_repos_own_files(tmp_path: Path, git_env: None) -> 
     assert done.returncode == 0, done.stderr
     assert (repo / ".claude/agents/committer.md").read_text() == own
     assert not (repo / ".claude/agents/principles-reviewer.md").exists()
+    assert "Commit with the committer agent." in (repo / "README.md").read_text()
 
 
 def test_ratcheted_checks_run_plain_after_purge(tmp_path: Path, git_env: None) -> None:
@@ -257,3 +268,23 @@ def test_purge_keeps_the_repos_own_permission_rules(
     assert done.returncode == 0, done.stderr
     kept = json.loads((repo / ".claude/settings.json").read_text())
     assert kept["permissions"]["allow"] == ["Bash(git status:*)", "Bash(make *)"]
+
+
+def test_a_refused_purge_leaves_the_hooks_off(project: Path) -> None:
+    assert run_cli("uninstall", str(project)).returncode == 0
+    claude = project / "CLAUDE.md"
+    claude.write_text(claude.read_text() + "\n- Uncommitted rule.\n")
+    done = run_cli("purge", str(project))
+    assert done.returncode == 1 and "CLAUDE.md has uncommitted changes" in done.stderr
+    assert status(project).name == "hooks-off"
+    settings = (project / ".claude/settings.json").read_text()
+    assert ".claude/alpha/hooks/" not in settings
+
+
+def test_a_depends_on_a_task_outside_mise_toml_stays(project: Path) -> None:
+    mise = project / "mise.toml"
+    mise.write_text(mise.read_text() + '\n[tasks.release]\ndepends = ["build"]\n')
+    git(project, "commit", "-q", "-am", "build: Release after the build file task")
+    done = run_cli("purge", str(project))
+    assert done.returncode == 0, done.stderr
+    assert 'depends = ["build"]' in mise.read_text()

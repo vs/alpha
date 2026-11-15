@@ -1,6 +1,7 @@
 """purge's removers, one per kind of kept file (rewrite spec, R3.2 and R3.3)."""
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles
 from alpha.purge import (
+    LISTED_FILES,
     Removed,
     Uncleanable,
     clean_markdown,
@@ -137,7 +139,8 @@ def test_the_secrets_check_stays_without_alphas_wrapper() -> None:
     assert gone == []
     assert plain == (
         '[tasks."check:secrets"]\n'
-        'run = "git ls-files -z --cached --others --exclude-standard | xargs -0 -r '
+        'run = "git rev-parse --git-dir >/dev/null && '
+        "git ls-files -z --cached --others --exclude-standard | xargs -0 -r "
         'betterleaks dir --no-banner --config .betterleaks.toml --"\n'
     )
 
@@ -184,3 +187,11 @@ def test_settings_lose_alphas_hooks_and_permissions() -> None:
 def test_the_chain_marks_are_alphas_lines() -> None:
     text = "# Setup\n\n```sh\n# alpha:begin\nsh x\n# alpha:end\n```\n\nMore.\n"
     assert clean_markdown(text, REMOVED) == "# Setup\n\n```sh\nsh x\n```\n\nMore.\n"
+
+
+def test_the_secrets_pipeline_fails_when_git_does(tmp_path: Path) -> None:
+    """Outside a repository git lists nothing, and xargs -r would run no scan
+    at all: the task must fail, not pass."""
+    command = LISTED_FILES + "true --"
+    done = subprocess.run(["sh", "-c", command], cwd=tmp_path, capture_output=True)
+    assert done.returncode != 0

@@ -56,29 +56,30 @@ def _hook_file(target: Path, path: Path) -> HookFile:
     return HookFile(path, rel)
 
 
-def hook_files(target: Path, answers: dict[str, Any]) -> list[HookFile]:
-    """Where a hook manager may call alpha's check: git's commit-msg hook, and
-    each hook manager file the adoption's survey found (husky 9's
-    .husky/commit-msg behind its .husky/_ launcher, lefthook.yml, …)."""
+def hook_files(target: Path) -> list[HookFile]:
+    """Where a hook manager calls alpha's check: git's commit-msg hook, and
+    every file in the repo, tracked or not, that holds the call or its marks
+    (husky 9's .husky/commit-msg behind its .husky/_ launcher, lefthook.yml,
+    …). Markdown is left out: alpha's CONTRIBUTING.md shows the snippet."""
     hooks = Path(git_output(target, "rev-parse", "--git-path", "hooks") or ".git/hooks")
     paths = [(hooks if hooks.is_absolute() else target / hooks) / "commit-msg"]
-    adoption: object = answers.get("adoption", {})
-    survey: object = (
-        cast(dict[str, Any], adoption).get("survey", {})
-        if isinstance(adoption, dict)
-        else {}
+    listed = git_output(
+        target,
+        "grep",
+        "--untracked",
+        "-l",
+        "-F",
+        "-e",
+        CHAIN_BEGIN,
+        "-e",
+        CHAINED_COMMIT_MSG,
+        "--",
+        ".",
+        ":!*.md",
+        ":!.claude/",
+        ":!docs/alpha/",
     )
-    git: object = (
-        cast(dict[str, Any], survey).get("git", {}) if isinstance(survey, dict) else {}
-    )
-    managers: object = (
-        cast(dict[str, Any], git).get("hook_managers", [])
-        if isinstance(git, dict)
-        else []
-    )
-    for rel in cast(list[object], managers) if isinstance(managers, list) else []:
-        if isinstance(rel, str):
-            paths.append(target / rel)
+    paths += [target / rel for rel in (listed or "").splitlines()]
     found: list[HookFile] = []
     seen: set[Path] = set()
     for path in paths:
@@ -174,11 +175,11 @@ def marked_block(lines: list[str]) -> tuple[int, int] | None:
     return start, stripped.index(CHAIN_END, start)
 
 
-def _chain_off(target: Path, answers: dict[str, Any]) -> list[str]:
+def _chain_off(target: Path) -> list[str]:
     """Move alpha's marked call out of the hook manager's file into state."""
     if (target / CHAIN_STATE).is_file():
         return []
-    files = hook_files(target, answers)
+    files = hook_files(target)
     for hook in files:
         lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
         found = marked_block(lines)
@@ -208,7 +209,7 @@ def uninstall(target: Path) -> list[str]:
     if _settings_off(target):
         done.append(f"removed alpha's hook entries from {SETTINGS}")
     if _chained(answers):
-        done += _chain_off(target, answers)
+        done += _chain_off(target)
     elif git_output(target, "config", "--get", "core.hooksPath") == HOOKS_PATH:
         unset_hooks_path(target, "uninstall")
         done.append(f"unset core.hooksPath ({HOOKS_PATH})")
