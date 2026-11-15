@@ -1,11 +1,7 @@
 from pathlib import Path
 
 import pytest
-from helpers import TODAY, GenerateScenario, place_answers
-
-from alpha.cli import PLUGIN_ROOT
-from alpha.defaults import Source
-from alpha.generate import generate
+from helpers import GenerateScenario, install, place_answers
 
 
 @pytest.fixture(autouse=True)
@@ -21,7 +17,7 @@ def generate_scenario() -> GenerateScenario:
 
     def run(target: Path, scenario: str) -> list[str]:
         place_answers(target, scenario)
-        return generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+        return install(target)
 
     return run
 

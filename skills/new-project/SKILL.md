@@ -1,6 +1,6 @@
 ---
 name: new-project
-description: Start a new project with alpha - interview the user area by area, then generate, bootstrap and commit an enforced skeleton in an empty folder. Resumes an interview in progress. Run as /alpha:new-project [folder].
+description: Start a new project with alpha - interview the user area by area, then apply, bootstrap and commit an enforced skeleton in an empty folder. Resumes an interview in progress. Run as /alpha:new-project [folder].
 disable-model-invocation: true
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
@@ -16,7 +16,7 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 ## 1. Resolve the target folder
 
 1. If a folder was given above, use it (expand `~`, resolve to an absolute path, and create it if it doesn't exist). If nothing was given, use the current working directory. Call it `<target>` from here on.
-2. If `<target>/.claude/alpha/project.json` has a `manifest` key, the project is already generated. Tell the user, then invoke `alpha:extend` with the Skill tool to change it, passing `<target>` as its arguments.
+2. If `<target>/.claude/alpha/project.json` has an `installed` key, alpha is already installed. Tell the user, then invoke `alpha:extend` with the Skill tool to change it, passing `<target>` as its arguments.
 3. List everything in `<target>`, including hidden entries and the contents of `.claude/`. It counts as empty when it holds nothing but `.DS_Store` files, `.claude/alpha/project.json` and `.claude/settings.local.json`.
 4. If anything else is there, stop and tell the user: "`<target>` isn't empty (found: <entries>). `/alpha:new-project` starts projects only in empty folders. To bring this existing repo under alpha, run `/alpha:adopt <target>`; to start a new project, run `/alpha:new-project <new folder>`."
 
@@ -72,16 +72,16 @@ If the user wants a change, save it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answ
 Run these in order. If one fails, show the user its message (it says what went wrong and how to fix it), fix the cause with them, and rerun that step before going on.
 
 1. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json` must print `ok`.
-2. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" generate <target>` writes the skeleton.
+2. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" apply <target>` writes the skeleton.
 3. Tell the user the next step installs each component's toolchain and runs its tests, then installs the repository checks' tools with mise and runs them, and can take a few minutes. Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target>`.
-4. Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-skeleton <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, in that order. If there are none, pass no `--trailer`. Never invent co-author lines.
+4. Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, in that order. If there are none, pass no `--trailer`. Never invent co-author lines.
 5. For each recipe drafted in this interview (the `recipes` in project.json), ask: "Save the <stack> recipe for your future projects?" On yes, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe save <target> <stack>`. Exit 0: tell the user it's saved with their own recipes (the path it prints) and the next project can use it. Exit 3: show the message and follow its fix.
 
 ## 7. Final report
 
 Tell the user, briefly:
 
-- **Commits:** the list `commit-skeleton` printed (short hash and subject).
+- **Commits:** the list `commit` printed (short hash and subject).
 - **Enforced now:**
   - Every commit, by anyone, must follow the convention and scopes (the git `commit-msg` hook).
   - Claude can't skip git hooks, push with a plain `--force`, or rewrite main; it may rebase its own branch and push it with `--force-with-lease`.

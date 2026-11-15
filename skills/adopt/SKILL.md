@@ -19,8 +19,8 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 
 `<target>` is the folder given above (expand `~`, resolve it), else the current working directory. Read `<target>/.claude/alpha/project.json`:
 
-- A `manifest` with `adopted_at`: the repo is adopted. Go to step 9.
-- A `manifest` without `adopted_at`: alpha generated it. Invoke `alpha:extend` with the Skill tool for any change, and stop here.
+- `installed` with `"mode": "adopted"`: the repo is adopted. Go to step 9.
+- `installed` with `"mode": "new"`: alpha generated it. Invoke `alpha:extend` with the Skill tool for any change, and stop here.
 - An `adoption` key: an adoption is under way. Report which areas are done (a spec area an older alpha left pending becomes open: save it so), then go on at the first step not finished (step 4 while an area is pending, else step 5).
 - Anything else: start at step 2.
 
@@ -57,16 +57,16 @@ Leave out findings about the specification's content: open questions, proposals 
 
 ## 6. Preview and confirm
 
-Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json` (must print `ok`) and `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt apply <target> --dry-run`. Show, in plain words: the areas' answers as `/alpha:new-project` step 5 does; the files alpha adds, merges and must merge by hand (each `conflict`); the components whose skeleton it generates (the `New components` line); the baselines and their counts from the recipe proofs; and the plan by phase. Ask: "Install alpha on branch alpha/adopt with these answers?" and wait for a clear yes.
+Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers check <target>/.claude/alpha/project.json` (must print `ok`) and `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" apply <target> --dry-run`. Show, in plain words: the areas' answers as `/alpha:new-project` step 5 does; the files alpha adds, merges and must merge by hand (each `conflict`); the components whose skeleton it generates (the `New components` line); the baselines and their counts from the recipe proofs; and the plan by phase. Ask: "Install alpha on branch alpha/adopt with these answers?" and wait for a clear yes.
 
 ## 7. Install
 
 In order; if a step fails, show its message, fix the cause with the user, and rerun that step:
 
-1. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt apply <target>`.
+1. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" apply <target>`.
 2. For each `<path>: merge by hand; proposal: …` line, read the proposal (the repo's version and alpha's) and edit the real file to keep every line of the repo's and add alpha's: never just alpha's side. For CI, keep the repo's jobs and add alpha's. Show the user each result.
 3. Tell the user this installs toolchains (a new component's too), records today's findings as baselines and runs every check, then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --capture-baselines`. A secret it finds: ask the user to rotate it and add a P0 step; a false positive goes in `.betterleaksignore`. A known vulnerability: upgrade it, or, with the user's yes, add an `osv-scanner.toml` exception with a reason and a review date.
-4. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-update <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits. Never invent co-author lines.
+4. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits. Never invent co-author lines.
 
 ## 8. Report
 
@@ -79,8 +79,8 @@ One step per run, unless the user asks for more.
 1. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt next <target>` names the step, why, what proves it done, and its branch. Tell the user in two lines.
 2. Branch: `git switch -c <branch>` from the default branch, or from `alpha/adopt` while that isn't merged. Then `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt start <target> <id>`.
 3. Do the work under the project's hooks and rules, in commits per the convention. Write the tests a step's acceptance names. A fixed baselined finding tightens its baseline when its check runs (or run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline tighten <target>`); commit the baseline file with the fix.
-4. When the step changes the answers, save them before checking it: a recipe change (a new tool, a check turned on) means sending `recipes` whole with `answers write` and proving it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <recipe>`; an emptied baseline means sending `adoption` whole without that id in `baselines` and `git rm` its file; a new tool with legacy findings means adding its check id there. Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>` (it rewrites the commands, CI and principles to match), `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline capture <target> --all` for a newly listed check, and `commit-update` as in step 7.
-5. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt done <target> <id>` must pass; add `--confirmed-by-user` only after the user confirmed each `confirm` condition. Never set a step's status any other way. Then `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>` and `commit-update` again, so `docs/alpha/adoption.md` shows it.
+4. When the step changes the answers, save them before checking it: a recipe change (a new tool, a check turned on) means sending `recipes` whole with `answers write` and proving it with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <recipe>`; an emptied baseline means sending `adoption` whole without that id in `baselines` and `git rm` its file; a new tool with legacy findings means adding its check id there. Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>` (it rewrites the commands, CI and principles to match), `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" baseline capture <target> --all` for a newly listed check, and `commit` as in step 7.
+5. `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt done <target> <id>` must pass; add `--confirmed-by-user` only after the user confirmed each `confirm` condition. Never set a step's status any other way. Then `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>` and `commit` again, so `docs/alpha/adoption.md` shows it.
 6. A step that turns out wrong or not worth it: agree why with the user, then `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt drop <target> <id> --reason "<why>"`; docs/alpha/adoption.md shows the reason.
 
 Report what changed, the commits, and the next step.

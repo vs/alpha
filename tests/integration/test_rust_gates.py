@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from helpers import TODAY, place_answers
+from helpers import install, place_answers
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import generate, load_project_principles
+from alpha.generate import load_project_principles
 
 SOURCE = Source(PLUGIN_ROOT, True)
 RECIPE = PLUGIN_ROOT / "recipes/rust.toml"
@@ -23,7 +23,7 @@ def rust_cli(target: Path, **testing: object) -> dict[str, Any]:
     data = json.loads(answers.read_text())
     data["testing"].update(testing)
     answers.write_text(json.dumps(data))
-    generate(target, PLUGIN_ROOT, SOURCE, 2026, TODAY)
+    install(target)
     return load_project_principles(target)
 
 

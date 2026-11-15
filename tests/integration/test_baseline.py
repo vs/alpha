@@ -119,7 +119,7 @@ def test_capture_unknown_check(tmp_path: Path):
     assert done.returncode == 1 and f"baselined: {CHECK}" in done.stderr
 
 
-def test_tighten_reports_changed(tmp_path: Path):
+def test_R12_3_the_ratchet_only_tightens(tmp_path: Path):
     root = _project(tmp_path)
     run_cli("baseline", "capture", str(root), "--all")
     done = run_cli("baseline", "tighten", str(root))

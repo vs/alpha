@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 import re
@@ -15,10 +14,10 @@ import yaml
 from helpers import (
     SCENARIOS,
     SHIM,
-    TODAY,
     GenerateScenario,
     generated_repo,
     git,
+    install,
     place_answers,
     proven,
     run_cli,
@@ -27,12 +26,10 @@ from helpers import (
     single_component,
 )
 
-from alpha import VERSION
 from alpha import generate as generate_module
-from alpha.answers import AnswersError
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import GenerateError, bootstrap, generate
+from alpha.generate import GenerateError, bootstrap
 from alpha.principles import render_principles
 
 ROOT = PLUGIN_ROOT
@@ -47,7 +44,7 @@ def test_open_areas_render_as_not_settled(tmp_path: Path):
     data = json.loads(path.read_text())
     setup_only(data)
     path.write_text(json.dumps(data))
-    written = generate(tmp_path, ROOT, SRC, 2026, TODAY)
+    written = install(tmp_path)
     product = (tmp_path / "docs/alpha/specification.md").read_text()
     not_settled = product.split("## Not settled yet")[1]
     for area in (
@@ -80,7 +77,7 @@ def test_open_areas_that_cannot_apply_are_not_listed(tmp_path: Path):
     data = json.loads(path.read_text())
     setup_only(data)
     path.write_text(json.dumps(data))
-    generate(tmp_path, ROOT, SRC, 2026, TODAY)
+    install(tmp_path)
     spec = (tmp_path / "docs/alpha/specification.md").read_text()
     listed = spec.split("## Not settled yet")[1]
     for area in ("UI", "accessibility", "observability", "data"):
@@ -181,10 +178,11 @@ def test_claude_md_links_only_existing_docs(
 
 
 def test_refuses_non_empty_folder(tmp_path: Path):
+    place_answers(tmp_path, "python-ml-single")
     (tmp_path / "README.md").write_text("x")
     (tmp_path / ".DS_Store").write_text("")
     with pytest.raises(GenerateError, match=r"not empty \(found: README.md\)"):
-        generate(tmp_path, ROOT, SRC, 2026)
+        install(tmp_path)
 
 
 def test_refusal_lists_offending_entries_sorted_with_a_fix(tmp_path: Path):
@@ -194,11 +192,11 @@ def test_refusal_lists_offending_entries_sorted_with_a_fix(tmp_path: Path):
     (tmp_path / ".claude" / "skills").mkdir()
     (tmp_path / ".claude" / "alpha" / "state").mkdir()
     with pytest.raises(GenerateError) as err:
-        generate(tmp_path, ROOT, SRC, 2026)
+        install(tmp_path)
     assert str(err.value) == (
         f"{tmp_path} is not empty (found: .claude/alpha/state, .claude/skills, a, "
-        "b.txt). alpha v0.1 starts projects only in empty folders. Choose a new "
-        "folder, or move these files out first."
+        "b.txt). A new project starts in an empty folder; /alpha:install adopts "
+        "an existing repo instead (commit its files first)."
     )
     assert sorted(p.name for p in tmp_path.iterdir()) == [".claude", "a", "b.txt"]
 
@@ -207,15 +205,15 @@ def test_accepts_alpha_dir_ds_store_and_local_settings(tmp_path: Path):
     place_answers(tmp_path, "python-ml-single")
     (tmp_path / ".DS_Store").write_text("")
     (tmp_path / ".claude" / "settings.local.json").write_text("{}")
-    files = generate(tmp_path, ROOT, SRC, 2026, TODAY)
+    files = install(tmp_path)
     assert ".claude/settings.local.json" not in files
     assert ".DS_Store" not in files
     assert (tmp_path / ".claude" / "settings.local.json").read_text() == "{}"
 
 
 def test_missing_answers_file_is_explained(tmp_path: Path):
-    with pytest.raises(AnswersError, match="Run the alpha interview first"):
-        generate(tmp_path, ROOT, SRC, 2026)
+    with pytest.raises(GenerateError, match=r"has no alpha answers.*/alpha:install"):
+        install(tmp_path)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -224,48 +222,6 @@ def source_head() -> str | None:
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True
     )
     return done.stdout.strip() if done.returncode == 0 else None
-
-
-def test_manifest_records_kit_defaults_and_hashes(
-    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    original = json.loads(
-        (ROOT / "tests/fixtures/scenarios/web-ts-plus-python-api.json").read_text()
-    )
-    files = generate_scenario(tmp_path, "web-ts-plus-python-api")
-    data = json.loads((tmp_path / PROJECT_JSON).read_text())
-    m = data.pop("manifest")
-    assert data == original
-    assert list(data) == list(original)
-    assert m["kit_version"] == VERSION
-    assert m["generated_at"] == "2026-10-19"
-    assert m["defaults"] == {"path": str(ROOT), "live": True, "commit": source_head()}
-    assert list(m["files"]) == sorted(m["files"])
-    assert set(m["files"]) == set(files) - {PROJECT_JSON}
-    # Labelled digests: a bare hex string next to a path like
-    # "...-api-keys.md" reads as a leaked key to the secrets check.
-    assert all(re.fullmatch(r"sha256:[0-9a-f]{64}", h) for h in m["files"].values())
-    assert (tmp_path / PROJECT_JSON).read_text().endswith("}\n")
-
-
-def test_manifest_abbreviates_the_home_directory(
-    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setenv("HOME", str(ROOT.parent))
-    generate_scenario(tmp_path, "python-ml-single")
-    m = json.loads((tmp_path / PROJECT_JSON).read_text())["manifest"]
-    assert m["defaults"]["path"] == f"~/{ROOT.name}"
-
-
-def test_manifest_commit_is_null_for_bundled_defaults(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    place_answers(tmp_path, "python-ml-single")
-    generate(tmp_path, ROOT, Source(ROOT, False), 2026, TODAY)
-    m = json.loads((tmp_path / PROJECT_JSON).read_text())["manifest"]
-    assert m["defaults"] == {"path": str(ROOT), "live": False, "commit": None}
 
 
 def test_gitignore_prefixes_component_paths(
@@ -647,7 +603,6 @@ def test_bootstrap_without_mise_toml_skips_the_repository_checks(
     )
     ran = (tmp_path / "tools.log").read_text()
     assert "mise" not in ran
-    assert not (project / ".git").exists()
 
 
 def test_bootstrap_only_named_components(
@@ -680,29 +635,6 @@ def test_bootstrap_unknown_component_is_explained(
         "api, web)."
     )
     assert not (tmp_path / "tools.log").exists()
-
-
-def test_bootstrap_refreshes_the_manifest_hashes(
-    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
-):
-    project = tmp_path / "proj"
-    project.mkdir()
-    generate_scenario(project, "web-ts-plus-python-api")
-    bin_dir = tmp_path / "fakebin"
-    bin_dir.mkdir()
-    steps = (("uv", "echo '# added' >> pyproject.toml"), ("pnpm", ":"), ("mise", ":"))
-    for tool, action in steps:
-        (bin_dir / tool).write_text(f"#!/bin/sh\n{action}\n")
-        (bin_dir / tool).chmod(0o755)
-    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
-    bootstrap(
-        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
-    )
-    files = json.loads((project / PROJECT_JSON).read_text())["manifest"]["files"]
-    assert "api/pyproject.toml" in files
-    for rel, digest in files.items():
-        actual = hashlib.sha256((project / rel).read_bytes()).hexdigest()
-        assert digest == f"sha256:{actual}", rel
 
 
 def test_bootstrap_failure_names_command_output_and_fix(
@@ -752,16 +684,16 @@ def test_bootstrap_keeps_only_the_last_40_lines(
     assert "line 60\n" not in message
 
 
-def test_cli_generate_prints_summary(tmp_path: Path):
+def test_cli_apply_prints_summary(tmp_path: Path):
     place_answers(tmp_path, "python-ml-single")
-    out = run_cli("generate", str(tmp_path), env={"ALPHA_SOURCE": str(ROOT)})
+    out = run_cli("apply", str(tmp_path), env={"ALPHA_SOURCE": str(ROOT)})
     assert out.returncode == 0, out.stderr
-    assert "Generated" in out.stdout and str(tmp_path) in out.stdout
+    assert out.stdout.startswith("alpha apply: ") and "alpha commit" in out.stdout
     assert out.stderr == ""
     assert (tmp_path / "CLAUDE.md").is_file()
 
 
-def test_cli_generate_uses_the_plugin_and_your_defaults(tmp_path: Path):
+def test_cli_apply_uses_the_plugin_and_your_defaults(tmp_path: Path):
     project = tmp_path / "proj"
     place_answers(project, "python-ml-single")
     mine = tmp_path / "config"
@@ -771,7 +703,7 @@ def test_cli_generate_uses_the_plugin_and_your_defaults(tmp_path: Path):
     env["HOME"] = str(tmp_path / "home")
     env["ALPHA_CONFIG_DIR"] = str(mine)
     out = subprocess.run(
-        [sys.executable, str(SHIM), "generate", str(project)],
+        [sys.executable, str(SHIM), "apply", str(project)],
         capture_output=True,
         text=True,
         env=env,
@@ -781,12 +713,13 @@ def test_cli_generate_uses_the_plugin_and_your_defaults(tmp_path: Path):
     principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
     assert principles["review"]["exclude"] == ["docs/**"]
     data = json.loads((project / ".claude/alpha/project.json").read_text())
-    assert data["manifest"]["defaults"]["live"] is False
+    assert data["installed"]["mode"] == "new"
 
 
-def test_cli_generate_error_exits_1(tmp_path: Path):
+def test_cli_apply_error_exits_1(tmp_path: Path):
+    place_answers(tmp_path, "python-ml-single")
     (tmp_path / "README.md").write_text("x")
-    out = run_cli("generate", str(tmp_path), env={"ALPHA_SOURCE": str(ROOT)})
+    out = run_cli("apply", str(tmp_path), env={"ALPHA_SOURCE": str(ROOT)})
     assert out.returncode == 1
     assert "is not empty (found: README.md)" in out.stderr
 
@@ -798,13 +731,11 @@ def test_cli_bootstrap_without_principles_exits_1(tmp_path: Path):
     assert "alpha generate" in out.stderr
 
 
-def test_cli_commit_skeleton_with_trailers(
+def test_cli_commit_with_trailers(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "python-ml-single")
-    out = run_cli(
-        "commit-skeleton", str(tmp_path), "--trailer", "A: b", "--trailer", "C: d"
-    )
+    out = run_cli("commit", str(tmp_path), "--trailer", "A: b", "--trailer", "C: d")
     assert out.returncode == 0, out.stderr
     assert "build(ml): Set up python toolchain and tests" in out.stdout
     body = subprocess.run(
@@ -862,15 +793,16 @@ def test_cli_bootstrap_explains_missing_principles_key(
     )
 
 
-def test_cli_generate_explains_write_failure(tmp_path: Path):
+def test_cli_apply_explains_write_failure(tmp_path: Path):
     project = tmp_path / "proj"
     place_answers(project, "python-ml-single")
     project.chmod(0o555)
     try:
-        out = run_cli("generate", str(project), env={"ALPHA_SOURCE": str(ROOT)})
+        out = run_cli("apply", str(project), env={"ALPHA_SOURCE": str(ROOT)})
     finally:
         project.chmod(0o755)
-    assert_explained(out, f"Could not write {project / 'docs'}", "permissions")
+    assert out.returncode == 1, out.stderr
+    assert "Permission denied" in out.stderr and "rerun" in out.stderr
 
 
 def shell_project(target: Path) -> list[str]:
@@ -880,7 +812,7 @@ def shell_project(target: Path) -> list[str]:
     dest = target / ".claude/alpha/project.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(data))
-    return generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    return install(target)
 
 
 def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
@@ -922,7 +854,7 @@ def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: 
     dest.parent.mkdir(parents=True)
     dest.write_text(json.dumps(data))
     with pytest.raises(GenerateError, match=rf"{re.escape(path)}.*alpha generates"):
-        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+        install(tmp_path)
     assert not (tmp_path / "CLAUDE.md").exists()
 
 
@@ -988,7 +920,7 @@ def test_generate_keeps_the_users_own_license_file(tmp_path: Path):
     data["identity"]["license_file"] = "LICENSE"
     answers.write_text(json.dumps(data))
     (tmp_path / "LICENSE").write_text("Do what thou wilt.\n")
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    install(tmp_path)
     assert (tmp_path / "LICENSE").read_text() == "Do what thou wilt.\n"
 
 

@@ -6,13 +6,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from helpers import TODAY, git, place_answers, place_rust_monorepo
+from helpers import TODAY, git, install, place_answers, place_rust_monorepo
 
+from alpha import apply
+from alpha.apply import describe
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import generate, load_project_principles
-from alpha.gitops import commit_skeleton, commit_update
-from alpha.update import apply_update, describe, plan_update
+from alpha.generate import load_project_principles
+from alpha.gitops import commit
 
 SOURCE = Source(PLUGIN_ROOT, True)
 ROOT_FILES = {"Cargo.toml", "clippy.toml", "rust-toolchain.toml"}
@@ -20,7 +21,7 @@ ROOT_FILES = {"Cargo.toml", "clippy.toml", "rust-toolchain.toml"}
 
 def generated(target: Path, **testing: bool) -> dict[str, Any]:
     place_rust_monorepo(target, **testing)
-    generate(target, PLUGIN_ROOT, SOURCE, 2026, TODAY)
+    install(target)
     return load_project_principles(target)
 
 
@@ -75,7 +76,7 @@ def test_rust_components_of_a_monorepo_form_one_workspace(tmp_path: Path):
 
 def generate_files(target: Path) -> set[str]:
     place_rust_monorepo(target)
-    return set(generate(target, PLUGIN_ROOT, SOURCE, 2026, TODAY))
+    return set(install(target))
 
 
 def test_workspace_root_holds_the_lockfile_ignores_and_updates(tmp_path: Path):
@@ -115,7 +116,7 @@ def test_workspace_root_holds_the_lockfile_ignores_and_updates(tmp_path: Path):
 
 def test_workspace_answer_keeps_each_component_a_crate(tmp_path: Path):
     place_rust_monorepo(tmp_path, workspace=False)
-    files = set(generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, TODAY))
+    files = set(install(tmp_path))
     assert not ROOT_FILES & files
     assert {"core/Cargo.toml", "core/clippy.toml", "core/rust-toolchain.toml"} <= files
     core = by_name(load_project_principles(tmp_path))["core"]
@@ -125,7 +126,7 @@ def test_workspace_answer_keeps_each_component_a_crate(tmp_path: Path):
 
 def test_single_layout_keeps_the_single_crate_files(tmp_path: Path):
     place_answers(tmp_path, "rust-cli")
-    generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, TODAY)
+    install(tmp_path)
     cargo = tomllib.loads((tmp_path / "Cargo.toml").read_text())
     assert "workspace" not in cargo and cargo["package"]["edition"] == "2024"
     assert cargo["lints"]["rust"] == {"unsafe_code": "forbid"}
@@ -143,11 +144,11 @@ def test_single_layout_keeps_the_single_crate_files(tmp_path: Path):
 def test_skeleton_commits_a_workspace_with_its_members(tmp_path: Path, git_env: None):
     principles = generated(tmp_path)
     (tmp_path / "Cargo.lock").write_text("version = 4\n")  # as cargo fetch writes
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
     subject = "build: Set up the rust workspace and tests"
-    commit = git(tmp_path, "log", "--format=%H", f"--grep={subject}")
-    changed = git(tmp_path, "show", "--name-only", "--format=", commit).splitlines()
+    made = git(tmp_path, "log", "--format=%H", f"--grep={subject}")
+    changed = git(tmp_path, "show", "--name-only", "--format=", made).splitlines()
     assert {*ROOT_FILES, "Cargo.lock", "cli/Cargo.toml", "core/Cargo.toml"} <= set(
         changed
     )
@@ -156,15 +157,15 @@ def test_skeleton_commits_a_workspace_with_its_members(tmp_path: Path, git_env: 
 
 def test_update_moves_separate_crates_into_the_workspace(tmp_path: Path, git_env: None):
     answers = place_rust_monorepo(tmp_path, workspace=False)
-    generate(tmp_path, PLUGIN_ROOT, SOURCE, 2026, TODAY)
+    install(tmp_path)
     for member in ("cli", "core"):
         (tmp_path / member / "Cargo.lock").write_text("version = 4\n")
-    commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
+    commit(tmp_path, load_project_principles(tmp_path), [])
     data = json.loads(answers.read_text())
     del data["workspace"]
     answers.write_text(json.dumps(data))
 
-    plan = plan_update(tmp_path, PLUGIN_ROOT, SOURCE, TODAY)
+    plan = apply.plan(tmp_path, PLUGIN_ROOT, SOURCE, TODAY)
     kinds = {c.path: c.kind for c in plan.changes}
     assert {kinds[f] for f in ROOT_FILES} == {"new"}
     assert kinds["core/Cargo.toml"] == "change"
@@ -177,8 +178,8 @@ def test_update_moves_separate_crates_into_the_workspace(tmp_path: Path, git_env
             "`cargo fetch` writes Cargo.lock)"
         ) in text
 
-    apply_update(tmp_path, plan)
+    apply.write(tmp_path, plan)
     (tmp_path / "Cargo.lock").write_text("version = 4\n")  # the setup command's
-    commit_update(tmp_path, load_project_principles(tmp_path), [])
+    commit(tmp_path, load_project_principles(tmp_path), [])
     tracked = git(tmp_path, "ls-files").splitlines()
     assert {*ROOT_FILES, "Cargo.lock"} <= set(tracked)

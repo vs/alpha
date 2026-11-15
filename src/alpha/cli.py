@@ -10,6 +10,7 @@ from alpha import (
     VERSION,
     adopt,
     answers,
+    apply,
     baseline,
     defaults,
     recipe_cli,
@@ -22,11 +23,10 @@ from alpha.generate import (
     PROJECT_JSON,
     GenerateError,
     bootstrap,
-    generate,
     load_project_principles,
 )
-from alpha.gitops import commit_skeleton, commit_update
-from alpha.update import PROPOSALS, apply_update, describe, plan_diff, plan_update
+from alpha.gitops import commit
+from alpha.status import status
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -112,13 +112,6 @@ def build_parser() -> argparse.ArgumentParser:
     adrop.add_argument("target", type=Path, help="the adopted repo")
     adrop.add_argument("step", help="the step id")
     adrop.add_argument("--reason", required=True, help="why the step isn't needed")
-    apply_cmd = adsub.add_parser(
-        "apply", help="install alpha's files onto the repo, on a branch"
-    )
-    apply_cmd.add_argument("target", type=Path, help="the repository's root")
-    apply_cmd.add_argument(
-        "--dry-run", action="store_true", help="show the changes, write nothing"
-    )
     b = sub.add_parser("baseline", help="an adopted project's baselines (spec §8b)")
     bsub = b.add_subparsers(dest="baseline_command", required=True)
     bshow = bsub.add_parser("show", help="the findings each baseline holds")
@@ -133,8 +126,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     btight = bsub.add_parser("tighten", help="lower each baseline to what's left")
     btight.add_argument("target", type=Path, help="the project")
-    gen = sub.add_parser("generate", help="write the skeleton into an empty folder")
-    gen.add_argument("target", type=Path, help="folder holding the interview answers")
+    st = sub.add_parser("status", help="the folder's state, for /alpha:install")
+    st.add_argument("target", type=Path, help="the folder")
+    ap = sub.add_parser(
+        "apply",
+        help="write alpha's files: a new project, an adoption on alpha/adopt, "
+        "or an update",
+    )
+    ap.add_argument("target", type=Path, help="the folder holding the answers")
+    ap.add_argument(
+        "--dry-run", action="store_true", help="show the changes, write nothing"
+    )
     boot = sub.add_parser(
         "bootstrap", help="install toolchains, run the tests and repository checks"
     )
@@ -151,14 +153,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="record today's findings as each missing baseline (adopted projects)",
     )
-    cs = sub.add_parser("commit-skeleton", help="commit the skeleton in groups")
-    cs.add_argument("target", type=Path, help="a generated project")
-    cs.add_argument("--trailer", action="append", default=[], help="commit trailer")
-    cu = sub.add_parser("commit-update", help="commit what alpha update wrote")
-    cu.add_argument("target", type=Path, help="a generated project")
-    cu.add_argument("--trailer", action="append", default=[], help="commit trailer")
-    up = sub.add_parser("update", help="merge changed answers into the project")
-    up.add_argument("target", type=Path, help="a generated project")
+    cm = sub.add_parser("commit", help="commit what apply or update wrote")
+    cm.add_argument("target", type=Path, help="the project")
+    cm.add_argument("--trailer", action="append", default=[], help="commit trailer")
+    up = sub.add_parser(
+        "update", help="bring alpha's files to the answers and this kit"
+    )
+    up.add_argument("target", type=Path, help="a project alpha is installed in")
     up.add_argument(
         "--dry-run", action="store_true", help="show the changes, write nothing"
     )
@@ -290,19 +291,6 @@ def _registry(args: argparse.Namespace) -> int:
     return 0
 
 
-def _adopt_apply(target: Path, dry_run: bool, source: defaults.Source) -> None:
-    plan = adopt.plan_adoption(target, PLUGIN_ROOT, source, date.today())
-    print(describe(plan, target, "--capture-baselines"))
-    if dry_run:
-        print(plan_diff(plan, target), end="")
-        return
-    for note in adopt.apply_adoption(target, plan):
-        print(note)
-    for c in plan.changes:
-        if c.kind == "conflict":
-            print(f"{c.path}: merge by hand; proposal: {PROPOSALS}/{c.path}")
-
-
 def _adopt_gaps(target: Path, save: bool, source: defaults.Source) -> None:
     found = adopt.gaps(
         answers.load_answers(target / PROJECT_JSON), defaults.load_defaults(source)
@@ -343,9 +331,6 @@ def _adopt(args: argparse.Namespace) -> int:
     target: Path = args.target
     try:
         source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
-        if args.adopt_command == "apply":
-            _adopt_apply(target, args.dry_run, source)
-            return 0
         if args.adopt_command == "gaps":
             _adopt_gaps(target, args.save, source)
             return 0
@@ -414,13 +399,6 @@ def _describe_tool(t: registry.Tool) -> str:
     return "\n".join(lines)
 
 
-def _generate(target: Path) -> None:
-    source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
-    files = generate(target, PLUGIN_ROOT, source, date.today().year)
-    print(f"Generated {len(files)} files in {target}.")
-    print(f'Next: "alpha bootstrap {target}".')
-
-
 def _bootstrap(target: Path, only: list[str], capture: bool) -> None:
     principles = load_project_principles(target)
     bootstrap(target, principles, only, capture)
@@ -439,76 +417,65 @@ def _show_commits(target: Path, hashes: list[str]) -> None:
         print(log.stdout, end="")
 
 
-def _commit_skeleton(target: Path, trailers: list[str]) -> None:
-    _show_commits(
-        target, commit_skeleton(target, load_project_principles(target), trailers)
-    )
-
-
-def _commit_update(target: Path, trailers: list[str]) -> None:
-    hashes, notes = commit_update(target, load_project_principles(target), trailers)
+def _commit(target: Path, trailers: list[str]) -> None:
+    hashes, notes = commit(target, load_project_principles(target), trailers)
     _show_commits(target, hashes)
     for note in notes:
         print(note)
 
 
-def _update(target: Path, dry_run: bool) -> None:
+def _apply(target: Path, dry_run: bool, updating: bool) -> None:
     source = defaults.locate_source(PLUGIN_ROOT, os.environ, Path.home())
-    plan = plan_update(target, PLUGIN_ROOT, source, date.today())
+    plan = apply.plan(target, PLUGIN_ROOT, source, date.today())
+    if updating and plan.mode != "update":
+        raise GenerateError(
+            f"alpha isn't installed in {target}, so there is nothing to update. "
+            "Run /alpha:install there."
+        )
+    flags = "--capture-baselines" if plan.mode == "adopt" else ""
+    print(apply.describe(plan, target, flags))
     if dry_run:
-        print(describe(plan, target))
-        print(plan_diff(plan, target), end="")
+        print(apply.plan_diff(plan, target), end="")
         return
-    if not plan.changes and not plan.new_components:
-        print(describe(plan, target))
+    if plan.mode == "update" and not plan.changes and not plan.new_components:
         return
-    notes = apply_update(target, plan)
-    print(describe(plan, target))
-    for c in plan.changes:
-        if c.kind == "conflict":
-            print(f"{c.path}: merge by hand; proposal: {PROPOSALS}/{c.path}")
-    for note in notes:
+    for note in apply.write(target, plan):
         print(note)
+    if plan.mode != "update":
+        print(f'Next: "alpha bootstrap {target}", then "alpha commit {target}".')
+
+
+def _status(target: Path) -> int:
+    found = status(target)
+    print(found.name + (f": {found.detail}" if found.detail else ""))
+    return 0
 
 
 def _project(args: argparse.Namespace) -> int:
     target: Path = args.target
-    generating = args.command == "generate"
     rerun = f'"alpha {args.command} {target}"'
     try:
-        if generating:
-            _generate(target)
+        if args.command in ("apply", "update"):
+            _apply(target, args.dry_run, args.command == "update")
         elif args.command == "bootstrap":
             _bootstrap(target, args.component, args.capture_baselines)
-        elif args.command == "update":
-            _update(target, args.dry_run)
-        elif args.command == "commit-update":
-            _commit_update(target, args.trailer)
         else:
-            _commit_skeleton(target, args.trailer)
-    except (GenerateError, answers.AnswersError, defaults.DefaultsError) as e:
+            _commit(target, args.trailer)
+    except (
+        GenerateError,
+        answers.AnswersError,
+        defaults.DefaultsError,
+        adopt.AdoptError,
+    ) as e:
         print(e, file=sys.stderr)
         return 1
     except ValueError as e:
-        where = "the interview answers" if generating else PRINCIPLES_TOML
-        print(f"{where}: {e}", file=sys.stderr)
-        return 1
-    except KeyError as e:
-        if not generating:
-            raise  # principles.toml is checked as it loads: this is a bug
-        print(
-            f"The kit defaults are missing {e}. Check them with "
-            '"alpha defaults show", restore defaults/defaults.toml, then retry.',
-            file=sys.stderr,
-        )
+        print(f"{PRINCIPLES_TOML}: {e}", file=sys.stderr)
         return 1
     except OSError as e:
-        verb, cleanup = ("access", "")
-        if generating:
-            verb, cleanup = ("write", ", empty the folder except " + PROJECT_JSON)
         print(
-            f"Could not {verb} {e.filename or target}: {e.strerror or e}. Check "
-            f"permissions and free space{cleanup}, then rerun {rerun}.",
+            f"Could not write {e.filename or target}: {e.strerror or e}. Check "
+            f"permissions and free space, then rerun {rerun}.",
             file=sys.stderr,
         )
         return 1
@@ -532,13 +499,9 @@ def main(argv: list[str] | None = None) -> int:
         return _baseline(args)
     if args.command == "adopt":
         return _adopt(args)
-    if args.command in (
-        "generate",
-        "bootstrap",
-        "commit-skeleton",
-        "commit-update",
-        "update",
-    ):
+    if args.command == "status":
+        return _status(args.target)
+    if args.command in ("apply", "bootstrap", "commit", "update"):
         return _project(args)
     return 2  # unreachable: argparse rejects unknown commands
 

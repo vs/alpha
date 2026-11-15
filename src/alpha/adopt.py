@@ -6,11 +6,9 @@ import posixpath
 import re
 import subprocess
 import tempfile
-from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
-from alpha import VERSION
 from alpha.answers import (
     PHASES,
     PROJECT_JSON,
@@ -18,24 +16,16 @@ from alpha.answers import (
     AnswersError,
     Condition,
     Step,
-    answers_snapshot,
-    area_of,
     describe_condition,
     load_answers,
-    parse_answers,
     write_answers,
-    write_json,
 )
 from alpha.defaults import Source, load_defaults, load_survey
-from alpha.generate import copied_files, render_project, source_info
-from alpha.gitops import HOOKS_PATH, UPDATE_STATE, commit_group, status_paths
-from alpha.merge import Change, classify, merge_json, union_lines
+from alpha.gitops import HOOKS_PATH, status_paths
 from alpha.principles import diff_coverage
 from alpha.recipes import RecipeBook, matches
-from alpha.registry import load_registry
 from alpha.render.docs import CHAINED_COMMIT_MSG
 from alpha.shell import GIT_TIMEOUT, run_command
-from alpha.update import UpdatePlan, apply_update
 
 CAP = 50  # entries per list; the rest are counted
 SUBJECTS = 50  # recent commits checked against the convention
@@ -70,15 +60,16 @@ def _out(target: Path, *args: str) -> str | None:
 
 
 def _refuse_alpha(target: Path) -> None:
-    path = target / PROJECT_JSON
     try:
-        data: object = json.loads(path.read_text(encoding="utf-8"))
+        data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    if isinstance(data, dict) and "manifest" in data:
+    if isinstance(data, dict) and {"installed", "manifest"} & set(
+        cast(dict[str, Any], data)
+    ):
         raise AdoptError(
-            f"alpha already generated or adopted {target} ({PROJECT_JSON} has a "
-            "manifest). Change it with /alpha:extend instead."
+            f"alpha is already installed in {target}. Change it with /alpha:extend "
+            "instead."
         )
 
 
@@ -233,46 +224,13 @@ def saved_adoption(target: Path) -> dict[str, Any]:
 # --- installing alpha onto the repo (spec §5b, step 5) ---
 
 ADOPT_BRANCH = "alpha/adopt"
-GITIGNORE = ".gitignore"
 SETTINGS = ".claude/settings.json"
-
-
-def _answers(target: Path) -> dict[str, Any]:
-    path = target / PROJECT_JSON
-    try:
-        data: object = json.loads(path.read_text(encoding="utf-8"))
-    except OSError:
-        raise AdoptError(
-            f"{target} has no interview answers ({PROJECT_JSON}). Run /alpha:adopt "
-            "to survey the repo and settle every area first."
-        ) from None
-    except ValueError as e:
-        raise AdoptError(
-            f"Fix {PROJECT_JSON}: it can't be read as JSON ({e})."
-        ) from None
-    if not isinstance(data, dict):
-        raise AdoptError(f"Fix {PROJECT_JSON}: it isn't a JSON object.")
-    top = cast(dict[str, Any], data)
-    if "adoption" not in top:
-        raise AdoptError(
-            f"{PROJECT_JSON} is a new project's interview, not an adoption. Run "
-            "/alpha:new-project to generate it in an empty folder, or start the "
-            "adoption over with /alpha:adopt."
-        )
-    hooks: object = cast(dict[str, Any], top["adoption"]).get("git_hooks")
-    if hooks is None:
-        raise AdoptError(
-            'Fix project.json: adoption.git_hooks is missing. Set it to "alpha" '
-            "(alpha runs git's hooks) or \"chain\" (the repo's hook manager runs "
-            "alpha's commit-msg check)."
-        )
-    return top
 
 
 def _uncommitted(target: Path) -> list[str]:
     """Uncommitted changes other than the adoption's own answers."""
     own = (PROJECT_JSON, ".claude/settings.local.json")
-    return [p for p in status_paths(target, command="adopt apply") if p not in own]
+    return [p for p in status_paths(target, command="apply") if p not in own]
 
 
 # Paths alpha writes and commits; a repo that ignores them can't take alpha.
@@ -307,47 +265,21 @@ def _hooks_in_use(target: Path) -> str | None:
     return f"{folder} holds {', '.join(found)}" if found else None
 
 
-def _change(path: str, after: str, disk: str | None, notes: list[str]) -> Change | None:
-    if disk is not None and disk != after:
-        if path == GITIGNORE:
-            return Change(path, "merge", union_lines(disk, after))
-        if path == SETTINGS:
-            merged = merge_json(disk, after)
-            if merged is not None:
-                notes += [f"{SETTINGS}: {note}" for note in merged[1]]
-                return Change(path, "merge", merged[0])
-    return classify(path, None, after, disk)
-
-
-def _new_components(target: Path, a: Answers) -> tuple[str, ...]:
-    """The components alpha writes the skeleton of: on a kit or drafted recipe,
-    with none of its manifests in their folder yet. A component on an adopted
-    recipe is the repo's own code."""
-    book = a.book()
-    return tuple(
-        c.name
-        for c in a.components
-        if not book.get(c.stack).adopted
-        and not any(
-            (target / c.path / manifest).is_file()
-            for manifest in book.get(c.stack).manifests
-        )
-    )
-
-
-def plan_adoption(
-    target: Path, plugin_root: Path, source: Source, today: date
-) -> UpdatePlan:
-    _refuse_alpha(target)
+def check_adoptable(target: Path, top: dict[str, Any]) -> None:
+    """Refuse a repo alpha can't install onto as it is, saying what to do."""
     _repo(target)
-    top = _answers(target)
-    try:
-        a = parse_answers(top, target)
-    except AnswersError as e:
-        area = area_of(e.where)
-        if area:
-            raise AdoptError(f"Revisit the {area} area: {e}") from None
-        raise AdoptError(f"Fix {PROJECT_JSON}: {e}") from None
+    adopting: object = top.get("adoption")
+    hooks = (
+        cast(dict[str, Any], adopting).get("git_hooks")
+        if isinstance(adopting, dict)
+        else None
+    )
+    if hooks is None:
+        raise AdoptError(
+            'Fix project.json: adoption.git_hooks is missing. Set it to "alpha" '
+            "(alpha runs git's hooks) or \"chain\" (the repo's hook manager runs "
+            "alpha's commit-msg check)."
+        )
     dirty = _uncommitted(target)
     if dirty:
         raise AdoptError(
@@ -362,8 +294,7 @@ def plan_adoption(
             + "\nNarrow that rule (to keep Claude Code's local files out, ignore "
             ".claude/settings.local.json only), commit, then retry."
         )
-    adopting = cast(dict[str, Any], top["adoption"])
-    in_use = _hooks_in_use(target) if adopting.get("git_hooks") == "alpha" else None
+    in_use = _hooks_in_use(target) if hooks == "alpha" else None
     if in_use:
         raise AdoptError(
             f"adoption.git_hooks is alpha, but the repo runs its own git hooks "
@@ -371,53 +302,27 @@ def plan_adoption(
             'adoption.git_hooks to "chain", so they stay and call alpha\'s '
             "commit check, then retry."
         )
-    added = {c.name: today for c in a.components}
-    rendered = render_project(
-        target,
-        a,
-        load_defaults(source),
-        today.year,
-        today,
-        added,
-        registry=load_registry(source),
-    )
-    copies = copied_files(plugin_root)
-    texts = dict(rendered.texts)
-    for rel, src in copies.items():
-        if rel in texts:
-            raise AdoptError(f"{rel} is both rendered and copied; report this bug.")
-        texts[rel] = src.read_text(encoding="utf-8")
-    notes: list[str] = []
-    changes: list[Change] = []
-    for path in sorted(texts):
-        disk_path = target / path
-        disk = disk_path.read_text(encoding="utf-8") if disk_path.is_file() else None
-        change = _change(path, texts[path], disk, notes)
-        if change is not None and change.text != disk:
-            changes.append(change)
-    writes = [
-        c.path for c in changes if c.kind in ("new", "change", "merge", "conflict")
-    ]
-    manifest = {
-        "kit_version": VERSION,
-        "generated_at": today.isoformat(),
-        "adopted_at": today.isoformat(),
-        "defaults": source_info(source),
-        "applied": answers_snapshot(top),
-        "added": {name: day.isoformat() for name, day in added.items()},
+
+
+def new_components(target: Path, a: Answers) -> set[str]:
+    """The components alpha writes the skeleton of: on a kit or drafted recipe,
+    with none of its manifests in their folder yet. A component on an adopted
+    recipe is the repo's own code."""
+    book = a.book()
+    return {
+        c.name
+        for c in a.components
+        if not book.get(c.stack).adopted
+        and not any(
+            (target / c.path / manifest).is_file()
+            for manifest in book.get(c.stack).manifests
+        )
     }
-    return UpdatePlan(
-        changes=tuple(changes),
-        new_components=_new_components(target, a),
-        groups={p: commit_group(p, rendered.component_of) for p in writes},
-        manifest=manifest,
-        answers=top,
-        notes=tuple(notes),
-        copies=copies,
-    )
 
 
-def _branch(target: Path) -> str:
+def switch_branch(target: Path) -> str:
+    """The branch the adoption goes on: alpha/adopt from the default branch,
+    or the branch the user is on."""
     branch = _out(target, "rev-parse", "--abbrev-ref", "HEAD") or ""
     if branch in ("", "HEAD"):
         raise AdoptError(
@@ -439,29 +344,6 @@ def _branch(target: Path) -> str:
             "then retry."
         )
     return ADOPT_BRANCH
-
-
-def apply_adoption(target: Path, adoption: UpdatePlan) -> list[str]:
-    branch = _branch(target)
-    apply_update(target, adoption)
-    state_path = target / UPDATE_STATE
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    write_json(state_path, {**state, "kind": "adopt"})
-    notes = [f"On branch {branch}."]
-    adopting = cast(dict[str, Any], adoption.answers["adoption"])
-    if adopting.get("git_hooks") == "alpha":
-        done = run_git(target, "config", "core.hooksPath", HOOKS_PATH)
-        if done.returncode != 0:
-            raise AdoptError(
-                f"git couldn't set core.hooksPath: {done.stderr.strip()}. Run git "
-                f"config core.hooksPath {HOOKS_PATH} yourself."
-            )
-    else:
-        notes.append(
-            "Your hook manager stays in charge of git's hooks: its commit-msg hook "
-            f"must call {CHAINED_COMMIT_MSG} (CONTRIBUTING.md says so too)."
-        )
-    return notes
 
 
 # --- the compliance plan (spec §5b, step 6) ---

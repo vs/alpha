@@ -9,12 +9,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import TODAY, GenerateScenario, git, place_answers
+from helpers import GenerateScenario, git, install, place_answers
 
-from alpha.cli import PLUGIN_ROOT
-from alpha.defaults import Source
-from alpha.generate import GenerateError, generate
-from alpha.gitops import commit_skeleton
+from alpha.generate import GenerateError
+from alpha.gitops import commit
 from alpha.principles import render_principles
 
 
@@ -100,15 +98,12 @@ def test_scenario_skeleton(
         assert f in files
     assert files == sorted(files)
     assert all((tmp_path / f).is_file() for f in files)
-    root_entries = {p.name for p in tmp_path.iterdir()}
+    root_entries = {p.name for p in tmp_path.iterdir()} - {".git"}
     assert root_entries == ROOT_ENTRIES[scenario]
     assert not any("/src/" in f or f.startswith("src/") for f in files)
     s = json.loads((tmp_path / ".claude/settings.json").read_text())
     for cmd in hook_commands(s):
         assert (tmp_path / script_of(cmd)).is_file()
-    m = json.loads((tmp_path / ".claude/alpha/project.json").read_text())["manifest"]
-    assert set(m["files"]) == set(files) - {".claude/alpha/project.json"}
-    assert all(sha256(tmp_path / p) == h for p, h in m["files"].items())
 
 
 def test_generated_guard_blocks_no_verify(
@@ -133,7 +128,7 @@ def test_commit_skeleton_groups_and_trailers(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    hashes = commit_skeleton(tmp_path, principles_of(tmp_path), [TRAILER])
+    hashes, _ = commit(tmp_path, principles_of(tmp_path), [TRAILER])
     subjects = git_log_subjects(tmp_path)
     assert subjects == [
         "ci: Schedule dependency updates",
@@ -190,7 +185,7 @@ def test_commit_skeleton_component_at_root_takes_the_rest(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "python-ml-single")
-    commit_skeleton(tmp_path, principles_of(tmp_path), [])
+    commit(tmp_path, principles_of(tmp_path), [])
     assert git_log_subjects(tmp_path) == [
         "ci: Schedule dependency updates",
         "ci: Run every component's checks in CI",
@@ -220,8 +215,8 @@ def test_commit_skeleton_goes_through_the_real_commit_msg_hook(
         render_principles(data)
     )
     with pytest.raises(GenerateError, match=r'unknown type "docs"') as err:
-        commit_skeleton(tmp_path, data, [])
-    assert "alpha commit-skeleton" in str(err.value)
+        commit(tmp_path, data, [])
+    assert "alpha commit" in str(err.value)
 
 
 def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
@@ -233,7 +228,7 @@ def test_commit_skeleton_leaves_out_scopes_not_on_the_list(
     (tmp_path / "docs" / "alpha" / "principles.toml").write_text(
         render_principles(data)
     )
-    commit_skeleton(tmp_path, data, [])
+    commit(tmp_path, data, [])
     assert git_log_subjects(tmp_path) == [
         "ci: Schedule dependency updates",
         "ci: Run every component's checks in CI",
@@ -255,11 +250,11 @@ def test_commit_skeleton_rerun_finishes_after_a_partial_failure(
     principles = tmp_path / "docs" / "alpha" / "principles.toml"
     principles.write_text(render_principles(data))
     with pytest.raises(GenerateError, match=r'unknown type "build"'):
-        commit_skeleton(tmp_path, data, [])
+        commit(tmp_path, data, [])
     assert len(git_log_subjects(tmp_path)) == 2
     data["git"]["types"] += ["build", "ci"]
     principles.write_text(render_principles(data))
-    commit_skeleton(tmp_path, data, [])
+    commit(tmp_path, data, [])
     assert git_log_subjects(tmp_path)[:3] == [
         "ci: Schedule dependency updates",
         "ci: Run every component's checks in CI",
@@ -282,11 +277,11 @@ def test_commit_skeleton_refuses_a_guessed_git_identity(
     monkeypatch.delenv("EMAIL", raising=False)
     generate_scenario(tmp_path, "python-ml-single")
     with pytest.raises(GenerateError) as err:
-        commit_skeleton(tmp_path, principles_of(tmp_path), [])
+        commit(tmp_path, principles_of(tmp_path), [])
     message = str(err.value)
     assert "git config --global user.name" in message
     assert "git config --global user.email" in message
-    assert "alpha commit-skeleton" in message
+    assert "alpha commit" in message
     assert git(tmp_path, "rev-list", "--all") == ""
 
 
@@ -298,7 +293,7 @@ def test_ds_store_is_never_committed(
     (tmp_path / ".claude" / "alpha").mkdir(parents=True)
     (tmp_path / ".claude" / "alpha" / ".DS_Store").write_text("")
     generate_scenario(tmp_path, scenario)
-    commit_skeleton(tmp_path, principles_of(tmp_path), [])
+    commit(tmp_path, principles_of(tmp_path), [])
     assert ".DS_Store" not in git(tmp_path, "ls-files")
     assert git(tmp_path, "status", "--porcelain") == ""
 
@@ -326,8 +321,8 @@ def test_generated_hooks_enforce_the_generated_principles(
         }
     )
     answers.write_text(json.dumps(data))
-    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
-    commit_skeleton(target, principles_of(target), [])
+    install(target)
+    commit(target, principles_of(target), [])
 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -425,7 +420,7 @@ def test_commit_skeleton_commits_ci_last(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    commit_skeleton(tmp_path, principles_of(tmp_path), [])
+    commit(tmp_path, principles_of(tmp_path), [])
     assert git_log_subjects(tmp_path)[:2] == [
         "ci: Schedule dependency updates",
         "ci: Run every component's checks in CI",
