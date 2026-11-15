@@ -56,4 +56,4 @@ Tell the user, briefly:
 - **Reports on request:** `/review-change` (a change) and `/audit` (the whole repo); each changes no code.
 - **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved.
 - **Not settled yet:** the open product areas, each with the `/alpha:specify` request that settles it (`docs/alpha/specification.md` lists them); their principles stay off until then.
-- **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building with `/alpha:go <task>`.
+- **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building with `/alpha:do <task>`.

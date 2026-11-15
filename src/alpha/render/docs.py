@@ -483,8 +483,8 @@ def _specification(a: Answers) -> str:
         lines += [row(r.id, r.text, r.acceptance) for r in req.items]
     elif req:
         lines.append(
-            "None yet: each feature built with `/alpha:go` adds the requirements "
-            "it serves, with their acceptance checks."
+            "None yet: `/alpha:specify requirements` adds them, with their "
+            "acceptance checks."
         )
     else:
         lines.append(area_docs.not_settled("requirements"))

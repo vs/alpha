@@ -5,12 +5,12 @@ import pytest
 
 from alpha.cli import PLUGIN_ROOT
 
-GO = PLUGIN_ROOT / "skills" / "go"
-PLAYBOOKS = GO / "playbooks"
+DO = PLUGIN_ROOT / "skills" / "do"
+PLAYBOOKS = DO / "playbooks"
 
 
 def _router() -> str:
-    return (GO / "SKILL.md").read_text()
+    return (DO / "SKILL.md").read_text()
 
 
 def _table_files() -> list[str]:
@@ -63,19 +63,53 @@ def test_principles_the_skill_names_exist_in_the_kit():
     assert named <= _kit_principle_ids(), named - _kit_principle_ids()
 
 
-def test_r8_a_feature_needs_an_approved_spec_before_tests_and_code():
-    """R8: the feature spec names a test per check and is approved before any code."""
+def test_R8_1_a_feature_gets_research_spec_and_plan():
     text = _playbook("feature.md")
     steps = re.findall(r"^(\d+)\. (.*)$", text, re.M)
-    spec = next(int(n) for n, s in steps if "docs/alpha/features/<YYYY-MM-DD>-" in s)
-    approval = next(int(n) for n, s in steps if "approval of the spec, every time" in s)
-    build = next(int(n) for n, s in steps if s.startswith("Build the tasks"))
-    assert spec < approval < build
-    assert "Nothing but the spec file is written until they approve" in text
-    grill = next(s for _, s in steps if s.startswith("Grill."))
-    assert "`decision` skill" not in grill
-    after = text.split("approval of the spec, every time")[1]
-    assert after.index("git switch -c") < after.index("Commit the spec")
+
+    def step(start: str) -> int:
+        return next(int(n) for n, s in steps if s.startswith(start))
+
+    folder = "docs/alpha/features/<YYYY-MM-DD>-<feature-slug>/research.md"
+    deep = next(s for _, s in steps if s.startswith("Deep research."))
+    assert "subagents" in deep and folder in deep and "sources" in deep
+    brainstorm = next(s for _, s in steps if s.startswith("Brainstorm"))
+    assert "one question at a time" in brainstorm
+    assert "two or three approaches with their trade-offs" in brainstorm
+    assert "show the design in sections" in brainstorm
+    writing = next(s for _, s in steps if s.startswith("Write `specification.md`"))
+    assert "`plan.md`" in writing and "the test that proves it" in writing
+    order = [
+        "Research the code",
+        "Deep research",
+        "Brainstorm",
+        "Write `specification.md`",
+    ]
+    order += ["Get the user's approval", "Build the tasks"]
+    assert [step(s) for s in order] == sorted(step(s) for s in order)
+    assert "Nothing but the feature folder is written until they approve" in text
+
+
+def test_R8_2_do_runs_no_whole_branch_review():
+    texts = {"SKILL.md": _router()}
+    texts |= {p.name: p.read_text() for p in PLAYBOOKS.glob("*.md")}
+    for name, text in texts.items():
+        assert "whole branch is reviewed" not in text, name
+        assert "review-change` of the whole branch" not in text, name
+        assert "reviews the whole branch" not in text, name
+    done = _router().split("**Done.**")[1].split("\n\n**")[0]
+    assert "Don't run the principles reviewer or review the whole branch" in done
+    assert "when the work reaches main" in done
+
+
+def test_open_product_areas_are_named_not_settled():
+    assert not (PLAYBOOKS / "specify.md").exists()
+    feature = _playbook("feature.md")
+    areas = next(
+        line for line in feature.splitlines() if line.startswith("3. Find the product")
+    )
+    assert "`/alpha:specify` request; don't settle it here" in areas
+    assert "Only `/alpha:specify` settles one" in _router()
 
 
 def test_a_feature_offers_native_and_subagent_builds():
@@ -94,9 +128,10 @@ def test_tests_fail_first_but_are_committed_with_their_code():
 def test_the_spec_template_traces_each_check_to_a_test():
     template = _playbook("feature.md").split("```markdown")[1].split("```")[0]
     assert "| ID | Requirement | Acceptance check | Test |" in template
-    for heading in ("## Why", "## Requirements", "## Plan", "## Decisions"):
+    for heading in ("## Why", "## Requirements", "## Design", "## Decisions"):
         assert heading in template
     assert "Serves: R<n> in docs/alpha/specification.md" in template
+    assert "Research: research.md · Plan: plan.md" in template
 
 
 def test_worktrees_prefer_the_harness_tool_and_an_ignored_folder():
@@ -111,21 +146,3 @@ def test_pause_and_pickup_share_the_resume_note():
     assert note in _playbook("pause.md")
     assert note in _playbook("session-pickup.md")
     assert "git worktree list" in _playbook("session-pickup.md")
-
-
-def test_open_areas_are_settled_by_specify_and_before_a_feature():
-    """F8: Specify settles an open area through /alpha:specify; a feature settles the
-    open areas it needs, applied only after the spec is approved."""
-    specify = _playbook("specify.md")
-    assert "`/alpha:specify <area>`" in specify
-    assert "Not settled yet" in specify
-    feature = _playbook("feature.md")
-    before = feature.split("approval of the spec, every time")[0]
-    assert "still open (project.json's `areas`)" in before
-    assert "Nothing is settled yet." in before
-    after = feature.split("approval of the spec, every time")[1]
-    assert after.index("git switch -c") < after.index("Specify playbook's steps 3")
-    assert "saves them without asking again" in after
-    specify_skill = (PLUGIN_ROOT / "skills" / "specify" / "SKILL.md").read_text()
-    assert "Answers a feature spec already records are the user's" in specify_skill
-    assert "`open`" in _router().split("## 2. Pick the playbook")[0]

@@ -73,7 +73,7 @@ Internal docs (the specification, the principles) live in `docs/`. User-facing d
 | When these change | Update |
 |---|---|
 | `src/alpha/cli.py`, `bin/**` | `README.md`, `CLAUDE.md` |
-| `skills/install/**`, `skills/extend/**`, `skills/specify/**`, `skills/update/**`, `skills/uninstall/**`, `skills/purge/**`, `skills/go/**` | `README.md` |
+| `skills/install/**`, `skills/extend/**`, `skills/specify/**`, `skills/update/**`, `skills/uninstall/**`, `skills/purge/**`, `skills/do/**` | `README.md` |
 
 The Stop hook blocks a change to these paths that leaves the docs untouched.
 
