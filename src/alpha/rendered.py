@@ -112,7 +112,16 @@ def record(target: Path, tree: str) -> str:
         "HEAD",
         env=_IDENTITY,
     )
+    _keep_through_rewrites(target)
     return commit
+
+
+def _keep_through_rewrites(target: Path) -> None:
+    """Have git copy the render note when a rebase or an amend rewrites the
+    commit it's on (notes.rewrite.* default to true for listed refs)."""
+    listed = _git(target, "config", "--get-all", "notes.rewriteRef").stdout.split()
+    if f"refs/notes/{NOTES_REF}" not in listed:
+        _must(target, "config", "--add", "notes.rewriteRef", f"refs/notes/{NOTES_REF}")
 
 
 @dataclass(frozen=True)
