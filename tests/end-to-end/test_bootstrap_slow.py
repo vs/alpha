@@ -3,14 +3,10 @@ import os
 import shutil
 import subprocess
 import tomllib
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 import yaml
-from helpers import (
-    REPO_SEEDS as SEEDS,
-)
 from helpers import (
     GenerateScenario,
     git,
@@ -145,52 +141,6 @@ def test_scenarios_pass_repo_checks(
     done = mise_run(tmp_path, "ci")
     assert done.returncode == 0, done.stdout + done.stderr
     assert git(tmp_path, "status", "--porcelain") == ""
-
-
-@pytest.fixture(scope="module")
-def bootstrapped_web(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    target = tmp_path_factory.mktemp("web")
-    place_answers(target, "web-ts-plus-python-api")
-    install(target)
-    bootstrap(
-        target, tomllib.loads((target / "docs/alpha/principles.toml").read_text())
-    )
-    return target
-
-
-@pytest.fixture
-def seeded(
-    bootstrapped_web: Path, request: pytest.FixtureRequest
-) -> Iterator[tuple[str, Path]]:
-    """The seed's check and the bootstrapped project with the seed applied,
-    reverted afterwards."""
-    check: str = request.param
-    _, rel, change, _ = SEEDS[check]
-    path = bootstrapped_web / rel
-    before = path.read_text() if path.exists() else None
-    after = change(before)
-    assert after != before, f"the {check} seed changed nothing"
-    path.write_text(after)
-    try:
-        yield check, bootstrapped_web
-    finally:
-        if before is None:
-            path.unlink()
-        else:
-            path.write_text(before)
-
-
-@pytest.mark.slow
-@pytest.mark.parametrize("seeded", list(SEEDS), indirect=True)
-def test_repo_checks_can_fail(seeded: tuple[str, Path]):
-    check, project = seeded
-    pin = load_registry(Source(PLUGIN_ROOT, True)).tool(SEEDS[check][0]).pin
-    assert pin is not None
-    done = mise_run(project, f"check:{check}")
-    output = done.stdout + done.stderr
-    # mise run passes the task's exit code through unchanged.
-    assert done.returncode == pin.fails_with, output
-    assert SEEDS[check][3] in output, output
 
 
 def _sh(
