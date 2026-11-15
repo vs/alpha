@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 from alpha import core_areas
+from alpha.areas import AREAS, SPEC_AREAS
 from alpha.baseline import (
     BASELINE_STEPS,
     NOT_BASELINED,
@@ -61,40 +62,7 @@ PROJECT_JSON = ".claude/alpha/project.json"
 PRINCIPLES_FILE = "docs/principles.toml"
 DEPENDENCY_LOG = "docs/dependencies.md"
 DESIGN_LANGUAGE_DOC = "docs/design-language.md"
-AREAS: tuple[str, ...] = (
-    "identity",
-    "components",
-    "architecture",
-    "errors",
-    "testing",
-    "design_language",
-    "ui",
-    "documentation",
-    "build",
-    "security",
-    "dependencies",
-    "observability",
-    "releases",
-    "data",
-    "accessibility",
-    "performance",
-    "git",
-    "agent_workflow",
-)
 _DESIGN = "design_language"
-# The areas that describe the product rather than wire its tooling: the
-# interview leaves them open and /alpha:go settles them (decision 0032).
-SPEC_AREAS: tuple[str, ...] = (
-    "architecture",
-    "errors",
-    _DESIGN,
-    "ui",
-    "observability",
-    "data",
-    "accessibility",
-    "performance",
-)
-SETUP_AREAS: tuple[str, ...] = tuple(a for a in AREAS if a not in SPEC_AREAS)
 _COMPONENTS_FIELDS = ("layout", "workspace", "components_talk", "components", "recipes")
 
 
@@ -1115,13 +1083,21 @@ def parse_answers(
                 f"({', '.join(SPEC_AREAS)}); {area} is part of the setup",
                 f"Finish the {area} part of the interview, then retry",
             )
+    # The whole project may leave spec areas open; a check of one area
+    # (an area skill's own) needs it done.
+    whole = set(require_areas) == set(AREAS)
     for area in require_areas:
-        if areas[area] not in ("done", "open"):
-            raise fail(
-                f"areas.{area}",
-                f"is {areas[area]}, not done",
-                f"Finish the {area} part of the interview, then retry",
+        status = areas[area]
+        if status == "done" or (whole and status == "open"):
+            continue
+        if area in SPEC_AREAS and status == "pending":
+            fix = (
+                f'Set areas.{area} to "open": the setup interview leaves spec '
+                "areas for /alpha:go to settle when the work needs them"
             )
+        else:
+            fix = f"Finish the {area} part of the interview, then retry"
+        raise fail(f"areas.{area}", f"is {status}, not done", fix)
 
     def active(area: str) -> bool:
         return areas[area] == "done"

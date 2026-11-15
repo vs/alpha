@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from alpha.answers import PROJECT_JSON, SPEC_AREAS
+from alpha.answers import PROJECT_JSON
+from alpha.areas import SPEC_AREAS
 from alpha.generate import PRINCIPLES_TOML
 from alpha.generate import digest as generated_digest
 from alpha_evals.scenario import Brief, compare

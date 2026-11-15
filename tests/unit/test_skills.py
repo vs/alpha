@@ -8,7 +8,7 @@ from typing import cast
 
 import pytest
 
-from alpha import answers, core_areas
+from alpha import answers, areas, core_areas
 from alpha.cli import PLUGIN_ROOT, build_parser
 from alpha.recipes import RecipeBook
 
@@ -109,7 +109,7 @@ def _resolve(path: str) -> object:
     for i, part in enumerate(parts):
         name = part.removesuffix("[]")
         if typing.get_origin(hint) is dict:
-            assert name in answers.AREAS, f"{path}: {name!r} is not an area"
+            assert name in areas.AREAS, f"{path}: {name!r} is not an area"
             hint = str
             continue
         assert isinstance(hint, type) and is_dataclass(hint), (
@@ -300,7 +300,7 @@ def test_cli_calls_name_real_subcommands_and_options(skill: str):
         for flag in re.findall(r"(?<!\S)(--[a-z][a-z-]*)", call):
             assert flag in _options(parser), f"{skill}: unknown {flag} in: {call}"
         for area in re.findall(r"--area (\S+)", call):
-            assert area in answers.AREAS, f"{skill}: unknown area {area} in: {call}"
+            assert area in areas.AREAS, f"{skill}: unknown area {area} in: {call}"
 
 
 def test_skills_use_every_cli_command_the_interview_needs():
@@ -346,11 +346,11 @@ def test_area_checks_its_own_area(skill: str):
 
 
 def _setup_skills() -> list[str]:
-    return [s for s, (area, _) in AREA_SKILLS.items() if area in answers.SETUP_AREAS]
+    return [s for s, (area, _) in AREA_SKILLS.items() if area in areas.SETUP_AREAS]
 
 
 def _spec_skills() -> list[str]:
-    return [s for s, (area, _) in AREA_SKILLS.items() if area in answers.SPEC_AREAS]
+    return [s for s, (area, _) in AREA_SKILLS.items() if area in areas.SPEC_AREAS]
 
 
 def test_new_project_runs_only_the_setup_areas():
@@ -429,9 +429,9 @@ def test_every_kind_has_public_paths_and_an_artifact():
 
 def test_new_project_creates_setup_areas_pending_and_spec_areas_open():
     start = _section("new-project", "2. Start or resume")
-    for area in answers.SETUP_AREAS:
+    for area in areas.SETUP_AREAS:
         assert f'"{area}": "pending"' in start
-    for area in answers.SPEC_AREAS:
+    for area in areas.SPEC_AREAS:
         assert f'"{area}": "open"' in start
     assert "missing from" in start
 
@@ -473,11 +473,11 @@ def test_area_waits_for_the_area_before_it(skill: str):
     found = re.findall(
         r"`areas\.(\w+)` isn't `\"done\"`", _section(skill, "Before you start")
     )
-    if area in answers.SPEC_AREAS:
-        assert found == [answers.SETUP_AREAS[-1]]
+    if area in areas.SPEC_AREAS:
+        assert found == [areas.SETUP_AREAS[-1]]
         return
-    index = answers.SETUP_AREAS.index(area)
-    assert found == ([answers.SETUP_AREAS[index - 1]] if index else [])
+    index = areas.SETUP_AREAS.index(area)
+    assert found == ([areas.SETUP_AREAS[index - 1]] if index else [])
 
 
 def test_new_project_no_longer_lists_the_core_areas_as_missing():

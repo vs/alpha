@@ -320,12 +320,6 @@ def test_every_gate_in_the_catalog_names_a_spec_area():
     assert gates == GATED
 
 
-def test_a_gate_on_a_setup_area_is_refused():
-    bad = {**D, "principles": [{**D["principles"][0], "settled_by": "git"}]}
-    with pytest.raises(AnswersError, match=r'settled_by "git".*spec area'):
-        build_principles(bad, A, "0.1.0")
-
-
 def test_extra_protected_and_contract_paths_reach_the_principles():
     out = build_principles(D, A, "0.1.0")
     assert "api/keys/**" in out["protected"]["paths"]

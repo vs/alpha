@@ -210,6 +210,16 @@ def test_unknown_condition_is_rejected_with_hint(tmp_path: Path):
     assert all(c in str(e.value) for c in CONDITIONS)
 
 
+def test_a_gate_on_a_setup_area_is_rejected_where_the_catalog_is_read(
+    tmp_path: Path,
+):
+    src = make_source(tmp_path / "src")
+    p = src.path / "defaults/defaults.toml"
+    p.write_text(p.read_text().replace('settled_by = "ui"', 'settled_by = "git"', 1))
+    with pytest.raises(DefaultsError, match=r'settled_by "git".*spec area'):
+        load_defaults(src)
+
+
 def user_files(src: Source) -> tuple[Path, Path]:
     assert src.user is not None
     return src.user / "overrides.toml", src.user / "CHANGELOG.md"

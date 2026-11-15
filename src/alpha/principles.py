@@ -2,13 +2,12 @@ from typing import Any, cast
 
 from alpha.answers import (
     DESIGN_LANGUAGE_DOC,
-    SETUP_AREAS,
-    SPEC_AREAS,
     Answers,
     AnswersError,
     Component,
     Documentation,
 )
+from alpha.areas import SETUP_AREAS
 from alpha.baseline import BASELINE_GLOB, ratchet_command
 from alpha.core_areas import TEST_RUNS
 from alpha.recipes import RecipeBook
@@ -81,14 +80,7 @@ def _waits_for_area(principle: dict[str, Any], a: Answers) -> bool:
     """Whether the principle is off because the area that holds its
     parameters is still open (decision 0032)."""
     area = principle.get("settled_by")
-    if area is None:
-        return False
-    if area not in SPEC_AREAS:
-        raise AnswersError(
-            f'defaults: principle "{principle["id"]}" has settled_by "{area}", '
-            f"which isn't a spec area. Use one of: {', '.join(SPEC_AREAS)}."
-        )
-    return a.areas[area] == "open"
+    return area is not None and a.areas[area] == "open"
 
 
 def _dedupe(items: list[str]) -> list[str]:

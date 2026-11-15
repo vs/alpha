@@ -10,7 +10,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
-from alpha.answers import SPEC_AREAS
+from alpha.areas import SPEC_AREAS
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import generate, load_project_principles
