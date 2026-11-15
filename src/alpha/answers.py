@@ -1078,7 +1078,10 @@ def parse_answers(
     require_areas: Sequence[str] = AREAS,
     generated: bool | None = None,
     former: Collection[str] = (),
+    proven: bool = True,
 ) -> Answers:
+    """`proven`: a drafted recipe must be proven in this clone, as anything
+    that renders and runs its commands needs; purge, which runs none, doesn't."""
     for key in top:
         if key == "decisions":
             raise _no_decisions()
@@ -1133,7 +1136,7 @@ def parse_answers(
 
     drafted = drafted_recipes(
         top.get("recipes", {}),
-        require_proven=active("components"),
+        require_proven=proven and active("components"),
         proofs=read_proofs(base),
         generated="installed" in top if generated is None else generated,
     )

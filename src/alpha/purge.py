@@ -19,7 +19,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
-from alpha import apply, rendered, toml_write
+from alpha import rendered, toml_write
 from alpha.answers import Answers, parse_answers
 from alpha.defaults import Source, load_defaults
 from alpha.generate import (
@@ -27,16 +27,25 @@ from alpha.generate import (
     copied_files,
     load_project_principles,
     project_book,
+    render_project,
 )
-from alpha.gitops import status_paths
-from alpha.hooks_wiring import commit_msg_hook, marked_block, uninstall
+from alpha.gitops import PROPOSALS, UPDATE_STATE, status_paths
+from alpha.hooks_wiring import (
+    HOOKS_STATE,
+    hook_files,
+    hooks_on,
+    marked_block,
+    uninstall,
+    unmarked_calls,
+)
 from alpha.merge import strip_alpha_hooks
 from alpha.principles import build_principles
 from alpha.registry import load_registry
 from alpha.render.claude_settings import render_settings
+from alpha.render.docs import CHAIN_BEGIN, CHAIN_END
 from alpha.repo_checks import repo_checks
 from alpha.shell import GIT_TIMEOUT
-from alpha.status import SETTINGS, read_answers
+from alpha.status import CHAIN_STATE, SETTINGS, read_answers
 
 REMOVED_DIRS = (".claude/alpha/", "docs/alpha/")
 MARKDOWN = ("CLAUDE.md", "CONTRIBUTING.md", "README.md")
@@ -64,6 +73,8 @@ class Removed:
     def named_in(self, text: str) -> bool:
         flat = text.replace("\\", "")  # a regex in a tool config escapes its dots
         if "/alpha:" in flat or any(d in flat for d in REMOVED_DIRS):
+            return True
+        if text.strip() in (CHAIN_BEGIN, CHAIN_END):
             return True
         if any(p in flat for p in self.paths):
             return True
@@ -368,16 +379,9 @@ def _tracked(target: Path) -> list[str]:
     return [p for p in done.stdout.split("\0") if p]
 
 
-def _plain_commands(
-    target: Path, top: dict[str, Any], source: Source
-) -> dict[str, str]:
+def _plain_commands(a: Answers, source: Source) -> dict[str, str]:
     """Each baselined check, with --coverage or --file {file} for those forms,
     mapped to the command it runs without the ratchet."""
-    raw: object = cast(dict[str, Any], top.get("installed", {})).get("components", {})
-    former: set[str] = (
-        set(cast(dict[str, object], raw)) if isinstance(raw, dict) else set()
-    )
-    a: Answers = parse_answers(top, target, former=former)
     if not a.baselines:
         return {}
     plain = dataclasses.replace(a, baselines=())
@@ -410,7 +414,23 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
         raise GenerateError(
             f"alpha isn't installed in {target}, so there is nothing to purge."
         )
-    render = apply.plan(target, plugin_root, source, today)
+    if (target / UPDATE_STATE).exists():
+        raise GenerateError(
+            "An update is waiting to be committed. Merge any proposals in "
+            f"{PROPOSALS}/, run alpha commit {target}, then run purge again."
+        )
+    raw: object = cast(dict[str, Any], top["installed"]).get("components", {})
+    former: set[str] = (
+        set(cast(dict[str, object], raw)) if isinstance(raw, dict) else set()
+    )
+    a = parse_answers(top, target, former=former, proven=False)
+    registry = load_registry(source)
+    rendered_paths = {
+        *render_project(
+            target, a, load_defaults(source), today.year, today, registry=registry
+        ).texts,
+        *copied_files(plugin_root),
+    }
     raw_pre: object = cast(dict[str, Any], top["installed"]).get("preexisting", [])
     preexisting: set[str] = (
         {str(p) for p in cast(list[object], raw_pre)}
@@ -437,7 +457,7 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
             sorted({Path(p).stem for p in copied if p.startswith(".claude/agents/")})
         ),
     )
-    plain = _plain_commands(target, top, source)
+    plain = _plain_commands(a, source)
     principles = load_project_principles(target)
     edits: dict[str, str] = {}
 
@@ -449,6 +469,13 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
     text = read(MISE)
     if text is not None:
         edits[MISE], gone = clean_mise(unratcheted(text, plain, MISE), removed)
+        dangling = _dangling_depends(edits[MISE])
+        if dangling:
+            raise Uncleanable(
+                f"{MISE} still lists {', '.join(dangling)} under a `depends` alpha "
+                "couldn't rewrite (it isn't on one line), so purge wrote nothing. "
+                "Remove those names from it by hand, then rerun alpha purge."
+            )
     checks = tuple(t.removeprefix("check:") for t in gone)
     for rel in MARKDOWN:
         text = read(rel)
@@ -483,6 +510,8 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
             dict[str, list[str]],
             render_settings(principles, project_book(target))["permissions"],
         )
+        if SETTINGS in preexisting:
+            perms = _without_own_rules(target, top, perms)
         cleaned = clean_settings(cast(dict[str, object], settings), perms)
         if cleaned or SETTINGS in preexisting:
             edits[SETTINGS] = json.dumps(cleaned, indent=2) + "\n"
@@ -491,12 +520,17 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
     chain = _chain_edit(target, top)
     if chain is not None:
         edits[chain[0]] = chain[1]
+    calls = (
+        unmarked_calls(hook_files(target, top))
+        if _chained(top) and chain is None
+        else []
+    )
     edits = {
         rel: new for rel, new in edits.items() if rel in tracked and new != read(rel)
     }
-    problems = [
+    problems = calls + [
         found
-        for rel in sorted(set(render.texts) | set(edits))
+        for rel in sorted(rendered_paths | set(edits))
         if rel not in deletions and not rel.startswith(REMOVED_DIRS)
         for found in leftovers(
             rel, edits[rel] if rel in edits else (read(rel) or ""), removed
@@ -519,28 +553,79 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
     )
 
 
-def _chain_edit(target: Path, top: dict[str, Any]) -> tuple[str, str] | None:
-    """The hook manager's commit-msg file without alpha's marked call."""
+def _chained(top: dict[str, Any]) -> bool:
     adoption: object = top.get("adoption")
-    if not (
+    return (
         isinstance(adoption, dict)
         and cast(dict[str, Any], adoption).get("git_hooks") == "chain"
-    ):
+    )
+
+
+def _chain_edit(target: Path, top: dict[str, Any]) -> tuple[str, str] | None:
+    """The hook manager's file that holds alpha's marked call, without it."""
+    if not _chained(top):
         return None
-    hook = commit_msg_hook(target)
-    if not hook.path.is_file():
-        return None
-    lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
-    block = marked_block(lines)
-    if block is None:
-        return None
-    return hook.rel, "".join(lines[: block[0]] + lines[block[1] + 1 :])
+    for hook in hook_files(target, top):
+        lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
+        block = marked_block(lines)
+        if block is not None:
+            return hook.rel, "".join(lines[: block[0]] + lines[block[1] + 1 :])
+    return None
+
+
+def _dangling_depends(text: str) -> list[str]:
+    """Task names a `depends` lists that mise.toml no longer defines."""
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return []
+    tasks = cast(dict[str, Any], data.get("tasks", {}))
+    return sorted(
+        {
+            str(name)
+            for task in tasks.values()
+            if isinstance(task, dict)
+            for name in cast(
+                list[object], cast(dict[str, Any], task).get("depends", [])
+            )
+            if str(name) not in tasks
+        }
+    )
+
+
+def _without_own_rules(
+    target: Path, top: dict[str, Any], perms: dict[str, list[str]]
+) -> dict[str, list[str]]:
+    """alpha's permission rules less the ones the repo's own settings.json had
+    when the adoption surveyed it."""
+    adoption = cast(dict[str, Any], top.get("adoption", {}))
+    survey = cast(dict[str, Any], adoption.get("survey", {}))
+    head = cast(dict[str, Any], survey.get("git", {})).get("head")
+    if not isinstance(head, str):
+        return perms
+    done = _git(target, "show", f"{head}:{SETTINGS}")
+    try:
+        before: object = json.loads(done.stdout) if done.returncode == 0 else {}
+    except ValueError:
+        before = {}
+    own: object = (
+        cast(dict[str, Any], before).get("permissions", {})
+        if isinstance(before, dict)
+        else {}
+    )
+    had = cast(dict[str, list[str]], own) if isinstance(own, dict) else {}
+    return {
+        kind: [r for r in rules if r not in had.get(kind, [])]
+        for kind, rules in perms.items()
+    }
 
 
 def purge(
     target: Path, plugin_root: Path, source: Source, today: date, trailers: list[str]
 ) -> tuple[str, list[str]]:
     """Plan, then uninstall, write and commit; returns the commit and notes."""
+    if (target / HOOKS_STATE).exists() or (target / CHAIN_STATE).exists():
+        hooks_on(target)  # put back what uninstall took out, so it's committed
     p = plan(target, plugin_root, source, today)
     paths = [*p.deletions, *p.edits]
     dirty = status_paths(target, *paths, command="purge", untracked="no")

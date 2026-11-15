@@ -48,14 +48,57 @@ def _chained(answers: dict[str, Any]) -> bool:
     )
 
 
-def commit_msg_hook(target: Path) -> HookFile:
-    hooks = Path(git_output(target, "rev-parse", "--git-path", "hooks") or ".git/hooks")
-    hook = (hooks if hooks.is_absolute() else target / hooks) / "commit-msg"
+def _hook_file(target: Path, path: Path) -> HookFile:
     try:
-        rel = hook.resolve().relative_to(target.resolve()).as_posix()
+        rel = path.resolve().relative_to(target.resolve()).as_posix()
     except ValueError:
-        rel = str(hook)
-    return HookFile(hook, rel)
+        rel = str(path)
+    return HookFile(path, rel)
+
+
+def hook_files(target: Path, answers: dict[str, Any]) -> list[HookFile]:
+    """Where a hook manager may call alpha's check: git's commit-msg hook, and
+    each hook manager file the adoption's survey found (husky 9's
+    .husky/commit-msg behind its .husky/_ launcher, lefthook.yml, …)."""
+    hooks = Path(git_output(target, "rev-parse", "--git-path", "hooks") or ".git/hooks")
+    paths = [(hooks if hooks.is_absolute() else target / hooks) / "commit-msg"]
+    adoption: object = answers.get("adoption", {})
+    survey: object = (
+        cast(dict[str, Any], adoption).get("survey", {})
+        if isinstance(adoption, dict)
+        else {}
+    )
+    git: object = (
+        cast(dict[str, Any], survey).get("git", {}) if isinstance(survey, dict) else {}
+    )
+    managers: object = (
+        cast(dict[str, Any], git).get("hook_managers", [])
+        if isinstance(git, dict)
+        else []
+    )
+    for rel in cast(list[object], managers) if isinstance(managers, list) else []:
+        if isinstance(rel, str):
+            paths.append(target / rel)
+    found: list[HookFile] = []
+    seen: set[Path] = set()
+    for path in paths:
+        if path.is_file() and path.resolve() not in seen:
+            seen.add(path.resolve())
+            found.append(_hook_file(target, path))
+    return found
+
+
+def unmarked_calls(files: list[HookFile]) -> list[str]:
+    """`file:line` of each call of alpha's check outside the marks."""
+    found: list[str] = []
+    for hook in files:
+        lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
+        block = marked_block(lines)
+        for n, line in enumerate(lines, 1):
+            inside = block is not None and block[0] <= n - 1 <= block[1]
+            if CHAINED_COMMIT_MSG in line and not inside:
+                found.append(f"{hook.rel}:{n}")
+    return found
 
 
 def _settings(target: Path, command: str) -> dict[str, object]:
@@ -131,17 +174,16 @@ def marked_block(lines: list[str]) -> tuple[int, int] | None:
     return start, stripped.index(CHAIN_END, start)
 
 
-def _chain_off(target: Path) -> list[str]:
+def _chain_off(target: Path, answers: dict[str, Any]) -> list[str]:
     """Move alpha's marked call out of the hook manager's file into state."""
     if (target / CHAIN_STATE).is_file():
         return []
-    hook = commit_msg_hook(target)
-    try:
+    files = hook_files(target, answers)
+    for hook in files:
         lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
-    except FileNotFoundError:
-        return []
-    found = marked_block(lines)
-    if found is not None:
+        found = marked_block(lines)
+        if found is None:
+            continue
         start, end = found
         block = lines[start : end + 1]
         state = target / CHAIN_STATE
@@ -151,14 +193,12 @@ def _chain_off(target: Path) -> list[str]:
         )
         hook.path.write_text("".join(lines[:start] + lines[end + 1 :]))
         return [f"took alpha's call out of {hook.rel}"]
-    unmarked = [n for n, line in enumerate(lines, 1) if CHAINED_COMMIT_MSG in line]
-    if unmarked:
-        return [
-            f"left alpha's commit check in {hook.rel}: line {unmarked[0]} calls "
-            f"it without the {CHAIN_BEGIN} and {CHAIN_END} lines around it. Remove "
-            "that line by hand to switch it off."
-        ]
-    return []
+    return [
+        f"left alpha's commit check at {where}: it calls it without the "
+        f"{CHAIN_BEGIN} and {CHAIN_END} lines around it. Remove that line by hand "
+        "to switch it off."
+        for where in unmarked_calls(files)
+    ]
 
 
 def uninstall(target: Path) -> list[str]:
@@ -168,7 +208,7 @@ def uninstall(target: Path) -> list[str]:
     if _settings_off(target):
         done.append(f"removed alpha's hook entries from {SETTINGS}")
     if _chained(answers):
-        done += _chain_off(target)
+        done += _chain_off(target, answers)
     elif git_output(target, "config", "--get", "core.hooksPath") == HOOKS_PATH:
         unset_hooks_path(target, "uninstall")
         done.append(f"unset core.hooksPath ({HOOKS_PATH})")
