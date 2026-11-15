@@ -4,6 +4,7 @@
 
 schema = 1
 kit_version = "0.8.0"
+dependency_log = "docs/alpha/dependencies.md"
 
 [project]
 name = "alpha"
@@ -11,8 +12,7 @@ slug = "alpha"
 
 [review]
 exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]
-risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/principles.toml"]
-mode = "at-merge"
+risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/alpha/principles.toml"]
 expected_load = "one developer running alpha on a laptop, against one project at a time"
 
 [protected]
@@ -39,7 +39,6 @@ squawk_paths = []
 
 [testing]
 diff_coverage = 80
-run = "at-merge"
 
 [[components]]
 name = "alpha"
@@ -73,7 +72,7 @@ rule = "Parse external input (JSON, files, environment, requests) into dataclass
 
 [[components.rules]]
 id = "alpha-python:import-contracts"
-rule = "Once a component has more than one package, add import-linter contracts for the layers the architecture in `docs/specification.md` names, and add `lint-imports` to its `structure` command."
+rule = "Once a component has more than one package, add import-linter contracts for the layers the architecture in `docs/alpha/specification.md` names, and add `lint-imports` to its `structure` command."
 
 [[principles]]
 id = "simplest-architecture"
@@ -158,7 +157,7 @@ override = ""
 [[principles]]
 id = "design-language"
 title = "One design language"
-statement = "Every visual the project makes (a diagram, a chart, an image, the UI) is built from the design language in docs/design-language.md: read it before making or changing one. A visual may step outside it for a stated reason; it may not drift from it."
+statement = "Every visual the project makes (a diagram, a chart, an image, the UI) is built from the design language in docs/alpha/design-language.md: read it before making or changing one. A visual may step outside it for a stated reason; it may not drift from it."
 rationale = "Visuals made one at a time drift apart; one declared language keeps the docs and the product looking like the same thing, and makes a restyle one decision."
 applies = ["design_language"]
 core = false

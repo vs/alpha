@@ -33,7 +33,7 @@ mise run check
 
 `mise install` installs the pinned tools; `mise run check` runs every component's checks and the repository checks below, the same as CI.
 
-The principles in `docs/principles.toml` name them in `checked_by` as `ci:<name>`: a name in the table is that check, and `ci:tree` is when every CI job ends by checking that the checks left the tree unchanged; `ci:diff-coverage` is when a pull request's job fails when its tests cover less of the changed lines than `testing.diff_coverage`.
+The principles in `docs/alpha/principles.toml` name them in `checked_by` as `ci:<name>`: a name in the table is that check, and `ci:tree` is when every CI job ends by checking that the checks left the tree unchanged; `ci:diff-coverage` is when a pull request's job fails when its tests cover less of the changed lines than `testing.diff_coverage`.
 
 | Check | What it checks | Runs |
 |---|---|---|
@@ -64,11 +64,11 @@ Conventional commits: `type(scope): description`.
 
 Put each level's tests under `tests/<level>/` in the component.
 
-A test that covers an acceptance check names its requirement id (e.g. `R1`) in its name, so each check in docs/specification.md traces to a test.
+A test that covers an acceptance check names its requirement id (e.g. `R1`) in its name, so each check in docs/alpha/specification.md traces to a test.
 
 ## Documentation
 
-Internal docs (the specification, the principles) live in `docs/`. User-facing documentation lives in README.md.
+alpha's docs (the specification, the principles, the dependency log) live in `docs/alpha/`. User-facing documentation lives in README.md.
 
 | When these change | Update |
 |---|---|
