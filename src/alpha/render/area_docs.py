@@ -20,7 +20,7 @@ def _active(principles: dict[str, Any], principle_id: str) -> bool:
     )
 
 
-# What to ask /alpha:go for to settle each open spec area (decision 0032).
+# What to ask /alpha:go for to settle each open spec area (decision 0034).
 SETTLE_REQUESTS: dict[str, tuple[str, str]] = {
     "architecture": ("Architecture", "settle the architecture"),
     "errors": ("Errors", "settle the error handling"),

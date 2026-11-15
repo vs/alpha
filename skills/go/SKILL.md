@@ -43,7 +43,7 @@ Task: `$ARGUMENTS`
 - project.json has `adoption` but no `manifest` key: an adoption is under way. Point to `/alpha:adopt`, and stop.
 - Otherwise, project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`, and stop.
 - With a `manifest`, read before the first step:
-  - project.json's `areas`: a spec area marked `open` isn't settled yet (decision 0032), so its doc is missing and the principles it gates are off; docs/product.md lists them under "Not settled yet".
+  - project.json's `areas`: a spec area marked `open` isn't settled yet (decision 0034), so its doc is missing and the principles it gates are off; docs/product.md lists them under "Not settled yet".
   - `docs/principles.toml`: the active principles, their parameters and `[review]`. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
   - The decision records in `docs/decisions/` that bear on the task (the session start lists them).
   - CLAUDE.md: each component's commands, the definition of done, the commit convention and how to talk to the user.

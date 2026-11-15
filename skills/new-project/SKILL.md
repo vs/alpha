@@ -55,7 +55,7 @@ The interview settles the setup: what alpha needs to wire the project's tooling.
 9. Git history: `alpha:git-history`
 10. Agent workflow: `alpha:agent-workflow`
 
-The spec areas (architecture, errors, design language, UI, observability, data, accessibility, performance) describe the product, which the user often can't know yet. They stay open: don't run them here. `/alpha:go` settles each one when the work needs it (decision 0032). Only when the user asks to settle one now, invoke its skill after the setup areas.
+The spec areas (architecture, errors, design language, UI, observability, data, accessibility, performance) describe the product, which the user often can't know yet. They stay open: don't run them here. `/alpha:go` settles each one when the work needs it (decision 0034). Only when the user asks to settle one now, invoke its skill after the setup areas.
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 

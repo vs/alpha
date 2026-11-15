@@ -1,4 +1,4 @@
-# 0032. Setup first, specification later
+# 0034. Setup first, specification later
 
 Date: 2026-11-15
 Status: accepted

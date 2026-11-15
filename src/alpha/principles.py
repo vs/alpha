@@ -78,7 +78,7 @@ def compute_facts(a: Answers, defaults: dict[str, Any]) -> dict[str, bool]:
 
 def _waits_for_area(principle: dict[str, Any], a: Answers) -> bool:
     """Whether the principle is off because the area that holds its
-    parameters is still open (decision 0032)."""
+    parameters is still open (decision 0034)."""
     area = principle.get("settled_by")
     return area is not None and a.areas[area] == "open"
 

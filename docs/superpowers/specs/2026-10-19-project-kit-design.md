@@ -134,7 +134,7 @@ Order: identity, then components and stacks, then the remaining setup areas.
 Every later area applies to every component.
 
 **Setup first, specification later** (user decision 2026-11-15, decision
-0032). The interview settles only the **setup areas**, what alpha needs to
+0034). The interview settles only the **setup areas**, what alpha needs to
 wire the tooling: identity (name, slug, value proposition, license,
 copyright), components, testing, documentation, build, security,
 dependencies, releases, git and agent workflow. The **spec areas**
@@ -301,7 +301,7 @@ anything.
    environment, timeouts, logs, acceptance checks with no test. Findings
    about the specification's content (open questions or proposals in the
    product docs) aren't compliance work: they go into the final report as
-   `/alpha:go` tasks, not into the plan (decision 0032).
+   `/alpha:go` tasks, not into the plan (decision 0034).
 4. **Preview.** Before anything is written: the kit files to add, the
    files to merge (with diffs and conflicts), the baselines to capture
    (counts per check, component and rule), and the plan's steps. The user

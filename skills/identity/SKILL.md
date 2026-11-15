@@ -17,7 +17,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Pin down what the files need to name the project: what it does in a sentence or two, its name and slug, the license and the copyright holder. That is all the setup asks (decision 0032).
+Pin down what the files need to name the project: what it does in a sentence or two, its name and slug, the license and the copyright holder. That is all the setup asks (decision 0034).
 
 Who it's for, its requirements with their acceptance checks (Given/When/Then, which tests trace back to) and whether its domain has its own jargon are the product's specification. The user often doesn't know them yet, so the setup leaves them empty: `requirements` `[]`, `target_users` `""`, `domain_jargon` `false`. They're settled later, when `alpha:extend` sends you here for them: a feature built with `/alpha:go` adds the requirements it serves, and `/alpha:go settle the target users` settles the users.
 

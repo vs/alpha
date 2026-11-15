@@ -39,7 +39,7 @@ As `/alpha:new-project` step 3: run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults 
 
 ## 4. Interview
 
-Run the setup areas in `/alpha:new-project`'s order, invoking each area's skill with the Skill tool, `<target>` as its target: `alpha:identity`, `alpha:components`, `alpha:testing`, `alpha:documentation`, `alpha:build-and-hosting`, `alpha:security`, `alpha:dependencies`, `alpha:releases`, `alpha:git-history`, `alpha:agent-workflow`. Move on only after its check prints `ok`. The spec areas stay open, as for a new project, even where the repo's docs already describe them: `/alpha:go` settles each when the work needs it (decision 0032). These rules win over the area skill's own:
+Run the setup areas in `/alpha:new-project`'s order, invoking each area's skill with the Skill tool, `<target>` as its target: `alpha:identity`, `alpha:components`, `alpha:testing`, `alpha:documentation`, `alpha:build-and-hosting`, `alpha:security`, `alpha:dependencies`, `alpha:releases`, `alpha:git-history`, `alpha:agent-workflow`. Move on only after its check prints `ok`. The spec areas stay open, as for a new project, even where the repo's docs already describe them: `/alpha:go` settles each when the work needs it (decision 0034). These rules win over the area skill's own:
 
 - Recommend what the repo already does when it meets the principle, else the kit default; say which it is. Never ask what the survey or the repo's files answer: read the README for identity, the manifests, lockfiles and CI for components and build, `LICENSE` for `identity.license_file` (keep the repo's license).
 - Where the repo falls short of an active principle, say so in one line and note it as a gap for step 5. Change no app code during the interview.

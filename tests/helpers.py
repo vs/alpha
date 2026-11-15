@@ -48,7 +48,7 @@ def run_cli(*args: str, env: dict[str, str] | None = None):
 
 def setup_only(data: dict[str, Any]) -> None:
     """Answers as the setup interview leaves them: every spec area open, no
-    requirements, target users or auth yet (decision 0032)."""
+    requirements, target users or auth yet (decision 0034)."""
     for area in SPEC_AREAS:
         data["areas"][area] = "open"
         data.pop(area, None)
