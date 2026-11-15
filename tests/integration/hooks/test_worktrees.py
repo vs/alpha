@@ -92,17 +92,20 @@ def test_merge_checks_the_checkout_that_has_the_branch(project: Project) -> None
     assert bash(project, "gh pr merge --squash", cwd=wt).returncode == 0
 
 
-def test_merge_alpha_cannot_place_in_a_checkout_is_not_blocked(
-    project: Project,
-) -> None:
+def test_a_merge_of_a_branch_not_checked_out_is_blocked(project: Project) -> None:
+    """Merging from main a pull request whose branch isn't checked out here
+    would skip its review and test gates."""
     committed(project)
-    assert bash(project, "gh pr merge elsewhere").returncode == 0
+    elsewhere = bash(project, "gh pr merge elsewhere")
+    assert elsewhere.returncode == 2
+    assert "elsewhere isn't checked out here" in elsewhere.stderr
     proc = project.run_hook(
         "guard_bash.py",
         {"tool_name": "Bash", "tool_input": {"command": "gh pr merge 12"}},
         env={"PATH": "/usr/bin:/bin"},
     )
-    assert proc.returncode == 0, proc.stderr
+    assert proc.returncode == 2
+    assert "can't tell which branch pull request 12 merges" in proc.stderr
 
 
 def test_edits_in_a_worktree_are_checked_against_it(project: Project) -> None:
