@@ -102,7 +102,7 @@ def test_a_live_checkout_without_a_registry_falls_back_to_the_bundled_one(
     assert reg.tool("typos").pin is not None
 
 
-def test_stale():
+def test_R12_1_stale_tools_are_listed():
     reg = kit()
     tool = reg.tool("ruff")
     assert tool in reg.stale(tool.last_reviewed + timedelta(days=181))

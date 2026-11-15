@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import place_answers, proven, setup_only, shell_recipe, single_component
+from helpers import place_answers, prove, setup_only, shell_recipe, single_component
 
 from alpha import cli
 from alpha.answers import (
@@ -25,9 +25,14 @@ from alpha.validate import fail
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
 
 
-def write(tmp_path: Path, data: dict[str, Any]) -> Path:
-    path = tmp_path / "project.json"
+def write(tmp_path: Path, data: dict[str, Any], proven: bool = True) -> Path:
+    """The answers in a project at `tmp_path`; with `proven`, each drafted
+    recipe in them proven as `alpha recipe try` leaves it."""
+    path = tmp_path / ".claude" / "alpha" / "project.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data))
+    if proven and "recipes" in data:
+        prove(tmp_path)
     return path
 
 
@@ -35,8 +40,8 @@ def valid() -> dict[str, Any]:
     return copy.deepcopy(json.loads(FIXTURE.read_text()))
 
 
-def check(tmp_path: Path, data: dict[str, Any], **kw: Any):
-    return load_answers(write(tmp_path, data), **kw)
+def check(tmp_path: Path, data: dict[str, Any], proven: bool = True, **kw: Any):
+    return load_answers(write(tmp_path, data, proven), **kw)
 
 
 def test_valid_fixture_loads():
@@ -227,7 +232,7 @@ def with_shell(d: dict[str, Any]) -> dict[str, Any]:
     comp = dict(d["components"][0], stack="shell", path=".")
     single_component(d, comp)
     d["layout"] = "single"
-    d["recipes"] = {"shell": proven(shell_recipe())}
+    d["recipes"] = {"shell": shell_recipe()}
     return d
 
 
@@ -257,7 +262,7 @@ def test_an_unproven_drafted_recipe_says_it_can_be_removed(tmp_path: Path):
     d = valid()
     d["recipes"] = {"shell": shell_recipe()}
     with pytest.raises(AnswersError, match=r"recipes\.shell: .*or remove it"):
-        check(tmp_path, d, require_areas=["components"])
+        check(tmp_path, d, proven=False, require_areas=["components"])
 
 
 def test_drafted_recipe_errors_name_the_field(tmp_path: Path):
@@ -284,17 +289,15 @@ def test_trait_must_be_bool(tmp_path: Path):
 
 
 def test_license_rules(tmp_path: Path):
-    meta = tmp_path / ".claude" / "alpha"
-    meta.mkdir(parents=True)
     d = valid()
     d["identity"]["license"] = "GPL"
     with pytest.raises(AnswersError, match=r"identity\.license: .*MIT.*license_file"):
-        check(meta, d)
+        check(tmp_path, d)
     d["identity"]["license_file"] = "LICENSE.txt"
     with pytest.raises(AnswersError, match=r"identity\.license_file: .*does not exist"):
-        check(meta, d)
+        check(tmp_path, d)
     (tmp_path / "LICENSE.txt").write_text("custom")
-    assert check(meta, d).identity
+    assert check(tmp_path, d).identity
 
 
 def test_loosen_without_reason(tmp_path: Path):

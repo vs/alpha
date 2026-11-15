@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import proven, shell_recipe
+from helpers import shell_recipe
 
 from alpha.answers import AnswersError, Component, Traits, drafted_recipes
 from alpha.cli import PLUGIN_ROOT
@@ -539,7 +539,7 @@ def test_kit_recipes_have_baselines():
 
 def test_drafted_recipe_carries_its_baseline():
     raw = _with_baseline({"lint": {"command": "lint -q", "pattern": LINE}}, lint="l")
-    recipe = drafted_recipes({"sh": proven(raw)})["sh"]
+    recipe = drafted_recipes({"sh": raw})["sh"]
     assert recipe.baselines["lint"].pattern == LINE
     changed = copy.deepcopy(raw)
     changed["baseline"]["lint"]["pattern"] = LINE + "x"

@@ -230,7 +230,11 @@ SETTINGS = ".claude/settings.json"
 def _uncommitted(target: Path) -> list[str]:
     """Uncommitted changes other than the adoption's own answers."""
     own = (PROJECT_JSON, ".claude/settings.local.json")
-    return [p for p in status_paths(target, command="apply") if p not in own]
+    return [
+        p
+        for p in status_paths(target, command="apply")
+        if p not in own and not p.startswith(".claude/alpha/state/")
+    ]
 
 
 # Paths alpha writes and commits; a repo that ignores them can't take alpha.

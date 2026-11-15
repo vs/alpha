@@ -19,7 +19,7 @@ from helpers import (
     git,
     install,
     place_answers,
-    proven,
+    prove,
     run_cli,
     setup_only,
     shell_recipe,
@@ -194,9 +194,9 @@ def test_refusal_lists_offending_entries_sorted_with_a_fix(tmp_path: Path):
     with pytest.raises(GenerateError) as err:
         install(tmp_path)
     assert str(err.value) == (
-        f"{tmp_path} is not empty (found: .claude/alpha/state, .claude/skills, a, "
-        "b.txt). A new project starts in an empty folder; /alpha:install adopts "
-        "an existing repo instead (commit its files first)."
+        f"{tmp_path} is not empty (found: .claude/skills, a, b.txt). A new project "
+        "starts in an empty folder; /alpha:install adopts an existing repo instead "
+        "(commit its files first)."
     )
     assert sorted(p.name for p in tmp_path.iterdir()) == [".claude", "a", "b.txt"]
 
@@ -808,10 +808,11 @@ def test_cli_apply_explains_write_failure(tmp_path: Path):
 def shell_project(target: Path) -> list[str]:
     data = json.loads((SCENARIOS / "python-ml-single.json").read_text())
     single_component(data, dict(data["components"][0], stack="shell"))
-    data["recipes"] = {"shell": proven(shell_recipe())}
+    data["recipes"] = {"shell": shell_recipe()}
     dest = target / ".claude/alpha/project.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(data))
+    prove(target)
     return install(target)
 
 
@@ -849,10 +850,11 @@ def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: 
     single_component(data, dict(data["components"][0], stack="shell"))
     recipe = shell_recipe()
     recipe["templates"][path] = "hijacked\n"
-    data["recipes"] = {"shell": proven(recipe)}
+    data["recipes"] = {"shell": recipe}
     dest = tmp_path / ".claude/alpha/project.json"
     dest.parent.mkdir(parents=True)
     dest.write_text(json.dumps(data))
+    prove(tmp_path)
     with pytest.raises(GenerateError, match=rf"{re.escape(path)}.*alpha generates"):
         install(tmp_path)
     assert not (tmp_path / "CLAUDE.md").exists()

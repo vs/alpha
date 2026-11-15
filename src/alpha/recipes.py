@@ -89,7 +89,6 @@ _RECIPE_KEYS = frozenset(
     {
         "stack",
         "proven",
-        "proven_hash",
         "bootstrap",
         "commands",
         "lockfiles",
@@ -832,5 +831,26 @@ def render_workspace(
 
 
 def recipe_hash(data: Mapping[str, Any]) -> str:
-    content = {k: v for k, v in data.items() if k != "proven_hash"}
-    return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(dict(data), sort_keys=True).encode()).hexdigest()
+
+
+# A drafted recipe's proof: the hash of the recipe `alpha recipe try` proved,
+# kept in the project's gitignored state, never in a committed file.
+PROOFS = ".claude/alpha/state/proofs.json"
+
+
+def read_proofs(project: Path) -> dict[str, str]:
+    try:
+        data: object = json.loads((project / PROOFS).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): str(v) for k, v in cast(dict[object, object], data).items()}
+
+
+def record_proof(project: Path, stack: str, data: Mapping[str, Any]) -> None:
+    proofs = {**read_proofs(project), stack: recipe_hash(data)}
+    path = project / PROOFS
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(proofs, indent=2, sort_keys=True) + "\n")

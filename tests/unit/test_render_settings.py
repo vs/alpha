@@ -27,7 +27,7 @@ def test_allow_covers_the_mise_checks():
     assert not any("python3" in rule for rule in SETTINGS["permissions"]["allow"])
 
 
-def test_allow_covers_both_stacks_and_git_sorted():
+def test_R12_4_each_stack_gets_its_permissions():
     allow = SETTINGS["permissions"]["allow"]
     assert "Bash(uv run:*)" in allow
     assert "Bash(pnpm vitest:*)" in allow

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
-from helpers import proven, shell_recipe
+from helpers import prove, shell_recipe
 
 from alpha.answers import load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -51,7 +51,7 @@ def test_workflow_actions_pinned():
         assert re.search(r'@[0-9a-f]{40}" # v', line), line
 
 
-def test_one_job_per_component_running_its_checks():
+def test_R12_4_ci_runs_each_components_checks():
     jobs = workflow(PRINCIPLES)["jobs"]
     assert list(jobs) == ["api", "web", "repo"]
     api = jobs["api"]
@@ -296,9 +296,11 @@ def test_drafted_recipe_without_coverage(tmp_path: Path):
     )
     data = json.loads(scenario.read_text())
     data["components"][0]["stack"] = "shell"
-    data["recipes"] = {"shell": proven(shell_recipe())}
-    path = tmp_path / "project.json"
+    data["recipes"] = {"shell": shell_recipe()}
+    path = tmp_path / ".claude/alpha/project.json"
+    path.parent.mkdir(parents=True)
     path.write_text(json.dumps(data))
+    prove(tmp_path)
     answers = load_answers(path)
     principles = build_principles(
         load_defaults(Source(PLUGIN_ROOT, True)), answers, "0.1.0"

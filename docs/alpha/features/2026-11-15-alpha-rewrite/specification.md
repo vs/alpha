@@ -228,7 +228,7 @@ src/alpha/
   cli.py            argparse and exit codes only
   answers.py        the answers dataclasses; parse and write project.json
   core_areas.py     the dataclasses and parsers of the other areas
-  kit.py            defaults, user layer, registry, recipes (loading)
+  defaults.py, registry.py  the kit defaults with the user layer, the registry
   recipes.py        recipe model, templates, drafted recipes, local proofs
   principles.py     the principles table
   render/           docs.py and area_docs.py (the docs), tooling.py, ci.py,

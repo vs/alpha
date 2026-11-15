@@ -33,6 +33,7 @@ from alpha.recipes import (
     Recipe,
     RecipeBook,
     adopted_data,
+    read_proofs,
     recipe_from_data,
     recipe_hash,
 )
@@ -346,7 +347,10 @@ class Answers:
 
 
 def drafted_recipes(
-    raw: object, require_proven: bool = False, generated: bool = False
+    raw: object,
+    require_proven: bool = False,
+    generated: bool = False,
+    proofs: Mapping[str, str] | None = None,
 ) -> dict[str, Recipe]:
     kit = set(RecipeBook().kit_stacks())
     drafted: dict[str, Recipe] = {}
@@ -374,6 +378,12 @@ def drafted_recipes(
                 f"the kit already has a {stack} recipe",
                 "Remove this one; the kit's recipe is used",
             )
+        if "proven_hash" in fields:
+            raise fail(
+                f"{where}.proven_hash",
+                "is kept in alpha's local state now, not in the answers",
+                f'Remove it and run "alpha recipe try <target> {stack}"',
+            )
         if "proven" in fields:
             raise fail(
                 f"{where}.proven",
@@ -393,10 +403,10 @@ def drafted_recipes(
         drafted[stack] = recipe_from_data(
             stack, resolved, where, None, generated=generated
         )
-        if require_proven and fields.get("proven_hash") != recipe_hash(fields):
+        if require_proven and (proofs or {}).get(stack) != recipe_hash(fields):
             raise fail(
                 where,
-                "not proven since it last changed",
+                "not proven since it last changed (or not in this clone yet)",
                 f'Run "alpha recipe try <target> {stack}" until it prints ok, or '
                 "remove it from recipes if no component uses it",
             )
@@ -1124,6 +1134,7 @@ def parse_answers(
     drafted = drafted_recipes(
         top.get("recipes", {}),
         require_proven=active("components"),
+        proofs=read_proofs(base),
         generated="installed" in top if generated is None else generated,
     )
     identity = _identity(get(top, "identity", ""), base) if active("identity") else None

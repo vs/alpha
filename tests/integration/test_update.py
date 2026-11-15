@@ -12,7 +12,7 @@ from helpers import (
     git,
     install,
     place_answers,
-    proven,
+    prove,
     run_cli,
     shell_recipe,
 )
@@ -366,9 +366,10 @@ def test_moved_component_without_manifests_waits_for_its_files(
 ):
     data = json.loads(place_answers(tmp_path, SCENARIO).read_text())
     recipe: dict[str, Any] = {**shell_recipe(), "manifests": []}
-    data["recipes"] = {"shell": proven(recipe)}
+    data["recipes"] = {"shell": recipe}
     next(c for c in data["components"] if c["name"] == "api")["stack"] = "shell"
     (tmp_path / PROJECT_JSON).write_text(json.dumps(data))
+    prove(tmp_path)
     install(tmp_path)
     gitops.commit(tmp_path, load_project_principles(tmp_path), [])
     assert (tmp_path / "api/tool.cfg").is_file()

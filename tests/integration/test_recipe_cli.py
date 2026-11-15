@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import SCENARIOS, install, proven, shell_recipe, single_component
+from helpers import SCENARIOS, install, prove, shell_recipe, single_component
 from test_defaults import make_source
 
 from alpha import cli, toml_write
@@ -12,7 +12,7 @@ from alpha.answers import AnswersError, load_answers
 from alpha.defaults import DefaultsError, Source
 from alpha.generate import GenerateError, project_book
 from alpha.recipe_cli import save_recipe
-from alpha.recipes import RecipeBook, RecipeError, recipe_hash
+from alpha.recipes import RecipeBook, RecipeError, recipe_hash, record_proof
 
 
 def project(tmp_path: Path, recipe: dict[str, Any] | None = None) -> Path:
@@ -49,14 +49,18 @@ def test_check_unknown_stack(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     assert 'no drafted recipe for "rust"' in capsys.readouterr().err
 
 
-def test_try_proves_the_recipe(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+def test_R12_1_a_drafted_recipe_needs_a_local_proof(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     target = project(tmp_path)
     assert cli.main(["recipe", "try", str(target), "shell"]) == 0
     out = capsys.readouterr()
     assert out.out.strip() == "ok: shell recipe proven"
     assert "alpha: try: sh tests/setup.sh" in out.err
     saved = recipes_of(target)["shell"]
-    assert saved["proven_hash"] == recipe_hash(saved)
+    assert "proven_hash" not in saved
+    proofs = json.loads((target / ".claude/alpha/state/proofs.json").read_text())
+    assert proofs == {"shell": recipe_hash(saved)}
 
 
 def leftovers(tmp_path: Path) -> list[str]:
@@ -134,11 +138,17 @@ def test_an_unproven_recipe_is_refused(tmp_path: Path):
 def test_a_recipe_edited_after_try_is_refused(tmp_path: Path):
     """R6: an edit after the proof makes the recipe unproven again."""
     recipe = shell_recipe()
-    recipe["proven_hash"] = recipe_hash(recipe)
-    recipe["commands"]["lint"] = "true"
-    scenario_with_shell(tmp_path, recipe)
+    edited = {**recipe, "commands": {**recipe["commands"], "lint": "true"}}
+    scenario_with_shell(tmp_path, edited)
+    record_proof(tmp_path, "shell", recipe)
     with pytest.raises(GenerateError, match=r"not proven since it last changed"):
         install(tmp_path)
+
+
+def proven_project(tmp_path: Path, recipe: dict[str, Any]) -> Path:
+    target = drafted_project(tmp_path, recipe)
+    prove(target)
+    return target
 
 
 def drafted_project(tmp_path: Path, recipe: dict[str, Any]) -> Path:
@@ -161,7 +171,7 @@ def test_save_writes_the_recipe_to_your_folder(
 ):
     src = make_source(tmp_path / "src")
     folder = saving_to(src, monkeypatch)
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    target = proven_project(tmp_path / "p", shell_recipe())
     assert save_recipe(target, "shell", src) == folder / "shell.toml"
     assert (
         (folder / "shell.toml")
@@ -182,7 +192,7 @@ def test_save_keeps_templates_whose_flat_names_would_collide(
     saving_to(src, monkeypatch)
     recipe = shell_recipe()
     recipe["templates"]["tests-setup.sh"] = "echo flat\n"
-    target = drafted_project(tmp_path / "p", proven(recipe))
+    target = proven_project(tmp_path / "p", recipe)
     save_recipe(target, "shell", src)
     saved = RecipeBook().get("shell").templates
     assert saved["tests/setup.sh"] == "test 1 -eq 1\n"
@@ -190,7 +200,7 @@ def test_save_keeps_templates_whose_flat_names_would_collide(
 
 
 def test_save_needs_a_folder_for_your_recipes(tmp_path: Path):
-    target = drafted_project(tmp_path, proven(shell_recipe()))
+    target = proven_project(tmp_path, shell_recipe())
     with pytest.raises(DefaultsError, match="ALPHA_CONFIG_DIR"):
         save_recipe(target, "shell", Source(tmp_path / "plugin", False))
 
@@ -207,7 +217,7 @@ def test_save_refuses_a_recipe_you_already_saved(
 ):
     src = make_source(tmp_path / "src")
     folder = saving_to(src, monkeypatch)
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    target = proven_project(tmp_path / "p", shell_recipe())
     save_recipe(target, "shell", src)
     with pytest.raises(AnswersError, match="already has a shell recipe"):
         save_recipe(target, "shell", src)
@@ -224,7 +234,7 @@ def test_save_refuses_a_stack_the_kit_has(
     (src.path / "recipes").mkdir()
     (src.path / "recipes/shell.toml").write_text('stack = "shell"\n')
     monkeypatch.setenv("ALPHA_SOURCE", str(src.path))
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    target = proven_project(tmp_path / "p", shell_recipe())
     with pytest.raises(AnswersError, match="the kit already has a shell recipe"):
         save_recipe(target, "shell", src)
 
@@ -234,7 +244,7 @@ def test_save_leaves_nothing_when_a_write_fails(
 ):
     src = make_source(tmp_path / "src")
     folder = saving_to(src, monkeypatch)
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    target = proven_project(tmp_path / "p", shell_recipe())
     write = Path.write_text
 
     def full_disk(self: Path, *args: Any, **kwargs: Any) -> int:
@@ -252,7 +262,7 @@ def test_save_leaves_nothing_when_a_write_fails(
 def test_cli_save_exit_codes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    target = proven_project(tmp_path / "p", shell_recipe())
     monkeypatch.setenv("ALPHA_SOURCE", str(tmp_path / "missing"))
     assert cli.main(["recipe", "save", str(target), "shell"]) == 3
     assert "unset it to use the installed plugin" in capsys.readouterr().err
@@ -304,7 +314,8 @@ def test_saving_a_recipe_keeps_its_project_working(
     src = make_source(tmp_path / "src")
     saving_to(src, monkeypatch)
     target = tmp_path / "proj"
-    scenario_with_shell(target, proven(shell_recipe()))
+    scenario_with_shell(target, shell_recipe())
+    prove(target)
     install(target)
     save_recipe(target, "shell", src)
     answers = load_answers(target / ".claude/alpha/project.json")
@@ -317,7 +328,7 @@ def test_save_writes_nothing_when_the_toml_cannot_be_rendered(
 ):
     src = make_source(tmp_path / "src")
     folder = saving_to(src, monkeypatch)
-    target = drafted_project(tmp_path / "p", proven(shell_recipe()))
+    target = proven_project(tmp_path / "p", shell_recipe())
 
     def fail(_: object) -> str:
         raise TypeError("cannot write <class 'float'> at ci.steps")
