@@ -7,7 +7,13 @@ from alpha.cli import PLUGIN_ROOT
 # The kit's shipped files, and alpha's own installed copy of them.
 SHIPPED = ("src", "project-files", "skills", "recipes", "defaults", "registry", "bin")
 SHIPPED_FILES = ("pyproject.toml", ".claude/settings.json")
-OWN_COPY = (".claude/alpha", ".claude/skills", ".claude/agents")
+OWN_COPY = (
+    ".claude/alpha/hooks",
+    ".claude/alpha/checks",
+    ".claude/alpha/githooks",
+    ".claude/skills",
+    ".claude/agents",
+)
 
 
 def _texts() -> dict[str, str]:
@@ -40,3 +46,6 @@ def test_R14_1_dropped_features_are_gone():
         assert not (PLUGIN_ROOT / gone).exists(), gone
     assert _naming("alpha-evals", "alpha_evals") == []
     assert _naming("cargo-mutants", "ci:mutants", "mutants::skip") == []
+    for gone in ("project-files/skills/debt", "project-files/checks/shortcuts.py"):
+        assert not (PLUGIN_ROOT / gone).exists(), gone
+    assert _naming("check:shortcuts", "checks/shortcuts.py", "/debt") == []

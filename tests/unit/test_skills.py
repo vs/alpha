@@ -174,7 +174,6 @@ def test_cli_calls_are_pre_approved(skill: str):
 @pytest.mark.parametrize(
     ("path", "source"),
     [
-        ("project-files/skills/debt/SKILL.md", "ponytail-debt"),
         ("project-files/skills/review-change/SKILL.md", "ponytail-review"),
         ("project-files/skills/audit/SKILL.md", "ponytail-audit"),
         ("project-files/agents/principles-reviewer.md", "ponytail-review"),

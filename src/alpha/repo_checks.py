@@ -22,7 +22,6 @@ _MIGRATIONS = "python3 .claude/alpha/checks/diff_checks.py immutable-migrations"
 _SQUAWK = "python3 .claude/alpha/checks/diff_checks.py squawk"
 _REVIEW_DATES = "python3 .claude/alpha/checks/review_dates.py"
 _BASELINES = "python3 .claude/alpha/checks/diff_checks.py baselines"
-_SHORTCUTS = "python3 .claude/alpha/checks/shortcuts.py"
 _SECRET_SCAN = "python3 .claude/alpha/checks/secret_scan.py"
 PALETTE = "palette"
 _PALETTE = "python3 .claude/alpha/checks/palette.py"
@@ -214,15 +213,6 @@ def repo_checks(
             )
         )
     checks += [
-        RepoCheck(
-            "shortcuts",
-            None,
-            _SHORTCUTS,
-            ("**",),
-            True,
-            "pr",
-            "Every `shortcut:` comment names when to upgrade",
-        ),
         RepoCheck(
             "review-dates",
             None,

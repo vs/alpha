@@ -27,7 +27,6 @@ TABLE = [
     "agent-config",
     "migrations",
     "squawk",
-    "shortcuts",
     "review-dates",
     "toolchain",
 ]
@@ -184,7 +183,6 @@ def test_principles_carry_stop_checks(tmp_path: Path):
         "markdown",
         "links",
         "agent-config",
-        "shortcuts",
     }
 
 
@@ -203,4 +201,4 @@ def test_palette_check_joins_the_catalog_only_when_enforced(tmp_path: Path):
     assert "palette" not in ids(tmp_path / "a", "web-ts-plus-python-api")
     assert "palette" not in ids(tmp_path / "b", "rust-cli")
     got = ids(tmp_path / "c", "web-ts-plus-python-api", enforce)
-    assert got.index("palette") == got.index("shortcuts") - 1
+    assert got.index("palette") == got.index("review-dates") - 1

@@ -709,12 +709,6 @@ globs = ["CLAUDE.md", ".claude/**"]
 stop = true
 
 [[repo_checks]]
-id = "shortcuts"
-command = "mise run check:shortcuts"
-globs = ["**"]
-stop = true
-
-[[repo_checks]]
 id = "review-dates"
 command = "mise run check:review-dates"
 globs = []

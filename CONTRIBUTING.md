@@ -44,7 +44,6 @@ The principles in `docs/principles.toml` name them in `checked_by` as `ci:<name>
 | links | Relative links in docs resolve (lychee) | pull request, at Stop |
 | links-online | Links to other sites still work (lychee) | weekly |
 | agent-config | CLAUDE.md and .claude/ configuration (agnix) | pull request, at Stop |
-| shortcuts | Every `shortcut:` comment names when to upgrade | pull request, at Stop |
 | review-dates | Suppressions past their review date | pull request, weekly |
 | toolchain | Pinned tools that have a newer release | weekly |
 

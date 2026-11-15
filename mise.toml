@@ -61,9 +61,6 @@ run = "lychee --no-progress ."
 [tasks."check:agent-config"]
 run = "agnix --strict"
 
-[tasks."check:shortcuts"]
-run = "python3 .claude/alpha/checks/shortcuts.py"
-
 [tasks."check:review-dates"]
 run = "python3 .claude/alpha/checks/review_dates.py"
 
@@ -76,7 +73,7 @@ run = ["uv sync", "uv run ruff format --check src tests project-files", "uv run 
 
 [tasks.ci]
 description = "Run the repository checks"
-depends = ["check:secrets", "check:vulns", "check:typos", "check:markdown", "check:links", "check:agent-config", "check:shortcuts", "check:review-dates"]
+depends = ["check:secrets", "check:vulns", "check:typos", "check:markdown", "check:links", "check:agent-config", "check:review-dates"]
 
 [tasks.scheduled]
 description = "Run the weekly scans"
