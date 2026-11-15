@@ -21,7 +21,7 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 
 - A `manifest` with `adopted_at`: the repo is adopted. Go to step 9.
 - A `manifest` without `adopted_at`: alpha generated it. Invoke `alpha:extend` with the Skill tool for any change, and stop here.
-- An `adoption` key: an adoption is under way. Report which areas are done, then go on at the first step not finished (step 4 while an area is pending, else step 5).
+- An `adoption` key: an adoption is under way. Report which areas are done (a spec area an older alpha left pending becomes open: save it so), then go on at the first step not finished (step 4 while an area is pending, else step 5).
 - Anything else: start at step 2.
 
 ## 2. Survey

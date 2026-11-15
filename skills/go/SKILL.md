@@ -60,7 +60,7 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 | Bug fix | `bug-fix.md` | A defect to reproduce, trace to its root cause and fix with a test that fails without the fix. |
 | Refactoring | `refactoring.md` | A change to structure that keeps behavior: rename, extract, inline, merge, move. |
 | Perf | `perf.md` | A measured slowness, or a push on one metric, against a baseline. |
-| Specify | `specify.md` | Settling a spec area left open, or the target users: on request, or because a task needs it. |
+| Specify | `specify.md` | Settling a spec area left open, the target users or the auth: on request, or because a task needs it. |
 | Prototype | `prototype.md` | A throwaway sketch to settle a design question by looking at it instead of asking. |
 | Session pickup | `session-pickup.md` | Resuming work an earlier session left: a branch, a resume note, a spec. |
 | Pause | `pause.md` | Stopping work cleanly so a later session can resume it. |

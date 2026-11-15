@@ -23,17 +23,17 @@ Secrets never live in the repository ("No secrets in the repo"): locally they si
 ## Fields this area settles
 
 - `security.secret_store` - where production secrets live, in the user's words; `""` when nothing is deployed.
-- `security.auth` - who must prove who they are, and how; `"none"` is a valid answer.
+- `security.auth` - who must prove who they are, and how; `"none"` is a valid answer, and `""` means not settled yet.
 - `security.extra_protected` - globs, relative to the project root, Claude may not edit; often `[]`.
 - `areas.security` - `"in_progress"` while you work, `"done"` at the end.
 - `decisions[]` - one entry with `"area": "security"`.
 
 ## Questions
 
-Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it). The three questions are independent, so ask them in one round. None has a kit default: they're per project, so recommend from the answers so far and say it's your suggestion.
+Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it). The questions are independent, so ask them in one round. None has a kit default: they're per project, so recommend from the answers so far and say it's your suggestion.
 
 - **Secret store** - ask only when a component is deployed. Recommend the secret manager of the hosting the user chose in the build area (`build.components[].hosting`), and mention one or two alternatives as examples. With nothing deployed, save `""` and say in one line that local `.env` files are enough until something is deployed.
-- **Auth** - who must prove who they are (end users, other services, admins), and how (sessions, API keys, OAuth, none)? Recommend from the requirements and kinds: `none` for a local CLI or a pipeline, a concrete approach for anything users sign in to. Record the user's words.
+- **Auth** - ask only when the answer is plain from the components: `none` for a local CLI, a library or a pipeline. Otherwise it's part of the product's specification: save `""` without asking (decision 0032), and `/alpha:go settle the auth` settles it when the work needs it. When `alpha:extend` sends you here for it, ask who must prove who they are (end users, other services, admins) and how (sessions, API keys, OAuth, none), and record the user's words.
 - **Extra protected paths** - recommend none. Explain: Claude can't edit protected paths, so they suit files where a careless change is costly (e.g. `api/keys/**`, signed migration snapshots). alpha refuses a glob that covers files its own checks may require changing, such as docs or package manifests.
 
 ## Writing the answers
