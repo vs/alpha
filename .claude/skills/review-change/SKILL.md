@@ -38,7 +38,7 @@ Review a change like the senior developer who will be paged when it breaks. Orde
 - Review what the user names: uncommitted or staged changes, a branch, or files. Nothing named: the uncommitted changes, or the last commit if there are none.
 - Read the diff, then the code it touches: callers of every changed function, the functions it calls, the tests, the docs.
 - Trace the real flow: where data comes in, what is stored, what goes out. When a signature, return value or behavior changes, search for every caller.
-- Take the expected load from `docs/performance.md`; when it isn't recorded, infer it from the README and deploy config. Judge scale against it, and say which load you used.
+- Take the expected load from the Performance section of `docs/specification.md` (or `[review] expected_load` in `docs/principles.toml`); when it isn't recorded, infer it from the README and deploy config. Judge scale against it, and say which load you used.
 
 ## 2. Look for
 
@@ -46,7 +46,7 @@ Review a change like the senior developer who will be paged when it breaks. Orde
 2. **Risk:** security holes (injection, weak randomness, secrets, missing checks on input from users), data loss (errors swallowed, writes in the wrong order, no transaction).
 3. **Scale:** fine for one user, wrong at the expected load: check-then-write races, the same work done by every process, memory or lists that only grow, a query per item, O(n^2) on big input, per-process state that must be shared.
 4. **Missing test:** risky logic (a branch, a parser, money, security, data writes, a bug fix) with no test that fails when it breaks. One good test, not coverage.
-5. **Speed:** big slowdowns are problems; small wins (work repeated in a hot loop) are suggestions, unless a budget in `docs/performance.md` makes them count.
+5. **Speed:** big slowdowns are problems; small wins (work repeated in a hot loop) are suggestions, unless a budget in `docs/specification.md` makes them count.
 6. **Lean:** code that should not exist or should be smaller: dead code, unused options and config, speculative features; a helper the repo already has (name the path); what the standard library, the platform or an installed dependency already does; an abstraction with one implementation; near-copies that must change together; a function doing several unrelated jobs (split by job, never by line count).
 7. **The project's own rules:** anything that breaks a principle in `docs/principles.toml` or an accepted record in `docs/decisions/`; name the principle or the record.
 
