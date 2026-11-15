@@ -46,8 +46,8 @@ Round 2 (needs the answer above):
 
 - **Docs mappings** - propose all mappings in one question. For each component, take `defaults.documentation.public_paths[kind]` and put the component's path in front of each glob (`api/**/routes/**`; a component at `"."` gets no prefix). Map them:
   - user-facing kinds (`backend` with outside callers, `frontend`, `cli`, `mobile`, `library`) to the user-facing docs: `README.md` for `readme`, `<external_path>/**` for `folder`;
-  - everything else, and every component when user docs are `elsewhere` or `none`, to `docs/architecture.md`;
-  - when components talk, also the contract files in `architecture.contracts.paths` to `docs/architecture.md`.
+  - everything else, and every component when user docs are `elsewhere` or `none`, to `docs/specification.md`;
+  - when components talk, also the contract files in `architecture.contracts.paths` to `docs/specification.md`.
 
   Explain: the Stop hook blocks a change to a mapped path that leaves its docs untouched, so map only real public behavior, not all code. There is no code yet, so these are the usual places; the user can edit the mappings later in `docs/principles.toml` (`docs_map`). A kind with no usual paths (e.g. `ml`) gets no mapping; that's fine.
 

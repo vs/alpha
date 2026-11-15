@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Secrets never live in the repository ("No secrets in the repo"): locally they sit in `.env` files git ignores, and the Stop hook blocks a change that adds one. This area records where production secrets live, the auth approach, and any extra paths Claude must never edit (beyond secrets files and lockfiles, which are always protected). It all goes in `docs/security.md`.
+Secrets never live in the repository ("No secrets in the repo"): locally they sit in `.env` files git ignores, and the Stop hook blocks a change that adds one. This area records where production secrets live, the auth approach, and any extra paths Claude must never edit (beyond secrets files and lockfiles, which are always protected). Secrets and protected paths go in the Security section of `CONTRIBUTING.md`, and the auth in `docs/specification.md`.
 
 ## Fields this area settles
 

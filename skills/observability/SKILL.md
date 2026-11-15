@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-A deployed system fails where nobody is watching, so it must explain itself ("Observability"): structured logs, and one request followed across components. This applies only to deployed components (`traits.deployed`). With nothing deployed there is nothing to decide: say so in one line, save the empty answer, and finish, so a small project carries no ceremony. Deployed projects get `docs/observability.md`.
+A deployed system fails where nobody is watching, so it must explain itself ("Observability"): structured logs, and one request followed across components. This applies only to deployed components (`traits.deployed`). With nothing deployed there is nothing to decide: say so in one line, save the empty answer, and finish, so a small project carries no ceremony. Deployed projects get an Observability section in `docs/specification.md`.
 
 ## Fields this area settles
 
