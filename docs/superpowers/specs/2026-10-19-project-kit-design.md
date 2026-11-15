@@ -593,12 +593,14 @@ fail-helpfully principle: what's wrong, and how to fix it.
 - `commit-msg`: type, scope format, subject length, imperative mood →
   reject. The project's scopes are suggestions; any well-formed scope passes,
   so an area outside the list (pstack's habit) works too.
-- `--no-verify` (or an abbreviation of it), `core.hooksPath` overridden
-  through `-c`, `--config-env` or `GIT_CONFIG_*`, a plain `--force` push, a
-  `--force-with-lease` push to the main branch, and `--amend` of a commit
-  already on the remote main → block
+- `--no-verify`, `git config` changing `core.hooksPath`, a plain `--force`
+  push, a `--force-with-lease` push to the main branch, and `--amend` of a
+  commit already on the remote main → block
   (for Claude, via Claude Code hooks; see §9). Claude may rebase its own
-  branch and push it with `--force-with-lease`.
+  branch and push it with `--force-with-lease`. The guard catches habits,
+  not evasion: it reads git commands as written, not inside `bash -c`,
+  `eval` or wrappers, since a script file gets past any parser (decision
+  0036).
 - Git commands that stage, stash or discard changes nobody named (`git add
   -A`/`.`, `commit -a`, `reset --hard` while tracked files have uncommitted
   changes, `checkout .`/`restore .`, `stash`) → block (for Claude); `git clean` stays allowed, except `-x`/`-X`. The tree may hold the
@@ -830,7 +832,8 @@ only the folder the session started in. So each git worktree has its own
 checks and review state. Review starts where the branch leaves main, not at
 its pushed commit, since a feature branch can be pushed before review; a
 rebase onto main, or a merge of main, carries the review along. `gh pr merge`
-is checked in the worktree that has the pull request's branch.
+is checked in the worktree that has the pull request's branch; a merge alpha
+can't place in a checkout here isn't blocked (decision 0036).
 
 **Who it binds (user decision):** review-before-main and the git guardrails
 (no `--no-verify`, no plain force-push, no rewriting main, nothing that

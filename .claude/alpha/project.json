@@ -147,8 +147,9 @@
             "run": "uv run pytest -k \"abbreviated_no_verify or env_hooks_path or config_env\""
           }
         ],
-        "status": "done",
-        "branch": "alpha/p4-guard-hook-bypasses"
+        "status": "dropped",
+        "branch": "alpha/p4-guard-hook-bypasses",
+        "decision": 36
       },
       {
         "id": "p4-relative-license-file",
@@ -1015,8 +1016,9 @@
                 "run": "uv run pytest -k \"abbreviated_no_verify or env_hooks_path or config_env\""
               }
             ],
-            "status": "done",
-            "branch": "alpha/p4-guard-hook-bypasses"
+            "status": "dropped",
+            "branch": "alpha/p4-guard-hook-bypasses",
+            "decision": 36
           },
           {
             "id": "p4-relative-license-file",
@@ -1783,11 +1785,11 @@
       ".claude/skills/review-change/SKILL.md": "sha256:90274b8e152cd7f910dde444aee9bd463d56865c4db18be6ccae58a691a2cc16",
       ".gitignore": "sha256:9be686545b4216343ef6d4537ddf799bc0329ac88ecbfcc4856b2377d0eec821",
       ".rumdl.toml": "sha256:f19f0dada5082aa3f2fffff55f0f976e0ced4ffdfd1b1d3ddd3e4b3a9575bcad",
-      "CLAUDE.md": "sha256:97bad9566aef53da255807ba13ef6c1f6c1e773328a84e331cc8e32561e3a013",
+      "CLAUDE.md": "sha256:a541caec8d4fd248e91cedd19d917783f438c82e47a213e193cdcf7fac5af67d",
       "CONTRIBUTING.md": "sha256:83cf965209184e7a650f4274359b9a12b5ee036215db3953612da017d005b89b",
-      "README.md": "sha256:a0f932d41a23ddaa94e6316b840403d6c1e963c21dc51496a008323319c58718",
+      "README.md": "sha256:834070dd73f75fc607a6c4ffd4b72e1e3abf6af48498ebfdcfd5547ae8efb06b",
       "_typos.toml": "sha256:7dae72444e3298536402e16e40864fc21ceebe37d52d37ef8b3c9678eb4cf21b",
-      "docs/adoption.md": "sha256:b66e5953f15980a4d6bd340eb9f51c0d538bd0e4616834eabfdc22177c508273",
+      "docs/adoption.md": "sha256:0e6d587b163ed3251b5f0322230a5daf439bc23d9c72c12841dbe455bac4c95c",
       "docs/architecture.md": "sha256:cfe697661c9ff2d56ebf4ea904c4cdd4c812da2514d388a880c0350c7fdd5649",
       "docs/build.md": "sha256:1989a6f6d23296f92d8e9e68401b43f5e07f865e5ca5ba5b93b04d0201dce55e",
       "docs/data.md": "sha256:ada50e4034585f01e461e0ac21fddf40c78dd38c129a06cadf79a00b283b537f",
