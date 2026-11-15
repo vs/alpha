@@ -431,6 +431,8 @@ def check_review(root: Path) -> None:
 
 
 MERGE_VALUE_FLAGS = {
+    "-R",
+    "--repo",
     "-t",
     "--subject",
     "-b",
@@ -646,7 +648,11 @@ def main_sources(root: Path, raw_args: list[str]) -> list[str]:
         if skip:
             skip = False
         elif arg in PUSH_EVERY_BRANCH:
-            return sorted(main_branches(root))
+            return sorted(
+                name
+                for name in main_branches(root)
+                if git_output(root, "rev-parse", "--verify", "-q", f"refs/heads/{name}")
+            )
         elif arg in PUSH_VALUE_FLAGS:
             skip = True
         elif not arg.startswith("-"):
