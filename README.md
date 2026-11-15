@@ -29,7 +29,7 @@ claude plugin install alpha@alpha
 
 alpha asks one question at a time, each with a recommended answer. A choice
 comes in Claude Code's question dialog, the recommendation first; a draft,
-such as the project's name or requirements, comes as text ending in the
+such as the project's name or value proposition, comes as text ending in the
 recommended answer, for you to confirm or rewrite.
 
 ## What you get
@@ -51,7 +51,7 @@ states, and the source of the UI's tokens. Until then, alpha enforces and
 recommends nothing about how visuals look. Which files count as visuals is the `[visuals]`
 list in `docs/principles.toml` (diagram sources, SVG, styles, tokens, chart
 specs; docs and UI markup when a change touches something visual; images and
-fonts are named but can't be read). The interview asks for the paths of
+fonts are named but can't be read). Settling it asks for the paths of
 third-party assets, such as partner logos, and leaves them out.
 
 It guides; it isn't a wall. A visual may step outside it for a stated reason,
