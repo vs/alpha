@@ -138,11 +138,13 @@ def status(target: Path) -> Status:
     if answers is not None:
         return Status("interview", "an interview is under way; it resumes")
     entries = _entries(target)
-    in_repo = git_output(target, "rev-parse", "--show-toplevel") is not None
+    top = git_output(target, "rev-parse", "--show-toplevel")
+    in_repo = top is not None
     head = (
         git_output(target, "rev-parse", "--verify", "-q", "HEAD") if in_repo else None
     )
-    if not entries and head is None:
+    inside_another = top is not None and Path(top).resolve() != target.resolve()
+    if not entries and (head is None or inside_another):
         return Status("empty")
     if not in_repo:
         return Status(
