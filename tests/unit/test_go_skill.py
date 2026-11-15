@@ -125,4 +125,7 @@ def test_open_areas_are_settled_by_specify_and_before_a_feature():
     assert "Nothing is settled yet." in before
     after = feature.split("approval of the spec, every time")[1]
     assert after.index("git switch -c") < after.index("Specify playbook's steps 3")
+    assert "saves them without asking again" in after
+    extend = (PLUGIN_ROOT / "skills" / "extend" / "SKILL.md").read_text()
+    assert "Answers an approved feature spec already records" in extend
     assert "`open`" in _router().split("## 2. Pick the playbook")[0]
