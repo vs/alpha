@@ -53,7 +53,7 @@ def dbmate(data: dict[str, Any]) -> None:
     data["data"]["components"][0]["migrations"] = ["api/db/migrations/**"]
 
 
-def test_catalog_web_api(tmp_path: Path):
+def test_R12_2_every_check_is_wired(tmp_path: Path):
     a, data = scenario(tmp_path, "web-ts-plus-python-api")
     principles = build_principles(D, a, "0.1.0", registry=REGISTRY)
     got = [c.id for c in repo_checks(a, principles, REGISTRY)]

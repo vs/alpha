@@ -19,7 +19,7 @@ from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import load_project_principles
 from alpha.gitops import commit
-from alpha.recipes import recipe_hash
+from alpha.recipes import record_proof
 
 GenerateScenario = Callable[[Path, str], list[str]]
 
@@ -229,8 +229,12 @@ def shell_recipe() -> dict[str, Any]:
     }
 
 
-def proven(recipe: dict[str, Any]) -> dict[str, Any]:
-    return {**recipe, "proven_hash": recipe_hash(recipe)}
+def prove(target: Path) -> None:
+    """What `alpha recipe try` records for each drafted recipe in the
+    project's answers once it passes: its proof, in local state."""
+    data = json.loads((target / PROJECT_JSON).read_text())
+    for stack, fields in data.get("recipes", {}).items():
+        record_proof(target, stack, fields)
 
 
 # --- an existing repo to adopt (spec §5b) ---
@@ -272,11 +276,12 @@ def adoption_answers(target: Path, **adoption: Any) -> dict[str, Any]:
     data: dict[str, Any] = json.loads((SCENARIOS / "python-ml-single.json").read_text())
     data["components"][0]["stack"] = "ml-python"
     data["identity"]["license_file"] = "LICENSE"
-    data["recipes"] = {"ml-python": proven({"adopted": True, "extends": "python"})}
+    data["recipes"] = {"ml-python": {"adopted": True, "extends": "python"}}
     data["adoption"] = {"git_hooks": "alpha", **adoption}
     path = target / ".claude" / "alpha" / "project.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2))
+    prove(target)
     return data
 
 

@@ -122,7 +122,7 @@ def _extra_files(target: Path, license_file: str | None) -> list[str]:
     def walk(folder: Path) -> None:
         for entry in folder.iterdir():
             rel = entry.relative_to(target).as_posix()
-            if entry.name == ".DS_Store" or rel == ".git":
+            if entry.name == ".DS_Store" or rel in (".git", ".claude/alpha/state"):
                 continue
             if rel in _NEW_FOLDER_DIRS and entry.is_dir() and not entry.is_symlink():
                 walk(entry)

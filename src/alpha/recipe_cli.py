@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha import toml_write
-from alpha.answers import PROJECT_JSON, AnswersError, drafted_recipes, write_answers
+from alpha.answers import PROJECT_JSON, AnswersError, drafted_recipes
 from alpha.baseline import Baseline, findings
 from alpha.defaults import USER_RECIPES, DefaultsError, Source
 from alpha.recipes import (
@@ -16,7 +16,9 @@ from alpha.recipes import (
     RecipeBook,
     check_commands,
     matches,
+    read_proofs,
     recipe_hash,
+    record_proof,
     render_template,
 )
 from alpha.shell import Ran, run_command
@@ -306,7 +308,7 @@ def try_recipe(target: Path, stack: str, report: list[str] | None = None) -> str
     if recipe.adopted:
         problem = _try_adopted(target, stack, recipe, [] if report is None else report)
         if problem is None:
-            _save_proof(target, stack, data)
+            record_proof(target, stack, data)
         return problem
     with tempfile.TemporaryDirectory(prefix="alpha-try-") as scratch:
         root = Path(scratch)
@@ -354,14 +356,8 @@ def try_recipe(target: Path, stack: str, report: list[str] | None = None) -> str
                 f'(e.g. an init command), save it, and run "alpha recipe try {target} '
                 f'{stack}" again.'
             )
-    _save_proof(target, stack, data)
+    record_proof(target, stack, data)
     return None
-
-
-def _save_proof(target: Path, stack: str, data: dict[str, Any]) -> None:
-    drafted = _drafted(target)
-    drafted[stack] = {**data, "proven_hash": recipe_hash(data)}
-    write_answers(target, json.dumps({"recipes": drafted}))
 
 
 def _template_name(rel: str) -> str:
@@ -375,7 +371,7 @@ def save_recipe(target: Path, stack: str, source: Source) -> Path:
             "ALPHA_CONFIG_DIR to one, then retry."
         )
     data = check(target, stack)
-    if data.get("proven_hash") != recipe_hash(data):
+    if read_proofs(target).get(stack) != recipe_hash(data):
         raise AnswersError(
             f'recipes.{stack}: not proven since it last changed. Run "alpha recipe '
             f'try {target} {stack}" until it prints ok, then save it.'
@@ -395,9 +391,7 @@ def save_recipe(target: Path, stack: str, source: Source) -> Path:
     answers = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
     slug = str(answers.get("identity", {}).get("slug") or target.name)
     templates: dict[str, str] = dict(data["templates"])
-    fields = {
-        k: v for k, v in data.items() if k not in ("templates", "proven_hash", "proven")
-    }
+    fields = {k: v for k, v in data.items() if k not in ("templates", "proven")}
     toml = {"stack": stack, "proven": False, **fields}
     toml["files"] = {rel: _template_name(rel) for rel in templates}
     try:

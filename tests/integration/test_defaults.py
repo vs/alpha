@@ -187,7 +187,7 @@ def test_checked_by_prefixes_are_known():
                 assert not name
 
 
-def test_your_defaults_layer_over_the_kit(tmp_path: Path):
+def test_R12_1_a_user_default_wins(tmp_path: Path):
     src = make_source(tmp_path / "src")
     assert src.user is not None
     src.user.mkdir()

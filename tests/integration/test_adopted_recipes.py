@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import git, proven, run_cli, shell_recipe
+from helpers import git, run_cli, shell_recipe
 
 from alpha import recipe_cli
 from alpha.answers import AnswersError, drafted_recipes
-from alpha.recipes import RecipeBook, recipe_hash
+from alpha.recipes import RecipeBook, read_proofs, recipe_hash
 
 KIT = RecipeBook().data("python")
 
@@ -107,11 +107,11 @@ def test_extends_needs_adopted():
 
 def test_adopted_hash_covers_the_entry():
     entry = adopted(commands={"typecheck": "uv run mypy ."})
-    drafted_recipes({"api-python": proven(entry)}, require_proven=True)
-    changed = {**proven(entry), "extends": "typescript"}
-    assert recipe_hash(changed) != changed["proven_hash"]
+    proofs = {"api-python": recipe_hash(entry)}
+    drafted_recipes({"api-python": entry}, require_proven=True, proofs=proofs)
+    changed = {**entry, "extends": "typescript"}
     with pytest.raises(AnswersError, match="not proven since it last changed"):
-        drafted_recipes({"api-python": changed}, require_proven=True)
+        drafted_recipes({"api-python": changed}, require_proven=True, proofs=proofs)
 
 
 # --- proving an adopted recipe on the repo (alpha recipe try) ---
@@ -159,7 +159,8 @@ def test_try_adopted_proves_on_head(tmp_path: Path, git_env: None):
     assert _try(root, report) is None
     assert report[0].startswith("on svc at ")
     saved = json.loads((root / ".claude/alpha/project.json").read_text())
-    assert "proven_hash" in saved["recipes"]["svc-sh"]
+    assert "proven_hash" not in saved["recipes"]["svc-sh"]
+    assert "svc-sh" in read_proofs(root)
     assert (root / "svc" / "app.txt").read_text() == "edited\n"
 
 

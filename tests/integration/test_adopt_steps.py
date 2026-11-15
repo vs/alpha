@@ -8,7 +8,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, git, proven, run_cli
+from helpers import (
+    PLUGIN_ROOT,
+    adoption_answers,
+    existing_repo,
+    git,
+    prove,
+    run_cli,
+)
 
 from alpha import adopt, apply
 from alpha.adopt import AdoptError, done, drop, gaps, merge_steps, next_step
@@ -114,6 +121,7 @@ def gap_answers(tmp_path: Path, **adoption: Any) -> Any:
 
 def _load(tmp_path: Path, data: dict[str, Any]) -> Any:
     (tmp_path / PROJECT).write_text(json.dumps(data))
+    prove(tmp_path)
     return load_answers(tmp_path / PROJECT)
 
 
@@ -124,7 +132,7 @@ def test_gaps_from_baselines_and_recipe(tmp_path: Path):
         "extends": "python",
         "commands": {"format_check": "", "lint": "", "lint_file": ""},
     }
-    data["recipes"] = {"ml-python": proven(recipe)}
+    data["recipes"] = {"ml-python": recipe}
     found = gaps(_load(tmp_path, data), DEFAULTS)
     assert [s["id"] for s in found] == [
         "p1-format-ml",
@@ -161,7 +169,7 @@ def test_no_gaps_for_a_compliant_project(tmp_path: Path):
         "coverage": "uv run pytest --cov",
         "coverage_report": "coverage.xml",
     }
-    data["recipes"] = {"ml-python": proven(recipe)}
+    data["recipes"] = {"ml-python": recipe}
     assert gaps(_load(tmp_path, data), DEFAULTS) == []
 
 
