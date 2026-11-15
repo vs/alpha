@@ -1,6 +1,6 @@
 ---
 name: agent-workflow
-description: Settle how agents' work gets reviewed in a new alpha project - review mode, size thresholds that trigger a review, and extra risky paths. Use only inside an alpha project interview (/alpha:new-project) or alpha:extend or /alpha:adopt or when the user asks to revisit the agent workflow of a project alpha is setting up.
+description: Settle which extra paths count as risky in a new alpha project - a review finding on one is accepted only by the user. Use only inside an alpha project interview (/alpha:new-project) or alpha:extend or /alpha:adopt or when the user asks to revisit the agent workflow of a project alpha is setting up.
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -18,35 +18,18 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Decide when the agents' changes get a judgment-based review against the project's principles: once, before they reach main; in batches once a change grows past a size threshold or touches a risky path; or after every task. The cheap mechanical checks (hooks on every edit, stop and commit) are always on and need no answers here.
-
-The project gets a principles-reviewer agent that reads these settings from the principles file. It runs before work reaches main (a push to main, or merging a pull request) in every mode; in batched mode also when the unreviewed changes cross the thresholds or touch a risky path, and in every-task mode after every task. Its findings stop Claude from finishing until they're fixed or accepted (Claude may accept one it disproves, except on a risk path, where only the user does), and every acceptance is recorded as an `Accepts:` trailer in the commit that settles it.
+The principles-reviewer agent runs once, before work reaches main (a push to main, or merging a pull request). The cheap mechanical checks (hooks on every edit, at Stop and on commit) are always on and need no answers here. A finding on a risk path is accepted only by the user; Claude may accept another one it disproves, recorded as an `Accepts:` trailer in the commit that settles it. This area adds the project's own risk paths to the kit's.
 
 ## Fields this area settles
 
-- `agent_workflow.review_mode` - `"at-merge"`, `"batched"` or `"every-task"`.
-- `agent_workflow.max_lines` - a whole number above 0.
-- `agent_workflow.max_files` - a whole number above 0.
 - `agent_workflow.extra_risk_paths` - a list of globs, often empty.
 - `areas.agent_workflow` - `"in_progress"` while you work, `"done"` at the end.
 
 ## Questions
 
-Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds.
+Run this with the `alpha:grilling` skill (invoke it with the Skill tool and follow it):
 
-Round 1:
-
-- **Review mode** - recommend `defaults.review.mode`. Explain each in one line: `at-merge` reviews once, when the work is ready to reach main (fits workflows like pstack that verify the finished change once); `batched` also reviews during the work, once the pending changes cross a threshold or touch a risky path; `every-task` reviews after every finished task (slowest, but nothing waits until the end).
-- **Extra risk paths** - show the kit's risk paths from `defaults.review.risk_paths` (changes there always trigger a review) and recommend adding none. Explain in one line: add globs for files where a mistake is costly, e.g. `api/billing/**`. Use `**` for any depth; write each alternative as its own glob, no `{a,b}` braces.
-
-Round 2 (only when the mode is `batched`):
-
-- **Max lines** - recommend `defaults.review.max_lines`. Explain in one line: a review starts once this many lines have changed since the last one (tests and docs, `defaults.review.exclude`, don't count).
-- **Max files** - recommend `defaults.review.max_files`. Explain in one line: a review starts once this many files have changed, even when each change is small.
-
-With `at-merge` or `every-task`, still record `max_lines` and `max_files` at the defaults without asking, so switching to `batched` later changes only the mode.
-
-When an answer differs from a default, follow the grilling skill's override protocol (keys `review.mode`, `review.max_lines`, `review.max_files`; extra risk paths are per project, so they don't go through the protocol).
+- **Extra risk paths** - show the kit's risk paths from `defaults.review.risk_paths` and recommend adding none. Explain in one line: add globs for files where a mistake is costly, e.g. `api/billing/**`. Use `**` for any depth; write each alternative as its own glob, no `{a,b}` braces. They are per project, so they don't go through the grilling skill's override protocol.
 
 ## Writing the answers
 
@@ -58,7 +41,7 @@ Each top-level key you send replaces that key in project.json; the others stay a
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `agent_workflow` set to `"in_progress"`.
-3. When the user confirms the area, save the `agent_workflow` object `{"review_mode", "max_lines", "max_files", "extra_risk_paths"}`. Keep the exact field names.
+3. When the user confirms the area, save the `agent_workflow` object `{"extra_risk_paths"}`. Keep the exact field names.
 4. In the same call, save `areas` with `agent_workflow` set to `"done"`.
 
 ## Check

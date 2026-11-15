@@ -37,7 +37,6 @@ ERROR_FORMATS: tuple[str, ...] = (
     "other",
 )
 TEST_LEVELS: tuple[str, ...] = ("unit", "integration", "end-to-end", "contract")
-TEST_RUNS: tuple[str, ...] = ("at-merge", "at-stop")
 UPDATE_TOOLS: tuple[str, ...] = ("dependabot", "manual")
 SCHEDULES: tuple[str, ...] = ("daily", "weekly", "monthly")
 LOG_FORMATS: tuple[str, ...] = ("json", "logfmt")
@@ -100,13 +99,11 @@ class Testing:
     components: tuple[TestPlan, ...]
     diff_coverage: int | None = None
     exhaustive: bool | None = None
-    run: str | None = None
 
 
 @dataclass(frozen=True)
 class Security:
     secret_store: str
-    auth: str
     extra_protected: tuple[str, ...]
 
 
@@ -384,8 +381,13 @@ def testing(raw: object, comps: "Sequence[Component] | None", talk: bool) -> Tes
                 "Use e.g. 80, or 0 for no check; leave the field out for the default",
             )
     exhaustive = boolean(d, "exhaustive", w) if "exhaustive" in d else None
-    run = choice(d, "run", w, TEST_RUNS) if "run" in d else None
-    return Testing(tuple(entries), diff_coverage, exhaustive, run)
+    if "run" in d:
+        raise fail(
+            f"{w}.run",
+            "is gone: each changed component's full suite runs once before main",
+            "Remove it",
+        )
+    return Testing(tuple(entries), diff_coverage, exhaustive)
 
 
 def security(raw: object, comps: "Sequence[Component] | None") -> Security:
@@ -405,7 +407,13 @@ def security(raw: object, comps: "Sequence[Component] | None") -> Security:
     protected = strings(d, "extra_protected", w)
     for i, glob in enumerate(protected):
         relative(glob, f"{w}.extra_protected[{i}]")
-    return Security(store, string(d, "auth", w, blank=True), protected)
+    if "auth" in d:
+        raise fail(
+            f"{w}.auth",
+            "belongs to the auth area, which /alpha:specify settles",
+            "Remove it",
+        )
+    return Security(store, protected)
 
 
 def dependencies(raw: object) -> Dependencies:

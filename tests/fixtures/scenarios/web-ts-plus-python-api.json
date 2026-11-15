@@ -3,44 +3,32 @@
   "areas": {
     "identity": "done",
     "components": "done",
-    "architecture": "done",
-    "errors": "done",
     "testing": "done",
-    "design_language": "done",
-    "ui": "done",
     "documentation": "done",
     "build": "done",
     "security": "done",
     "dependencies": "done",
-    "observability": "done",
     "releases": "done",
-    "data": "done",
-    "accessibility": "done",
-    "performance": "done",
     "git": "done",
-    "agent_workflow": "done"
+    "agent_workflow": "done",
+    "requirements": "done",
+    "architecture": "done",
+    "errors": "done",
+    "design_language": "done",
+    "ui": "done",
+    "accessibility": "done",
+    "observability": "done",
+    "data": "done",
+    "performance": "done",
+    "auth": "done"
   },
   "identity": {
     "name": "Pico Trust",
     "slug": "pico-trust",
     "value_proposition": "Hide short trust signals inside ordinary images so they survive re-sharing.",
-    "target_users": "Journalists and fact-checkers who publish photos and need provenance to travel with them.",
-    "requirements": [
-      {
-        "id": "R1",
-        "text": "A user can embed a signed trust payload into an image.",
-        "acceptance": "Given a PNG and a payload, when the user embeds it, then the returned image decodes back to the same payload."
-      },
-      {
-        "id": "R2",
-        "text": "A user can verify an image from the browser.",
-        "acceptance": "Given an embedded image, when the user opens it in the web app, then the app shows the payload and whether it is intact."
-      }
-    ],
     "license": "MIT",
     "license_file": null,
-    "copyright_holder": "Semyon Vadishev",
-    "domain_jargon": false
+    "copyright_holder": "Semyon Vadishev"
   },
   "layout": "monorepo",
   "components_talk": true,
@@ -83,9 +71,6 @@
     "branching": "trunk"
   },
   "agent_workflow": {
-    "review_mode": "batched",
-    "max_lines": 200,
-    "max_files": 5,
     "extra_risk_paths": []
   },
   "architecture": {
@@ -202,7 +187,6 @@
   },
   "security": {
     "secret_store": "Fly.io secrets",
-    "auth": "API keys for publishers; verification is public.",
     "extra_protected": [
       "api/keys/**"
     ]
@@ -336,5 +320,24 @@
       "params": {},
       "reason": "The api is a single-process prototype; structured logs are enough until it is deployed beyond one host."
     }
-  ]
+  ],
+  "requirements": {
+    "target_users": "Journalists and fact-checkers who publish photos and need provenance to travel with them.",
+    "items": [
+      {
+        "id": "R1",
+        "text": "A user can embed a signed trust payload into an image.",
+        "acceptance": "Given a PNG and a payload, when the user embeds it, then the returned image decodes back to the same payload."
+      },
+      {
+        "id": "R2",
+        "text": "A user can verify an image from the browser.",
+        "acceptance": "Given an embedded image, when the user opens it in the web app, then the app shows the payload and whether it is intact."
+      }
+    ],
+    "domain_jargon": false
+  },
+  "auth": {
+    "method": "API keys for publishers; verification is public."
+  }
 }

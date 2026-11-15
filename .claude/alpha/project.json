@@ -419,21 +419,23 @@
   "areas": {
     "identity": "done",
     "components": "done",
-    "architecture": "done",
-    "errors": "done",
     "testing": "done",
-    "ui": "done",
     "documentation": "done",
     "build": "done",
     "security": "done",
     "dependencies": "done",
-    "observability": "done",
     "releases": "done",
-    "data": "done",
-    "accessibility": "done",
-    "performance": "done",
     "git": "done",
-    "agent_workflow": "done"
+    "agent_workflow": "done",
+    "requirements": "done",
+    "architecture": "done",
+    "errors": "done",
+    "ui": "done",
+    "accessibility": "done",
+    "observability": "done",
+    "data": "done",
+    "performance": "done",
+    "auth": "done"
   },
   "overrides": [
     {
@@ -448,53 +450,9 @@
     "name": "alpha",
     "slug": "alpha",
     "value_proposition": "alpha interviews you about a new project, then writes what agents build on: principles, docs, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code, and each principle is checked, by a hook or by a reviewer agent, before a change reaches main.",
-    "target_users": "Developers building with Claude Code who want agents to follow enforced engineering principles from day one: starting a new project from an enforced skeleton, or bringing an existing repo under the same rules without stopping its work.",
-    "requirements": [
-      {
-        "id": "R1",
-        "text": "Interview the user about the setup areas, recommending answers from the kit defaults, and save them to project.json; the spec areas stay open for /alpha:go.",
-        "acceptance": "Given an empty folder, when /alpha:new-project runs and the user accepts each recommendation, then project.json has every setup area done and every spec area open, and alpha answers check prints ok."
-      },
-      {
-        "id": "R2",
-        "text": "From finished answers, generate, bootstrap and commit a skeleton (config, docs, test wiring, enforcement, no app code) whose checks pass.",
-        "acceptance": "Given finished answers, when alpha generate, bootstrap and commit-skeleton run, then the project has no app source files, every component check and mise run ci pass, and the tree is clean."
-      },
-      {
-        "id": "R3",
-        "text": "Enforce each active principle in a generated project through Claude Code hooks, git hooks, CI or the principles reviewer.",
-        "acceptance": "Given a generated project, when an agent skips git hooks, edits a protected file or stops with untested source, then the matching hook blocks it with a message naming the fix."
-      },
-      {
-        "id": "R4",
-        "text": "Bring an existing repo under the same enforcement on alpha/adopt, with legacy findings baselined and a compliance plan to work through.",
-        "acceptance": "Given a clean repo with legacy lint findings, when alpha adopt apply and bootstrap --capture-baselines run, then the files alpha writes are committed on alpha/adopt, the existing findings pass as baselined, and a new finding fails its check."
-      },
-      {
-        "id": "R5",
-        "text": "Change the answers of a generated or adopted project and merge the result without overwriting edits the user made.",
-        "acceptance": "Given a generated project with a hand edit in CLAUDE.md, when an answer changes and alpha update and commit-update run, then the change is applied, the edit survives, and a second update --dry-run prints nothing to change."
-      },
-      {
-        "id": "R6",
-        "text": "Support any stack through recipes: the ones the kit ships (Python, TypeScript, Rust) or drafted ones that must be proven before use.",
-        "acceptance": "Given a stack the kit has no recipe for, when a drafted recipe is saved, then answers check refuses it until alpha recipe try proves it, and again after any later edit."
-      },
-      {
-        "id": "R7",
-        "text": "Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates.",
-        "acceptance": "Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults."
-      },
-      {
-        "id": "R8",
-        "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, docs and checks; a feature is built from a spec with its tests that the user approves.",
-        "acceptance": "Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end."
-      }
-    ],
     "license": "MIT",
     "license_file": "LICENSE",
-    "copyright_holder": "Semyon Vadishev",
-    "domain_jargon": true
+    "copyright_holder": "Semyon Vadishev"
   },
   "layout": "single",
   "components_talk": false,
@@ -672,7 +630,6 @@
   },
   "security": {
     "secret_store": "",
-    "auth": "none",
     "extra_protected": []
   },
   "dependencies": {
@@ -732,9 +689,6 @@
     "branching": "feature-branches"
   },
   "agent_workflow": {
-    "review_mode": "at-merge",
-    "max_lines": 200,
-    "max_files": 5,
     "extra_risk_paths": []
   },
   "manifest": {
@@ -1167,21 +1121,23 @@
       "areas": {
         "identity": "done",
         "components": "done",
-        "architecture": "done",
-        "errors": "done",
         "testing": "done",
-        "ui": "done",
         "documentation": "done",
         "build": "done",
         "security": "done",
         "dependencies": "done",
-        "observability": "done",
         "releases": "done",
-        "data": "done",
-        "accessibility": "done",
-        "performance": "done",
         "git": "done",
-        "agent_workflow": "done"
+        "agent_workflow": "done",
+        "requirements": "done",
+        "architecture": "done",
+        "errors": "done",
+        "ui": "done",
+        "accessibility": "done",
+        "observability": "done",
+        "data": "done",
+        "performance": "done",
+        "auth": "done"
       },
       "overrides": [
         {
@@ -1196,53 +1152,9 @@
         "name": "alpha",
         "slug": "alpha",
         "value_proposition": "alpha interviews you about a new project, then writes what agents build on: principles, docs, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code, and each principle is checked, by a hook or by a reviewer agent, before a change reaches main.",
-        "target_users": "Developers building with Claude Code who want agents to follow enforced engineering principles from day one: starting a new project from an enforced skeleton, or bringing an existing repo under the same rules without stopping its work.",
-        "requirements": [
-          {
-            "id": "R1",
-            "text": "Interview the user about the setup areas, recommending answers from the kit defaults, and save them to project.json; the spec areas stay open for /alpha:go.",
-            "acceptance": "Given an empty folder, when /alpha:new-project runs and the user accepts each recommendation, then project.json has every setup area done and every spec area open, and alpha answers check prints ok."
-          },
-          {
-            "id": "R2",
-            "text": "From finished answers, generate, bootstrap and commit a skeleton (config, docs, test wiring, enforcement, no app code) whose checks pass.",
-            "acceptance": "Given finished answers, when alpha generate, bootstrap and commit-skeleton run, then the project has no app source files, every component check and mise run ci pass, and the tree is clean."
-          },
-          {
-            "id": "R3",
-            "text": "Enforce each active principle in a generated project through Claude Code hooks, git hooks, CI or the principles reviewer.",
-            "acceptance": "Given a generated project, when an agent skips git hooks, edits a protected file or stops with untested source, then the matching hook blocks it with a message naming the fix."
-          },
-          {
-            "id": "R4",
-            "text": "Bring an existing repo under the same enforcement on alpha/adopt, with legacy findings baselined and a compliance plan to work through.",
-            "acceptance": "Given a clean repo with legacy lint findings, when alpha adopt apply and bootstrap --capture-baselines run, then the files alpha writes are committed on alpha/adopt, the existing findings pass as baselined, and a new finding fails its check."
-          },
-          {
-            "id": "R5",
-            "text": "Change the answers of a generated or adopted project and merge the result without overwriting edits the user made.",
-            "acceptance": "Given a generated project with a hand edit in CLAUDE.md, when an answer changes and alpha update and commit-update run, then the change is applied, the edit survives, and a second update --dry-run prints nothing to change."
-          },
-          {
-            "id": "R6",
-            "text": "Support any stack through recipes: the ones the kit ships (Python, TypeScript, Rust) or drafted ones that must be proven before use.",
-            "acceptance": "Given a stack the kit has no recipe for, when a drafted recipe is saved, then answers check refuses it until alpha recipe try proves it, and again after any later edit."
-          },
-          {
-            "id": "R7",
-            "text": "Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates.",
-            "acceptance": "Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults."
-          },
-          {
-            "id": "R8",
-            "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, docs and checks; a feature is built from a spec with its tests that the user approves.",
-            "acceptance": "Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end."
-          }
-        ],
         "license": "MIT",
         "license_file": "LICENSE",
-        "copyright_holder": "Semyon Vadishev",
-        "domain_jargon": true
+        "copyright_holder": "Semyon Vadishev"
       },
       "layout": "single",
       "components_talk": false,
@@ -1420,7 +1332,6 @@
       },
       "security": {
         "secret_store": "",
-        "auth": "none",
         "extra_protected": []
       },
       "dependencies": {
@@ -1480,10 +1391,56 @@
         "branching": "feature-branches"
       },
       "agent_workflow": {
-        "review_mode": "at-merge",
-        "max_lines": 200,
-        "max_files": 5,
         "extra_risk_paths": []
+      },
+      "requirements": {
+        "target_users": "Developers building with Claude Code who want agents to follow enforced engineering principles from day one: starting a new project from an enforced skeleton, or bringing an existing repo under the same rules without stopping its work.",
+        "items": [
+          {
+            "id": "R1",
+            "text": "Interview the user about the setup areas, recommending answers from the kit defaults, and save them to project.json; the spec areas stay open for /alpha:go.",
+            "acceptance": "Given an empty folder, when /alpha:new-project runs and the user accepts each recommendation, then project.json has every setup area done and every spec area open, and alpha answers check prints ok."
+          },
+          {
+            "id": "R2",
+            "text": "From finished answers, generate, bootstrap and commit a skeleton (config, docs, test wiring, enforcement, no app code) whose checks pass.",
+            "acceptance": "Given finished answers, when alpha generate, bootstrap and commit-skeleton run, then the project has no app source files, every component check and mise run ci pass, and the tree is clean."
+          },
+          {
+            "id": "R3",
+            "text": "Enforce each active principle in a generated project through Claude Code hooks, git hooks, CI or the principles reviewer.",
+            "acceptance": "Given a generated project, when an agent skips git hooks, edits a protected file or stops with untested source, then the matching hook blocks it with a message naming the fix."
+          },
+          {
+            "id": "R4",
+            "text": "Bring an existing repo under the same enforcement on alpha/adopt, with legacy findings baselined and a compliance plan to work through.",
+            "acceptance": "Given a clean repo with legacy lint findings, when alpha adopt apply and bootstrap --capture-baselines run, then the files alpha writes are committed on alpha/adopt, the existing findings pass as baselined, and a new finding fails its check."
+          },
+          {
+            "id": "R5",
+            "text": "Change the answers of a generated or adopted project and merge the result without overwriting edits the user made.",
+            "acceptance": "Given a generated project with a hand edit in CLAUDE.md, when an answer changes and alpha update and commit-update run, then the change is applied, the edit survives, and a second update --dry-run prints nothing to change."
+          },
+          {
+            "id": "R6",
+            "text": "Support any stack through recipes: the ones the kit ships (Python, TypeScript, Rust) or drafted ones that must be proven before use.",
+            "acceptance": "Given a stack the kit has no recipe for, when a drafted recipe is saved, then answers check refuses it until alpha recipe try proves it, and again after any later edit."
+          },
+          {
+            "id": "R7",
+            "text": "Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates.",
+            "acceptance": "Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults."
+          },
+          {
+            "id": "R8",
+            "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, docs and checks; a feature is built from a spec with its tests that the user approves.",
+            "acceptance": "Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end."
+          }
+        ],
+        "domain_jargon": true
+      },
+      "auth": {
+        "method": "none"
       }
     },
     "added": {
@@ -1532,5 +1489,54 @@
       "mise.toml": "sha256:a6d3c71404ed1b4b1ace0f91001d7c84a8ccba8b2821ec8c636f1d31090f7af2"
     },
     "updated_at": "2026-11-15"
+  },
+  "requirements": {
+    "target_users": "Developers building with Claude Code who want agents to follow enforced engineering principles from day one: starting a new project from an enforced skeleton, or bringing an existing repo under the same rules without stopping its work.",
+    "items": [
+      {
+        "id": "R1",
+        "text": "Interview the user about the setup areas, recommending answers from the kit defaults, and save them to project.json; the spec areas stay open for /alpha:go.",
+        "acceptance": "Given an empty folder, when /alpha:new-project runs and the user accepts each recommendation, then project.json has every setup area done and every spec area open, and alpha answers check prints ok."
+      },
+      {
+        "id": "R2",
+        "text": "From finished answers, generate, bootstrap and commit a skeleton (config, docs, test wiring, enforcement, no app code) whose checks pass.",
+        "acceptance": "Given finished answers, when alpha generate, bootstrap and commit-skeleton run, then the project has no app source files, every component check and mise run ci pass, and the tree is clean."
+      },
+      {
+        "id": "R3",
+        "text": "Enforce each active principle in a generated project through Claude Code hooks, git hooks, CI or the principles reviewer.",
+        "acceptance": "Given a generated project, when an agent skips git hooks, edits a protected file or stops with untested source, then the matching hook blocks it with a message naming the fix."
+      },
+      {
+        "id": "R4",
+        "text": "Bring an existing repo under the same enforcement on alpha/adopt, with legacy findings baselined and a compliance plan to work through.",
+        "acceptance": "Given a clean repo with legacy lint findings, when alpha adopt apply and bootstrap --capture-baselines run, then the files alpha writes are committed on alpha/adopt, the existing findings pass as baselined, and a new finding fails its check."
+      },
+      {
+        "id": "R5",
+        "text": "Change the answers of a generated or adopted project and merge the result without overwriting edits the user made.",
+        "acceptance": "Given a generated project with a hand edit in CLAUDE.md, when an answer changes and alpha update and commit-update run, then the change is applied, the edit survives, and a second update --dry-run prints nothing to change."
+      },
+      {
+        "id": "R6",
+        "text": "Support any stack through recipes: the ones the kit ships (Python, TypeScript, Rust) or drafted ones that must be proven before use.",
+        "acceptance": "Given a stack the kit has no recipe for, when a drafted recipe is saved, then answers check refuses it until alpha recipe try proves it, and again after any later edit."
+      },
+      {
+        "id": "R7",
+        "text": "Apply the user layer (their own defaults and recipes) on top of the kit, surviving plugin updates.",
+        "acceptance": "Given a user override set with alpha defaults set, when the plugin is updated or a new interview starts, then alpha defaults show returns the override on top of the kit defaults."
+      },
+      {
+        "id": "R8",
+        "text": "Work a task in a generated or adopted project by a playbook that keeps its principles, docs and checks; a feature is built from a spec with its tests that the user approves.",
+        "acceptance": "Given a generated project, when /alpha:go asks for a feature, then a spec in docs/specs/ names a test for each acceptance check, nothing else is written before the user approves it, and every test it names passes at the end."
+      }
+    ],
+    "domain_jargon": true
+  },
+  "auth": {
+    "method": "none"
   }
 }

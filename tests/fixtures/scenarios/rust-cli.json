@@ -3,39 +3,32 @@
   "areas": {
     "identity": "done",
     "components": "done",
-    "architecture": "done",
-    "errors": "done",
     "testing": "done",
-    "design_language": "done",
-    "ui": "done",
     "documentation": "done",
     "build": "done",
     "security": "done",
     "dependencies": "done",
-    "observability": "done",
     "releases": "done",
-    "data": "done",
-    "accessibility": "done",
-    "performance": "done",
     "git": "done",
-    "agent_workflow": "done"
+    "agent_workflow": "done",
+    "requirements": "done",
+    "architecture": "done",
+    "errors": "done",
+    "design_language": "done",
+    "ui": "done",
+    "accessibility": "done",
+    "observability": "done",
+    "data": "done",
+    "performance": "done",
+    "auth": "done"
   },
   "identity": {
     "name": "Tidy",
     "slug": "tidy",
     "value_proposition": "Rename messy downloaded files into a consistent, sortable form.",
-    "target_users": "People whose download folders fill up with files named like IMG_2041 (3).JPG.",
-    "requirements": [
-      {
-        "id": "R1",
-        "text": "A user can rename every file in a folder to a date-prefixed, lowercase, hyphenated name.",
-        "acceptance": "Given a folder with files named 'IMG 2041 (3).JPG', when the user runs tidy on it, then the file is renamed to '2026-10-23-img-2041-3.jpg' and nothing else changes."
-      }
-    ],
     "license": "Apache-2.0",
     "license_file": null,
-    "copyright_holder": "Semyon Vadishev",
-    "domain_jargon": false
+    "copyright_holder": "Semyon Vadishev"
   },
   "layout": "single",
   "components_talk": false,
@@ -63,9 +56,6 @@
     "branching": "trunk"
   },
   "agent_workflow": {
-    "review_mode": "batched",
-    "max_lines": 200,
-    "max_files": 5,
     "extra_risk_paths": []
   },
   "architecture": {
@@ -126,7 +116,6 @@
   },
   "security": {
     "secret_store": "",
-    "auth": "none",
     "extra_protected": []
   },
   "dependencies": {
@@ -170,5 +159,19 @@
       }
     ]
   },
-  "overrides": []
+  "overrides": [],
+  "requirements": {
+    "target_users": "People whose download folders fill up with files named like IMG_2041 (3).JPG.",
+    "items": [
+      {
+        "id": "R1",
+        "text": "A user can rename every file in a folder to a date-prefixed, lowercase, hyphenated name.",
+        "acceptance": "Given a folder with files named 'IMG 2041 (3).JPG', when the user runs tidy on it, then the file is renamed to '2026-10-23-img-2041-3.jpg' and nothing else changes."
+      }
+    ],
+    "domain_jargon": false
+  },
+  "auth": {
+    "method": "none"
+  }
 }

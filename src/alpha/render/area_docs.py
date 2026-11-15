@@ -20,8 +20,9 @@ def _active(principles: dict[str, Any], principle_id: str) -> bool:
     )
 
 
-# What to ask /alpha:go for to settle each open spec area.
+# What to ask /alpha:go for to settle each open product area.
 SETTLE_REQUESTS: dict[str, tuple[str, str]] = {
+    "requirements": ("Target users and requirements", "settle the target users"),
     "architecture": ("Architecture", "settle the architecture"),
     "errors": ("Errors", "settle the error handling"),
     "design_language": ("Design language", "settle the design language"),
@@ -30,6 +31,7 @@ SETTLE_REQUESTS: dict[str, tuple[str, str]] = {
     "data": ("Data", "settle the data and migrations"),
     "accessibility": ("Accessibility", "settle the accessibility target"),
     "performance": ("Performance", "settle the performance budgets"),
+    "auth": ("Auth", "settle the auth"),
 }
 
 
@@ -183,12 +185,7 @@ def security_section(a: Answers, principles: dict[str, Any]) -> list[str]:
 
 
 def auth_section(a: Answers) -> list[str]:
-    assert a.security is not None
-    auth = a.security.auth or (
-        "Not settled yet: `/alpha:go settle the auth` settles it when the work "
-        "needs it."
-    )
-    return ["## Auth", "", auth]
+    return ["## Auth", "", a.auth.method if a.auth else not_settled("auth")]
 
 
 def dependency_policy(a: Answers) -> list[str]:

@@ -7,9 +7,8 @@ from alpha.answers import (
     Component,
     Documentation,
 )
-from alpha.areas import SETUP_AREAS
+from alpha.areas import INSTALL_AREAS
 from alpha.baseline import BASELINE_GLOB, ratchet_command
-from alpha.core_areas import TEST_RUNS
 from alpha.recipes import RecipeBook
 from alpha.registry import Registry, default_registry
 from alpha.repo_checks import PALETTE, RepoCheck, principles_entries, repo_checks
@@ -33,6 +32,9 @@ _PROJECT_ONLY = (
     "design_language",
 )
 VISUAL_KINDS = ("sources", "carriers", "opaque", "exclude", "palette_files")
+# The hooks review and run the full test suites only before work reaches main.
+REVIEW_AT_MERGE = "at-merge"
+TESTS_AT_MERGE = "at-merge"
 
 _HEADER = """\
 # Single source of truth for this project's principles, review thresholds,
@@ -69,7 +71,7 @@ def compute_facts(a: Answers, defaults: dict[str, Any]) -> dict[str, bool]:
     facts = {key: any(f[key] for f in per) for key in _COMPONENT_FACTS}
     facts["multi_component"] = multi
     facts["communicating_components"] = multi and a.components_talk
-    facts["domain_jargon"] = a.identity.domain_jargon if a.identity else False
+    facts["domain_jargon"] = a.requirements.domain_jargon if a.requirements else False
     facts["exhaustive_testing"] = exhaustive_testing(a, defaults)
     facts["design_language"] = bool(a.design_language and a.design_language.defined)
     return facts
@@ -129,21 +131,6 @@ def workspace_members(a: Answers, defaults: dict[str, Any]) -> frozenset[str]:
         for c in a.components
         if c.path != "." and book.get(c.stack).workspace is not None
     )
-
-
-def _test_run(a: Answers, defaults: dict[str, Any]) -> str:
-    """When the hooks run the full test suite: the answer when the interview
-    set one, else the kit's default. Defaults from before the setting keep
-    the suite at Stop."""
-    if a.testing is not None and a.testing.run is not None:
-        return a.testing.run
-    value = defaults.get("testing", {}).get("run", "at-stop")
-    if value not in TEST_RUNS:
-        raise AnswersError(
-            f"defaults: [testing] run is {value!r}. Use one of: "
-            f"{', '.join(TEST_RUNS)}, in defaults/defaults.toml."
-        )
-    return value
 
 
 def diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
@@ -208,7 +195,7 @@ def build_principles(
     registry: Registry | None = None,
 ) -> dict[str, Any]:
     missing = [
-        area for area in SETUP_AREAS if area != "components" and not getattr(a, area)
+        area for area in INSTALL_AREAS if area != "components" and not getattr(a, area)
     ]
     if missing:
         raise AnswersError(
@@ -229,10 +216,7 @@ def build_principles(
     )
     tokens = {u.name: u.tokens for u in a.ui.components} if a.ui else {}
     defined_language = a.design_language is not None and a.design_language.defined
-    review = dict(defaults["review"])
-    review["mode"] = a.agent_workflow.review_mode
-    review["max_lines"] = a.agent_workflow.max_lines
-    review["max_files"] = a.agent_workflow.max_files
+    review = {**defaults["review"], "mode": REVIEW_AT_MERGE}
     if a.performance is not None and a.performance.expected_load:
         review["expected_load"] = a.performance.expected_load
     review["risk_paths"] = _dedupe(
@@ -406,7 +390,7 @@ def build_principles(
         "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
         "testing": {
             "diff_coverage": diff_coverage(a, defaults),
-            "run": _test_run(a, defaults),
+            "run": TESTS_AT_MERGE,
             **({"exhaustive": True} if project["exhaustive_testing"] else {}),
         },
         "components": components,

@@ -18,12 +18,11 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Secrets never live in the repository ("No secrets in the repo"): locally they sit in `.env` files git ignores, and the Stop hook blocks a change that adds one. This area records where production secrets live, the auth approach, and any extra paths Claude must never edit (beyond secrets files and lockfiles, which are always protected). Secrets and protected paths go in the Security section of `CONTRIBUTING.md`, and the auth in `docs/specification.md`.
+Secrets never live in the repository ("No secrets in the repo"): locally they sit in `.env` files git ignores, and the Stop hook blocks a change that adds one. This area records where production secrets live and any extra paths Claude must never edit (beyond secrets files and lockfiles, which are always protected). Both go in the Security section of `CONTRIBUTING.md`. How users prove who they are is the auth area, which install leaves open.
 
 ## Fields this area settles
 
 - `security.secret_store` - where production secrets live, in the user's words; `""` when nothing is deployed.
-- `security.auth` - who must prove who they are, and how; `"none"` is a valid answer, and `""` means not settled yet.
 - `security.extra_protected` - globs, relative to the project root, Claude may not edit; often `[]`.
 - `areas.security` - `"in_progress"` while you work, `"done"` at the end.
 
@@ -32,7 +31,6 @@ Secrets never live in the repository ("No secrets in the repo"): locally they si
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it). The questions are independent, so ask them in one round. None has a kit default: they're per project, so recommend from the answers so far and say it's your suggestion.
 
 - **Secret store** - ask only when a component is deployed. Recommend the secret manager of the hosting the user chose in the build area (`build.components[].hosting`), and mention one or two alternatives as examples. With nothing deployed, save `""` and say in one line that local `.env` files are enough until something is deployed.
-- **Auth** - ask only when the answer is plain from the components: `none` for a local CLI, a library or a pipeline. Otherwise it's part of the product's specification: save `""` without asking, and `/alpha:go settle the auth` settles it when the work needs it. When `alpha:extend` sends you here for it, ask who must prove who they are (end users, other services, admins) and how (sessions, API keys, OAuth, none), and record the user's words.
 - **Extra protected paths** - recommend none. Explain: Claude can't edit protected paths, so they suit files where a careless change is costly (e.g. `api/keys/**`, signed migration snapshots). alpha refuses a glob that covers files its own checks may require changing, such as docs or package manifests.
 
 ## Writing the answers
@@ -45,7 +43,7 @@ Each top-level key you send replaces that key in project.json; the others stay a
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `security` set to `"in_progress"`.
-3. When the user confirms the area, save the `security` object `{"secret_store", "auth", "extra_protected"}`. Keep the exact field names.
+3. When the user confirms the area, save the `security` object `{"secret_store", "extra_protected"}`. Keep the exact field names.
 4. In the same call, save `areas` with `security` set to `"done"`.
 
 ## Check

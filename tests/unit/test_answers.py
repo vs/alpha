@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import place_answers, proven, shell_recipe, single_component
+from helpers import place_answers, proven, setup_only, shell_recipe, single_component
 
 from alpha import cli
 from alpha.answers import (
@@ -19,7 +19,7 @@ from alpha.answers import (
     write_answers,
     write_json,
 )
-from alpha.areas import AREAS, SETUP_AREAS, SPEC_AREAS
+from alpha.areas import AREAS, INSTALL_AREAS, PRODUCT_AREAS
 from alpha.core_areas import DesignLanguage
 from alpha.validate import fail
 
@@ -46,7 +46,7 @@ def test_valid_fixture_loads():
     assert [c.name for c in a.components] == ["api", "web"]
     assert a.components[0].traits.deployed is True
     assert a.git and a.git.scopes == ("api", "web")
-    assert a.agent_workflow and a.agent_workflow.max_lines == 200
+    assert a.agent_workflow and a.agent_workflow.extra_risk_paths == ()
     assert a.overrides[0].scope == "component:api"
 
 
@@ -79,14 +79,14 @@ def test_pending_area_fails_by_default(tmp_path: Path):
         check(tmp_path, d)
 
 
-def test_open_is_allowed_only_for_spec_areas(tmp_path: Path):
-    """F2: a spec area may stay open; a setup area may not."""
+def test_R5_1_an_install_area_cant_stay_open(tmp_path: Path):
     d = valid()
     d["areas"]["ui"] = "open"
     assert check(tmp_path, d).ui is None
     d["areas"]["git"] = "open"
     with pytest.raises(
-        AnswersError, match=r"areas\.git: is open, but only a spec area.*setup"
+        AnswersError,
+        match=r"areas\.git: is open, but only a product area.*set up by install",
     ):
         check(tmp_path, d)
 
@@ -108,21 +108,38 @@ def test_a_pending_spec_area_is_pointed_at_open(tmp_path: Path):
 
 
 def test_every_area_is_either_setup_or_spec():
-    assert set(SETUP_AREAS) | set(SPEC_AREAS) == set(AREAS)
-    assert not set(SETUP_AREAS) & set(SPEC_AREAS)
+    assert set(INSTALL_AREAS) | set(PRODUCT_AREAS) == set(AREAS)
+    assert not set(INSTALL_AREAS) & set(PRODUCT_AREAS)
 
 
-def test_setup_identity_needs_no_requirements_users_or_jargon(tmp_path: Path):
-    """F3: identity at setup leaves the product's details to /alpha:go."""
+def test_R5_1_install_needs_only_the_install_areas(tmp_path: Path):
+    """Install settles name, purpose and license; the target users,
+    requirements and auth wait in product areas for /alpha:specify."""
     d = valid()
-    d["identity"]["requirements"] = []
-    d["identity"]["target_users"] = ""
-    del d["identity"]["domain_jargon"]
-    d["security"]["auth"] = ""
+    setup_only(d)
     a = check(tmp_path, d)
-    assert a.identity and a.identity.requirements == ()
-    assert a.identity.target_users == "" and a.identity.domain_jargon is False
-    assert a.security and a.security.auth == ""
+    assert a.identity and a.security and a.agent_workflow
+    assert a.requirements is None and a.auth is None
+    assert all(a.areas[area] == "open" for area in PRODUCT_AREAS)
+
+
+@pytest.mark.parametrize(
+    ("section", "key", "value", "says"),
+    [
+        ("identity", "target_users", "Teams", "belongs to the requirements area"),
+        ("identity", "requirements", [], "belongs to the requirements area"),
+        ("security", "auth", "none", "belongs to the auth area"),
+        ("agent_workflow", "max_lines", 200, "the principles review runs only"),
+        ("testing", "run", "at-merge", "full suite runs once before main"),
+    ],
+)
+def test_a_field_that_moved_says_where(
+    tmp_path: Path, section: str, key: str, value: object, says: str
+):
+    d = valid()
+    d[section][key] = value
+    with pytest.raises(AnswersError, match=rf"{section}\.{key}: .*{says}"):
+        check(tmp_path, d)
 
 
 def test_partial_check_only_requires_named_area(tmp_path: Path):
@@ -312,20 +329,8 @@ def test_bad_change_and_scope(tmp_path: Path):
 
 def test_agent_workflow_rules(tmp_path: Path):
     d = valid()
-    d["agent_workflow"]["review_mode"] = "never"
-    with pytest.raises(AnswersError, match=r"agent_workflow\.review_mode: .*batched"):
-        check(tmp_path, d)
-    d = valid()
-    d["agent_workflow"]["max_lines"] = 0
-    with pytest.raises(
-        AnswersError, match=r"agent_workflow\.max_lines: .*greater than 0"
-    ):
-        check(tmp_path, d)
-    d = valid()
-    d["agent_workflow"]["max_files"] = True
-    with pytest.raises(
-        AnswersError, match=r"agent_workflow\.max_files: .*whole number"
-    ):
+    d["agent_workflow"]["extra_risk_paths"] = "api/keys/**"
+    with pytest.raises(AnswersError, match=r"agent_workflow\.extra_risk_paths: "):
         check(tmp_path, d)
 
 
@@ -339,9 +344,9 @@ def test_a_decisions_list_is_refused(tmp_path: Path):
 
 def test_missing_field_names_path(tmp_path: Path):
     d = valid()
-    del d["identity"]["requirements"][1]["acceptance"]
+    del d["requirements"]["items"][1]["acceptance"]
     with pytest.raises(
-        AnswersError, match=r"identity\.requirements\[1\]\.acceptance: .*missing"
+        AnswersError, match=r"requirements\.items\[1\]\.acceptance: .*missing"
     ):
         check(tmp_path, d)
 

@@ -191,11 +191,11 @@ def test_your_defaults_layer_over_the_kit(tmp_path: Path):
     src = make_source(tmp_path / "src")
     assert src.user is not None
     src.user.mkdir()
-    (src.user / "overrides.toml").write_text(HEADER + "[review]\nmax_lines = 400\n")
+    (src.user / "overrides.toml").write_text(HEADER + "[testing]\ndiff_coverage = 90\n")
     d = load_defaults(src)
-    assert d["review"]["max_lines"] == 400
-    assert d["review"]["max_files"] == 5
-    assert load_defaults(Source(src.path, True))["review"]["max_lines"] == 200
+    assert d["testing"]["diff_coverage"] == 90
+    assert d["testing"]["exhaustive"] is False
+    assert load_defaults(Source(src.path, True))["testing"]["diff_coverage"] == 80
 
 
 def test_unknown_condition_is_rejected_with_hint(tmp_path: Path):
@@ -216,7 +216,7 @@ def test_a_gate_on_a_setup_area_is_rejected_where_the_catalog_is_read(
     src = make_source(tmp_path / "src")
     p = src.path / "defaults/defaults.toml"
     p.write_text(p.read_text().replace('settled_by = "ui"', 'settled_by = "git"', 1))
-    with pytest.raises(DefaultsError, match=r'settled_by "git".*spec area'):
+    with pytest.raises(DefaultsError, match=r'settled_by "git".*product area'):
         load_defaults(src)
 
 
@@ -229,31 +229,31 @@ def test_set_default_writes_your_defaults_and_their_log(tmp_path: Path):
     src = make_source(tmp_path / "src")
     kit = (src.path / "defaults/defaults.toml").read_text()
     saved = set_default(
-        src, "review.max_lines", "400", "demo", "small CLIs", date(2026, 10, 19)
+        src, "testing.diff_coverage", "90", "demo", "small CLIs", date(2026, 10, 19)
     )
     overrides, log = user_files(src)
     assert saved == overrides
     assert overrides.read_text().startswith(HEADER)
-    assert tomllib.loads(overrides.read_text())["review"]["max_lines"] == 400
+    assert tomllib.loads(overrides.read_text())["testing"]["diff_coverage"] == 90
     assert log.read_text() == (
         '# Your alpha defaults\n\nEntries are appended by "alpha defaults set".\n'
-        "\n- 2026-10-19 · review.max_lines = 400 · from demo · small CLIs\n"
+        "\n- 2026-10-19 · testing.diff_coverage = 90 · from demo · small CLIs\n"
     )
     assert (src.path / "defaults/defaults.toml").read_text() == kit
-    assert load_defaults(src)["review"]["max_lines"] == 400
+    assert load_defaults(src)["testing"]["diff_coverage"] == 90
 
 
 def test_set_default_keeps_the_changelog_a_valid_list(tmp_path: Path):
     src = make_source(tmp_path / "src")
     day = date(2026, 10, 19)
-    set_default(src, "review.max_lines", "400", "demo", "r1", day)
-    set_default(src, "review.mode", "every-task", "demo", "r2", day)
+    set_default(src, "testing.diff_coverage", "90", "demo", "r1", day)
+    set_default(src, "testing.exhaustive", "true", "demo", "r2", day)
     assert (
         user_files(src)[1]
         .read_text()
         .endswith(
-            "\n\n- 2026-10-19 · review.max_lines = 400 · from demo · r1\n"
-            "- 2026-10-19 · review.mode = every-task · from demo · r2\n"
+            "\n\n- 2026-10-19 · testing.diff_coverage = 90 · from demo · r1\n"
+            "- 2026-10-19 · testing.exhaustive = true · from demo · r2\n"
         )
     )
 
@@ -263,9 +263,9 @@ def test_set_default_on_a_whitespace_only_changelog(tmp_path: Path):
     log = user_files(src)[1]
     log.parent.mkdir()
     log.write_text("  \n\n")
-    set_default(src, "review.max_lines", "400", "demo", "r1", date(2026, 10, 19))
+    set_default(src, "testing.diff_coverage", "90", "demo", "r1", date(2026, 10, 19))
     assert log.read_text().endswith(
-        "\n- 2026-10-19 · review.max_lines = 400 · from demo · r1\n"
+        "\n- 2026-10-19 · testing.diff_coverage = 90 · from demo · r1\n"
     )
 
 
@@ -281,8 +281,8 @@ def test_list_gap_without_text_adds_no_blank_line(existing: str, gap: str):
 def test_changelog_with_entries_passes_rumdl(tmp_path: Path):
     src = make_source(tmp_path / "src")
     day = date(2026, 10, 19)
-    set_default(src, "review.max_lines", "400", "demo", "r1", day)
-    set_default(src, "review.mode", "every-task", "demo", "r2", day)
+    set_default(src, "testing.diff_coverage", "90", "demo", "r1", day)
+    set_default(src, "testing.exhaustive", "true", "demo", "r2", day)
     run = subprocess.run(
         ["rumdl", "check", "--no-config", str(user_files(src)[1])],
         capture_output=True,
@@ -294,23 +294,23 @@ def test_changelog_with_entries_passes_rumdl(tmp_path: Path):
 def test_set_default_merges_with_existing_overrides_and_parses_values(tmp_path: Path):
     src = make_source(tmp_path / "src")
     day = date(2026, 10, 19)
-    set_default(src, "review.max_lines", "400", "demo", "r", day)
-    set_default(src, "review.mode", "every-task", "demo", "r", day)
+    set_default(src, "testing.diff_coverage", "90", "demo", "r", day)
+    set_default(src, "testing.exhaustive", "true", "demo", "r", day)
     set_default(src, "protected.paths", '["a", "b"]', "demo", "r", day)
     got = tomllib.loads(user_files(src)[0].read_text())
-    assert got["review"] == {"max_lines": 400, "mode": "every-task"}
+    assert got["testing"] == {"diff_coverage": 90, "exhaustive": True}
     assert got["protected"]["paths"] == ["a", "b"]
 
 
 def test_set_default_restores_files_when_a_write_fails(tmp_path: Path):
     src = make_source(tmp_path / "src")
-    set_default(src, "review.max_lines", "400", "demo", "r", date(2026, 10, 19))
+    set_default(src, "testing.diff_coverage", "90", "demo", "r", date(2026, 10, 19))
     overrides, log = user_files(src)
     before = [overrides.read_text(), log.read_text()]
     log.unlink()
     log.mkdir()
     with pytest.raises(DefaultsError, match="retry"):
-        set_default(src, "review.max_lines", "500", "demo", "r", date.today())
+        set_default(src, "testing.diff_coverage", "95", "demo", "r", date.today())
     assert overrides.read_text() == before[0]
 
 
@@ -347,23 +347,23 @@ def test_cli_show_json_and_set(tmp_path: Path):
         "checkout": False,
         "user_defaults": None,
     }
-    assert data["defaults"]["review"]["max_lines"] == 200
+    assert data["defaults"]["testing"]["diff_coverage"] == 80
     done = run_cli(
-        *("defaults", "set", "--key", "review.max_lines", "--value", "300"),
+        *("defaults", "set", "--key", "testing.diff_coverage", "--value", "70"),
         *("--project", "demo", "--reason", "why"),
         env=env,
     )
     assert done.returncode == 0, done.stderr
     mine = tmp_path / "config/overrides.toml"
     assert done.stdout == (
-        f"saved: review.max_lines = 300 in {mine}; new projects use it\n"
+        f"saved: testing.diff_coverage = 70 in {mine}; new projects use it\n"
     )
     text = run_cli("defaults", "show", env=env)
     assert text.stdout.startswith(
         f"kit defaults from the alpha plugin at {ROOT}\n"
         f"with your defaults from {mine}\n"
     )
-    assert "max_lines = 300" in text.stdout
+    assert "diff_coverage = 70" in text.stdout
     data = json.loads(run_cli("defaults", "show", "--json", env=env).stdout)
     assert data["source"]["user_defaults"] == str(mine)
 
@@ -383,9 +383,17 @@ def test_cli_names_an_alpha_source_checkout(tmp_path: Path):
         ("principles.x", "1", '"principles.x" is not a kit default'),
         ("review", "1", '"review" is a table of settings'),
         ("principles", "[]", '"principles" is a table of settings'),
-        ("review.max_lines", "lots", "review.max_lines must be a whole number"),
-        ("review.max_lines", "true", "review.max_lines must be a whole number"),
-        ("review.mode", "3", "review.mode must be text"),
+        (
+            "testing.diff_coverage",
+            "lots",
+            "testing.diff_coverage must be a whole number",
+        ),
+        (
+            "testing.diff_coverage",
+            "true",
+            "testing.diff_coverage must be a whole number",
+        ),
+        ("git.convention", "3", "git.convention must be text"),
         ("review.exclude", "docs/**", "review.exclude must be a list of text"),
         ("review.exclude", "[1, 2]", "review.exclude must be a list of text"),
     ],
@@ -397,7 +405,7 @@ def test_set_default_rejects_unknown_keys_and_wrong_types(
     with pytest.raises(DefaultsError) as e:
         set_default(src, key, value, "demo", "r", date(2026, 10, 19))
     assert str(e.value).startswith(expected)
-    assert "review.max_lines" in str(e.value) or "--value" in str(e.value)
+    assert "testing.diff_coverage" in str(e.value) or "--value" in str(e.value)
     assert not any(f.exists() for f in user_files(src))
 
 

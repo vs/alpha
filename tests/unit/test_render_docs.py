@@ -360,24 +360,11 @@ def test_contributing_names_the_review_checkpoint(tmp_path: Path):
 
 
 def test_docs_say_when_the_full_test_suite_runs(tmp_path: Path):
-    def at_stop(data: dict[str, Any]) -> None:
-        data["testing"]["run"] = "at-stop"
-
-    at_merge = render(load(tmp_path / "merge"))
+    at_merge = render(load(tmp_path))
     assert (
         "before your work reaches main (a push to main, or merging a pull "
         "request), run `python3 .claude/alpha/hooks/stop_checks.py tests`."
         in at_merge["CLAUDE.md"]
-    )
-    stop = render(load(tmp_path / "stop", at_stop))
-    assert "stop_checks.py tests" not in stop["CLAUDE.md"]
-    assert (
-        "The Stop hook runs the full test suite of each component you changed "
-        "every time you finish a turn." in stop["CLAUDE.md"]
-    )
-    assert (
-        "Claude runs the principles reviewer before its work reaches main: a "
-        "push to main" in stop["CONTRIBUTING.md"]
     )
 
 
@@ -412,8 +399,8 @@ def test_pipes_and_line_breaks_in_answers_stay_inside_table_cells(tmp_path: Path
     odd = "a | b\nc"
 
     def mutate(data: dict[str, Any]) -> None:
-        data["identity"]["requirements"][0]["text"] = odd
-        data["identity"]["requirements"][0]["acceptance"] = odd
+        data["requirements"]["items"][0]["text"] = odd
+        data["requirements"]["items"][0]["acceptance"] = odd
         data["architecture"]["components"][0]["responsibility"] = odd
         data["architecture"]["glossary"][0]["meaning"] = odd
         data["build"]["components"][0]["hosting"] = odd

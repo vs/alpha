@@ -10,11 +10,9 @@ name = "alpha"
 slug = "alpha"
 
 [review]
-mode = "at-merge"
-max_lines = 200
-max_files = 5
 exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]
 risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/principles.toml"]
+mode = "at-merge"
 expected_load = "one developer running alpha on a laptop, against one project at a time"
 
 [protected]

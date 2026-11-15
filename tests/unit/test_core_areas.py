@@ -87,7 +87,7 @@ def test_no_contract_when_components_do_not_talk(tmp_path: Path):
 
 def test_jargon_needs_a_glossary(tmp_path: Path):
     d = valid()
-    d["identity"]["domain_jargon"] = True
+    d["requirements"]["domain_jargon"] = True
     d["architecture"]["glossary"] = []
     with pytest.raises(AnswersError, match=r"architecture\.glossary: "):
         check(tmp_path, d)
@@ -171,12 +171,12 @@ def test_deployed_projects_need_a_secret_store(tmp_path: Path):
         check(tmp_path, d)
 
 
-def test_auth_may_wait_but_must_be_text(tmp_path: Path):
+def test_auth_names_a_method(tmp_path: Path):
     d = valid()
-    d["security"]["auth"] = ""
-    assert check(tmp_path, d).security is not None
-    d["security"]["auth"] = None
-    with pytest.raises(AnswersError, match=r"security\.auth"):
+    a = check(tmp_path, d)
+    assert a.auth is not None and a.auth.method
+    d["auth"]["method"] = None
+    with pytest.raises(AnswersError, match=r"auth\.method"):
         check(tmp_path, d)
 
 
@@ -574,17 +574,6 @@ def test_exhaustive_answer_must_be_a_boolean(tmp_path: Path):
     d = valid()
     d["testing"]["exhaustive"] = "yes"
     with pytest.raises(AnswersError, match=r"testing\.exhaustive: must be true or"):
-        check(tmp_path, d)
-
-
-def test_test_run_answer_is_optional_and_checked(tmp_path: Path):
-    d = valid()
-    assert check(tmp_path, d).testing.run is None  # type: ignore[union-attr]
-    for value in ("at-merge", "at-stop"):
-        d["testing"]["run"] = value
-        assert check(tmp_path, d).testing.run == value  # type: ignore[union-attr]
-    d["testing"]["run"] = "nightly"
-    with pytest.raises(AnswersError, match=r"testing\.run: .*at-merge, at-stop"):
         check(tmp_path, d)
 
 

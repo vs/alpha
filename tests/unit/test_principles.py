@@ -200,14 +200,12 @@ def test_lockfiles_become_protected():
 def test_review_settings_come_from_answers(tmp_path: Path):
     def mutate(data: dict[str, Any]) -> None:
         data["agent_workflow"].update(
-            review_mode="every-task",
-            max_lines=50,
             extra_risk_paths=["infra/**", "docs/principles.toml"],
         )
 
     review = build_principles(D, variant(tmp_path, mutate), "0.1.0")["review"]
-    assert review["max_lines"] == 50
-    assert review["mode"] == "every-task"
+    assert review["mode"] == "at-merge"
+    assert "max_lines" not in review
     assert review["risk_paths"].count("docs/principles.toml") == 1
     assert review["risk_paths"][-6:] == [
         "infra/**",
@@ -610,26 +608,8 @@ def test_exhaustive_accepts_a_diff_coverage_of_100(tmp_path: Path):
     assert out["testing"] == {"diff_coverage": 100, "exhaustive": True, **RUN}
 
 
-def test_the_suite_runs_at_merge_unless_the_answer_says_at_stop(tmp_path: Path):
+def test_the_suite_runs_at_merge():
     assert build_principles(D, A, "0.1.0")["testing"]["run"] == "at-merge"
-
-    def at_stop(data: dict[str, Any]) -> None:
-        data["testing"]["run"] = "at-stop"
-
-    out = build_principles(D, variant(tmp_path, at_stop), "0.1.0")
-    assert out["testing"]["run"] == "at-stop"
-
-
-def test_defaults_from_before_the_setting_keep_the_suite_at_stop():
-    out = build_principles(_defaults_with(diff_coverage=80), A, "0.1.0")
-    assert out["testing"]["run"] == "at-stop"
-
-
-def test_an_unknown_default_test_run_says_how_to_fix():
-    defaults = _defaults_with(diff_coverage=80, run="sometimes")
-    with pytest.raises(AnswersError) as e:
-        build_principles(defaults, A, "0.1.0")
-    assert "[testing] run is 'sometimes'. Use one of: at-merge, at-stop" in str(e.value)
 
 
 def test_a_defined_design_language_switches_its_principle_on():

@@ -365,11 +365,11 @@ def test_area_checks_its_own_area(skill: str):
 
 
 def _setup_skills() -> list[str]:
-    return [s for s, (area, _) in AREA_SKILLS.items() if area in areas.SETUP_AREAS]
+    return [s for s, (area, _) in AREA_SKILLS.items() if area in areas.INSTALL_AREAS]
 
 
 def _spec_skills() -> list[str]:
-    return [s for s, (area, _) in AREA_SKILLS.items() if area in areas.SPEC_AREAS]
+    return [s for s, (area, _) in AREA_SKILLS.items() if area in areas.PRODUCT_AREAS]
 
 
 def test_new_project_runs_only_the_setup_areas():
@@ -448,9 +448,9 @@ def test_every_kind_has_public_paths_and_an_artifact():
 
 def test_new_project_creates_setup_areas_pending_and_spec_areas_open():
     start = _section("new-project", "2. Start or resume")
-    for area in areas.SETUP_AREAS:
+    for area in areas.INSTALL_AREAS:
         assert f'"{area}": "pending"' in start
-    for area in areas.SPEC_AREAS:
+    for area in areas.PRODUCT_AREAS:
         assert f'"{area}": "open"' in start
     assert "missing from" in start
 
@@ -492,11 +492,11 @@ def test_area_waits_for_the_area_before_it(skill: str):
     found = re.findall(
         r"`areas\.(\w+)` isn't `\"done\"`", _section(skill, "Before you start")
     )
-    if area in areas.SPEC_AREAS:
-        assert found == [areas.SETUP_AREAS[-1]]
+    if area in areas.PRODUCT_AREAS:
+        assert found == [areas.INSTALL_AREAS[-1]]
         return
-    index = areas.SETUP_AREAS.index(area)
-    assert found == ([areas.SETUP_AREAS[index - 1]] if index else [])
+    index = areas.INSTALL_AREAS.index(area)
+    assert found == ([areas.INSTALL_AREAS[index - 1]] if index else [])
 
 
 def test_new_project_no_longer_lists_the_core_areas_as_missing():

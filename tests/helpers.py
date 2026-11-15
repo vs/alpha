@@ -12,7 +12,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
-from alpha.areas import SPEC_AREAS
+from alpha.areas import PRODUCT_AREAS
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
 from alpha.generate import generate, load_project_principles
@@ -49,14 +49,11 @@ def run_cli(*args: str, env: dict[str, str] | None = None):
 
 
 def setup_only(data: dict[str, Any]) -> None:
-    """Answers as the setup interview leaves them: every spec area open, no
-    requirements, target users or auth yet."""
-    for area in SPEC_AREAS:
+    """Answers as install leaves them: every product area open."""
+    for area in PRODUCT_AREAS:
         data["areas"][area] = "open"
         data.pop(area, None)
     data["overrides"] = []
-    data["identity"].update(requirements=[], target_users="")
-    data["security"]["auth"] = ""
 
 
 def generated_repo(

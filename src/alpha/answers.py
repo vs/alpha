@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 from alpha import core_areas
-from alpha.areas import AREAS, SPEC_AREAS
+from alpha.areas import AREAS, PRODUCT_AREAS
 from alpha.baseline import (
     BASELINE_STEPS,
     NOT_BASELINED,
@@ -49,7 +49,6 @@ from alpha.validate import (
     obj,
     paths,
     per_component,
-    pos_int,
     prefixed,
     sample,
     string,
@@ -92,7 +91,6 @@ ARTIFACTS: tuple[str, ...] = (
 _STATUSES = ("done", "in_progress", "pending", "open")
 _LAYOUTS = ("monorepo", "single")
 _CHANGES = ("tighten", "loosen", "drop")
-_REVIEW_MODES = ("at-merge", "batched", "every-task")
 _SCOPE = re.compile(r"[a-z0-9-]+")
 _TRAITS = (
     "has_ui",
@@ -127,6 +125,8 @@ _TOP_KEYS = frozenset(
         "data",
         "accessibility",
         "performance",
+        "requirements",
+        "auth",
         "overrides",
         "recipes",
         "manifest",
@@ -147,12 +147,21 @@ class Identity:
     name: str
     slug: str
     value_proposition: str
-    target_users: str
-    requirements: tuple[Requirement, ...]
     license: str
     license_file: str | None
     copyright_holder: str
+
+
+@dataclass(frozen=True)
+class ProductRequirements:
+    target_users: str
+    items: tuple[Requirement, ...]
     domain_jargon: bool
+
+
+@dataclass(frozen=True)
+class Auth:
+    method: str
 
 
 @dataclass(frozen=True)
@@ -187,9 +196,6 @@ class GitPrefs:
 
 @dataclass(frozen=True)
 class AgentWorkflow:
-    review_mode: str
-    max_lines: int
-    max_files: int
     extra_risk_paths: tuple[str, ...]
 
 
@@ -330,6 +336,8 @@ class Answers:
     # Whether a monorepo's components of a stack whose recipe has a workspace
     # share it; None takes `defaults.components.workspace`.
     workspace: bool | None = None
+    requirements: ProductRequirements | None = None
+    auth: Auth | None = None
 
     def book(self) -> RecipeBook:
         return RecipeBook(self.recipes)
@@ -397,28 +405,27 @@ def _project_root(answers_path: Path) -> Path:
     return answers_path.resolve().parent.parent.parent
 
 
+def _moved(d: Mapping[str, Any], where: str, keys: tuple[str, ...], why: str) -> None:
+    for key in keys:
+        if key in d:
+            raise fail(f"{where}.{key}", why, "Remove it")
+
+
 def _identity(raw: object, base: Path) -> Identity:
     where = "identity"
     d = obj(raw, where)
+    _moved(
+        d,
+        where,
+        ("target_users", "requirements", "domain_jargon"),
+        "belongs to the requirements area, which /alpha:specify settles",
+    )
     slug = string(d, "slug", where)
     if not NAME.fullmatch(slug):
         raise fail(
             "identity.slug",
             f"{slug!r} is not a valid slug",
             "Use lowercase letters, digits and hyphens, starting with a letter",
-        )
-    reqs: list[Requirement] = []
-    for i, r in enumerate(
-        as_list(get(d, "requirements", where), "identity.requirements")
-    ):
-        rw = f"identity.requirements[{i}]"
-        ro = obj(r, rw)
-        reqs.append(
-            Requirement(
-                string(ro, "id", rw),
-                string(ro, "text", rw),
-                string(ro, "acceptance", rw),
-            )
         )
     license_file = d.get("license_file")
     if license_file is not None and not isinstance(license_file, str):
@@ -452,15 +459,37 @@ def _identity(raw: object, base: Path) -> Identity:
         name=string(d, "name", where),
         slug=slug,
         value_proposition=string(d, "value_proposition", where),
-        target_users=string(d, "target_users", where, blank=True),
-        requirements=tuple(reqs),
         license=license_,
         license_file=license_file,
         copyright_holder=string(d, "copyright_holder", where),
+    )
+
+
+def _requirements(raw: object) -> ProductRequirements:
+    where = "requirements"
+    d = obj(raw, where)
+    items: list[Requirement] = []
+    for i, r in enumerate(as_list(get(d, "items", where), f"{where}.items")):
+        rw = f"{where}.items[{i}]"
+        ro = obj(r, rw)
+        items.append(
+            Requirement(
+                string(ro, "id", rw),
+                string(ro, "text", rw),
+                string(ro, "acceptance", rw),
+            )
+        )
+    return ProductRequirements(
+        target_users=string(d, "target_users", where),
+        items=tuple(items),
         domain_jargon=boolean(d, "domain_jargon", where)
         if "domain_jargon" in d
         else False,
     )
+
+
+def _auth(raw: object) -> Auth:
+    return Auth(string(obj(raw, "auth"), "method", "auth"))
 
 
 def _component(raw: object, i: int, stacks: set[str], drafted: set[str]) -> Component:
@@ -566,12 +595,13 @@ def _git(raw: object) -> GitPrefs:
 def _workflow(raw: object) -> AgentWorkflow:
     w = "agent_workflow"
     d = obj(raw, w)
-    return AgentWorkflow(
-        choice(d, "review_mode", w, _REVIEW_MODES),
-        pos_int(d, "max_lines", w),
-        pos_int(d, "max_files", w),
-        strings(d, "extra_risk_paths", w),
+    _moved(
+        d,
+        w,
+        ("review_mode", "max_lines", "max_files"),
+        "is gone: the principles review runs only before work reaches main",
     )
+    return AgentWorkflow(strings(d, "extra_risk_paths", w))
 
 
 def _documentation(raw: object) -> Documentation:
@@ -1062,24 +1092,24 @@ def parse_answers(
     if predates_design_area:
         areas[_DESIGN] = "done"
     for area, status in areas.items():
-        if status == "open" and area not in SPEC_AREAS:
+        if status == "open" and area not in PRODUCT_AREAS:
             raise fail(
                 f"areas.{area}",
-                "is open, but only a spec area can stay open "
-                f"({', '.join(SPEC_AREAS)}); {area} is part of the setup",
+                "is open, but only a product area can stay open "
+                f"({', '.join(PRODUCT_AREAS)}); {area} is set up by install",
                 f"Finish the {area} part of the interview, then retry",
             )
-    # The whole project may leave spec areas open; a check of one area
+    # The whole project may leave product areas open; a check of one area
     # (an area skill's own) needs it done.
     whole = set(require_areas) == set(AREAS)
     for area in require_areas:
         status = areas[area]
         if status == "done" or (whole and status == "open"):
             continue
-        if area in SPEC_AREAS and status == "pending":
+        if area in PRODUCT_AREAS and status == "pending":
             fix = (
-                f'Set areas.{area} to "open": the setup interview leaves spec '
-                "areas for /alpha:go to settle when the work needs them"
+                f'Set areas.{area} to "open": install leaves product areas for '
+                "/alpha:specify to settle when the user asks"
             )
         else:
             fix = f"Finish the {area} part of the interview, then retry"
@@ -1122,7 +1152,11 @@ def parse_answers(
             "Set components_talk to false",
         )
     comps_or_none = comps if active("components") else None
-    jargon = identity.domain_jargon if identity else False
+    requirements = (
+        _requirements(get(top, "requirements", "")) if active("requirements") else None
+    )
+    auth = _auth(get(top, "auth", "")) if active("auth") else None
+    jargon = requirements.domain_jargon if requirements else False
     architecture = (
         core_areas.architecture(
             get(top, "architecture", ""), comps_or_none, talk, jargon
@@ -1224,6 +1258,8 @@ def parse_answers(
         _hook_files(top.get("adoption", {})),
         _steps(top.get("adoption", {}), comps_or_none, RecipeBook(drafted)),
         boolean(top, "workspace", "") if "workspace" in top else None,
+        requirements,
+        auth,
     )
 
 

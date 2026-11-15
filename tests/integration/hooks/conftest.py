@@ -121,6 +121,9 @@ def project(tmp_path: Path) -> Project:
         comp["commands"] = dict.fromkeys(comp["commands"], STUB)
     for check in data.get("repo_checks", []):  # nor the real repository checks
         check["stop"] = False
+    # The hooks' batched review, which the review in git notes replaces
+    # (rewrite plan, task 10).
+    data["review"].update(mode="batched", max_lines=200, max_files=5)
     p.write_principles(data)
     return p
 

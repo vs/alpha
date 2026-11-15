@@ -1,6 +1,6 @@
 ---
 name: identity
-description: Settle a new project's identity in the alpha interview - value proposition, name, target users, requirements with acceptance checks, license and copyright. Use only inside an alpha project interview (/alpha:new-project) or alpha:extend or /alpha:adopt or when the user asks to revisit the identity of a project alpha is setting up.
+description: Settle a new project's identity in the alpha interview - value proposition, name, license and copyright. Use only inside an alpha project interview (/alpha:new-project) or alpha:extend or /alpha:adopt or when the user asks to revisit the identity of a project alpha is setting up.
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -19,21 +19,16 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 Pin down what the files need to name the project: what it does in a sentence or two, its name and slug, the license and the copyright holder. That is all the setup asks.
 
-Who it's for, its requirements with their acceptance checks (Given/When/Then, which tests trace back to) and whether its domain has its own jargon are the product's specification. The user often doesn't know them yet, so the setup leaves them empty: `requirements` `[]`, `target_users` `""`, `domain_jargon` `false`. They're settled later, when `alpha:extend` sends you here for them: a feature built with `/alpha:go` adds the requirements it serves, and `/alpha:go settle the target users` settles the users.
+Who it's for, its requirements with their acceptance checks and whether its domain has its own jargon are the product's specification: the requirements area, which install leaves open for later.
 
 ## Fields this area settles
 
 - `identity.name` - the product's display name, e.g. "Pico Trust".
 - `identity.slug` - lowercase letters, digits and hyphens, starting with a letter; names the project in files and commits.
 - `identity.value_proposition` - one or two sentences: what it does and why that matters.
-- `identity.target_users` - who uses it and what they need; `""` until settled.
-- `identity.requirements[].id` - `R1`, `R2`, … in order; the list is `[]` until a feature adds one.
-- `identity.requirements[].text` - one requirement in plain words.
-- `identity.requirements[].acceptance` - its acceptance check: "Given …, when …, then …".
 - `identity.license` - `MIT`, `Apache-2.0` or `Proprietary`.
 - `identity.license_file` - `null`, or the path of the user's own license text relative to `<target>`, e.g. `"LICENSE"`.
 - `identity.copyright_holder` - the person or organization named in the license.
-- `identity.domain_jargon` - `true` when the domain has its own vocabulary; `false` until settled.
 - `areas.identity` - `"in_progress"` while you work, `"done"` at the end.
 
 ## Questions
@@ -55,12 +50,6 @@ Round 2 (needs the value proposition):
 Round 3 (needs the name):
 
 - **Slug** - recommend the name in lowercase with hyphens.
-
-Only when `alpha:extend` sends you here for them (from `/alpha:go`), ask what it names and nothing else:
-
-- **Target users** - draft from the value proposition and what the user said.
-- **Requirements** - the requirement a feature serves, numbered after the last one; turn each into one Given/When/Then check that describes something observable a test can verify, and rework any the user rejects until they agree.
-- **Domain jargon** - "Does this domain have its own vocabulary that newcomers would trip over?" Explain: yes turns on the "One vocabulary" principle, which keeps a glossary and the same names across code, docs and UI.
 
 When the license differs from `defaults.identity.license`, follow the grilling skill's override protocol (key `identity.license`).
 

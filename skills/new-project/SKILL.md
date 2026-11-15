@@ -26,7 +26,7 @@ Save answers only with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target>
 
 - If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done, which are pending and which are open (from its `areas`; an area missing from `areas`, because the interview started on an older alpha, is pending). A spec area an older alpha left pending becomes open: save it so with `answers write`. Then continue with the first area in the order below that isn't done.
 - Otherwise create it:
-  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "architecture": "open", "errors": "open", "testing": "pending", "design_language": "open", "ui": "open", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "observability": "open", "releases": "pending", "data": "open", "accessibility": "open", "performance": "open", "git": "pending", "agent_workflow": "pending"}, "overrides": []}'`
+  `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "testing": "pending", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "releases": "pending", "git": "pending", "agent_workflow": "pending", "requirements": "open", "architecture": "open", "errors": "open", "design_language": "open", "ui": "open", "accessibility": "open", "observability": "open", "data": "open", "performance": "open", "auth": "open"}, "overrides": []}'`
 
 ## 3. Load the kit defaults
 
@@ -55,7 +55,7 @@ The interview settles the setup: what alpha needs to wire the project's tooling.
 9. Git history: `alpha:git-history`
 10. Agent workflow: `alpha:agent-workflow`
 
-The spec areas (architecture, errors, design language, UI, observability, data, accessibility, performance) describe the product, which the user often can't know yet. They stay open: don't run them here. `/alpha:go` settles each one when the work needs it. Only when the user asks to settle one now, invoke its skill after the setup areas.
+The product areas (target users and requirements, architecture, errors, design language, UI, accessibility, observability, data, performance, auth) describe the product, which the user often can't know yet. They stay open: don't run them here. `/alpha:go` settles each one when the work needs it. Only when the user asks to settle one now, invoke its skill after the setup areas.
 
 For each area that isn't done, invoke its skill with the Skill tool and follow it through its check, with `<target>` as its target folder. Move on only after the area's check prints `ok`.
 

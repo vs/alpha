@@ -1,33 +1,27 @@
-AREAS: tuple[str, ...] = (
+INSTALL_AREAS: tuple[str, ...] = (
     "identity",
     "components",
-    "architecture",
-    "errors",
     "testing",
-    "design_language",
-    "ui",
     "documentation",
     "build",
     "security",
     "dependencies",
-    "observability",
     "releases",
-    "data",
-    "accessibility",
-    "performance",
     "git",
     "agent_workflow",
 )
-# The areas that describe the product rather than wire its tooling: the
-# interview leaves them open and /alpha:go settles them.
-SPEC_AREAS: tuple[str, ...] = (
+# The areas that describe the product rather than wire its tooling: install
+# leaves them open, and only /alpha:specify settles them.
+PRODUCT_AREAS: tuple[str, ...] = (
+    "requirements",
     "architecture",
     "errors",
     "design_language",
     "ui",
+    "accessibility",
     "observability",
     "data",
-    "accessibility",
     "performance",
+    "auth",
 )
-SETUP_AREAS: tuple[str, ...] = tuple(a for a in AREAS if a not in SPEC_AREAS)
+AREAS: tuple[str, ...] = INSTALL_AREAS + PRODUCT_AREAS

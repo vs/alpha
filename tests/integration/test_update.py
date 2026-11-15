@@ -69,7 +69,7 @@ def commit(target: Path, message: str) -> None:
 
 
 def smaller_reviews(data: dict[str, Any]) -> None:
-    data["agent_workflow"]["max_lines"] = 120
+    data["agent_workflow"]["extra_risk_paths"].append("infra/**")
 
 
 def move_component(data: dict[str, Any], name: str, new: str) -> None:
@@ -217,7 +217,7 @@ def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env: None):
     assert kinds(p)["docs/principles.toml"] == "change"
     assert kinds(p)["CLAUDE.md"] == "merge"
     apply_update(target, p)
-    assert "max_lines = 120\n" in (target / "docs/principles.toml").read_text()
+    assert '"infra/**"' in (target / "docs/principles.toml").read_text()
     text = claude_md.read_text()
     assert text.endswith("Team rule: ask before deploys.\n")
     assert "scopes: api, web, deps," in text
@@ -265,11 +265,13 @@ def test_overlapping_edit_leaves_the_file_and_writes_a_proposal(
 ):
     target = generated_repo(tmp_path, SCENARIO)
     principles = target / "docs/principles.toml"
-    edited = principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+    edited = principles.read_text().replace(
+        "risk_paths = [", 'risk_paths = ["ops/**", ', 1
+    )
     principles.write_text(edited)
     commit(target, "docs: Review smaller batches")
     data = answers(target)
-    data["agent_workflow"]["max_lines"] = 120
+    data["agent_workflow"]["extra_risk_paths"].append("infra/**")
     save(target, data)
     p = plan(target)
     assert kinds(p)["docs/principles.toml"] == "conflict"
@@ -451,11 +453,11 @@ def test_update_refuses_while_an_update_awaits_commit(tmp_path: Path, git_env: N
     target = generated_repo(tmp_path, SCENARIO)
     principles = target / "docs/principles.toml"
     principles.write_text(
-        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+        principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
     commit(target, "docs: Review smaller batches")
     data = answers(target)
-    data["agent_workflow"]["max_lines"] = 120
+    data["agent_workflow"]["extra_risk_paths"].append("infra/**")
     save(target, data)
     apply_update(target, plan(target))
     with pytest.raises(GenerateError, match="An update is waiting to be committed"):
@@ -577,11 +579,11 @@ def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     principles = target / "docs/principles.toml"
     principles.write_text(
-        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+        principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
     commit(target, "docs: Review smaller batches")
     data = answers(target)
-    data["agent_workflow"]["max_lines"] = 120
+    data["agent_workflow"]["extra_risk_paths"].append("infra/**")
     save(target, data)
     apply_update(target, plan(target))
     _, notes = commit_the_update(target)
@@ -594,11 +596,11 @@ def test_commit_update_notes_unmerged_conflicts(tmp_path: Path, git_env: None):
 def conflicting_update(target: Path) -> Path:
     principles = target / "docs/principles.toml"
     principles.write_text(
-        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+        principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
     commit(target, "docs: Review smaller batches")
     data = answers(target)
-    data["agent_workflow"]["max_lines"] = 120
+    data["agent_workflow"]["extra_risk_paths"].append("infra/**")
     save(target, data)
     apply_update(target, plan(target))
     return principles
@@ -647,7 +649,7 @@ def test_commit_update_deletes_proposals_of_merged_conflicts(
 ):
     target = generated_repo(tmp_path, SCENARIO)
     principles = conflicting_update(target)
-    principles.write_text(principles.read_text().replace("150", "120"))
+    principles.write_text(principles.read_text().replace('"ops/**", ', "", 1))
     _, notes = commit_the_update(target)
     assert not [n for n in notes if "wasn't merged" in n]
     assert not (target / PROPOSALS).exists()
@@ -789,11 +791,11 @@ def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env: 
     target = generated_repo(tmp_path, SCENARIO)
     principles = target / "docs/principles.toml"
     principles.write_text(
-        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+        principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
     commit(target, "docs: Review smaller batches")
     data = answers(target)
-    data["agent_workflow"]["max_lines"] = 120
+    data["agent_workflow"]["extra_risk_paths"].append("infra/**")
     save(target, data)
     apply_update(target, plan(target))
     loaded = load_project_principles(target)
@@ -829,13 +831,13 @@ def test_update_of_a_current_project_keeps_the_plain_notes(
     commit(target, "docs: Drop the contributing guide")
     principles = target / "docs/principles.toml"
     principles.write_text(
-        principles.read_text().replace("max_lines = 200\n", "max_lines = 150\n")
+        principles.read_text().replace("risk_paths = [", 'risk_paths = ["ops/**", ', 1)
     )
     commit(target, "docs: Review smaller batches")
     add_worker(target)
     commit(target, "chore: Add a worker to the answers")
     data = answers(target)
-    data["agent_workflow"]["max_lines"] = 120
+    data["agent_workflow"]["extra_risk_paths"].append("infra/**")
     save(target, data)
     out = describe(plan(target), target)
     assert (

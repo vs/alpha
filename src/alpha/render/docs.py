@@ -454,6 +454,7 @@ def _specification(a: Answers) -> str:
     """What the product does, in one file; features add their own specs in
     docs/specs/."""
     ident = _identity(a)
+    req = a.requirements
     lines = [
         f"# {ident.name}: specification",
         "",
@@ -463,20 +464,21 @@ def _specification(a: Answers) -> str:
         "",
         "## Target users",
         "",
-        ident.target_users
-        or "Not settled yet: `/alpha:go settle the target users` settles them.",
+        req.target_users if req else area_docs.not_settled("requirements"),
         "",
         "## Requirements",
         "",
     ]
-    if ident.requirements:
+    if req and req.items:
         lines += ["| ID | Requirement | Acceptance check |", "|---|---|---|"]
-        lines += [row(r.id, r.text, r.acceptance) for r in ident.requirements]
-    else:
+        lines += [row(r.id, r.text, r.acceptance) for r in req.items]
+    elif req:
         lines.append(
             "None yet: each feature built with `/alpha:go` adds the requirements "
             "it serves, with their acceptance checks."
         )
+    else:
+        lines.append(area_docs.not_settled("requirements"))
     open_areas = [
         (title, request)
         for area, (title, request) in area_docs.SETTLE_REQUESTS.items()

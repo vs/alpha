@@ -49,10 +49,10 @@ def test_open_areas_render_as_not_settled(tmp_path: Path):
     path.write_text(json.dumps(data))
     written = generate(tmp_path, ROOT, SRC, 2026, TODAY)
     product = (tmp_path / "docs/specification.md").read_text()
-    assert "None yet: each feature built with `/alpha:go`" in product
-    assert "`/alpha:go settle the target users`" in product
     not_settled = product.split("## Not settled yet")[1]
     for request in (
+        "settle the target users",
+        "settle the auth",
         "settle the architecture",
         "settle the error handling",
         "settle the design language",

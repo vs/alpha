@@ -3,39 +3,32 @@
   "areas": {
     "identity": "done",
     "components": "done",
-    "architecture": "done",
-    "errors": "done",
     "testing": "done",
-    "design_language": "done",
-    "ui": "done",
     "documentation": "done",
     "build": "done",
     "security": "done",
     "dependencies": "done",
-    "observability": "done",
     "releases": "done",
-    "data": "done",
-    "accessibility": "done",
-    "performance": "done",
     "git": "done",
-    "agent_workflow": "done"
+    "agent_workflow": "done",
+    "requirements": "done",
+    "architecture": "done",
+    "errors": "done",
+    "design_language": "done",
+    "ui": "done",
+    "accessibility": "done",
+    "observability": "done",
+    "data": "done",
+    "performance": "done",
+    "auth": "done"
   },
   "identity": {
     "name": "Leaf Lens",
     "slug": "leaf-lens",
     "value_proposition": "Spot common houseplant diseases from a single leaf photo.",
-    "target_users": "Hobby gardeners who want a quick second opinion before treating a plant.",
-    "requirements": [
-      {
-        "id": "R1",
-        "text": "A user can classify a leaf photo into a known disease or healthy.",
-        "acceptance": "Given a labelled validation set, when the model classifies it, then top-1 accuracy is at least 85%."
-      }
-    ],
     "license": "Apache-2.0",
     "license_file": null,
-    "copyright_holder": "Semyon Vadishev",
-    "domain_jargon": false
+    "copyright_holder": "Semyon Vadishev"
   },
   "layout": "single",
   "components_talk": false,
@@ -63,9 +56,6 @@
     "branching": "trunk"
   },
   "agent_workflow": {
-    "review_mode": "every-task",
-    "max_lines": 200,
-    "max_files": 5,
     "extra_risk_paths": [
       "data/**"
     ]
@@ -128,7 +118,6 @@
   },
   "security": {
     "secret_store": "",
-    "auth": "none",
     "extra_protected": []
   },
   "dependencies": {
@@ -170,5 +159,19 @@
       }
     ]
   },
-  "overrides": []
+  "overrides": [],
+  "requirements": {
+    "target_users": "Hobby gardeners who want a quick second opinion before treating a plant.",
+    "items": [
+      {
+        "id": "R1",
+        "text": "A user can classify a leaf photo into a known disease or healthy.",
+        "acceptance": "Given a labelled validation set, when the model classifies it, then top-1 accuracy is at least 85%."
+      }
+    ],
+    "domain_jargon": false
+  },
+  "auth": {
+    "method": "none"
+  }
 }

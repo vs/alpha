@@ -226,8 +226,8 @@ In an adopted repo with baselines, the checks that ran through the ratchet run p
 ```text
 src/alpha/
   cli.py            argparse and exit codes only
-  model.py          the answers dataclasses
-  answers.py        parse and write project.json
+  answers.py        the answers dataclasses; parse and write project.json
+  core_areas.py     the dataclasses and parsers of the other areas
   kit.py            defaults, user layer, registry, recipes (loading)
   recipes.py        recipe model, templates, drafted recipes, local proofs
   principles.py     the principles table
