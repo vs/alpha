@@ -96,19 +96,11 @@ def test_output_keys_and_decisions_numbered_with_overrides_last(tmp_path: Path):
         "LICENSE",
         "CONTRIBUTING.md",
         "CLAUDE.md",
-        "docs/product.md",
-        "docs/architecture.md",
+        "docs/specification.md",
         "docs/dependencies.md",
-        "docs/build.md",
         "docs/guide/README.md",
         "docs/glossary.md",
-        "docs/security.md",
-        "docs/observability.md",
         "docs/design-language.md",
-        "docs/ui.md",
-        "docs/data.md",
-        "docs/releases.md",
-        "docs/performance.md",
         "CHANGELOG.md",
     } | decision_records(fixture)
     first = out["docs/decisions/0001-product-identity.md"]
@@ -160,16 +152,17 @@ def test_apache_and_proprietary_and_custom_license(tmp_path: Path):
     assert rendered["LICENSE"] == "Do what thou wilt.\n"
 
 
-def test_product_md_requirements_table(tmp_path: Path):
-    md = render(load(tmp_path))["docs/product.md"]
+def test_specification_requirements_table(tmp_path: Path):
+    md = render(load(tmp_path))["docs/specification.md"]
     assert "| ID | Requirement | Acceptance check |" in md
     assert "| R1 | A user can embed a signed trust payload into an image. |" in md
     assert "returned image decodes back to the same payload" in md
     assert "Journalists and fact-checkers" in md
 
 
-def test_architecture_md(tmp_path: Path):
-    md = render(load(tmp_path))["docs/architecture.md"]
+def test_contributing_lists_the_components_and_tools(tmp_path: Path):
+    md = render(load(tmp_path))["CONTRIBUTING.md"].split("## Components\n")[1]
+    md = md.split("\n## ")[0]
     assert "monorepo" in md
     assert "| api | api | backend | python |" in md
     assert "communicate" in md
@@ -223,9 +216,13 @@ def no_ci(data: dict[str, Any]) -> None:
     )
 
 
-def test_build_doc_lists_ci_checks_artifacts_and_environments(tmp_path: Path):
-    doc = render(load(tmp_path))["docs/build.md"]
-    assert doc.startswith("# Build, CI and hosting\n")
+def build_section(out: dict[str, str]) -> str:
+    text = out["CONTRIBUTING.md"]
+    return text.split("## Build, CI and hosting\n")[1].split("\n## ")[0]
+
+
+def test_build_section_lists_ci_checks_artifacts_and_environments(tmp_path: Path):
+    doc = build_section(render(load(tmp_path)))
     assert "`.github/workflows/ci.yml`" in doc
     assert "every push to main and every pull request" in doc
     assert (
@@ -234,21 +231,21 @@ def test_build_doc_lists_ci_checks_artifacts_and_environments(tmp_path: Path):
     ) in doc
     assert "| api | container | Fly.io |" in doc
     assert "| web | static-site | Cloudflare Pages |" in doc
-    assert "## Environments\n\n- production\n" in doc
+    assert "### Environments\n\n- production\n" in doc
     assert "alpha creates no cloud resources" in doc
 
 
-def test_build_doc_without_ci_points_at_the_override(tmp_path: Path):
-    doc = render(load(tmp_path, no_ci))["docs/build.md"]
+def test_build_section_without_ci_points_at_the_override(tmp_path: Path):
+    doc = build_section(render(load(tmp_path, no_ci)))
     assert "No CI" in doc
     data = json.loads(FIXTURE.read_text())
     no_ci(data)
     path = override_record(data, "build-hosting-upfront", 1)
-    assert f"({path.removeprefix('docs/')})" in doc
+    assert f"({path})" in doc
     assert "ci.yml" not in doc
 
 
-def test_build_doc_without_deployed_components(tmp_path: Path):
+def test_build_section_without_deployed_components(tmp_path: Path):
     def undeployed(data: dict[str, Any]) -> None:
         for c in data["components"]:
             c["traits"]["deployed"] = False
@@ -257,8 +254,8 @@ def test_build_doc_without_deployed_components(tmp_path: Path):
             t["hosting"] = ""
         data["observability"]["components"] = []
 
-    doc = render(load(tmp_path, undeployed))["docs/build.md"]
-    assert "## Environments\n\nNone: nothing is deployed.\n" in doc
+    doc = build_section(render(load(tmp_path, undeployed)))
+    assert "### Environments\n\nNone: nothing is deployed.\n" in doc
     assert "| api | container | - |" in doc
 
 
@@ -277,7 +274,7 @@ def test_external_folder_gets_a_readme_and_a_claude_md_link(tmp_path: Path):
     out = render(load(tmp_path))
     assert out["docs/guide/README.md"].startswith("# Pico Trust guide\n")
     assert "- [User guide](docs/guide/)" in out["CLAUDE.md"]
-    assert "- [Build, CI and hosting](docs/build.md)" in out["CLAUDE.md"]
+    assert "- [Contributing](CONTRIBUTING.md)" in out["CLAUDE.md"]
 
 
 def test_readme_external_docs_add_no_folder(tmp_path: Path):
@@ -476,7 +473,8 @@ def test_claude_md_lists_each_stacks_rules_once(tmp_path: Path):
         "boundary; don't pass `dict[str, Any]` inward.",
         "- **python:import-contracts**: Once a component has more than one "
         "package, add import-linter contracts for the layers "
-        "`docs/architecture.md` names, and add `lint-imports` to its "
+        "the architecture in `docs/specification.md` names, and add "
+        "`lint-imports` to its "
         "`structure` command.",
         "",
         "### typescript (web)",

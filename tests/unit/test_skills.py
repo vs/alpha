@@ -266,6 +266,26 @@ def test_every_kind_has_a_recommended_stack():
     assert {stacks[kind] for kind in answers.KINDS} <= set(RecipeBook().kit_stacks())
 
 
+REMOVED_DOCS = re.compile(
+    r"docs/(product|architecture|build|security|releases|ui|data|performance"
+    r"|observability)\.md"
+)
+
+
+def test_no_kit_file_names_a_removed_doc():
+    """F4: the specification and CONTRIBUTING.md replaced these docs
+    (decision 0035), so nothing the kit ships may send anyone to them."""
+    shipped = [
+        p
+        for folder in ("skills", "project-files", "recipes", "src")
+        for p in (PLUGIN_ROOT / folder).rglob("*")
+        if p.is_file() and p.suffix in (".md", ".py", ".toml")
+    ]
+    assert len(shipped) > 50
+    named = [str(p) for p in shipped if REMOVED_DOCS.search(p.read_text())]
+    assert not named, named
+
+
 @pytest.mark.parametrize("skill", ALL_SKILLS)
 def test_skills_stay_short(skill: str):
     assert len(_text(skill).splitlines()) <= 150

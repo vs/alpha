@@ -37,7 +37,7 @@ Audit the repo like the senior developer who just inherited it and will be paged
 
 - Audit what the user names: a folder, a component, or the whole repo. Nothing named: the whole repo.
 - Read the README, `docs/` (architecture, principles, decisions, performance), the build and deploy config, the dependency list, the entry points (main, routes, handlers, jobs, CLI commands) and the tests.
-- Take the expected load from `docs/performance.md`; when it isn't recorded, infer it from the README and deploy config, and say which load you assumed.
+- Take the expected load from the Performance section of `docs/specification.md` (or `[review] expected_load` in `docs/principles.toml`); when it isn't recorded, infer it from the README and deploy config, and say which load you assumed.
 - Trace the main flows end to end and read those paths fully: input from users, money, auth, data writes, background jobs, anything shared between processes. In a big repo, go deep where a mistake costs the most, and say which parts you did not read.
 
 ## 2. Look for
@@ -46,7 +46,7 @@ Audit the repo like the senior developer who just inherited it and will be paged
 2. **Risk:** security holes (injection, weak randomness, secrets, missing checks on input from users), data loss (errors swallowed, writes in the wrong order, no transaction).
 3. **Scale:** fine for one user, wrong at the expected load: check-then-write races, the same work done by every process, memory or lists that only grow, a query per item, O(n^2) on big input, per-process state that must be shared.
 4. **Missing test:** risky logic (a branch, a parser, money, security, data writes, a bug fix) with no test that fails when it breaks. One good test, not coverage.
-5. **Speed:** big slowdowns are problems; small wins (work repeated in a hot loop) are suggestions, unless a budget in `docs/performance.md` makes them count.
+5. **Speed:** big slowdowns are problems; small wins (work repeated in a hot loop) are suggestions, unless a budget in `docs/specification.md` makes them count.
 6. **Lean:** code that should not exist or should be smaller: dead code, unused options and config, speculative features; a helper the repo already has (name the path); what the standard library, the platform or an installed dependency already does; an abstraction with one implementation; near-copies that must change together; a function doing several unrelated jobs (split by job, never by line count).
 7. **The project's own rules:** anything that breaks a principle in `docs/principles.toml` or an accepted record in `docs/decisions/`; name the principle or the record.
 

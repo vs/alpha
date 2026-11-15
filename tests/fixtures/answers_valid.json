@@ -184,7 +184,7 @@
           "**/openapi*.yaml"
         ],
         "docs": [
-          "docs/architecture.md"
+          "docs/specification.md"
         ]
       }
     ]

@@ -61,8 +61,9 @@ def test_every_module_imports_and_the_cli_runs_on_python_3_11():
 
 
 def test_startup_budget_bin_alpha_help_under_200_ms():
-    """docs/performance.md: bin/alpha starts in under 200 ms. The best of five
-    runs, so one slow scheduler tick on a busy machine doesn't fail it."""
+    """docs/specification.md, Performance: bin/alpha starts in under 200 ms.
+    The best of five runs, so one slow scheduler tick on a busy machine
+    doesn't fail it."""
     shim = ROOT / "bin" / "alpha"
     times: list[float] = []
     for _ in range(5):

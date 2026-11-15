@@ -42,13 +42,14 @@ PROJECT_JSON = ".claude/alpha/project.json"
 
 
 def test_open_areas_render_as_not_settled(tmp_path: Path):
-    """F3, F4: open areas are listed in product.md and get no doc of their own."""
+    """Open areas are listed in the specification and get no section of their
+    own beyond saying so."""
     path = place_answers(tmp_path, "web-ts-plus-python-api")
     data = json.loads(path.read_text())
     setup_only(data)
     path.write_text(json.dumps(data))
     written = generate(tmp_path, ROOT, SRC, 2026, TODAY)
-    product = (tmp_path / "docs/product.md").read_text()
+    product = (tmp_path / "docs/specification.md").read_text()
     assert "None yet: each feature built with `/alpha:go`" in product
     assert "`/alpha:go settle the target users`" in product
     not_settled = product.split("## Not settled yet")[1]
@@ -63,18 +64,13 @@ def test_open_areas_render_as_not_settled(tmp_path: Path):
         "settle the performance budgets",
     ):
         assert f"`/alpha:go {request}`" in not_settled, request
-    architecture = (tmp_path / "docs/architecture.md").read_text()
-    assert "`/alpha:go settle the architecture`" in architecture
-    assert "`/alpha:go settle the error handling`" in architecture
-    assert "`/alpha:go settle the auth`" in (tmp_path / "docs/security.md").read_text()
-    for doc in (
-        "docs/design-language.md",
-        "docs/ui.md",
-        "docs/data.md",
-        "docs/performance.md",
-        "docs/observability.md",
-        "docs/glossary.md",
-    ):
+    sections = product.split("## Not settled yet")[1]
+    assert "## Responsibilities and contracts\n\nNot settled yet" in sections
+    assert "## Errors\n\nNot settled yet" in sections
+    assert "`/alpha:go settle the auth`" in sections
+    for heading in ("## UI", "## Data", "## Performance", "## Observability"):
+        assert heading not in product, heading
+    for doc in ("docs/design-language.md", "docs/glossary.md"):
         assert doc not in written and not (tmp_path / doc).exists(), doc
     records = "\n".join(p.name for p in (tmp_path / "docs/decisions").iterdir())
     assert "architecture" not in records and "performance" not in records
@@ -88,7 +84,8 @@ def test_open_areas_that_cannot_apply_are_not_listed(tmp_path: Path):
     setup_only(data)
     path.write_text(json.dumps(data))
     generate(tmp_path, ROOT, SRC, 2026, TODAY)
-    listed = (tmp_path / "docs/product.md").read_text().split("## Not settled yet")[1]
+    spec = (tmp_path / "docs/specification.md").read_text()
+    listed = spec.split("## Not settled yet")[1]
     for request in ("UI", "accessibility target", "observability", "data and"):
         assert f"settle the {request}" not in listed, request
     for request in ("architecture", "error handling", "design language", "perf"):
@@ -99,8 +96,90 @@ def test_done_areas_have_no_not_settled_section(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")
-    assert "Not settled yet" not in (tmp_path / "docs/product.md").read_text()
-    assert "Not settled yet" not in (tmp_path / "docs/architecture.md").read_text()
+    assert "Not settled yet" not in (tmp_path / "docs/specification.md").read_text()
+
+
+REMOVED_DOCS = (
+    "docs/product.md",
+    "docs/architecture.md",
+    "docs/build.md",
+    "docs/security.md",
+    "docs/releases.md",
+    "docs/ui.md",
+    "docs/data.md",
+    "docs/performance.md",
+    "docs/observability.md",
+)
+
+
+def test_the_specification_is_one_file(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    """F1, F3: the product's specification is docs/specification.md; the files
+    hooks read or the user kept stay where they are."""
+    written = generate_scenario(tmp_path, "web-ts-plus-python-api")
+    spec = (tmp_path / "docs/specification.md").read_text()
+    assert spec.startswith("# Pico Trust: specification\n")
+    headings = [line for line in spec.splitlines() if line.startswith("## ")]
+    assert headings == [
+        "## Value proposition",
+        "## Target users",
+        "## Requirements",
+        "## Responsibilities",
+        "## Contracts",
+        "## Errors",
+        "## Auth",
+        "## UI",
+        "## Data",
+        "## Performance",
+        "## Observability",
+    ]
+    for doc in REMOVED_DOCS:
+        assert doc not in written and not (tmp_path / doc).exists(), doc
+    for kept in (
+        "docs/principles.toml",
+        "docs/dependencies.md",
+        "docs/design-language.md",
+        "docs/glossary.md",
+    ):
+        assert (tmp_path / kept).is_file(), kept
+    assert any(p.startswith("docs/decisions/") for p in written)
+
+
+def test_the_process_is_in_contributing(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    """F2: CONTRIBUTING.md holds how the project is built, released and kept
+    secure, and how its data changes."""
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    text = (tmp_path / "CONTRIBUTING.md").read_text()
+    for heading in (
+        "## Components",
+        "## Checks",
+        "## Commit convention",
+        "## Branching",
+        "## Build, CI and hosting",
+        "## Releases",
+        "## Security",
+        "## Migrations",
+    ):
+        assert f"\n{heading}\n" in text, heading
+    assert "| api | container | Fly.io |" in text
+    assert "## Auth" not in text and "## Experiments" not in text
+
+
+def test_claude_md_links_only_existing_docs(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    """F5: every link in CLAUDE.md's docs list points to a file it has."""
+    for scenario in ("web-ts-plus-python-api", "rust-cli"):
+        target = tmp_path / scenario
+        generate_scenario(target, scenario)
+        docs = (target / "CLAUDE.md").read_text().split("## Docs\n")[1]
+        links = re.findall(r"\]\(([^)]+)\)", docs.split("\n## ")[0])
+        assert links, scenario
+        for link in links:
+            assert (target / link).exists(), (scenario, link)
 
 
 def test_refuses_non_empty_folder(tmp_path: Path):
@@ -811,8 +890,8 @@ def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
     settings = json.loads((tmp_path / ".claude/settings.json").read_text())
     assert "Bash(sh:*)" in settings["permissions"]["allow"]
     assert "out/" in (tmp_path / ".gitignore").read_text().splitlines()
-    architecture = (tmp_path / "docs/architecture.md").read_text()
-    assert "(less proven: recipe drafted for this project)" in architecture
+    contributing = (tmp_path / "CONTRIBUTING.md").read_text()
+    assert "(less proven: recipe drafted for this project)" in contributing
 
 
 def test_bootstrap_runs_a_drafted_recipe(

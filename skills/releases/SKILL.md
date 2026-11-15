@@ -18,7 +18,7 @@ allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 
 ## Purpose
 
-Users and other components need to know what changed and whether an upgrade is safe. This area settles how versions are numbered, where changes are written up, and how a release is cut. Every project gets `docs/releases.md`, plus `CHANGELOG.md` when the changelog is kept in a file.
+Users and other components need to know what changed and whether an upgrade is safe. This area settles how versions are numbered, where changes are written up, and how a release is cut. Every project gets a Releases section in `CONTRIBUTING.md`, plus `CHANGELOG.md` when the changelog is kept in a file.
 
 ## Fields this area settles
 

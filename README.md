@@ -16,7 +16,7 @@ The interview asks only what alpha needs to set up the tooling: the name,
 license, components and stacks, tests, docs, CI, releases and git. What the
 product does, its architecture, errors, UI, data, budgets and so on, stays
 open until the work needs it; `/alpha:go` settles each part then, and
-`docs/product.md` lists what's still open.
+`docs/specification.md` lists what's still open.
 
 ```sh
 claude plugin marketplace add vs/alpha
@@ -37,6 +37,8 @@ recommended answer, for you to confirm or rewrite.
 | | |
 |---|---|
 | `docs/principles.toml` | the one file CLAUDE.md, hooks and reviewer read |
+| `docs/specification.md` | what the product does: requirements and the parts settled so far, the rest listed as not settled yet; features add their own specs in `docs/specs/` |
+| `CONTRIBUTING.md` | how the project is set up, checked, committed, built, released and kept secure |
 | `docs/decisions/` | a record per interview area and per override |
 | `.claude/` | permissions, hooks, the principles reviewer, skills to commit, record a decision, and review a change, the whole repo or its `shortcut:` ledger |
 | each component | strict lint, types and tests, wired up with no `src/`; a monorepo's Rust components form one Cargo workspace at the root |

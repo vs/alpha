@@ -159,7 +159,8 @@ def testing_section(a: Answers, principles: dict[str, Any]) -> list[str]:
         "Put each level's tests under `tests/<level>/` in the component.",
         "",
         "A test that covers an acceptance check names its requirement id (e.g. "
-        "`R1`) in its name, so each check in docs/product.md traces to a test.",
+        "`R1`) in its name, so each check in docs/specification.md traces to a "
+        "test.",
         "",
     ]
     if _active(principles, "exhaustive-testing"):
@@ -170,17 +171,13 @@ def testing_section(a: Answers, principles: dict[str, Any]) -> list[str]:
     return lines
 
 
-def security_doc(a: Answers, principles: dict[str, Any]) -> str:
+def security_section(a: Answers, principles: dict[str, Any]) -> list[str]:
     assert a.security is not None
     store = a.security.secret_store
-    auth = a.security.auth or (
-        "Not settled yet: `/alpha:go settle the auth` settles it when the work "
-        "needs it."
-    )
     lines = [
-        "# Security",
+        "## Security",
         "",
-        "## Secrets",
+        "### Secrets",
         "",
         f"Production secrets live in: {store}." if store else "Nothing is deployed.",
         "",
@@ -188,18 +185,22 @@ def security_doc(a: Answers, principles: dict[str, Any]) -> str:
         "them. Claude can't edit them, and the Stop hook blocks a change that adds "
         "a secret to the repository.",
         "",
-        "## Auth",
-        "",
-        auth,
-        "",
-        "## Protected paths",
+        "### Protected paths",
         "",
         "Claude can't edit these. Lockfiles change only through the package "
         "manager; change the others by hand.",
         "",
     ]
-    lines += [f"- `{glob}`" for glob in principles["protected"]["paths"]]
-    return "\n".join(lines) + "\n"
+    return lines + [f"- `{glob}`" for glob in principles["protected"]["paths"]]
+
+
+def auth_section(a: Answers) -> list[str]:
+    assert a.security is not None
+    auth = a.security.auth or (
+        "Not settled yet: `/alpha:go settle the auth` settles it when the work "
+        "needs it."
+    )
+    return ["## Auth", "", auth]
 
 
 def dependency_policy(a: Answers) -> list[str]:
@@ -231,11 +232,11 @@ def dependency_policy(a: Answers) -> list[str]:
     ]
 
 
-def observability_doc(a: Answers) -> str | None:
+def observability_section(a: Answers) -> list[str] | None:
     if a.observability is None or not a.observability.components:
         return None
     lines = [
-        "# Observability",
+        "## Observability",
         "",
         "| Component | Logs | Correlation | Telemetry |",
         "|---|---|---|---|",
@@ -249,7 +250,7 @@ def observability_doc(a: Answers) -> str | None:
         "Levels: `info` in deployed environments, `debug` locally; errors carry the "
         "correlation id.",
     ]
-    return "\n".join(lines) + "\n"
+    return lines
 
 
 _PALETTE_CHECKS = {
@@ -315,13 +316,13 @@ def design_language_doc(a: Answers) -> str | None:
     return "\n".join(lines) + "\n"
 
 
-def ui_doc(a: Answers) -> str | None:
+def ui_section(a: Answers) -> list[str] | None:
     if a.ui is None or not a.ui.components:
         return None
     lines = [
-        "# UI",
+        "## UI",
         "",
-        "## Visual system",
+        "### Visual system",
         "",
         "| Component | Library | Tokens | Icons | Typography | Theming |",
         "|---|---|---|---|---|---|",
@@ -343,46 +344,53 @@ def ui_doc(a: Answers) -> str | None:
         ]
     lines += [
         "",
-        "## Visual regression",
+        "### Visual regression",
         "",
     ]
     lines += [f"- {c.name}: {c.visual_regression}" for c in a.ui.components]
-    lines += ["", "## Accessibility", ""]
+    lines += ["", "### Accessibility", ""]
     if a.accessibility is None:
         lines.append(not_settled("accessibility"))
     else:
         lines += [f"Target: {a.accessibility.level}.", ""]
         lines += [f"- {c.name}: {c.checks}" for c in a.accessibility.components]
         lines += ["", "Every UI works with a keyboard and a screen reader."]
-    return "\n".join(lines) + "\n"
+    return lines
 
 
-def data_doc(a: Answers, principles: dict[str, Any]) -> str | None:
-    if a.data is None or (not a.data.components and a.data.ml is None):
+def data_section(a: Answers) -> list[str] | None:
+    if a.data is None or not a.data.components:
         return None
-    lines = ["# Data", ""]
-    if a.data.components:
+    lines = [
+        "## Data",
+        "",
+        "| Component | Storage | Migrations | Reversible |",
+        "|---|---|---|---|",
+    ]
+    for c in a.data.components:
+        globs = ", ".join(f"`{g}`" for g in c.migrations)
+        migrations = f"{c.migration_tool}: {globs}" if globs else c.migration_tool
+        reversible = "yes" if c.reversible else "no"
+        lines.append(row(c.name, c.storage, migrations, reversible))
+    return lines
+
+
+def data_rules_sections(a: Answers, principles: dict[str, Any]) -> list[str]:
+    """How the team changes stored data and runs experiments: process, for
+    CONTRIBUTING.md (decision 0035)."""
+    if a.data is None:
+        return []
+    lines: list[str] = []
+    migrated = any(c.migrations for c in a.data.components)
+    if migrated and _active(principles, "safe-migrations"):
         lines += [
-            "## Storage",
+            "## Migrations",
             "",
-            "| Component | Storage | Migrations | Reversible |",
-            "|---|---|---|---|",
+            "Every schema change is a migration. Migrations are append-only: once "
+            "one exists in a commit, add a new one instead of editing it (the Stop "
+            "hook checks). Write a down migration wherever the change can be undone.",
+            "",
         ]
-        for c in a.data.components:
-            globs = ", ".join(f"`{g}`" for g in c.migrations)
-            migrations = f"{c.migration_tool}: {globs}" if globs else c.migration_tool
-            reversible = "yes" if c.reversible else "no"
-            lines.append(row(c.name, c.storage, migrations, reversible))
-        lines.append("")
-        migrated = any(c.migrations for c in a.data.components)
-        if migrated and _active(principles, "safe-migrations"):
-            lines += [
-                "Every schema change is a migration. Migrations are append-only: "
-                "once one exists in a commit, add a new one instead of editing it "
-                "(the Stop hook checks). Write a down migration wherever the change "
-                "can be undone.",
-                "",
-            ]
     if a.data.ml is not None:
         ml = a.data.ml
         lines += [
@@ -395,7 +403,7 @@ def data_doc(a: Answers, principles: dict[str, Any]) -> str | None:
             "Every result names the data version, seed and config that produced it.",
             "",
         ]
-    return "\n".join(lines).rstrip("\n") + "\n"
+    return lines
 
 
 _SCHEMES = {
@@ -410,7 +418,7 @@ _SCHEME_NAMES = {
 }
 
 
-def releases_doc(a: Answers) -> str:
+def releases_section(a: Answers) -> list[str]:
     assert a.releases is not None
     r = a.releases
     scope = (
@@ -425,13 +433,13 @@ def releases_doc(a: Answers) -> str:
         else "under Unreleased as they land, and moved under the version at release."
     )
     changelog = {
-        "file": f"Changes are recorded in [CHANGELOG.md](../CHANGELOG.md) {recorded}",
+        "file": f"Changes are recorded in [CHANGELOG.md](CHANGELOG.md) {recorded}",
         "github-releases": "Changes are written up in the GitHub release notes "
         "for each version.",
         "none": "No changelog is kept; the commit history is the record.",
     }[r.changelog]
-    lines = [
-        "# Releases",
+    return [
+        "## Releases",
         "",
         _SCHEMES[r.scheme],
         "",
@@ -439,11 +447,10 @@ def releases_doc(a: Answers) -> str:
         "",
         changelog,
         "",
-        "## Cutting a release",
+        "### Cutting a release",
         "",
         r.process,
     ]
-    return "\n".join(lines) + "\n"
 
 
 def changelog(a: Answers) -> str | None:
@@ -464,7 +471,7 @@ def changelog(a: Answers) -> str | None:
     )
 
 
-def performance_doc(a: Answers) -> str | None:
+def performance_section(a: Answers) -> list[str] | None:
     if a.performance is None:
         return None
     rows = [
@@ -475,7 +482,7 @@ def performance_doc(a: Answers) -> str | None:
     load = a.performance.expected_load
     if not rows and not load:
         return None
-    lines = ["# Performance", ""]
+    lines = ["## Performance", ""]
     if rows:
         lines += [
             "| Component | Metric | Budget | Measured by |",
@@ -488,7 +495,7 @@ def performance_doc(a: Answers) -> str | None:
         ]
     if load:
         lines += [
-            "## Expected load",
+            "### Expected load",
             "",
             load,
             "",
@@ -496,7 +503,7 @@ def performance_doc(a: Answers) -> str | None:
             "names the load past which its shortcut stops holding.",
             "",
         ]
-    return "\n".join(lines[:-1]) + "\n"
+    return lines[:-1]
 
 
 PHASE_NAMES = {

@@ -96,7 +96,7 @@ def test_the_spec_template_traces_each_check_to_a_test():
     assert "| ID | Requirement | Acceptance check | Test |" in template
     for heading in ("## Why", "## Requirements", "## Plan", "## Decisions"):
         assert heading in template
-    assert "Serves: R<n> in docs/product.md" in template
+    assert "Serves: R<n> in docs/specification.md" in template
 
 
 def test_worktrees_prefer_the_harness_tool_and_an_ignored_folder():
