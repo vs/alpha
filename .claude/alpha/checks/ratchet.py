@@ -2,7 +2,7 @@
 
 Usage, from anywhere in the project: ratchet.py <check-id> [--file <path>]
 [--capture]. The check's command and how its findings read come from its
-[[baselines]] entry in docs/principles.toml; the counts per file and rule
+[[baselines]] entry in docs/alpha/principles.toml; the counts per file and rule
 live in .claude/alpha/baselines/<check-id>.json.
 
 Exit 0: no new findings (fewer ones tighten the baseline, except in CI).
@@ -240,7 +240,7 @@ def write_baseline(path: Path, check: str, counts: Counts) -> None:
 
 def project_root(here: Path) -> Path | None:
     """The checkout holding `here`; before `git init` (a fresh skeleton's
-    bootstrap), the nearest folder with docs/principles.toml."""
+    bootstrap), the nearest folder with docs/alpha/principles.toml."""
     found = _common.checkout_of(here)
     if found is not None:
         return found
@@ -328,7 +328,7 @@ def main() -> None:
         _fail(
             2,
             f"ratchet.py: {Path.cwd()} isn't in an alpha project (no "
-            "docs/principles.toml here or above). Run it inside the project.",
+            "docs/alpha/principles.toml here or above). Run it inside the project.",
         )
     principles = _common.load_principles(root, fail_code=2) or {}
     entry = _entry(principles, check)
@@ -336,8 +336,9 @@ def main() -> None:
         ids = [str(e.get("id")) for e in principles.get("baselines", [])]
         _fail(
             2,
-            f"ratchet.py: {check!r} isn't a baselined check in docs/principles.toml "
-            f"(baselined: {', '.join(ids) or 'none'}). Use one of those ids.",
+            f"ratchet.py: {check!r} isn't a baselined check in "
+            f"docs/alpha/principles.toml (baselined: {', '.join(ids) or 'none'}). "
+            "Use one of those ids.",
         )
     folder = str(entry.get("dir", "."))
     cwd = root if folder in ("", ".") else root / folder

@@ -54,20 +54,21 @@ alpha is a Claude Code plugin that puts a development process into a project: pr
 - **Never block on the human**: Don't stop to ask about reversible work. When a requirement is ambiguous, make the reasonable choice, write it into the docs, and say what you chose. Ask first only when the choice sets product direction or can't be undone: rewriting the main branch, deploys, deleting data, messages to people.
 - **Definition of done**: Tests written and passing, types and lint clean, docs updated, committed per the history principle, reviewer passed.
 
-`docs/principles.toml` is the source of truth, with each principle's parameters, rationale and overrides.
+`docs/alpha/principles.toml` is the source of truth, with each principle's parameters, rationale and overrides.
 
 ## Working rules
 
-- Before you change code, docs or config, read the parts of docs/specification.md and CONTRIBUTING.md that bear on the change and the principle's parameters in docs/principles.toml. Follow them.
-- A decision updates the docs, as the decision skill says: what the product does goes in docs/specification.md and needs the user's yes; how the work is done goes in CONTRIBUTING.md, with the reason in the commit; a changed principle is an override in the answers, which the user agrees to first.
+- Before you change code, docs or config, read the parts of docs/alpha/specification.md and CONTRIBUTING.md that bear on the change and the principle's parameters in docs/alpha/principles.toml. Follow them.
+- A decision updates the docs, as the decision skill says: what the product does goes in docs/alpha/specification.md and needs the user's yes; how the work is done goes in CONTRIBUTING.md, with the reason in the commit; a changed principle is an override in the answers, which the user agrees to first.
 - When a requirement is ambiguous, make the reasonable choice, record it with the decision skill and say what you chose; don't stop to ask about reversible work. Ask first only about product direction or what can't be undone (rewriting main, deploys, deleting data, messages to people).
 - Read a file in full before you edit it, and every file a wide change touches; search snippets aren't enough.
 - Look up a dependency's API in its installed source or types instead of guessing it.
 - Remove dead code and replaced internal APIs without asking, but ask before removing code or behavior that looks intentional.
 - Commit only the files you changed for the work, staged by path. Other changes in the tree may be the user's or another session's, so don't stage, stash or reset them.
 - Subagents work under the same principles, docs and checks.
+- Run `/alpha:uninstall` or `/alpha:purge` only when the user asks for it.
 - Before you report work as done, re-read every changed file top to bottom as a stranger would.
-- At the end of a planned piece of work, run the principles-reviewer agent.
+- Run the principles-reviewer agent once, before your work reaches main: the merge guard asks for it, and it reviews only what changed since its last review.
 - When you add a code generator, add a `generate` task to `mise.toml` and to the `ci` task's `depends`; commit what it regenerates with the change.
 - Never disable a lint rule to pass; an exception names one path and one rule, and a row in CONTRIBUTING.md's Exceptions table names that path, the rule and the reason.
 - A security suppression (osv-scanner, betterleaks) needs a reason and a review date: in the `osv-scanner.toml` next to the lockfile it applies to, `ignoreUntil` and `reason`; in `.betterleaksignore`, a `# <reason> (review YYYY-MM-DD)` line directly above the entry.
@@ -86,7 +87,7 @@ alpha is a Claude Code plugin that puts a development process into a project: pr
 
 - **alpha-python:uv-for-dependencies**: Add and remove dependencies with `uv add` and `uv remove`, never by editing the dependency lists in `pyproject.toml` or with `pip`.
 - **alpha-python:typed-boundaries**: Parse external input (JSON, files, environment, requests) into dataclasses or typed models at the boundary; don't pass `dict[str, Any]` inward.
-- **alpha-python:import-contracts**: Once a component has more than one package, add import-linter contracts for the layers the architecture in `docs/specification.md` names, and add `lint-imports` to its `structure` command.
+- **alpha-python:import-contracts**: Once a component has more than one package, add import-linter contracts for the layers the architecture in `docs/alpha/specification.md` names, and add `lint-imports` to its `structure` command.
 
 ## Commands
 
@@ -123,12 +124,12 @@ Follow the commit skill (`.claude/skills/commit/SKILL.md`, which the user runs a
 
 ## Docs
 
-- [Principles](docs/principles.toml)
-- [Specification](docs/specification.md): what the product does, settled as the work needs it; each feature adds its own spec in `docs/specs/`
+- [Principles](docs/alpha/principles.toml)
+- [Specification](docs/alpha/specification.md): what the product does; `/alpha:specify` settles each open part, and each feature gets a folder in `docs/alpha/features/`
 - [Contributing](CONTRIBUTING.md): how the project is built, checked, released and kept secure
-- [Dependencies](docs/dependencies.md)
-- [Glossary](docs/glossary.md)
-- [Adoption plan](docs/adoption.md): the steps that bring this repo's code up to the principles; `/alpha:install` resumes it
+- [Dependencies](docs/alpha/dependencies.md)
+- [Glossary](docs/alpha/glossary.md)
+- [Adoption plan](docs/alpha/adoption.md): the steps that bring this repo's code up to the principles; `/alpha:install` resumes it
 
 ## Install and verify
 

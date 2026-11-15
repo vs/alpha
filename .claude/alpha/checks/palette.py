@@ -1,7 +1,7 @@
 """List the colors that aren't in the design language's palette.
 
 Usage, from the repo root: palette.py [--advise] [file ...]
-Reads [visuals] in docs/principles.toml: `palette` (the declared colors),
+Reads [visuals] in docs/alpha/principles.toml: `palette` (the declared colors),
 `palette_files` (the globs to read) and `exclude`. With no files, reads every
 file git would track; in Markdown, only the diagram blocks. Stdlib only.
 
@@ -22,7 +22,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
 import _common
 
-PRINCIPLES = "docs/principles.toml"
+PRINCIPLES = "docs/alpha/principles.toml"
 HEX = re.compile(
     r"(?<![\w&/])#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])"
 )
@@ -196,7 +196,7 @@ def main() -> int:
     if not found or advise:
         return 0
     print(
-        f"{len(found)} color(s) outside the palette in docs/design-language.md. "
+        f"{len(found)} color(s) outside the palette in docs/alpha/design-language.md. "
         "For each: use a palette color; or add the color to the design language "
         "with /alpha:extend; or, for a third-party file, add its path to "
         f"exclude under [visuals] in {PRINCIPLES}. To make this check advisory, "

@@ -109,7 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/alpha/hooks/user_prompt.py",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/alpha/hooks/accept.py",
             "timeout": 10
           }
         ]

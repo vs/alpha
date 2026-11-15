@@ -605,10 +605,13 @@
       },
       {
         "paths": [
-          "skills/new-project/**",
-          "skills/adopt/**",
+          "skills/install/**",
           "skills/extend/**",
-          "skills/go/**"
+          "skills/specify/**",
+          "skills/update/**",
+          "skills/uninstall/**",
+          "skills/purge/**",
+          "skills/do/**"
         ],
         "docs": [
           "README.md"
