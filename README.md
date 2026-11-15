@@ -140,7 +140,7 @@ claude plugin update alpha@alpha
 ```
 
 Your projects move to the new kit with the plugin's `bin/alpha update
-<project>` (try `--dry-run` first), then `bin/alpha commit-update <project>`;
+<project>` (try `--dry-run` first), then `bin/alpha commit <project>`;
 Claude finds `bin/alpha` for you if you ask it to update the project to the
 new alpha. alpha merges its
 newer hooks, checks and files into yours and keeps your edits; where they
@@ -150,6 +150,24 @@ When you override a default, alpha asks whether to keep it for your next
 projects. A yes goes to `~/.config/alpha/overrides.toml`, a recipe drafted in
 an interview to `~/.config/alpha/recipes/`. Both apply on top of the installed
 plugin and survive its updates.
+
+## Projects an older alpha set up
+
+An alpha before 1.0 kept a `manifest` in `.claude/alpha/project.json`; this
+alpha doesn't upgrade such a project on its own. By hand, in one sitting:
+
+1. Move `docs/principles.toml` and `docs/dependencies.md` into `docs/alpha/`,
+   and fold `docs/specification.md`, `docs/glossary.md`,
+   `docs/design-language.md` and `docs/adoption.md` into `docs/alpha/`; old
+   feature specs in `docs/specs/` go to `docs/alpha/features/`.
+2. Remove `manifest` from `project.json` and reshape the answers: identity's
+   target users and requirements go into a `requirements` area,
+   `security.auth` into an `auth` area; drop the review mode and thresholds,
+   `testing.run`, `testing.mutants` and each `proven_hash`. Then run
+   `bin/alpha answers check` until it prints ok.
+3. Run `bin/alpha apply <project>`: alpha's own files are replaced, and every
+   other file of alpha's that differs becomes a proposal to merge by hand.
+   Then `bin/alpha bootstrap <project>` and `bin/alpha commit <project>`.
 
 ## Develop
 

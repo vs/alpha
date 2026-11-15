@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 from collections import Counter
@@ -7,30 +8,21 @@ from typing import Any
 
 from alpha.answers import PROJECT_JSON
 from alpha.baseline import BASELINE_DIR
-from alpha.generate import GenerateError, digest
+from alpha.generate import GenerateError
 from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
 from alpha.render.tooling import BETTERLEAKS, LYCHEE, MISE, RUMDL, TYPOS
+from alpha.rendered import record
 from alpha.shell import GIT_TIMEOUT
 
 HOOKS_PATH = ".claude/alpha/githooks"
-_DOCS = [
-    "README.md",
-    "LICENSE",
-    "CONTRIBUTING.md",
-    "CHANGELOG.md",
-    "docs",
-    ".gitignore",
-]
 _TOOLING = [MISE, TYPOS, RUMDL, LYCHEE, BETTERLEAKS]
 _TOOLING_SUBJECT = "build: Pin the repository's check tools"
 _DOCS_SUBJECT = "docs: Add the specification, principles and process"
 _CLAUDE_SUBJECT = "chore: Add Claude Code settings and guardrails"
 _CI_SUBJECT = "ci: Run every component's checks in CI"
 _DEPENDABOT_SUBJECT = "ci: Schedule dependency updates"
-_CLAUDE = ["CLAUDE.md", ".claude"]
 UPDATE_STATE = ".claude/alpha/state/update.json"
 PROPOSALS = ".claude/alpha/state/update"
-_CI = ".github"
 _MAX_DESCRIPTION = 50
 
 
@@ -49,7 +41,7 @@ def commit_group(path: str, component_of: Mapping[str, str]) -> str:
 
 
 def _git(
-    target: Path, *args: str, command: str = "commit-skeleton"
+    target: Path, *args: str, command: str = "commit"
 ) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
@@ -109,7 +101,7 @@ def status_paths(
     return found
 
 
-def _check(target: Path, *args: str, command: str = "commit-skeleton") -> str:
+def _check(target: Path, *args: str, command: str = "commit") -> str:
     done = _git(target, *args, command=command)
     if done.returncode != 0:
         detail = (done.stderr or done.stdout).strip()
@@ -120,7 +112,7 @@ def _check(target: Path, *args: str, command: str = "commit-skeleton") -> str:
     return done.stdout.strip()
 
 
-def _check_identity(target: Path, command: str = "commit-skeleton") -> None:
+def _check_identity(target: Path, command: str = "commit") -> None:
     for role in ("AUTHOR", "COMMITTER"):
         done = _git(
             target,
@@ -154,40 +146,6 @@ def _workspace_subject(stack: str) -> str:
     return f"build: Set up the {stack} workspace and tests"
 
 
-def commit_skeleton(
-    target: Path, principles: dict[str, Any], trailers: list[str]
-) -> list[str]:
-    if not (target / ".git").exists():
-        _check(target, "init", "-q", "-b", "main")
-    _check(target, "config", "core.hooksPath", HOOKS_PATH)
-    _check_identity(target)
-    groups = [
-        (_DOCS_SUBJECT, _DOCS),
-        (_CLAUDE_SUBJECT, _CLAUDE),
-        (_TOOLING_SUBJECT, _TOOLING),
-    ]
-    scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
-    workspaces: dict[str, list[str]] = {}
-    for c in principles["components"]:
-        if c.get("workspace"):
-            # One commit per workspace: its root files and its members pass
-            # their checks only together.
-            stack = c["stack"]
-            if stack not in workspaces:
-                workspaces[stack] = [*c["workspace"], *c["lockfiles"]]
-                groups.append((_workspace_subject(stack), workspaces[stack]))
-            workspaces[stack].append(c["path"])
-            continue
-        paths = [c["path"]]
-        if c["path"] == ".":
-            paths.append(f":(exclude){_CI}")
-        groups.append((_build_subject(c, scopes), paths))
-    groups.append((_CI_SUBJECT, [WORKFLOW, SCHEDULED, JACTIONLINT]))
-    groups.append((_DEPENDABOT_SUBJECT, [DEPENDABOT]))
-
-    return _commit_groups(target, groups, trailers, "commit-skeleton")
-
-
 def _commit_groups(
     target: Path,
     groups: list[tuple[str, list[str]]],
@@ -196,7 +154,11 @@ def _commit_groups(
 ) -> list[str]:
     hashes: list[str] = []
     for subject, paths in groups:
-        present = [p for p in paths if p.startswith(":(") or (target / p).exists()]
+        present = [
+            p
+            for p in paths
+            if p.startswith(":(") or (target / p).exists() or _tracked(target, p)
+        ]
         if all(p.startswith(":(") for p in present):
             continue
         _check(target, "add", "-A", "--", *present, command=command)
@@ -234,29 +196,32 @@ def _remove_proposal(target: Path, path: str) -> None:
         parent = parent.parent
 
 
-def commit_update(
+def commit(
     target: Path, principles: dict[str, Any], trailers: list[str]
 ) -> tuple[list[str], list[str]]:
+    """Commit what `alpha apply` or `alpha update` wrote, in groups, then
+    record the render as alpha's base for the next update."""
     state_file = target / UPDATE_STATE
     if not state_file.is_file():
-        raise GenerateError(f"Nothing to commit: run alpha update {target} first.")
+        raise GenerateError(f"Nothing to commit: run alpha apply {target} first.")
     try:
         state: dict[str, Any] = json.loads(state_file.read_text(encoding="utf-8"))
         by_group: dict[str, str] = state["groups"]
         new_components: list[str] = state["new_components"]
         conflicts: dict[str, str] = state["conflicts"]
+        render_tree: str = state["render_tree"]
     except (OSError, ValueError, KeyError, TypeError):
         raise GenerateError(
             f"{state_file} is unreadable. Delete it and {target / PROPOSALS}, "
             f"then run alpha update {target} again."
         ) from None
-    _check_identity(target, "commit-update")
+    _check_identity(target, "commit")
 
     def paths_of(group: str) -> list[str]:
         return sorted(p for p, g in by_group.items() if g == group)
 
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
-    adopting = state.get("kind") == "adopt"
+    adopting = state.get("kind") in ("new", "adopt")
     # Captured or tightened baselines are alpha's writes too (spec §8b).
     baselines = [BASELINE_DIR] if (target / BASELINE_DIR).is_dir() else []
     groups: list[tuple[str, list[str]]] = [
@@ -287,13 +252,14 @@ def commit_update(
             own += [lock for lock in c["lockfiles"] if lock not in own]
         if c["name"] in new_components and c["path"] == ".":
             groups.append((_build_subject(c, scopes), [*own, *c["lockfiles"]]))
-            notes.append(
-                f"{c['name']} is at the project root, so only alpha's files and "
-                "its lockfile were committed; commit any other files its "
-                "bootstrap made yourself."
-            )
+            if state.get("kind") != "new":
+                notes.append(
+                    f"{c['name']} is at the project root, so only alpha's files and "
+                    "its lockfile were committed; commit any other files its "
+                    "bootstrap made yourself."
+                )
         elif new_members[c["stack"]] > 1 and c["name"] in new_components:
-            # One commit, as in commit_skeleton: the workspace's root files
+            # One commit: the workspace's root files
             # list every member, so they pass their checks only together.
             stack = c["stack"]
             if stack not in workspaces:
@@ -313,9 +279,7 @@ def commit_update(
             paths_of("dependabot"),
         ),
     ]
-    hashes = _commit_groups(
-        target, [g for g in groups if g[1]], trailers, "commit-update"
-    )
+    hashes = _commit_groups(target, [g for g in groups if g[1]], trailers, "commit")
 
     for path, recorded in sorted(conflicts.items()):
         file = target / path
@@ -328,5 +292,27 @@ def commit_update(
             )
         else:
             _remove_proposal(target, path)
+    record(target, render_tree)
     state_file.unlink()
     return hashes, notes
+
+
+def _tracked(target: Path, path: str) -> bool:
+    """Whether git tracks `path` (a file alpha deleted is staged by it)."""
+    return bool(_git(target, "ls-files", "--", path, command="commit").stdout.strip())
+
+
+def digest(data: bytes) -> str:
+    """A labelled digest, kept only in alpha's gitignored state: a bare hex
+    string next to a path reads as a leaked key to a secrets check."""
+    return f"sha256:{hashlib.sha256(data).hexdigest()}"
+
+
+def git_init(target: Path) -> None:
+    """Make `target` a repository on main, unless it is one."""
+    if not (target / ".git").exists():
+        _check(target, "init", "-q", "-b", "main", command="apply")
+
+
+def set_hooks_path(target: Path) -> None:
+    _check(target, "config", "core.hooksPath", HOOKS_PATH, command="apply")

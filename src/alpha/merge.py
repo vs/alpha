@@ -7,7 +7,9 @@ from typing import Literal, cast
 
 from alpha.generate import GenerateError
 
-ChangeKind = Literal["new", "change", "merge", "conflict", "stale", "skipped"]
+ChangeKind = Literal[
+    "new", "change", "merge", "conflict", "stale", "skipped", "deleted"
+]
 
 
 @dataclass(frozen=True)
@@ -114,16 +116,92 @@ def _union(disk: object, alpha: object, where: str, notes: list[str]) -> object:
     return cast(object, disk)
 
 
-def merge_json(disk: str, alpha: str) -> tuple[str, list[str]] | None:
-    """The repo's JSON object with alpha's added: objects merge key by key,
-    lists gain alpha's missing items, and a value both set stays the repo's,
-    with a note. None when the repo's file isn't a JSON object."""
+ALPHA_HOOKS = ".claude/alpha/hooks/"
+
+
+def is_alpha_hook(entry: object) -> bool:
+    """Whether a Claude Code hook entry runs one of alpha's hook scripts."""
+    return isinstance(entry, dict) and ALPHA_HOOKS in str(
+        cast("dict[str, object]", entry).get("command", "")
+    )
+
+
+def strip_alpha_hooks(hooks: object) -> dict[str, object]:
+    """Claude Code's hooks table without alpha's entries, and without a group
+    or event that only held them."""
+    if not isinstance(hooks, dict):
+        return {}
+    kept: dict[str, object] = {}
+    for event, groups in cast("dict[str, object]", hooks).items():
+        if not isinstance(groups, list):
+            kept[event] = groups
+            continue
+        new_groups: list[object] = []
+        for raw in cast("list[object]", groups):
+            if not isinstance(raw, dict):
+                new_groups.append(raw)
+                continue
+            group = cast("dict[str, object]", raw)
+            entries: object = group.get("hooks")
+            if not isinstance(entries, list):
+                new_groups.append(group)
+                continue
+            listed = cast("list[object]", entries)
+            mine = [h for h in listed if not is_alpha_hook(h)]
+            if mine:
+                new_groups.append({**group, "hooks": mine})
+        if new_groups:
+            kept[event] = new_groups
+    return kept
+
+
+def _permissions(settings: object) -> dict[str, set[str]]:
+    perms: object = (
+        cast("dict[str, object]", settings).get("permissions")
+        if isinstance(settings, dict)
+        else None
+    )
+    if not isinstance(perms, dict):
+        return {}
+    return {
+        kind: {str(r) for r in cast("list[object]", rules)}
+        for kind, rules in cast("dict[str, object]", perms).items()
+        if isinstance(rules, list)
+    }
+
+
+def merge_settings(
+    disk: str, alpha: str, base: str | None
+) -> tuple[str, list[str]] | None:
+    """The repo's .claude/settings.json with alpha's entries brought to alpha's
+    render: alpha's hook entries are replaced, a permission rule alpha's last
+    render had and this one doesn't is dropped, and the user's own entries
+    stay (a value both set stays the user's, with a note). None when the
+    repo's file isn't a JSON object."""
     try:
         mine: object = json.loads(disk)
     except ValueError:
         return None
     if not isinstance(mine, dict):
         return None
+    current = dict(cast("dict[str, object]", mine))
+    theirs: object = json.loads(alpha)
+    gone = {
+        kind: rules - _permissions(theirs).get(kind, set())
+        for kind, rules in _permissions(json.loads(base) if base else {}).items()
+    }
+    perms: object = current.get("permissions")
+    if isinstance(perms, dict):
+        current["permissions"] = {
+            kind: [
+                r for r in cast("list[object]", rules) if r not in gone.get(kind, ())
+            ]
+            if isinstance(rules, list)
+            else rules
+            for kind, rules in cast("dict[str, object]", perms).items()
+        }
+    if "hooks" in current:
+        current["hooks"] = strip_alpha_hooks(current["hooks"])
     notes: list[str] = []
-    merged = _union(cast("dict[str, object]", mine), json.loads(alpha), "", notes)
+    merged = _union(current, theirs, "", notes)
     return json.dumps(merged, indent=2) + "\n", notes

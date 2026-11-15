@@ -10,23 +10,13 @@ from typing import Any
 import pytest
 from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, git, proven, run_cli
 
-from alpha import adopt
-from alpha.adopt import (
-    AdoptError,
-    apply_adoption,
-    done,
-    drop,
-    gaps,
-    merge_steps,
-    next_step,
-    plan_adoption,
-)
+from alpha import adopt, apply
+from alpha.adopt import AdoptError, done, drop, gaps, merge_steps, next_step
 from alpha.answers import AnswersError, load_answers
 from alpha.defaults import Source, load_defaults
 from alpha.generate import load_project_principles, render_project
-from alpha.gitops import PROPOSALS, commit_update
+from alpha.gitops import PROPOSALS, commit
 from alpha.registry import default_registry
-from alpha.update import apply_update, plan_update
 
 PROJECT = ".claude/alpha/project.json"
 
@@ -279,7 +269,9 @@ def test_run_condition_times_out(
     assert statuses(root) == {"p2-lint-ml": "pending"}
 
 
-def test_done_marks_a_step_whose_acceptance_holds(tmp_path: Path, git_env: None):
+def test_R12_3_a_step_is_done_only_when_its_acceptance_holds(
+    tmp_path: Path, git_env: None
+):
     root = plan_repo(tmp_path, [ok("p2-a")])
     result = run_cli("adopt", "done", str(root), "p2-a")
     assert result.returncode == 0, result.stderr
@@ -374,16 +366,16 @@ def test_claude_md_points_to_the_plan(tmp_path: Path, git_env: None):
 
 def test_update_refreshes_the_doc(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, [ok("p2-a"), ok("p2-b")])
-    plan = plan_adoption(root, PLUGIN_ROOT, SOURCE, TODAY)
-    apply_adoption(root, plan)
+    plan = apply.plan(root, PLUGIN_ROOT, SOURCE, TODAY)
+    apply.write(root, plan)
     for c in plan.changes:
         if c.kind == "conflict":
             (root / c.path).write_text((root / PROPOSALS / c.path).read_text())
-    commit_update(root, load_project_principles(root), [])
+    commit(root, load_project_principles(root), [])
     done(root, "p2-a")
-    update = plan_update(root, PLUGIN_ROOT, SOURCE, TODAY)
+    update = apply.plan(root, PLUGIN_ROOT, SOURCE, TODAY)
     assert [c.path for c in update.changes] == ["docs/alpha/adoption.md"]
-    apply_update(root, update)
+    apply.write(root, update)
     assert "| `p2-a` | ml | done |" in (root / "docs/alpha/adoption.md").read_text()
 
 

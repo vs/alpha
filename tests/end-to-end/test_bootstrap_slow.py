@@ -12,17 +12,17 @@ from helpers import (
     REPO_SEEDS as SEEDS,
 )
 from helpers import (
-    TODAY,
     GenerateScenario,
     git,
+    install,
     place_answers,
     place_rust_monorepo,
 )
 
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import bootstrap, generate, project_book
-from alpha.gitops import commit_skeleton
+from alpha.generate import bootstrap, project_book
+from alpha.gitops import commit
 from alpha.registry import load_registry
 
 NEEDS_CARGO = pytest.mark.skipif(
@@ -50,7 +50,7 @@ def test_bootstrap_runs_green(
         for lockfile in project_book(tmp_path).get(c["stack"]).lockfiles:
             assert (tmp_path / c["path"] / lockfile).is_file()
 
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
     tracked = git(tmp_path, "ls-files").splitlines()
     for c in principles["components"]:
@@ -110,10 +110,10 @@ def test_typescript_at_the_root_runs_green(tmp_path: Path, git_env: None):
     data = json.loads(answers.read_text())
     data["components"][0].update(stack="typescript", kind="cli")
     answers.write_text(json.dumps(data))
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    install(tmp_path)
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
 
 
@@ -140,7 +140,7 @@ def test_scenarios_pass_repo_checks(
     bootstrap(tmp_path, principles)  # raises unless `mise run ci` exits 0
     # commit-skeleton's own git init must leave bootstrap's repository usable.
     git(tmp_path, "init", "-q", "-b", "main")
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
     done = mise_run(tmp_path, "ci")
     assert done.returncode == 0, done.stdout + done.stderr
@@ -151,7 +151,7 @@ def test_scenarios_pass_repo_checks(
 def bootstrapped_web(tmp_path_factory: pytest.TempPathFactory) -> Path:
     target = tmp_path_factory.mktemp("web")
     place_answers(target, "web-ts-plus-python-api")
-    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    install(target)
     bootstrap(
         target, tomllib.loads((target / "docs/alpha/principles.toml").read_text())
     )
@@ -260,7 +260,7 @@ def test_diff_cover_catches_untested_line(
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")  # CI compares against origin/<base>
     git(tmp_path, "switch", "-c", "feature")
 
@@ -323,7 +323,7 @@ def test_diff_cover_catches_untested_typescript_line(
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")
     git(tmp_path, "switch", "-c", "feature")
 
@@ -412,10 +412,10 @@ def test_exhaustive_gate_catches_a_half_tested_branch(tmp_path: Path, git_env: N
     data = json.loads(answers.read_text())
     data["testing"]["exhaustive"] = True
     answers.write_text(json.dumps(data))
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    install(tmp_path)
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")
     git(tmp_path, "switch", "-c", "feature")
     workflow = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
@@ -463,7 +463,7 @@ def test_rust_checks_fail_on_their_violations(
     generate_scenario(tmp_path, "rust-cli")
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     (cli,) = principles["components"]
     commands = cli["commands"]
     cwd = tmp_path / cli["path"]
@@ -504,7 +504,7 @@ def test_diff_cover_catches_untested_rust_line(
     generate_scenario(tmp_path, "rust-cli")
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")
     git(tmp_path, "switch", "-c", "feature")
 
@@ -623,10 +623,10 @@ def test_exhaustive_gate_catches_a_half_tested_rust_branch(
     data = json.loads(answers.read_text())
     data["testing"]["exhaustive"] = True
     answers.write_text(json.dumps(data))
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    install(tmp_path)
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     git(tmp_path, "branch", "-M", "main")
     git(tmp_path, "switch", "-c", "feature")
     steps = _ci_steps(tmp_path, "cli")
@@ -665,10 +665,10 @@ def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
     """Two Rust components in one Cargo workspace beside a Python one, with
     exhaustive testing, on real tools."""
     place_rust_monorepo(tmp_path, exhaustive=True)
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    install(tmp_path)
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)  # every component's commands, from cargo fetch
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
     tracked = git(tmp_path, "ls-files").splitlines()
     assert {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml"} <= set(tracked)

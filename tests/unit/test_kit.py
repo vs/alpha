@@ -37,11 +37,12 @@ def _texts() -> dict[str, str]:
 
 
 def _naming(*words: str) -> list[str]:
+    """Each file that names one of `words`; a word may be a regex."""
     return sorted(
         f"{rel}: {word}"
         for rel, text in _texts().items()
         for word in words
-        if word in text
+        if re.search(word, text)
     )
 
 
@@ -52,7 +53,10 @@ def test_R14_1_dropped_features_are_gone():
     assert _naming("cargo-mutants", "ci:mutants", "mutants::skip") == []
     for gone in ("project-files/skills/debt", "project-files/checks/shortcuts.py"):
         assert not (PLUGIN_ROOT / gone).exists(), gone
-    assert _naming("check:shortcuts", "checks/shortcuts.py", "/debt") == []
+    # apply.py lists the debt skill among the retired files it deletes.
+    assert (
+        _naming("check:shortcuts", "checks/shortcuts\\.py", r"(?<!skills)/debt") == []
+    )
 
 
 RECORD_USE = re.compile(

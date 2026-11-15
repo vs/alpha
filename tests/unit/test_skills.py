@@ -325,8 +325,8 @@ def test_cli_calls_name_real_subcommands_and_options(skill: str):
 def test_skills_use_every_cli_command_the_interview_needs():
     calls = [" ".join(c.split()[:2]) for s in ALL_SKILLS for c in _calls(s)]
     needed = ["defaults show", "defaults set", "answers check", "answers write"]
-    needed += ["generate"]
-    needed += ["bootstrap", "commit-skeleton"]
+    needed += ["apply"]
+    needed += ["bootstrap", "commit"]
     needed += ["recipe list", "recipe check", "recipe try", "recipe save"]
     for command in needed:
         assert any(c == command or c.startswith(command) for c in calls), command
@@ -615,7 +615,7 @@ def test_data_skill_explains_the_append_only_rule():
 
 
 EXTEND_BULLET = (
-    "- project.json has a `manifest` key: the project is already generated. If the "
+    "- project.json has an `installed` key: alpha is installed. If the "
     "`alpha:extend` skill sent you here, go on as it says. Otherwise invoke "
     "`alpha:extend` with the Skill tool and follow it; it brings you back here."
 )
@@ -627,7 +627,7 @@ def test_extend_runs_the_update_loop():
         "update <target> --dry-run",
         "update <target>",
         "bootstrap <target> --component",
-        "commit-update <target>",
+        "commit <target>",
         "Revisit the",
         ".claude/alpha/state/update/",
         "new Claude Code session",
@@ -654,7 +654,7 @@ def test_extend_refuses_projects_alpha_did_not_generate():
 
 
 ADOPT_BULLET = (
-    "- project.json has an `adoption` key and no `manifest`: `alpha:adopt` is "
+    "- project.json has an `adoption` key and no `installed`: `alpha:adopt` is "
     "bringing an existing repo in. Go on as it says; its rules win over this "
     "skill's, and don't point to `/alpha:new-project` afterwards."
 )
@@ -697,7 +697,7 @@ def test_area_skills_hand_generated_projects_to_extend(skill: str):
 def test_new_project_hands_generated_projects_to_extend():
     text = _text("new-project")
     assert (
-        "the project is already generated. Tell the user, then invoke "
+        "alpha is already installed. Tell the user, then invoke "
         "`alpha:extend` with the Skill tool to change it, passing `<target>` as "
         "its arguments." in text
     )
@@ -729,7 +729,7 @@ def test_extend_resumes_unapplied_and_uncommitted_updates():
     checks = _section("extend", "1. Target and checks")
     assert "on yes, go to step 4 (show and confirm), then step 5; on no, stop" in checks
     assert "Don't rerun update first" in checks
-    assert "then run step 7's commit-update" in checks
+    assert "then run step 7's commit" in checks
 
 
 def test_extend_keeps_area_skills_from_pointing_to_new_project():
@@ -740,7 +740,7 @@ def test_extend_keeps_area_skills_from_pointing_to_new_project():
 
 def test_extend_commits_deleted_stale_files_itself():
     apply = _section("extend", "5. Apply")
-    assert "commit-update commits only alpha's writes" in apply
+    assert "step 7's commit takes only alpha's writes" in apply
     assert "commit the deletion yourself after step 7" in apply
 
 
@@ -812,14 +812,12 @@ def test_stack_recipe_reads_registry():
 
 def test_adopt_installs_in_order():
     calls = [" ".join(c.split()[:2]) for c in _calls("adopt")]
-    order = ["adopt survey", "adopt gaps", "adopt apply", "bootstrap <target>"]
-    order += ["commit-update <target>"]
+    order = ["adopt survey", "adopt gaps", "apply <target>", "bootstrap <target>"]
+    order += ["commit <target>"]
     found = [next(i for i, c in enumerate(calls) if c == step) for step in order]
     assert found == sorted(found), calls
     text = _text("adopt")
-    assert text.index("adopt apply <target> --dry-run") < text.index(
-        "adopt apply <target>`."
-    )
+    assert text.index("apply <target> --dry-run") < text.index("apply <target>`.")
     assert "--capture-baselines" in text
 
 
@@ -859,7 +857,13 @@ def test_adopt_is_user_invoked():
 
 def test_adopt_uses_the_adoption_cli():
     calls = {" ".join(c.split()[:2]) for c in _calls("adopt")}
-    needed = {"adopt survey", "adopt gaps", "adopt apply", "adopt next", "adopt start"}
+    needed = {
+        "adopt survey",
+        "adopt gaps",
+        "apply <target>",
+        "adopt next",
+        "adopt start",
+    }
     needed |= {"adopt done", "adopt drop", "baseline show", "baseline tighten"}
     assert needed <= {" ".join(c.split()[:2]) for c in calls} | calls
 

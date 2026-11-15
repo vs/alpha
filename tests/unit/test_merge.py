@@ -3,7 +3,7 @@ import json
 import pytest
 
 from alpha.generate import GenerateError
-from alpha.merge import Change, classify, merge3, merge_json, union_lines
+from alpha.merge import Change, classify, merge3, merge_settings, union_lines
 
 BASE = "one\ntwo\nthree\nfour\nfive\nsix\n"
 
@@ -109,6 +109,8 @@ def test_union_lines_nothing_missing_is_unchanged() -> None:
     assert union_lines("", "a\n") == "# alpha\na\n"
 
 
+ALPHA_STOP = "python3 .claude/alpha/hooks/stop_checks.py"
+ALPHA_START = "python3 .claude/alpha/hooks/context.py"
 SETTINGS_REPO = {
     "permissions": {"allow": ["Bash(npm test:*)"], "defaultMode": "acceptEdits"},
     "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "mine"}]}]},
@@ -121,29 +123,64 @@ SETTINGS_ALPHA = {
         "defaultMode": "default",
     },
     "hooks": {
-        "Stop": [{"hooks": [{"type": "command", "command": "alpha stop"}]}],
-        "SessionStart": [{"hooks": [{"type": "command", "command": "alpha start"}]}],
+        "Stop": [{"hooks": [{"type": "command", "command": ALPHA_STOP}]}],
+        "SessionStart": [{"hooks": [{"type": "command", "command": ALPHA_START}]}],
     },
 }
 
 
-def test_merge_json_unions_lists_and_objects() -> None:
-    result = merge_json(json.dumps(SETTINGS_REPO), json.dumps(SETTINGS_ALPHA))
+def test_merge_settings_unions_lists_and_objects() -> None:
+    result = merge_settings(json.dumps(SETTINGS_REPO), json.dumps(SETTINGS_ALPHA), None)
     assert result is not None
     merged = json.loads(result[0])
     assert merged["permissions"]["allow"] == ["Bash(npm test:*)", "Bash(uv run:*)"]
     assert merged["permissions"]["deny"] == ["Bash(git push --force:*)"]
     assert [e["hooks"][0]["command"] for e in merged["hooks"]["Stop"]] == [
         "mine",
-        "alpha stop",
+        ALPHA_STOP,
     ]
     assert "SessionStart" in merged["hooks"] and merged["env"] == {"FOO": "1"}
-    again = merge_json(result[0], json.dumps(SETTINGS_ALPHA))
+    again = merge_settings(result[0], json.dumps(SETTINGS_ALPHA), None)
     assert again is not None and json.loads(again[0]) == merged  # no duplicates
 
 
-def test_merge_json_keeps_repo_scalars_with_a_note() -> None:
-    result = merge_json(json.dumps(SETTINGS_REPO), json.dumps(SETTINGS_ALPHA))
+def test_merge_settings_replaces_alphas_entries() -> None:
+    """A renamed hook replaces the old one, and a permission alpha's last
+    render had and this one hasn't goes; the user's own entries stay."""
+    old = {
+        **SETTINGS_ALPHA,
+        "permissions": {"allow": ["Bash(uv run:*)", "Bash(cargo mutants:*)"]},
+        "hooks": {
+            "SessionStart": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": ALPHA_START.replace(
+                                "context.py", "session_start.py"
+                            ),
+                        }
+                    ]
+                }
+            ]
+        },
+    }
+    disk = merge_settings(json.dumps(SETTINGS_REPO), json.dumps(old), None)
+    assert disk is not None
+    result = merge_settings(disk[0], json.dumps(SETTINGS_ALPHA), json.dumps(old))
+    assert result is not None
+    merged = json.loads(result[0])
+    commands = [
+        h["command"] for g in merged["hooks"]["SessionStart"] for h in g["hooks"]
+    ]
+    assert commands == [ALPHA_START]
+    assert "Bash(cargo mutants:*)" not in merged["permissions"]["allow"]
+    assert "Bash(npm test:*)" in merged["permissions"]["allow"]
+    assert merged["hooks"]["Stop"][0]["hooks"][0]["command"] == "mine"
+
+
+def test_merge_settings_keeps_repo_scalars_with_a_note() -> None:
+    result = merge_settings(json.dumps(SETTINGS_REPO), json.dumps(SETTINGS_ALPHA), None)
     assert result is not None
     text, notes = result
     assert json.loads(text)["permissions"]["defaultMode"] == "acceptEdits"
@@ -152,9 +189,9 @@ def test_merge_json_keeps_repo_scalars_with_a_note() -> None:
     ]
 
 
-def test_merge_json_invalid_repo_file() -> None:
-    assert merge_json("{nope", "{}") is None
-    assert merge_json("[1]", "{}") is None
+def test_merge_settings_invalid_repo_file() -> None:
+    assert merge_settings("{nope", "{}", None) is None
+    assert merge_settings("[1]", "{}", None) is None
 
 
 def test_union_lines_keeps_alphas_negations_last() -> None:

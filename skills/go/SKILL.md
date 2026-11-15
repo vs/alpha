@@ -40,9 +40,9 @@ Task: `$ARGUMENTS`
 `<root>` is the repository root (`git rev-parse --show-toplevel`).
 
 - No `<root>/.claude/alpha/project.json`: alpha hasn't generated or adopted this repo, so there are no principles to follow. Say that `/alpha:adopt` brings an existing repo in, and stop.
-- project.json has `adoption` but no `manifest` key: an adoption is under way. Point to `/alpha:adopt`, and stop.
-- Otherwise, project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`, and stop.
-- With a `manifest`, read before the first step:
+- project.json has `adoption` but no `installed` key: an adoption is under way. Point to `/alpha:adopt`, and stop.
+- Otherwise, project.json has no `installed` key: the interview never finished. Point to `/alpha:new-project`, and stop.
+- With `installed`, read before the first step:
   - project.json's `areas`: a spec area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/alpha/specification.md lists them under "Not settled yet".
   - `docs/alpha/principles.toml`: the active principles, their parameters and `[review]`. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
   - The parts of `docs/alpha/specification.md` and `CONTRIBUTING.md` that bear on the task, including CONTRIBUTING's Overrides and Exceptions.

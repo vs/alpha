@@ -12,11 +12,11 @@ from pathlib import Path
 import pytest
 from helpers import PLUGIN_ROOT, adoption_answers, existing_repo, git
 
-from alpha.adopt import apply_adoption, plan_adoption
+from alpha import apply
+from alpha.apply import describe
 from alpha.defaults import Source
 from alpha.generate import bootstrap, load_project_principles
-from alpha.gitops import PROPOSALS, commit_update
-from alpha.update import describe, plan_update
+from alpha.gitops import PROPOSALS, commit
 
 SOURCE = Source(PLUGIN_ROOT, True)
 TODAY = date(2026, 11, 11)
@@ -103,17 +103,15 @@ def test_adopt_a_real_repo(tmp_path: Path, git_env: None):
     start = git(root, "rev-parse", "HEAD")
     adoption_answers(root, baselines=BASELINES)
 
-    plan = plan_adoption(root, PLUGIN_ROOT, SOURCE, TODAY)
-    apply_adoption(root, plan)
+    plan = apply.plan(root, PLUGIN_ROOT, SOURCE, TODAY)
+    apply.write(root, plan)
     for c in plan.changes:
         if c.kind == "conflict":
             (root / c.path).write_text(
                 _resolve((root / PROPOSALS / c.path).read_text())
             )
     bootstrap(root, load_project_principles(root), capture_baselines=True)
-    commit_update(
-        root, load_project_principles(root), ["Co-Authored-By: T <t@example.com>"]
-    )
+    commit(root, load_project_principles(root), ["Co-Authored-By: T <t@example.com>"])
 
     assert git(root, "status", "--porcelain") == ""
     assert git(root, "rev-parse", "--abbrev-ref", "HEAD") == "alpha/adopt"
@@ -138,5 +136,5 @@ def test_adopt_a_real_repo(tmp_path: Path, git_env: None):
     assert "reportReturnType: 2 now, 1 in the baseline" in done.stdout + done.stderr
     core.write_text(APP["src/legacy/core.py"])
 
-    update = plan_update(root, PLUGIN_ROOT, SOURCE, TODAY)
+    update = apply.plan(root, PLUGIN_ROOT, SOURCE, TODAY)
     assert describe(update, root) == "alpha update: nothing to change"

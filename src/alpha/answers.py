@@ -1,4 +1,3 @@
-import copy
 import json
 import os
 import re
@@ -129,7 +128,7 @@ _TOP_KEYS = frozenset(
         "auth",
         "overrides",
         "recipes",
-        "manifest",
+        "installed",
         "adoption",
     }
 )
@@ -1038,35 +1037,6 @@ def _steps(
     return tuple(steps)
 
 
-def generated_components(applied: Mapping[str, Any]) -> set[str]:
-
-    def entries(key: str) -> list[Mapping[str, object]]:
-        raw: object = applied.get(key)
-        items = cast(list[object], raw) if isinstance(raw, list) else []
-        return [cast(Mapping[str, object], e) for e in items if isinstance(e, dict)]
-
-    names = {n for c in entries("components") if isinstance(n := c.get("name"), str)}
-    for o in entries("overrides"):
-        scope = o.get("scope")
-        if isinstance(scope, str) and scope.startswith("component:"):
-            names.add(scope.removeprefix("component:"))
-    return names
-
-
-def _generated_components(top: Mapping[str, Any]) -> set[str]:
-    manifest: object = top.get("manifest")
-    if not isinstance(manifest, dict):
-        return set()
-    applied: object = cast(dict[str, object], manifest).get("applied")
-    if not isinstance(applied, dict):
-        return set()
-    return generated_components(cast(dict[str, Any], applied))
-
-
-def answers_snapshot(top: Mapping[str, Any]) -> dict[str, Any]:
-    return {k: copy.deepcopy(v) for k, v in top.items() if k != "manifest"}
-
-
 def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     try:
         text = path.read_text(encoding="utf-8")
@@ -1154,7 +1124,7 @@ def parse_answers(
     drafted = drafted_recipes(
         top.get("recipes", {}),
         require_proven=active("components"),
-        generated="manifest" in top if generated is None else generated,
+        generated="installed" in top if generated is None else generated,
     )
     identity = _identity(get(top, "identity", ""), base) if active("identity") else None
     layout: str | None = None
@@ -1166,11 +1136,7 @@ def parse_answers(
     workflow = (
         _workflow(get(top, "agent_workflow", "")) if active("agent_workflow") else None
     )
-    names = (
-        {c.name for c in comps} | set(former) | _generated_components(top)
-        if active("components")
-        else None
-    )
+    names = {c.name for c in comps} | set(former) if active("components") else None
     overrides = tuple(
         _override(o, i, names)
         for i, o in enumerate(as_list(top.get("overrides", []), "overrides"))
@@ -1313,10 +1279,10 @@ def write_answers(target: Path, text: str) -> Path:
             'Send the keys to save as one object, e.g. {"layout": "single"}',
         )
     for key in cast(dict[str, Any], update):
-        if key == "manifest":
+        if key == "installed":
             raise fail(
                 key,
-                "is written by alpha generate, not by the interview",
+                "is written by alpha apply, not by the interview",
                 "Leave it out",
             )
         if key == "decisions":
@@ -1326,7 +1292,7 @@ def write_answers(target: Path, text: str) -> Path:
                 key,
                 "unknown key",
                 f"Remove it; allowed keys are "
-                f"{', '.join(sorted(_TOP_KEYS - {'manifest'}))}",
+                f"{', '.join(sorted(_TOP_KEYS - {'installed'}))}",
             )
     path = target / PROJECT_JSON
     data: dict[str, Any] = {}

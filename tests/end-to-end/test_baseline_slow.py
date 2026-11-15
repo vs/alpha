@@ -9,12 +9,11 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from helpers import TODAY, git, place_answers
+from helpers import git, install, place_answers
 
 from alpha.cli import PLUGIN_ROOT
-from alpha.defaults import Source
-from alpha.generate import bootstrap, generate
-from alpha.gitops import commit_skeleton
+from alpha.generate import bootstrap
+from alpha.gitops import commit
 
 CHECKS = [
     "lint:api",
@@ -71,7 +70,7 @@ def test_legacy_project_runs_green_and_ratchets(tmp_path: Path, git_env: None):
     data = json.loads(answers.read_text())
     data["adoption"] = {"baselines": CHECKS}
     answers.write_text(json.dumps(data))
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    install(tmp_path)
     for rel, text in LEGACY.items():
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / rel).write_text(text)
@@ -93,7 +92,7 @@ def test_legacy_project_runs_green_and_ratchets(tmp_path: Path, git_env: None):
     assert _counts(tmp_path, "test:web") == {"web/tests/legacy.test.ts": {"legacy": 1}}
     assert _counts(tmp_path, "typos") == {"docs/legacy.md": {"teh": 1}}
     assert _counts(tmp_path, "markdown") == {"docs/legacy.md": {"MD012": 1}}
-    commit_skeleton(tmp_path, principles, [])
+    commit(tmp_path, principles, [])
     assert git(tmp_path, "status", "--porcelain") == ""
 
     # A new type error fails, naming it; the legacy ones still pass.

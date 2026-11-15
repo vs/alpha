@@ -19,10 +19,10 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 `<target>` is the folder the hand-off names, if one was given (`/alpha:new-project` passes its own); otherwise the current working directory. A folder in `$ARGUMENTS` is the target, not the change.
 
 - No `<target>/.claude/alpha/project.json`: alpha didn't generate or adopt this folder. Say that `/alpha:adopt` brings an existing repo in, and stop.
-- project.json has `adoption` but no `manifest`: an adoption is under way. Point to `/alpha:adopt`, and stop.
-- Otherwise, project.json has no `manifest` key: the interview never finished. Point to `/alpha:new-project`. Stop.
+- project.json has `adoption` but no `installed`: an adoption is under way. Point to `/alpha:adopt`, and stop.
+- Otherwise, project.json has no `installed` key: the interview never finished. Point to `/alpha:new-project`. Stop.
 - Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` first. If it lists changes, an earlier change was never applied: show them and ask whether to apply them now; on yes, go to step 4 (show and confirm), then step 5; on no, stop.
-- If it refuses because an update is waiting to be committed ("Merge any proposals in .claude/alpha/state/update/, run commit-update"), that update is already applied. Tell the user, merge any proposals as step 5 says, then run step 7's commit-update. Don't rerun update first; then go on to step 2 for the new request.
+- If it refuses because an update is waiting to be committed ("An update is waiting to be committed. Merge any proposals in .claude/alpha/state/update/ …"), that update is already applied. Tell the user, merge any proposals as step 5 says, then run step 7's commit. Don't rerun update first; then go on to step 2 for the new request.
 
 ## 2. What changes
 
@@ -31,7 +31,7 @@ Take the request from `$ARGUMENTS`, or ask. Pick the area: `components` to add, 
 - Use the current answers as the recommendations and ask only what the change affects.
 - A spec area left open (`areas.<area>` is `"open"`, usually because `/alpha:go` needs it settled) has no current answers: run its whole area, recommending from the kit defaults and from what the project's code and docs already show, and finish it `"done"` with its decision like any other area. Answers an approved feature spec already records for it are the user's: save them without asking again, and ask only what the spec left out (and the override protocol's question when one differs from a kit default).
 - Keep every other answer as it is.
-- Keep every existing entry of `overrides` unchanged. `answers write` replaces each top-level key, so send the whole `overrides` array: every existing entry verbatim, plus any new one. An override for a removed or renamed component stops applying; if it should carry over, add a new override for the new name, with its reason. Say why the change was made in the commit `commit-update` makes (its message), not in a record.
+- Keep every existing entry of `overrides` unchanged. `answers write` replaces each top-level key, so send the whole `overrides` array: every existing entry verbatim, plus any new one. An override for a removed or renamed component stops applying; if it should carry over, add a new override for the new name, with its reason. Say why the change was made in the message of the commit step 7 makes, not in a record.
 - Don't tell the user to run `/alpha:new-project` afterwards; when the area skill is done, continue with step 3.
 - Moving a component's folder (e.g. a root CLI moving to `cli/` so a second component can be added) means moving app code, which alpha doesn't do. The user moves it with `git mv` and commits (you can do that as ordinary work, outside alpha's files), then continues.
 
@@ -55,7 +55,7 @@ Summarize the list. Show the diffs of CLAUDE.md, `docs/alpha/principles.toml` an
 Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`. If it prints that the reviewer will look at alpha's changes at the next Stop, tell the user.
 
 - For each conflict (printed as `<path>: merge by hand; proposal: .claude/alpha/state/update/<path>`), read that proposal. It holds the user's version, the version before, and alpha's. Edit the real file so it keeps the user's edits and adds alpha's change, never just alpha's side, and show the user the result.
-- Stale files: ask before deleting any. commit-update commits only alpha's writes, so `git rm` each one the user lets go and commit the deletion yourself after step 7: a conventional message (e.g. `docs: Remove CHANGELOG.md`; description at most 50 chars, imperative, capitalized, no trailing period; body lines at most 72 chars), ending with the same attribution lines as step 7, as trailer lines.
+- Stale files: ask before deleting any. step 7's commit takes only alpha's writes, so `git rm` each one the user lets go and commit the deletion yourself after step 7: a conventional message (e.g. `docs: Remove CHANGELOG.md`; description at most 50 chars, imperative, capitalized, no trailing period; body lines at most 72 chars), ending with the same attribution lines as step 7, as trailer lines.
 
 ## 6. Bootstrap
 
@@ -63,7 +63,7 @@ For each new or moved component, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstra
 
 ## 7. Commit
 
-Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit-update <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, as new-project does for its commits. Never invent co-author lines. Relay its notes: a file whose "alpha's change wasn't merged in (proposal: …)" (merge it by hand; the proposal is kept until you delete it), and that a root component's bootstrap files must be committed by hand.
+Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit <target> --trailer "<line>"` with one `--trailer` per attribution line from this session's Claude Code attribution instructions for commits, as new-project does for its commits. Never invent co-author lines. Relay its notes: a file whose "alpha's change wasn't merged in (proposal: …)" (merge it by hand; the proposal is kept until you delete it), and that a root component's bootstrap files must be committed by hand.
 
 ## 8. Report
 

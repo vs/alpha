@@ -41,7 +41,7 @@ def test_each_playbook_has_a_title_and_ends_with_its_reply(name: str):
 
 def test_the_router_stops_outside_an_alpha_project():
     check = _router().split("## 1. Check the project")[1].split("\n## ")[0]
-    assert "`manifest` key" in check and "/alpha:adopt" in check
+    assert "`installed` key" in check and "/alpha:adopt" in check
     assert "and stop" in check
 
 

@@ -12,7 +12,6 @@ from helpers import place_answers, proven, setup_only, shell_recipe, single_comp
 from alpha import cli
 from alpha.answers import (
     AnswersError,
-    answers_snapshot,
     area_of,
     load_answers,
     parse_answers,
@@ -50,9 +49,9 @@ def test_valid_fixture_loads():
     assert a.overrides[0].scope == "component:api"
 
 
-def test_manifest_key_is_ignored(tmp_path: Path):
+def test_installed_key_is_alphas_own(tmp_path: Path):
     d = valid()
-    d["manifest"] = {"files": {}}
+    d["installed"] = {"kit_version": "1.0.0"}
     assert check(tmp_path, d).identity
 
 
@@ -456,7 +455,7 @@ def test_answers_write_replaces_only_the_keys_it_is_given(
         ("[1, 2]", "a JSON object", "{"),
         ("{", "not valid JSON", "one line in single quotes"),
         ('{"colour": 1}', "colour: unknown key", "allowed keys are"),
-        ('{"manifest": {}}', "manifest", "alpha generate"),
+        ('{"installed": {}}', "installed", "alpha apply"),
     ],
 )
 def test_answers_write_rejects_bad_input_and_keeps_the_file(
@@ -778,18 +777,6 @@ def test_parse_answers_matches_load_answers(tmp_path: Path):
     path = place_answers(tmp_path, "web-ts-plus-python-api")
     top = json.loads(path.read_text())
     assert parse_answers(top, tmp_path) == load_answers(path)
-
-
-def test_snapshot_leaves_out_the_manifest():
-    top: dict[str, Any] = {
-        "schema": 1,
-        "manifest": {"files": {}},
-        "overrides": [{"principle": "timeouts"}],
-    }
-    snap = answers_snapshot(top)
-    assert snap == {"schema": 1, "overrides": [{"principle": "timeouts"}]}
-    snap["overrides"].append({})
-    assert len(top["overrides"]) == 1
 
 
 def test_write_json_keeps_old_file_when_write_fails(tmp_path: Path):

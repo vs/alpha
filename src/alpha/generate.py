@@ -1,4 +1,3 @@
-import hashlib
 import json
 import shlex
 import shutil
@@ -15,14 +14,10 @@ from alpha import VERSION
 from alpha.answers import (
     PROJECT_JSON,
     Answers,
-    answers_snapshot,
     drafted_recipes,
-    load_answers,
-    write_json,
 )
 from alpha.baseline import BaselineError, baseline_file
 from alpha.baseline import capture as capture_baseline
-from alpha.defaults import Source, load_defaults
 from alpha.principles import build_principles, render_principles
 from alpha.recipes import (
     RecipeBook,
@@ -30,7 +25,7 @@ from alpha.recipes import (
     render_component,
     render_workspace,
 )
-from alpha.registry import Registry, default_registry, load_registry
+from alpha.registry import Registry, default_registry
 from alpha.render.ci import render_ci, render_dependabot
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
@@ -39,31 +34,12 @@ from alpha.repo_checks import repo_checks
 from alpha.shell import run_command
 
 PRINCIPLES_TOML = "docs/alpha/principles.toml"
-_ALLOWED_FILES = frozenset({PROJECT_JSON, ".claude/settings.local.json"})
-_ALLOWED_DIRS = frozenset({".claude", ".claude/alpha"})
 _TAIL_LINES = 40
 STEP_TIMEOUT = 1800.0  # seconds: an install or a check that runs longer is stuck
 
 
 class GenerateError(Exception):
     pass
-
-
-def _unexpected(target: Path) -> list[str]:
-    found: list[str] = []
-
-    def walk(folder: Path) -> None:
-        for entry in folder.iterdir():
-            rel = entry.relative_to(target).as_posix()
-            if entry.name == ".DS_Store":
-                continue
-            if rel in _ALLOWED_DIRS and entry.is_dir() and not entry.is_symlink():
-                walk(entry)
-            elif rel not in _ALLOWED_FILES or not entry.is_file():
-                found.append(rel)
-
-    walk(target)
-    return sorted(found)
 
 
 def _ignored(principles: dict[str, Any], book: RecipeBook) -> list[str]:
@@ -115,36 +91,6 @@ def copied_files(plugin_root: Path) -> dict[str, Path]:
         out[f".claude/alpha/checks/{script.name}"] = script
     out[".claude/alpha/githooks/commit-msg"] = files / "githooks/commit-msg"
     return out
-
-
-def _display_path(path: Path) -> str:
-    try:
-        return f"~/{path.relative_to(Path.home()).as_posix()}"
-    except ValueError:
-        return str(path)
-
-
-def _source_commit(source: Source) -> str | None:
-    if not source.checkout:
-        return None
-    try:
-        done = subprocess.run(
-            ["git", "-C", str(source.path), "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return None
-    return done.stdout.strip() if done.returncode == 0 else None
-
-
-def source_info(source: Source) -> dict[str, Any]:
-    """Where the kit defaults came from, for the manifest."""
-    return {
-        "path": _display_path(source.path),
-        "live": source.checkout,
-        "commit": _source_commit(source),
-    }
 
 
 @dataclass(frozen=True)
@@ -241,73 +187,6 @@ def render_project(
     return Rendered(principles, texts, component_of)
 
 
-def generate(
-    target: Path,
-    plugin_root: Path,
-    source: Source,
-    year: int,
-    today: date | None = None,
-) -> list[str]:
-    if not target.is_dir():
-        raise GenerateError(
-            f"{target} is not a folder. Create it and run the alpha interview "
-            "there first."
-        )
-    answers_path = target / PROJECT_JSON
-    extra = _unexpected(target)
-    a = load_answers(answers_path) if extra and answers_path.is_file() else None
-    if a is not None and a.identity is not None:
-        extra = [rel for rel in extra if rel != a.identity.license_file]
-    if extra:
-        raise GenerateError(
-            f"{target} is not empty (found: {', '.join(extra)}). alpha v0.1 starts "
-            "projects only in empty folders. Choose a new folder, or move these "
-            "files out first."
-        )
-    a = a or load_answers(answers_path)
-    today = today or date.today()
-    rendered = render_project(
-        target, a, load_defaults(source), year, today, registry=load_registry(source)
-    )
-    texts = rendered.texts
-    copies = copied_files(plugin_root)
-    for rel, name in rendered.component_of.items():
-        if rel in copies:
-            raise _collision(a, name, rel)
-
-    for rel, text in texts.items():
-        path = target / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-    for rel, src in copies.items():
-        path = target / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(src, path)  # keeps the exec bit of the git hook
-
-    generated = sorted([*texts, *copies])
-    data = cast(dict[str, Any], json.loads(answers_path.read_text(encoding="utf-8")))
-    data["manifest"] = {
-        "kit_version": VERSION,
-        "generated_at": today.isoformat(),
-        "defaults": source_info(source),
-        "files": file_hashes(target, generated),
-        "applied": answers_snapshot(data),
-        "added": {c.name: today.isoformat() for c in a.components},
-    }
-    write_json(answers_path, data)
-    return sorted([*generated, PROJECT_JSON])
-
-
-def digest(data: bytes) -> str:
-    """A labelled digest: a bare hex string next to a path like "...-api-keys.md"
-    reads as a leaked key to the project's secrets check."""
-    return f"sha256:{hashlib.sha256(data).hexdigest()}"
-
-
-def file_hashes(target: Path, rels: list[str]) -> dict[str, str]:
-    return {rel: digest((target / rel).read_bytes()) for rel in rels}
-
-
 def _project_json(target: Path) -> dict[str, Any] | None:
     """project.json, or None when there is none; an unreadable one stops."""
     path = target / PROJECT_JSON
@@ -325,17 +204,6 @@ def _project_json(target: Path) -> dict[str, Any] | None:
         f"{path} can't be read as the interview answers ({problem}). Restore it "
         f"with git checkout {PROJECT_JSON}, or fix it by hand, then retry."
     )
-
-
-def refresh_manifest(target: Path) -> None:
-    data = _project_json(target)
-    manifest: object = data.get("manifest") if data is not None else None
-    if data is None or not isinstance(manifest, dict):
-        return
-    files = cast(dict[str, str], cast(dict[str, Any], manifest).get("files", {}))
-    present = [rel for rel in files if (target / rel).is_file()]
-    data["manifest"]["files"] = file_hashes(target, present)
-    write_json(target / PROJECT_JSON, data)
 
 
 def load_project_principles(target: Path) -> dict[str, Any]:
@@ -589,4 +457,3 @@ def bootstrap(
         _capture(target, own)
     if repo_checks:
         _repo_checks(target, [m for m in uncaptured if ":" not in m])
-    refresh_manifest(target)

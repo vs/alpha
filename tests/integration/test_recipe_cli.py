@@ -4,14 +4,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import SCENARIOS, TODAY, proven, shell_recipe, single_component
+from helpers import SCENARIOS, install, proven, shell_recipe, single_component
 from test_defaults import make_source
 
 from alpha import cli, toml_write
 from alpha.answers import AnswersError, load_answers
-from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import DefaultsError, Source
-from alpha.generate import generate, project_book
+from alpha.generate import GenerateError, project_book
 from alpha.recipe_cli import save_recipe
 from alpha.recipes import RecipeBook, RecipeError, recipe_hash
 
@@ -127,9 +126,9 @@ def test_an_unproven_recipe_is_refused(tmp_path: Path):
     """R6: a drafted recipe is refused until alpha recipe try proves it."""
     scenario_with_shell(tmp_path, shell_recipe())
     with pytest.raises(
-        AnswersError, match=r"recipes\.shell: not proven.*alpha recipe try"
+        GenerateError, match=r"recipes\.shell: not proven.*alpha recipe try"
     ):
-        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+        install(tmp_path)
 
 
 def test_a_recipe_edited_after_try_is_refused(tmp_path: Path):
@@ -138,8 +137,8 @@ def test_a_recipe_edited_after_try_is_refused(tmp_path: Path):
     recipe["proven_hash"] = recipe_hash(recipe)
     recipe["commands"]["lint"] = "true"
     scenario_with_shell(tmp_path, recipe)
-    with pytest.raises(AnswersError, match=r"not proven since it last changed"):
-        generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    with pytest.raises(GenerateError, match=r"not proven since it last changed"):
+        install(tmp_path)
 
 
 def drafted_project(tmp_path: Path, recipe: dict[str, Any]) -> Path:
@@ -306,7 +305,7 @@ def test_saving_a_recipe_keeps_its_project_working(
     saving_to(src, monkeypatch)
     target = tmp_path / "proj"
     scenario_with_shell(target, proven(shell_recipe()))
-    generate(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
+    install(target)
     save_recipe(target, "shell", src)
     answers = load_answers(target / ".claude/alpha/project.json")
     assert answers.book().get("shell").proven is False

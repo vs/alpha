@@ -12,11 +12,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
+from alpha.answers import PROJECT_JSON
+from alpha.apply import plan, write
 from alpha.areas import PRODUCT_AREAS
 from alpha.cli import PLUGIN_ROOT
 from alpha.defaults import Source
-from alpha.generate import generate, load_project_principles
-from alpha.gitops import commit_skeleton
+from alpha.generate import load_project_principles
+from alpha.gitops import commit
 from alpha.recipes import recipe_hash
 
 GenerateScenario = Callable[[Path, str], list[str]]
@@ -24,6 +26,13 @@ GenerateScenario = Callable[[Path, str], list[str]]
 SCENARIOS = PLUGIN_ROOT / "tests" / "fixtures" / "scenarios"
 SHIM = PLUGIN_ROOT / "bin" / "alpha"
 TODAY = date(2026, 10, 19)
+
+
+def install(target: Path, today: date = TODAY) -> list[str]:
+    """`alpha apply` on a folder that holds finished answers: what it wrote."""
+    p = plan(target, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), today)
+    write(target, p)
+    return sorted({*(c.path for c in p.changes), PROJECT_JSON})
 
 
 def place_answers(target: Path, scenario: str) -> Path:
@@ -66,9 +75,8 @@ def generated_repo(
         data = json.loads(path.read_text())
         edit(data)
         path.write_text(json.dumps(data))
-    generate(tmp_path, PLUGIN_ROOT, Source(PLUGIN_ROOT, True), 2026, TODAY)
-    git(tmp_path, "init", "-q", "-b", "main")
-    commit_skeleton(tmp_path, load_project_principles(tmp_path), [])
+    install(tmp_path)
+    commit(tmp_path, load_project_principles(tmp_path), [])
     return tmp_path
 
 
