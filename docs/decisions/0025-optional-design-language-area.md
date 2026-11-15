@@ -1,7 +1,7 @@
 # 0025. An optional design-language area, enforced by the reviewer
 
 Date: 2026-11-13
-Status: accepted
+Status: superseded by 0034
 Kind: product
 
 ## Context

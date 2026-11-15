@@ -3,6 +3,7 @@
 Date: 2026-11-15
 Status: accepted
 Kind: product
+Supersedes: 0025
 
 ## Context
 
@@ -22,6 +23,7 @@ The design is in docs/specs/2026-11-15-setup-first-spec-later.md.
 
 ## Consequences
 
+- It supersedes 0025 only where 0025 places the design language in the interview ("an eighteenth interview area … between testing and UI", "An interview that lists the area must finish it"): the user agreed above that the design language is a spec area, settled later. The rest of 0025 stands: the area's fields and its skill, the `[visuals]` list and its tiers, third-party paths, `palette_check`, and the reviewer's enforcement.
 - The design spec's anti-goal "skipping areas to save time" no longer covers the spec areas; they are deferred on purpose, not skipped.
 - R1's acceptance check changes: setup areas done, spec areas open.
 - Existing projects keep every area done and change nothing; alpha's and mental's copied files are updated by hand.
