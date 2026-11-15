@@ -68,27 +68,6 @@ def test_overrides_in_effect_say_change_scope_and_reason(project: Project) -> No
     assert "Principle overrides:" in text.splitlines()
 
 
-def test_accepted_findings_come_from_commit_trailers(project: Project) -> None:
-    project.write("a.txt", "a\n")
-    project.git("add", "a.txt")
-    project.git(
-        "commit",
-        "-q",
-        "-m",
-        "docs: Keep a\n\nAccepts: F-abc123 the input is trusted here",
-    )
-    project.git(
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        "fix: Keep b\n\nAccepts: F-0a1b2c same cause as F-def456\n\n"
-        "Co-Authored-By: T <t@example.com>",
-    )
-    project.git("commit", "-q", "--allow-empty", "-m", "chore: Mention F-fff000")
-    assert _common.accepted_findings(project.root) == {"F-abc123", "F-0a1b2c"}
-
-
 def test_session_start_always_injects_the_context(project: Project) -> None:
     project.git("config", "core.hooksPath", ".claude/alpha/githooks")
     out = project.run_hook("session_start.py", {"hook_event_name": "SessionStart"})

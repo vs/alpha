@@ -284,7 +284,7 @@ def _design_language_doc(a: Answers) -> str | None:
         "series colors, a one-off illustration). What it must not do is drift: a "
         "near-copy of a palette color, a second accent, a typeface nobody chose. "
         "Something the project will keep using goes into the design language "
-        "first (`/alpha:extend`).",
+        "first (`/alpha:specify design language`).",
         "",
         _PALETTE_CHECKS[language.palette_check] + " "
         "`[visuals]` in [principles.toml](principles.toml) lists the files that "
@@ -497,7 +497,7 @@ def performance_section(a: Answers) -> list[str] | None:
             *rows,
             "",
             "A change that breaks a budget is fixed, or the budget is changed "
-            "through `/alpha:extend`.",
+            "through `/alpha:specify`.",
             "",
         ]
     if load:
