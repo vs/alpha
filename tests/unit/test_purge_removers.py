@@ -19,6 +19,7 @@ from alpha.purge import (
     clean_toml_arrays,
     clean_workflow,
     unratcheted,
+    unwrapped_secret_scan,
 )
 from alpha.render.docs import render_docs
 
@@ -124,6 +125,21 @@ def test_mise_loses_alphas_tasks_and_ratchets() -> None:
     assert 'run = ["uv sync", "uv run ruff check"]' in text
     assert 'depends = ["check:typos"]' in text
     assert "secret_scan" not in text and "\n\n\n" not in text
+
+
+def test_the_secrets_check_stays_without_alphas_wrapper() -> None:
+    text = (
+        '[tasks."check:secrets"]\n'
+        'run = "python3 .claude/alpha/checks/secret_scan.py betterleaks dir '
+        '--no-banner --config .betterleaks.toml"\n'
+    )
+    plain, gone = clean_mise(unwrapped_secret_scan(text), REMOVED)
+    assert gone == []
+    assert plain == (
+        '[tasks."check:secrets"]\n'
+        'run = "git ls-files -z --cached --others --exclude-standard | xargs -0 -r '
+        'betterleaks dir --no-banner --config .betterleaks.toml --"\n'
+    )
 
 
 def test_a_ratchet_alpha_cant_map_back_stops_purge() -> None:
