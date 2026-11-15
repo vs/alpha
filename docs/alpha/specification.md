@@ -63,7 +63,7 @@ none
 |---|---|---|---|
 | alpha | startup | 200 ms | an end-to-end pytest test that times bin/alpha --help, run by mise run check |
 
-A change that breaks a budget is fixed, or the budget is changed through `/alpha:extend`.
+A change that breaks a budget is fixed, or the budget is changed through `/alpha:specify`.
 
 ### Expected load
 
