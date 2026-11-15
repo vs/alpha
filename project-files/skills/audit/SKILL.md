@@ -36,7 +36,7 @@ Audit the repo like the senior developer who just inherited it and will be paged
 ## 1. Map first
 
 - Audit what the user names: a folder, a component, or the whole repo. Nothing named: the whole repo.
-- Read the README, `docs/` (the specification, the principles) and CONTRIBUTING.md, the build and deploy config, the dependency list, the entry points (main, routes, handlers, jobs, CLI commands) and the tests.
+- Read the README, `docs/alpha/` (the specification, the principles) and CONTRIBUTING.md, the build and deploy config, the dependency list, the entry points (main, routes, handlers, jobs, CLI commands) and the tests.
 - Take the expected load from the Performance section of `docs/alpha/specification.md` (or `[review] expected_load` in `docs/alpha/principles.toml`); when it isn't recorded, infer it from the README and deploy config, and say which load you assumed.
 - Trace the main flows end to end and read those paths fully: input from users, money, auth, data writes, background jobs, anything shared between processes. In a big repo, go deep where a mistake costs the most, and say which parts you did not read.
 

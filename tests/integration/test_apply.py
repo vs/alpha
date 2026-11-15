@@ -65,11 +65,24 @@ def test_R6_1_docs_go_to_contributing_and_docs_alpha(tmp_path: Path):
 def test_R12_5_projects_get_the_agents_and_skills(tmp_path: Path):
     place_answers(tmp_path, SCENARIO)
     install(tmp_path)
-    for agent in ("principles-reviewer", "committer"):
-        assert (tmp_path / f".claude/agents/{agent}.md").is_file()
-    for skill in ("commit", "decision", "review-change", "audit"):
-        text = (tmp_path / f".claude/skills/{skill}/SKILL.md").read_text()
-        assert "docs/decisions" not in text, skill
+    copied = [f".claude/agents/{a}.md" for a in ("principles-reviewer", "committer")]
+    copied += [
+        f".claude/skills/{s}/SKILL.md"
+        for s in ("commit", "decision", "review-change", "audit")
+    ]
+    for rel in copied:
+        text = (tmp_path / rel).read_text()
+        assert "docs/decisions" not in text, rel
+        assert not re.search(r"(?<!alpha/)docs/(specification|principles)\.", text), rel
+        assert "/alpha:go" not in text, rel
+    reviewer = (tmp_path / ".claude/agents/principles-reviewer.md").read_text()
+    for piece in ('"checked"', "`Kind: fix-check`", '"Review afresh"'):
+        assert piece in reviewer, piece
+    assert (
+        "Stop hook" not in reviewer and "after a planned piece of work" not in reviewer
+    )
+    decision = (tmp_path / ".claude/skills/decision/SKILL.md").read_text()
+    assert "`/alpha:specify`" in decision
 
 
 def test_R13_2_commit_msg_is_the_only_git_hook(tmp_path: Path):
