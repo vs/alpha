@@ -64,8 +64,6 @@ def render_settings(
                 _entry(_hook("stop_checks.py", _STOP_TIMEOUT_SECONDS)),
                 _entry(_hook("review_record.py"), "principles-reviewer"),
             ],
-            "UserPromptSubmit": [
-                _entry(_hook("user_prompt.py", _PROMPT_TIMEOUT_SECONDS))
-            ],
+            "UserPromptSubmit": [_entry(_hook("accept.py", _PROMPT_TIMEOUT_SECONDS))],
         },
     }

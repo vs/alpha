@@ -8,7 +8,6 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _common
-import review
 
 HOOKS_PATH = ".claude/alpha/githooks"
 
@@ -128,12 +127,6 @@ def main() -> None:
             _common.state_path(root, "session-start").write_text(head + "\n")
         _common.state_path(root, "stop-blocks").write_text(json.dumps({"count": 0}))
     parts: list[str] = []
-    if problem is None:
-        state = review.ensure_state(root)
-        notice = state.pop("notice", None)
-        if notice:
-            parts.append(str(notice))
-            review.save_state(root, state)
     if problem is None:
         loaded = _common.load_principles(root)
         if loaded is not None:

@@ -39,11 +39,7 @@ def commit_all(project: Project) -> None:
     project.git("commit", "-q", "-m", "chore: Baseline")
 
 
-def run(project: Project, reviewed: bool = True) -> subprocess.CompletedProcess[str]:
-    if reviewed:
-        state = review.ensure_state(project.root)
-        state["reviewed_tree"] = review.snapshot(project.root)
-        review.save_state(project.root, state)
+def run(project: Project) -> subprocess.CompletedProcess[str]:
     return project.run_hook("stop_checks.py", PAYLOAD)
 
 
@@ -264,18 +260,6 @@ def test_manifest_config_change_needs_no_dependency_entry(project: Project) -> N
     )
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
-
-
-def test_give_up_still_requires_the_review(project: Project) -> None:
-    commit_all(project)
-    review.ensure_state(project.root)
-    project.write("api/migrations/0001.sql", "create table t (id int);\n")
-    project.write("api/src/app.py", "x = 1\n")
-    for _ in range(3):
-        assert "tests-first-class" in reason(run(project, reviewed=False))
-    text = reason(run(project, reviewed=False))
-    assert text.startswith("alpha review: run the principles-reviewer agent")
-    assert "tests-first-class" in text
 
 
 def guide_mapped(project: Project) -> None:
@@ -780,173 +764,6 @@ def test_subagent_stop_leaves_component_commands_to_the_main_stop(
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
 
 
-def open_finding(
-    project: Project, accepted: bool = False, file: str = "api/src/x.py"
-) -> dict[str, Any]:
-    state = review.ensure_state(project.root)
-    finding = {
-        "id": "F-abc123",
-        "principle": "fail-helpfully",
-        "file": file,
-        "line": 3,
-        "problem": "The except clause swallows every error.",
-        "fix": "Catch the specific error.",
-        "accepted": accepted,
-    }
-    state["findings"] = [finding]
-    state["reviewed_for"] = review.snapshot(project.root)
-    review.save_state(project.root, state)
-    return finding
-
-
-def accepts_record(project: Project, finding_id: str) -> None:
-    project.git(
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        f"chore: Accept it\n\nAccepts: {finding_id} the reason it stands",
-    )
-
-
-def test_open_findings_block_with_ids_and_how_to_accept(project: Project) -> None:
-    commit_all(project)
-    open_finding(project)
-    text = reason(run(project))
-    assert text.startswith("alpha review: open findings:")
-    assert (
-        "F-abc123 fail-helpfully api/src/x.py:3: The except clause swallows every "
-        "error. Fix: Catch the specific error." in text
-    )
-    assert "commit the disproof as a trailer" in text
-    assert "Accepts: <id>" in text
-    assert "risk paths" not in text
-
-
-def test_a_recorded_disproof_clears_a_finding_off_risk_paths(
-    project: Project,
-) -> None:
-    commit_all(project)
-    open_finding(project)
-    accepts_record(project, "F-abc123")
-    proc = run(project)
-    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
-    state = review.load_state(project.root)
-    assert state["findings"] == [] and state["reviewed_tree"] == state["reviewed_for"]
-
-
-def test_a_finding_on_a_risk_path_needs_the_user(project: Project) -> None:
-    commit_all(project)
-    open_finding(project, file="api/migrations/0001.sql")
-    accepts_record(project, "F-abc123")
-    text = reason(run(project))
-    assert text.startswith("alpha review: open findings:")
-    assert (
-        "F-abc123 touch risk paths: only the user accepts those, by replying "
-        '"accept F-abc123".' in text
-    )
-
-
-def test_accepted_but_unrecorded_findings_block(project: Project) -> None:
-    commit_all(project)
-    open_finding(project, accepted=True)
-    text = reason(run(project))
-    assert "trailer" in text and "Accepts: F-abc123" in text
-
-
-def test_accepted_and_recorded_findings_clear_the_review(project: Project) -> None:
-    commit_all(project)
-    accepts_record(project, "F-abc123")
-    open_finding(project, accepted=True)
-    proc = run(project)
-    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
-    state = review.load_state(project.root)
-    assert state["findings"] == [] and state["reviewed_tree"] == state["reviewed_for"]
-
-
-def test_review_due_blocks_with_its_reason(project: Project) -> None:
-    commit_all(project)
-
-    review.ensure_state(project.root)
-    project.write("api/migrations/0001.sql", "create table t (id int);\n")
-    text = reason(run(project, reviewed=False))
-    assert text == (
-        "alpha review: run the principles-reviewer agent before finishing "
-        "(risky paths changed: api/migrations/0001.sql)."
-    )
-
-
-def test_mechanical_problems_hide_the_review_gate(project: Project) -> None:
-    commit_all(project)
-
-    review.ensure_state(project.root)
-    project.write("api/migrations/0001.sql", "create table t (id int);\n")
-    project.write("api/src/app.py", "x = 1\n")
-    text = reason(run(project, reviewed=False))
-    assert "tests-first-class" in text and "alpha review" not in text
-
-
-def test_review_blocks_never_give_up(project: Project) -> None:
-    commit_all(project)
-    open_finding(project)
-    for _ in range(5):
-        assert "alpha review: open findings:" in reason(run(project))
-
-
-def run_active(project: Project) -> subprocess.CompletedProcess[str]:
-    return project.run_hook(
-        "stop_checks.py", {"hook_event_name": "Stop", "stop_hook_active": True}
-    )
-
-
-def test_a_repeated_review_block_ends_the_turn_with_a_message(project: Project) -> None:
-    commit_all(project)
-    open_finding(project)
-    assert "alpha review: open findings:" in reason(run(project))
-    proc = run_active(project)
-    out = json.loads(proc.stdout)
-    assert "decision" not in out
-    assert out["systemMessage"].startswith("alpha review: open findings:")
-    assert "applies again at the next stop" in out["systemMessage"]
-    assert "came up twice in this turn" in out["systemMessage"]
-    assert "needs you" not in out["systemMessage"]
-    assert "alpha review: open findings:" in reason(run(project))
-
-
-def test_a_changed_review_block_blocks_again_in_the_same_turn(
-    project: Project,
-) -> None:
-    commit_all(project)
-    open_finding(project)
-    reason(run(project))
-    state = review.load_state(project.root)
-    state["findings"][0]["problem"] = "Something else."
-    review.save_state(project.root, state)
-    assert "Something else." in reason(run_active(project))
-
-
-def test_a_failed_snapshot_warns_at_stop(project: Project) -> None:
-    commit_all(project)
-    review.ensure_state(project.root)
-    lock = project.root / ".git" / (review.INDEX_FILE + ".lock")
-    lock.write_text("")
-    proc = project.run_hook("stop_checks.py", PAYLOAD)
-    out = json.loads(proc.stdout)
-    assert "decision" not in out
-    assert out["systemMessage"].startswith("alpha review: can't measure review debt")
-
-
-def test_the_repeat_marker_does_not_carry_into_the_next_turn(project: Project) -> None:
-    commit_all(project)
-    open_finding(project)
-    reason(run(project))
-    run_active(project)
-    project.write("api/src/app.py", "x = 1\n")
-    assert "tests-first-class" in reason(run(project))
-    project.write("api/tests/test_app.py", "x = 1\n")
-    assert "alpha review: open findings:" in reason(run_active(project))
-
-
 MIGRATION = "api/migrations/versions/0001_init.sql"
 
 
@@ -1116,9 +933,6 @@ def calls(project: Project) -> list[str]:
 
 
 def run_with(project: Project, env: dict[str, str | None]) -> Any:
-    state = review.ensure_state(project.root)
-    state["reviewed_tree"] = review.snapshot(project.root)
-    review.save_state(project.root, state)
     return project.run_hook("stop_checks.py", PAYLOAD, env=env)
 
 
@@ -1417,3 +1231,14 @@ def test_workspace_lockfile_needs_one_dependency_entry(project: Project) -> None
     project.write("docs/alpha/dependencies.md", "- httpx\n")
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
+
+
+def test_R9_1_stop_never_asks_for_a_review(project: Project) -> None:
+    commit_all(project)
+    project.git("switch", "-q", "-c", "feature")
+    for i in range(40):
+        project.write(f"api/src/m{i}.py", "\n".join(f"x{n} = {n}" for n in range(50)))
+        project.write(f"api/tests/test_m{i}.py", "def test_x():\n    assert True\n")
+    proc = run(project)
+    assert proc.returncode == 0, proc.stderr
+    assert "principles-reviewer" not in proc.stdout + proc.stderr

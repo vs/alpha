@@ -83,7 +83,7 @@ def test_R12_6_settings_wire_each_hook():
         {"matcher": "principles-reviewer", "hooks": [cmd("review_record.py")]},
     ]
     assert entries("UserPromptSubmit") == [
-        {"hooks": [{**cmd("user_prompt.py"), "timeout": 10}]}
+        {"hooks": [{**cmd("accept.py"), "timeout": 10}]}
     ]
 
 

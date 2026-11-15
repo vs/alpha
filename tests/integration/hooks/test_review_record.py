@@ -1,5 +1,6 @@
 import hashlib
 import json
+import subprocess
 import threading
 from pathlib import Path
 from typing import Any
@@ -19,12 +20,19 @@ FINDING = {
 
 
 def setup(project: Project) -> str:
+    """A branch with one change off main, briefed: returns the brief's tree."""
     project.write("api/pyproject.toml", "[project]\n")
     project.git("add", "-A")
     project.git("commit", "-q", "-m", "chore: Base")
-    review.ensure_state(project.root)
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")
     project.write("api/src/x.py", "x = 1\n")
+    project.git("add", "-A")
+    project.git("commit", "-q", "-m", "feat: Add x")
     return review.brief(project.root).splitlines()[0].removeprefix("Tree: ")
+
+
+def note(project: Project, tree: str) -> dict[str, Any] | None:
+    return review.read_note(project.root, tree)
 
 
 def report(tree: str, findings: list[dict[str, Any]]) -> str:
@@ -70,37 +78,40 @@ def finding_id(f: dict[str, Any]) -> str:
     return "F-" + hashlib.sha1(key.encode()).hexdigest()[:6]
 
 
-def test_clean_report_advances_to_the_reported_tree(project: Project) -> None:
+def test_R10_1_a_review_is_a_note_on_its_tree(project: Project) -> None:
     tree = setup(project)
-    project.write("api/src/y.py", "y = 2\n")
-    proc = record(project, report(tree, []))
-    assert proc.returncode == 0 and proc.stdout == ""
-    state = review.load_state(project.root)
-    assert state["reviewed_tree"] == tree
-    assert state["findings"] == []
-    assert review.debt(project.root, project.principles())["files"] == ["api/src/y.py"]
-
-
-def test_findings_are_recorded_with_stable_ids(project: Project) -> None:
-    tree = setup(project)
-    before = review.load_state(project.root)["reviewed_tree"]
     assert record(project, report(tree, [FINDING])).stdout == ""
-    state = review.load_state(project.root)
-    assert state["reviewed_tree"] == before
-    assert state["reviewed_for"] == tree
-    assert state["findings"] == [
-        {"id": finding_id(FINDING), **FINDING, "accepted": False}
+    recorded = note(project, tree)
+    assert recorded is not None
+    assert recorded["kind"] == "review"
+    assert recorded["findings"] == [
+        {"id": finding_id(FINDING), **FINDING, "status": "open"}
     ]
+    shown = project.git("notes", "--ref=alpha-review", "show", tree).stdout
+    assert json.loads(shown) == recorded
 
 
-def test_accepted_flag_survives_a_re_review(project: Project) -> None:
-    tree = setup(project)
-    record(project, report(tree, [FINDING]))
-    state = review.load_state(project.root)
-    state["findings"][0]["accepted"] = True
-    review.save_state(project.root, state)
-    record(project, report(tree, [FINDING]))
-    assert review.load_state(project.root)["findings"][0]["accepted"] is True
+def test_R10_1_a_worktree_review_records_from_the_main_checkout(
+    project: Project, tmp_path: Path
+) -> None:
+    setup(project)
+    linked = tmp_path / "linked"
+    project.git("worktree", "add", "-q", "-b", "topic", str(linked))
+    (linked / "api/src/z.py").write_text("z = 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=linked, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "feat: Add z"], cwd=linked, check=True)
+    tree = review.brief(linked).splitlines()[0].removeprefix("Tree: ")
+    assert record(project, report(tree, [])).stdout == ""  # hook in main checkout
+    assert note(project, tree) is not None
+    assert review.read_note(linked, tree) is not None
+
+
+def test_a_tree_no_brief_handed_out_is_refused(project: Project) -> None:
+    setup(project)
+    other = project.git("rev-parse", "HEAD~1^{tree}").stdout.strip()
+    out = json.loads(record(project, report(other, [])).stdout)
+    assert out["decision"] == "block"
+    assert "isn't a tree a brief handed out" in out["reason"]
 
 
 @pytest.mark.parametrize(
@@ -127,21 +138,21 @@ def test_malformed_reports_send_the_reviewer_back(
     assert out["decision"] == "block"
     assert "End your report with one fenced json block" in out["reason"]
     assert "review.py brief" in out["reason"]
-    assert review.load_state(project.root).get("findings") == []
+    assert note(project, tree) is None
 
 
 def test_other_agents_are_ignored(project: Project) -> None:
     tree = setup(project)
     proc = record(project, report(tree, []), agent_type="general-purpose")
     assert proc.stdout == ""
-    assert review.load_state(project.root)["reviewed_tree"] != tree
+    assert note(project, tree) is None
 
 
 def test_last_json_block_wins(project: Project) -> None:
     tree = setup(project)
     message = 'Example:\n```json\n{"tree": "x"}\n```\n' + report(tree, [])
     assert record(project, message).stdout == ""
-    assert review.load_state(project.root)["reviewed_tree"] == tree
+    assert note(project, tree) is not None
 
 
 def test_a_report_handed_back_is_recorded(project: Project) -> None:
@@ -153,9 +164,9 @@ def test_a_report_handed_back_is_recorded(project: Project) -> None:
         handed_back(report(tree, [FINDING])),
     ]
     assert record(project, "", transcript=transcript).stdout == ""
-    state = review.load_state(project.root)
-    assert state["reviewed_for"] == tree
-    assert [f["id"] for f in state["findings"]] == [finding_id(FINDING)]
+    recorded = note(project, tree)
+    assert recorded is not None
+    assert [f["id"] for f in recorded["findings"]] == [finding_id(FINDING)]
 
 
 def test_a_report_from_an_earlier_request_is_not_this_one(project: Project) -> None:
@@ -189,7 +200,7 @@ def test_a_transcript_mid_write_still_gives_the_report(project: Project) -> None
     cut = '{"type": "assistant", "message": {"content": "caf\u00e9'.encode()[:-1]
     path.write_bytes("".join(json.dumps(e) + "\n" for e in lines).encode() + cut)
     assert stopped(project, path).stdout == ""
-    assert review.load_state(project.root)["reviewed_tree"] == tree
+    assert note(project, tree) is not None
 
 
 def test_a_hand_back_written_after_the_hook_starts_is_found(project: Project) -> None:
@@ -207,4 +218,4 @@ def test_a_hand_back_written_after_the_hook_starts_is_found(project: Project) ->
     proc = stopped(project, path)
     timer.join()
     assert proc.stdout == ""
-    assert review.load_state(project.root)["reviewed_tree"] == tree
+    assert note(project, tree) is not None

@@ -1,633 +1,217 @@
+"""The principles review in git notes on trees (rewrite spec, R9 and R10)."""
+
 import json
-import os
-import subprocess
-import sys
-import time
-from pathlib import Path
 from typing import Any
 
 import pytest
 import review
 
-from .conftest import HOOKS, Project
+from .conftest import Project
+
+FINDING = {
+    "principle": "fail-helpfully",
+    "file": "api/src/a.py",
+    "line": 1,
+    "problem": "It swallows every error.",
+    "fix": "Catch the specific error.",
+}
 
 
-def commit_all(project: Project, message: str = "chore: Base") -> None:
+def commit(project: Project, rel: str, text: str = "x = 1\n") -> str:
+    project.write(rel, text)
     project.git("add", "-A")
-    project.git("commit", "-q", "--allow-empty", "-m", message)
+    project.git("commit", "-q", "-m", f"feat: Change {rel}")
+    return project.git("rev-parse", "HEAD^{tree}").stdout.strip()
 
 
-def base(project: Project) -> dict[str, Any]:
-    project.write("api/pyproject.toml", "[project]\nname = 'x'\n")
-    project.write("web/package.json", "{}\n")
-    commit_all(project)
-    return review.ensure_state(project.root)
+def on_a_branch(project: Project) -> None:
+    """main published at a base commit, and a feature branch off it."""
+    commit(project, "README.md", "# Base\n")
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")
+    project.git("switch", "-q", "-c", "feature")
 
 
-def tree_of(project: Project, rev: str) -> str:
-    return project.git("rev-parse", f"{rev}^{{tree}}").stdout.strip()
-
-
-def lines(n: int) -> str:
-    return "".join(f"x{i} = {i}\n" for i in range(n))
-
-
-def test_fresh_state_starts_at_head(project: Project) -> None:
-    state = base(project)
-    assert state["reviewed_tree"] == tree_of(project, "HEAD")
-    assert review.debt(project.root, project.principles())["files"] == []
-
-
-def test_fresh_state_without_commits_is_the_empty_tree(project: Project) -> None:
-    state = review.ensure_state(project.root)
-    assert state["reviewed_tree"] == review.EMPTY_TREE
-
-
-def test_snapshot_ignores_gitignored_and_state_and_leaves_index_alone(
-    project: Project,
-) -> None:
-    base(project)
-    project.write(".gitignore", "*.log\n.claude/alpha/state/\n")
-    commit_all(project, "chore: Ignore logs")
-    review.ensure_state(project.root)
-    state = review.load_state(project.root)
-    state["reviewed_tree"] = tree_of(project, "HEAD")
-    review.save_state(project.root, state)
-    project.write("run.log", "noise\n")
-    project.write(".claude/alpha/state/anything", "x\n")
-    project.write("api/src/x.py", "x = 1\n")
-    project.git("add", "api/src/x.py")
-    staged = project.git("diff", "--cached", "--name-only").stdout
-    debt = review.debt(project.root, project.principles())
-    assert debt["files"] == ["api/src/x.py"]
-    assert project.git("diff", "--cached", "--name-only").stdout == staged
-
-
-def test_debt_counts_untracked_and_modified(project: Project) -> None:
-    base(project)
-    project.write("api/src/new.py", lines(3))
-    project.write("web/package.json", '{"a": 1}\n')
-    debt = review.debt(project.root, project.principles())
-    assert sorted(debt["files"]) == ["api/src/new.py", "web/package.json"]
-    assert debt["counted_lines"] == 3 + 2
-    assert debt["counted_files"] == 2
-
-
-def test_excluded_paths_do_not_count_toward_size(project: Project) -> None:
-    base(project)
-    project.write("api/tests/test_big.py", lines(500))
-    project.write("docs/notes.md", lines(50))
-    debt = review.debt(project.root, project.principles())
-    assert debt["counted_lines"] == 0 and debt["counted_files"] == 0
-    assert len(debt["files"]) == 2
-
-
-def test_batched_triggers_on_lines(project: Project) -> None:
-    base(project)
-    project.write("api/src/big.py", lines(201))
-    reason = review.review_due(
-        project.principles(), review.debt(project.root, project.principles())
-    )
-    assert reason == (
-        "201 lines in 1 files changed since the last review "
-        "(limits: max_lines 200, max_files 5)"
-    )
-
-
-def test_batched_triggers_on_files(project: Project) -> None:
-    base(project)
-    for i in range(5):
-        project.write(f"api/src/m{i}.py", "x = 1\n")
-    reason = review.review_due(
-        project.principles(), review.debt(project.root, project.principles())
-    )
-    assert reason is not None and "5 files" in reason
-
-
-def test_small_changes_need_no_review(project: Project) -> None:
-    base(project)
-    project.write("api/src/m.py", lines(10))
-    debt = review.debt(project.root, project.principles())
-    assert review.review_due(project.principles(), debt) is None
-
-
-def test_risky_paths_trigger_regardless_of_size(project: Project) -> None:
-    base(project)
-    project.write("api/openapi.yaml", "openapi: 3.1.0\n")
-    debt = review.debt(project.root, project.principles())
-    assert debt["risky"] == ["api/openapi.yaml"]
-    assert review.review_due(project.principles(), debt) == (
-        "risky paths changed: api/openapi.yaml"
-    )
-
-
-def test_manifest_and_new_component_folder_are_risky(project: Project) -> None:
-    project.write("api/pyproject.toml", "[project]\n")
-    commit_all(project)
-    review.ensure_state(project.root)
-    project.write("api/pyproject.toml", "[project]\nname = 'y'\n")
-    project.write("web/src/app.ts", "export {}\n")
-    debt = review.debt(project.root, project.principles())
-    assert debt["risky"] == ["api/pyproject.toml", "web/src/app.ts"]
-
-
-def test_every_task_triggers_on_any_change(project: Project) -> None:
-    base(project)
-    data = project.principles()
-    data["review"]["mode"] = "every-task"
-    project.write_principles(data)
-    commit_all(project, "chore: Every task")
-    state = review.load_state(project.root)
-    state["reviewed_tree"] = tree_of(project, "HEAD")
-    review.save_state(project.root, state)
-    project.write("api/tests/test_a.py", "x = 1\n")
-    debt = review.debt(project.root, project.principles())
-    assert review.review_due(project.principles(), debt) == "review mode is every-task"
-
-
-def test_at_merge_waits_for_the_merge_even_on_risky_paths(project: Project) -> None:
-    base(project)
-    data = project.principles()
-    data["review"]["mode"] = "at-merge"
-    project.write_principles(data)
-    commit_all(project, "chore: At merge")
-    state = review.load_state(project.root)
-    state["reviewed_tree"] = tree_of(project, "HEAD")
-    review.save_state(project.root, state)
-    project.write("api/migrations/0001.sql", "create table t (id int);\n")
-    for i in range(6):
-        project.write(f"api/src/m{i}.py", "x = 1\n" * 50)
-    debt = review.debt(project.root, project.principles())
-    assert debt["risky"] and debt["counted_files"] >= 5
-    assert review.review_due(project.principles(), debt) is None
-    blocker = review.merge_blocker(project.root, project.principles())
-    assert blocker is not None and blocker.startswith("Nothing reaches main unreviewed")
-
-
-def test_unreadable_state_is_treated_as_fresh(project: Project) -> None:
-    base(project)
-    path = project.root / ".claude/alpha/state/review.json"
-    path.write_text("{not json")
-    assert review.load_state(project.root) == {"unreadable": True}
-    assert review.ensure_state(project.root)["reviewed_tree"] == tree_of(
-        project, "HEAD"
-    )
-    assert json.loads(path.read_text())["findings"] == []
-
-
-EXCEPTION_ROW = "| `api/gen.py` | `lint:api` | Generated by the vendor. |"
-
-
-def briefed(project: Project) -> str:
-    project.write("api/pyproject.toml", "[project]\nname = 'x'\n")
-    project.write("web/package.json", "{}\n")
-    project.write(
-        "CONTRIBUTING.md",
-        "# Contributing\n\n## Exceptions\n\n| Path | Check | Reason |\n"
-        f"|---|---|---|\n{EXCEPTION_ROW}\n",
-    )
-    commit_all(project)
-    review.ensure_state(project.root)
-    project.write("api/src/x.py", "def f() -> int:\n    return 1\n")
-    return review.brief(project.root)
-
-
-def test_brief_lists_tree_principles_exceptions_and_diff(project: Project) -> None:
-    text = briefed(project)
-    head, rest = text.split("\n", 1)
-    assert head == f"Tree: {review.snapshot(project.root)}"
-    assert rest.startswith("Reviewed: ")
-    principles = text.split("## Principles\n")[1].split("\n## ")[0]
-    assert "- fail-helpfully (Fail fast, fail helpfully): " in principles
-    assert (
-        "- observability " in principles
-        and "[override: loosen (component:api): " in principles
-    )
-    exceptions = text.split("## Exceptions (CONTRIBUTING.md)\n")[1].split("\n## ")[0]
-    assert EXCEPTION_ROW in exceptions
-    files = text.split("## Changed files\n")[1].split("\n## ")[0]
-    assert files.strip() == "2\tapi/src/x.py"
-    assert "+def f() -> int:" in text.split("## Diff\n")[1]
-
-
-def test_brief_omits_principles_of_untouched_components(project: Project) -> None:
-    principles = briefed(project).split("## Principles\n")[1].split("\n## ")[0]
-    assert "visual-system" not in principles
-    assert "- contracts " in principles
-
-
-def test_brief_lists_the_stack_rules_of_touched_components(project: Project) -> None:
-    rules = briefed(project).split("## Stack rules\n")[1].split("\n## ")[0]
-    assert rules.strip().splitlines() == [
-        "- python:uv-for-dependencies: Add and remove dependencies with `uv add` "
-        "and `uv remove`, never by editing the dependency lists in "
-        "`pyproject.toml` or with `pip`. [components: api]",
-        "- python:typed-boundaries: Parse external input (JSON, files, "
-        "environment, requests) into dataclasses or typed models at the "
-        "boundary; don't pass `dict[str, Any]` inward. [components: api]",
-        "- python:import-contracts: Once a component has more than one package, "
-        "add import-linter contracts for the layers the architecture in "
-        "`docs/alpha/specification.md` names, and add `lint-imports` to its "
-        "`structure` command. [components: api]",
-    ]
-
-
-def test_brief_lists_every_stacks_rules_for_a_change_outside_components(
-    project: Project,
-) -> None:
-    review.ensure_state(project.root)
-    project.write("notes.txt", "x\n")
-    rules = review.brief(project.root).split("## Stack rules\n")[1].split("\n## ")[0]
-    ids = [line.split(": ")[0] for line in rules.strip().splitlines()]
-    assert ids == [
-        "- python:uv-for-dependencies",
-        "- python:typed-boundaries",
-        "- python:import-contracts",
-        "- typescript:top-level-imports",
-        "- typescript:unknown-at-boundaries",
-        "- typescript:pnpm-for-dependencies",
-    ]
-
-
-def test_brief_has_no_stack_rules_section_without_rules(project: Project) -> None:
-    data = project.principles()
-    for comp in data["components"]:
-        comp["rules"] = []
-    project.write_principles(data)
-    assert "## Stack rules" not in briefed(project)
-
-
-def test_a_commit_trailer_accepts_a_finding(project: Project) -> None:
-    """F3: an `Accepts:` trailer settles a finding off a risk path; without it
-    the finding stays open."""
-    briefed(project)
-    state = review.ensure_state(project.root)
-    state["findings"] = [
+def reviewed(project: Project, findings: list[dict[str, Any]] | None = None) -> str:
+    """Brief the current tree and record a review of it, as the hook does."""
+    tree = review.brief(project.root).splitlines()[0].removeprefix("Tree: ")
+    brief = next(b for b in review.briefs(project.root) if b["tree"] == tree)
+    review.write_note(
+        project.root,
+        tree,
         {
-            "id": "F-abc123",
-            "principle": "fail-helpfully",
-            "file": "api/src/x.py",
-            "line": 1,
-            "problem": "p",
-            "fix": "f",
-        }
-    ]
-    review.save_state(project.root, state)
-    principles = project.principles()
-    assert "F-abc123" in (review.gate(project.root, principles) or "")
+            "kind": brief["kind"],
+            "branch": brief["branch"],
+            "base": brief["base"],
+            "recorded": len(review.briefs(project.root)),
+            "findings": [
+                {"id": f"F-{i:06x}", **f, "status": "open"}
+                for i, f in enumerate(findings or [])
+            ],
+        },
+    )
+    return tree
+
+
+def gate(project: Project) -> str | None:
+    return review.gate(project.root, project.principles())
+
+
+def test_R9_2_merge_waits_for_a_review_of_the_head_tree(project: Project) -> None:
+    on_a_branch(project)
+    assert gate(project) is None  # nothing to review yet
+    commit(project, "api/src/a.py")
+    blocked = gate(project)
+    assert blocked is not None and blocked.startswith(
+        "Nothing reaches main unreviewed: run the principles-reviewer agent first "
+        "(1 file changed since the last review)."
+    )
+    reviewed(project)
+    assert gate(project) is None
+    project.write("api/src/a.py", "x = 2\n")
+    dirty = gate(project)
+    assert dirty is not None and "Commit or stash the changes" in dirty
+    with pytest.raises(review.ReviewError, match="uncommitted changes"):
+        review.brief(project.root)
+
+
+def test_R9_3_a_fix_check_reviews_only_whats_new(project: Project) -> None:
+    on_a_branch(project)
+    commit(project, "api/src/a.py")
+    commit(project, "api/src/b.py")
+    other = {**FINDING, "file": "api/src/b.py", "problem": "It reads too much."}
+    reviewed(project, [FINDING, other])
+    blocked = gate(project)
+    assert blocked is not None and "F-000000, F-000001" in blocked
+    commit(project, "api/src/a.py", "x = 2\n")  # the fix
     project.git(
         "commit",
         "-q",
         "--allow-empty",
         "-m",
-        "chore: Keep f\n\nAccepts: F-abc123 f returns a constant on purpose",
+        "chore: Keep b\n\nAccepts: F-000001 Reads are bounded.",
     )
-    assert "F-abc123" not in (review.gate(project.root, principles) or "")
-
-
-def test_brief_lists_open_findings(project: Project) -> None:
-    briefed(project)
-    state = review.load_state(project.root)
-    state["findings"] = [
-        {
-            "id": "F-abc123",
-            "principle": "timeouts",
-            "file": "api/src/x.py",
-            "line": 1,
-            "problem": "no timeout",
-            "fix": "add one",
-            "accepted": False,
-        }
-    ]
-    review.save_state(project.root, state)
+    commit(project, "api/src/c.py")  # new work
     text = review.brief(project.root)
-    assert "## Open findings\n\n- F-abc123 timeouts api/src/x.py:1: no timeout" in text
-
-
-def test_brief_truncates_long_diffs_and_names_the_rest(project: Project) -> None:
-    briefed(project)
-    project.write("api/src/big.py", lines(2000))
-    project.write("web/src/z.ts", "export {}\n")
-    text = review.brief(project.root)
-    diff = text.split("## Diff\n")[1]
-    assert len(diff.splitlines()) <= review.DIFF_LINES + 2
-    tail = diff.splitlines()[-1]
-    assert tail.startswith("… diff truncated; read the remaining files directly: ")
-    assert "api/src/big.py" in tail and "web/src/z.ts" in tail
-
-
-def test_brief_leaves_lockfile_diffs_out(project: Project) -> None:
-    briefed(project)
-    project.write("api/uv.lock", lines(3000))
-    text = review.brief(project.root)
-    files = text.split("## Changed files\n")[1].split("\n## ")[0]
-    assert "api/uv.lock" in files
-    diff = text.split("## Diff\n")[1]
-    assert "diff --git a/api/uv.lock" not in diff
-    assert "+def f() -> int:" in diff
-    assert "Lockfiles changed (diff left out): api/uv.lock" in diff
-    assert "truncated" not in diff
-
-
-def test_brief_names_non_ascii_files_as_they_are(project: Project) -> None:
-    briefed(project)
-    project.write("api/src/café.py", lines(2000))
-    diff = review.brief(project.root).split("## Diff\n")[1]
-    assert "diff --git a/api/src/café.py b/api/src/café.py" in diff
-    tail = diff.splitlines()[-1]
-    assert "api/src/café.py" in tail and '"' not in tail
-
-
-@pytest.mark.parametrize(
-    "finding",
-    [
-        "F-abc123",
-        {"id": "F-abc123"},
-        {"id": 1, "principle": "p", "file": "f", "line": 1, "problem": "x", "fix": "y"},
-    ],
-)
-def test_malformed_findings_restart_the_review(
-    project: Project, finding: object
-) -> None:
-    base(project)
-    path = project.root / ".claude/alpha/state/review.json"
-    state = review.ensure_state(project.root)
-    state["findings"] = [finding]
-    path.write_text(json.dumps(state))
-    assert review.load_state(project.root) == {"unreadable": True}
-    review.gate(project.root, project.principles())
-    assert review.ensure_state(project.root)["findings"] == []
-
-
-def test_brief_cli_outside_an_alpha_project(project: Project) -> None:
-    (project.root / "docs/alpha/principles.toml").unlink()
-    proc = project.run_hook("review.py", {})
-    assert proc.returncode == 1
-    assert "python3 .claude/alpha/hooks/review.py brief" in proc.stderr
-
-
-def test_absorb_carries_changes_since_the_tree_onto_reviewed(
-    project: Project,
-) -> None:
-    base(project)
-    before = review.snapshot(project.root)
-    project.write("api/src/from_alpha.py", "x = 1\n")
-    after = review.snapshot(project.root)
-    assert review.absorb(project.root, before, after) is True
-    assert review.debt(project.root, project.principles())["files"] == []
-
-
-def test_absorb_keeps_earlier_unreviewed_edits(project: Project) -> None:
-    base(project)
-    project.write("api/src/mine.py", "x = 1\n")
-    before = review.snapshot(project.root)
-    project.write("api/src/from_alpha.py", "y = 2\n")
-    after = review.snapshot(project.root)
-    review.absorb(project.root, before, after)
-    debt = review.debt(project.root, project.principles())
-    assert debt["files"] == ["api/src/mine.py"]
-
-
-def test_absorb_stops_at_the_after_tree(project: Project) -> None:
-    base(project)
-    before = review.snapshot(project.root)
-    project.write("api/src/from_alpha.py", "y = 2\n")
-    after = review.snapshot(project.root)
-    project.write("api/src/later.py", "z = 3\n")
-    review.absorb(project.root, before, after)
-    debt = review.debt(project.root, project.principles())
-    assert debt["files"] == ["api/src/later.py"]
-
-
-def test_absorb_carries_per_path_on_a_conflict(project: Project) -> None:
-    project.write("api/src/clash.py", "a = 1\nb = 2\nc = 3\n")
-    base(project)
-    project.write("api/src/clash.py", "a = 1\nb = 'mine'\nc = 3\n")
-    before = review.snapshot(project.root)
-    project.write("api/src/clash.py", "a = 1\nb = 'alpha'\nc = 3\n")
-    project.write("api/src/other.py", "o = 1\n")
-    after = review.snapshot(project.root)
-    proc = subprocess.run(
-        [sys.executable, str(HOOKS / "review.py"), "absorb", before, after],
-        cwd=project.root,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(project.root)},
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode != 0
-    debt = review.debt(project.root, project.principles())
-    assert debt["files"] == ["api/src/clash.py"]
-
-
-def test_snapshot_subcommand_prints_the_tree(project: Project) -> None:
-    base(project)
-    project.write("api/src/new.py", "x = 1\n")
-    proc = subprocess.run(
-        [sys.executable, str(HOOKS / "review.py"), "snapshot"],
-        cwd=project.root,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(project.root)},
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.strip() == review.snapshot(project.root)
-
-
-def test_snapshot_works_when_the_state_folder_is_gitignored(project: Project) -> None:
-    project.write(".gitignore", ".claude/alpha/state/\n")
-    base(project)
-    project.write("api/src/new.py", "x = 1\n")
-    debt = review.debt(project.root, project.principles())
-    assert debt["files"] == ["api/src/new.py"]
-    assert debt["tree"] != tree_of(project, "HEAD")
-
-
-def test_brief_refuses_when_the_tree_cannot_be_snapshot(project: Project) -> None:
-    base(project)
-    (project.root / ".git").rename(project.root / "not-git")
-    proc = subprocess.run(
-        [sys.executable, str(HOOKS / "review.py"), "brief"],
-        cwd=project.root,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(project.root)},
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 1
-    assert "can't snapshot the working tree" in proc.stderr
-
-
-def scratch_index(project: Project) -> Any:
-    return project.root / ".git" / review.INDEX_FILE
-
-
-def test_scratch_index_persists_and_snapshots_agree(project: Project) -> None:
-    base(project)
-    project.write("api/src/x.py", "x = 1\n")
-    first = review.snapshot(project.root)
-    assert scratch_index(project).is_file()
-    assert review.snapshot(project.root) == first
-
-
-def test_a_stale_lock_is_cleared(project: Project) -> None:
-    base(project)
-    lock = scratch_index(project).with_name(review.INDEX_FILE + ".lock")
-    lock.write_text("")
-    old = time.time() - 600
-    os.utime(lock, (old, old))
-    project.write("api/src/x.py", "x = 1\n")
-    assert review.debt(project.root, project.principles())["files"] == ["api/src/x.py"]
-
-
-def test_a_fresh_lock_fails_loudly(project: Project) -> None:
-    base(project)
-    lock = scratch_index(project).with_name(review.INDEX_FILE + ".lock")
-    lock.write_text("")
-    with pytest.raises(review.SnapshotError, match="lock"):
-        review.debt(project.root, project.principles())
-    reason = review.merge_blocker(project.root, project.principles())
-    assert reason is not None
-    assert reason.startswith("Nothing reaches main unreviewed, but alpha can't")
-    assert "the snapshot error says what's wrong" in reason
-
-
-def test_an_unreadable_file_fails_loudly(project: Project) -> None:
-    base(project)
-    secret = project.write("api/src/locked.py", "x = 1\n")
-    secret.chmod(0)
-    try:
-        with pytest.raises(review.SnapshotError):
-            review.snapshot(project.root)
-    finally:
-        secret.chmod(0o644)
-
-
-def test_lost_state_starts_at_the_pushed_commit(
-    project: Project, tmp_path_factory: Any
-) -> None:
-    remote = tmp_path_factory.mktemp("remote")
-    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
-    base(project)
-    project.git("remote", "add", "origin", str(remote))
-    project.git("push", "-q", "-u", "origin", "HEAD")
-    project.write("api/auth/login.py", "x = 1\n")
-    commit_all(project, "feat: Add login")
-    (project.root / ".claude/alpha/state/review.json").unlink()
-    debt = review.debt(project.root, project.principles())
-    assert debt["files"] == ["api/auth/login.py"]
-
-
-def test_state_is_written_atomically(project: Project) -> None:
-    base(project)
-    state = review.load_state(project.root)
-    review.save_state(project.root, state)
-    leftovers = [p.name for p in (project.root / ".claude/alpha/state").iterdir()]
-    assert not [n for n in leftovers if n.startswith("review.json.")]
-
-
-def test_unreadable_state_is_reported_at_session_start(project: Project) -> None:
-    base(project)
-    (project.root / ".claude/alpha/state/review.json").write_text("{not json")
-    out = project.run_hook("session_start.py", {"hook_event_name": "SessionStart"})
-    text = json.loads(out.stdout)["hookSpecificOutput"]["additionalContext"]
-    assert "review state was unreadable" in text
-
-
-def test_brief_shows_the_touched_components_params(project: Project) -> None:
-    principles = briefed(project).split("## Principles\n")[1].split("\n## ")[0]
-    line = next(x for x in principles.splitlines() if x.startswith("- perf-budgets "))
-    assert (
-        "[api: budgets=['p95 response time: 300 ms (k6 in CI against staging)']]"
-        in (line)
-    )
-    assert "web:" not in line
-
-
-def test_brief_shows_the_tokens_of_a_touched_ui(project: Project) -> None:
-    project.write("web/package.json", "{}\n")
-    commit_all(project)
-    review.ensure_state(project.root)
-    project.write("web/src/app.ts", "export const x = 1;\n")
-    principles = review.brief(project.root).split("## Principles\n")[1]
-    line = next(x for x in principles.splitlines() if x.startswith("- visual-system "))
-    assert "[web: tokens=web/src/styles/tokens.css]" in line
-
-
-def visuals_brief(project: Project, palette_check: str) -> str:
-    principles = project.principles()
-    principles["visuals"] = {
-        "palette_check": palette_check,
-        "palette": ["#0B5FFF"],
-        "sources": ["**/*.svg", "**/*.css"],
-        "carriers": ["**/*.md", "**/*.tsx"],
-        "opaque": ["**/*.png"],
-        "exclude": ["**/node_modules/**", "**/*-snapshots/**"],
-        "palette_files": ["**/*.svg", "**/*.css", "**/*.md"],
+    assert "Kind: fix-check" in text
+    assert "- F-000000 fail-helpfully api/src/a.py:1" in text
+    assert "Accepts: F-000001 Reads are bounded." in text
+    fresh = text.split("## Review afresh\n\n")[1].split("\n\n")[0]
+    assert fresh.splitlines() == ["- api/src/c.py"]
+    tree = text.splitlines()[0].removeprefix("Tree: ")
+    brief = next(b for b in review.briefs(project.root) if b["tree"] == tree)
+    assert brief["fresh"] == ["api/src/c.py"]
+    note: dict[str, Any] = {
+        "kind": "fix-check",
+        "branch": "feature",
+        "base": brief["base"],
+        "findings": [
+            {**f, "status": "fixed" if f["id"] == "F-000000" else "accepted"}
+            for f in brief["findings"]
+        ],
     }
-    project.write_principles(principles)
-    kit = Path(__file__).parents[3] / "project-files"
-    for rel in ("checks/palette.py", "hooks/_common.py"):
-        project.write(f".claude/alpha/{rel}", (kit / rel).read_text())
-    commit_all(project)
-    review.ensure_state(project.root)
-    project.write("docs/flow.svg", '<svg fill="#0b5fff"/>\n')
-    project.write("web/src/app.css", "a { color: #ff00aa }\n")
-    project.write("web/node_modules/lib/theme.css", "a { color: red }\n")
-    project.write("docs/guide.md", "# Guide\n\nPlain prose about issue #123.\n")
-    project.write(
-        "docs/arch.md", "# Flow\n\n```mermaid\nflowchart LR\n  A --> B\n```\n"
+    review.write_note(project.root, tree, note)
+    assert gate(project) is None
+
+
+def test_R9_3_a_fix_check_record_refuses_new_findings_on_reviewed_files(
+    project: Project,
+) -> None:
+    on_a_branch(project)
+    commit(project, "api/src/a.py")
+    reviewed(project, [FINDING])
+    commit(project, "api/src/a.py", "x = 2\n")
+    commit(project, "api/src/c.py")
+    tree = review.brief(project.root).splitlines()[0].removeprefix("Tree: ")
+    again = {**FINDING, "problem": "Another thing in the same file."}
+    body = json.dumps({"tree": tree, "checked": [], "findings": [again]})
+    proc = project.run_hook(
+        "review_record.py",
+        {
+            "hook_event_name": "SubagentStop",
+            "agent_type": "principles-reviewer",
+            "last_assistant_message": f"```json\n{body}\n```",
+        },
     )
-    project.write("web/src/Button.tsx", "export const label = 'Save';\n")
-    project.write(
-        "web/src/Card.tsx", "const card = <p style={{color: '#123456'}} />;\n"
+    out = json.loads(proc.stdout)
+    assert out["decision"] == "block"
+    assert "doesn't review afresh" in out["reason"] and "api/src/c.py" in out["reason"]
+
+
+def test_a_risk_path_finding_isnt_accepted_by_the_fix_check(project: Project) -> None:
+    on_a_branch(project)
+    commit(project, "api/migrations/0001.sql", "create table t (id int);\n")
+    risky = {**FINDING, "file": "api/migrations/0001.sql"}
+    reviewed(project, [risky])
+    project.git("commit", "-q", "--allow-empty", "-m", "chore: Keep it")
+    tree = review.brief(project.root).splitlines()[0].removeprefix("Tree: ")
+    body = json.dumps(
+        {
+            "tree": tree,
+            "checked": [{"id": "F-000000", "status": "accepted"}],
+            "findings": [],
+        }
     )
-    project.write("docs/logo.png", "png\n")
-    project.write("web/tests/home.spec.ts-snapshots/home.png", "png\n")
-    project.write("api/src/x.py", "x = 1\n")
-    return review.brief(project.root)
+    project.run_hook(
+        "review_record.py",
+        {
+            "hook_event_name": "SubagentStop",
+            "agent_type": "principles-reviewer",
+            "last_assistant_message": f"```json\n{body}\n```",
+        },
+    )
+    recorded = review.read_note(project.root, tree)
+    assert recorded is not None and recorded["findings"][0]["status"] == "open"
+    blocked = gate(project)
+    assert blocked is not None and 'replying "accept F-000000"' in blocked
 
 
-def test_brief_names_the_changed_visuals(project: Project) -> None:
-    text = visuals_brief(project, "advise")
-    readable = text.split("## Changed visuals (check each")[1].split("\n## ")[0]
-    assert "- docs/flow.svg" in readable and "- web/src/app.css" in readable
-    assert "node_modules" not in readable and "x.py" not in readable
-    opaque = text.split("## Changed visuals that aren't text")[1].split("\n## ")[0]
-    assert "- docs/logo.png" in opaque and "snapshots" not in opaque
+def test_R10_2_the_last_reviewed_tree_is_found_in_history(project: Project) -> None:
+    on_a_branch(project)
+    commit(project, "api/src/a.py")
+    b = reviewed(project)
+    commit(project, "api/src/c.py")
+    last = review.last_review(project.root)
+    assert last is not None and last[0] == b
+    # A merge from main after B keeps B as the last review.
+    project.git("switch", "-q", "-c", "upstream", "refs/remotes/origin/main")
+    commit(project, "web/src/m.ts", "export const m = 1;\n")
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")
+    project.git("switch", "-q", "feature")
+    project.git("merge", "-q", "--no-edit", "upstream")
+    last = review.last_review(project.root)
+    assert last is not None and last[0] == b
+    # A rebase gives every commit a new tree: the branch's newest note.
+    project.git("rebase", "-q", "upstream")
+    last = review.last_review(project.root)
+    assert last is not None and last[0] == b
 
 
-def test_brief_lists_a_doc_or_ui_file_only_when_the_change_is_visual(
-    project: Project,
-) -> None:
-    text = visuals_brief(project, "advise")
-    readable = text.split("## Changed visuals (check each")[1].split("\n## ")[0]
-    assert "- docs/arch.md" in readable and "- web/src/Card.tsx" in readable
-    assert "guide.md" not in readable and "Button.tsx" not in readable
+def test_R10_2_a_note_on_main_carries_nothing_into_a_branch(project: Project) -> None:
+    commit(project, "api/src/a.py")
+    reviewed(project, [FINDING])  # on main, with an open finding
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")
+    project.git("switch", "-q", "-c", "feature")
+    commit(project, "api/src/c.py")
+    assert review.last_review(project.root) is None
+    text = review.brief(project.root)
+    assert "Kind: review" in text and "F-000000" not in text
 
 
-def test_brief_shows_off_palette_colors_for_the_reviewer_to_judge(
-    project: Project,
-) -> None:
-    text = visuals_brief(project, "advise")
-    judged = text.split("## Colors outside the palette (judge each")[1]
-    judged = judged.split("\n## ")[0]
-    assert "- web/src/app.css:1: #ff00aa isn't in the palette" in judged
-    assert "flow.svg" not in judged and "Card.tsx" not in judged
+def test_R10_3_the_brief_holds_only_files_changed_since(project: Project) -> None:
+    on_a_branch(project)
+    commit(project, "api/src/a.py")
+    reviewed(project)
+    commit(project, "api/src/c.py")
+    text = review.brief(project.root)
+    changed = text.split("## Changed files\n\n")[1].split("\n\n")[0]
+    assert changed.splitlines() == ["- api/src/c.py"]
+    assert "api/src/a.py" not in text.split("## Diff")[1]
 
 
-@pytest.mark.parametrize("palette_check", ["off", "enforce"])
-def test_brief_leaves_palette_colors_out_unless_advised(
-    project: Project, palette_check: str
-) -> None:
-    assert "Colors outside the palette" not in visuals_brief(project, palette_check)
-
-
-def test_brief_has_no_visuals_section_without_a_design_language(
-    project: Project,
-) -> None:
-    principles = project.principles()
-    del principles["visuals"]
-    project.write_principles(principles)
-    commit_all(project)
-    review.ensure_state(project.root)
-    project.write("docs/flow.svg", "<svg/>\n")
-    assert "Changed visuals" not in review.brief(project.root)
+def test_R10_3_alphas_own_writes_are_left_out(project: Project) -> None:
+    on_a_branch(project)
+    tree = commit(project, ".claude/alpha/hooks/x.py", "# alpha's\n")
+    render = project.git("commit-tree", tree, "-m", "alpha render").stdout.strip()
+    project.git("notes", "--ref=alpha-rendered", "add", "-m", render, "HEAD")
+    commit(project, "api/src/a.py")
+    assert review.files_to_review(project.root, None) == ["api/src/a.py"]
