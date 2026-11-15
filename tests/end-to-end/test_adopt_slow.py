@@ -89,9 +89,9 @@ def _sh(cwd: Path, command: str) -> subprocess.CompletedProcess[str]:
 
 
 @pytest.mark.slow
-def test_adopt_a_real_repo(tmp_path: Path, git_env: None):
-    """R4: adopt apply and bootstrap --capture-baselines baseline legacy
-    findings, and a new one fails."""
+def test_R1_3_legacy_findings_pass_and_new_ones_fail(tmp_path: Path, git_env: None):
+    """apply on an existing repo and bootstrap --capture-baselines baseline
+    its legacy findings, and a new one fails."""
     root = tmp_path / "repo"
     root.mkdir()
     for rel, text in APP.items():
