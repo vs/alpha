@@ -281,8 +281,11 @@ def test_changelog_with_entries_passes_rumdl(tmp_path: Path):
     day = date(2026, 10, 19)
     set_default(src, "testing.diff_coverage", "90", "demo", "r1", day)
     set_default(src, "testing.exhaustive", "true", "demo", "r2", day)
+    pin = REGISTRY.tool("rumdl").pin
+    assert pin is not None
     run = subprocess.run(
-        ["rumdl", "check", "--no-config", str(user_files(src)[1])],
+        ["mise", "exec", f"{pin.mise}@{pin.version}", "--"]
+        + ["rumdl", "check", "--no-config", str(user_files(src)[1])],
         capture_output=True,
         text=True,
     )
