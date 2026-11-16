@@ -3,7 +3,7 @@
 # hooks and reviewers read this file.
 
 schema = 1
-kit_version = "1.2.0"
+kit_version = "2.0.0"
 dependency_log = "docs/alpha/dependencies.md"
 
 [project]
@@ -408,7 +408,7 @@ override = ""
 [[principles]]
 id = "perf-budgets"
 title = "Performance budgets"
-statement = "Performance budgets set with /alpha:specify are enforced."
+statement = "Performance budgets set with /alpha:update are enforced."
 rationale = "A budget that is written down and checked stops slow regressions from accumulating unnoticed."
 applies = ["budgets_set"]
 core = false
