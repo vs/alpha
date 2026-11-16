@@ -528,15 +528,23 @@ def check_merge(root: Path, words: list[str]) -> None:
             f"was reviewed and tested. Run git switch {branch} (or gh pr "
             "checkout), then merge from there."
         )
-    remote = pr_head(checkout, target or branch or "")
+    check_review(checkout)
+    pull_request = target or branch
+    remote = pr_head(checkout, pull_request)
+    if remote is None:
+        _common.block(
+            f"alpha can't ask GitHub where pull request {pull_request}'s head is "
+            "(gh pr view failed or timed out), so it can't check that what merges "
+            "is what was reviewed and tested. Check gh auth status and the "
+            "network, then merge again."
+        )
     local = (git_output(checkout, "rev-parse", "HEAD") or "").strip()
-    if remote and local and remote != local:
+    if remote != local:
         _common.block(
             f"The pull request's head on GitHub ({remote[:12]}) isn't this "
             f"checkout's HEAD ({local[:12]}): push the branch first, so what merges "
             "is what was reviewed and tested."
         )
-    check_review(checkout)
 
 
 def gh_command(segment: list[str]) -> list[str] | None:
