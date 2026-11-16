@@ -235,17 +235,4 @@ mise install && mise run check   # every check the kit runs on itself
 uv run pytest -m slow   # also bootstraps real projects; needs uv, pnpm, network
 ```
 
-## Setup, test and run
-
-### alpha (`./`)
-
-```sh
-cd .
-uv sync
-uv run pytest
-# run: add the command once the entry point exists
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) before your first commit.
-
-Design: [docs/alpha/features/2026-11-15-alpha-rewrite/specification.md](docs/alpha/features/2026-11-15-alpha-rewrite/specification.md)
+What alpha does, in full: [docs/specification.md](docs/specification.md)

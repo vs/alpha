@@ -8,21 +8,14 @@ import pytest
 from alpha.answers import AnswersError, parse_answers
 from alpha.cli import PLUGIN_ROOT
 
-# The kit's shipped files, and alpha's own installed copy of them.
+# The kit's shipped files.
 SHIPPED = ("src", "project-files", "skills", "recipes", "defaults", "registry", "bin")
-SHIPPED_FILES = ("pyproject.toml", ".claude/settings.json")
-OWN_COPY = (
-    ".claude/alpha/hooks",
-    ".claude/alpha/checks",
-    ".claude/alpha/githooks",
-    ".claude/skills",
-    ".claude/agents",
-)
+SHIPPED_FILES = ("pyproject.toml",)
 
 
 def _texts() -> dict[str, str]:
     paths: list[Path] = []
-    for folder in (*SHIPPED, *OWN_COPY):
+    for folder in SHIPPED:
         paths += [p for p in (PLUGIN_ROOT / folder).rglob("*") if p.is_file()]
     paths += [PLUGIN_ROOT / f for f in SHIPPED_FILES]
     texts: dict[str, str] = {}

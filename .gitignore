@@ -2,19 +2,8 @@
 __pycache__/
 .pytest_cache/
 .claude/scheduled_tasks.lock
-
-# alpha
-.claude/alpha/state/
-.claude/alpha/notes/
 .claude/settings.local.json
 .claude/worktrees/
 .DS_Store
-.claude/alpha/hooks/__pycache__/
-.claude/alpha/checks/__pycache__/
-.env
-.env.*
-**/.env
-**/.env.*
-!.env.example
 coverage.xml
 .coverage

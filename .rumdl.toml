@@ -7,8 +7,7 @@ exclude = [
   ".superpowers",      # git-ignored session scratch
   ".claude/worktrees", # other sessions' checkouts
   ".venv",
-  # alpha's: the files git ignores, and the lockfile.
-  ".claude/alpha/state/", ".claude/alpha/notes/", ".claude/settings.local.json", ".DS_Store", ".claude/alpha/hooks/__pycache__/", ".claude/alpha/checks/__pycache__/", ".env", ".env.*", "**/.env", "**/.env.*", "__pycache__/", ".pytest_cache/", "coverage.xml", ".coverage", "uv.lock",
+  "uv.lock",
 ]
 
 [MD013]
