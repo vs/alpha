@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha.answers import (
-    PHASES,
+    FINISHED,
     PROJECT_JSON,
     Answers,
     AnswersError,
@@ -461,25 +461,6 @@ def merge_steps(
     return [*existing, *(s for s in found if s["id"] not in have)]
 
 
-_FINISHED = ("done", "dropped")
-
-
-def _ordered(steps: tuple[Step, ...]) -> list[Step]:
-    return sorted(steps, key=lambda s: PHASES.index(s.phase))  # stable
-
-
-def next_step(a: Answers) -> tuple[Step | None, str]:
-    """The next ready step, or None and why none is. A step depends only on
-    steps listed before it, so while any is unfinished, one is ready."""
-    finished = {s.id for s in a.steps if s.status in _FINISHED}
-    for s in _ordered(a.steps):
-        if s.id not in finished and set(s.depends_on) <= finished:
-            return s, ""
-    if not a.steps:
-        return None, "The plan has no steps: run alpha adopt gaps --save first."
-    return None, "Every step of the adoption plan is done or dropped."
-
-
 def describe_step(s: Step) -> str:
     lines = [f"{s.id} ({s.phase}): {s.title}", f"Why: {s.why}", "Done when:"]
     lines += [f"  - {describe_condition(c)}" for c in s.acceptance]
@@ -610,7 +591,7 @@ def _save_step(
 def start(target: Path, sid: str) -> Step:
     a, saved, raw = _load_steps(target)
     s = _step(a, sid)
-    if s.status in _FINISHED:
+    if s.status in FINISHED:
         raise AdoptError(f"{sid} is already {s.status}.")
     branch = s.branch or f"alpha/{sid}"
     _save_step(target, saved, raw, sid, status="in_progress", branch=branch)

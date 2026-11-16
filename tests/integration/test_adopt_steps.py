@@ -18,8 +18,8 @@ from helpers import (
 )
 
 from alpha import adopt, apply, cli, shell
-from alpha.adopt import AdoptError, done, drop, gaps, merge_steps, next_step
-from alpha.answers import AnswersError, load_answers
+from alpha.adopt import AdoptError, done, drop, gaps, merge_steps
+from alpha.answers import AnswersError, load_answers, next_step
 from alpha.defaults import Source, load_defaults
 from alpha.generate import load_project_principles, render_project
 from alpha.gitops import PROPOSALS, commit
@@ -220,7 +220,7 @@ def test_next_follows_phase_order_and_dependencies(tmp_path: Path, git_env: None
             ok("p2-needs-first", depends_on=["p1-first"]),
         ],
     )
-    found, _ = next_step(load_answers(root / PROJECT))
+    found, _ = next_step(load_answers(root / PROJECT).steps)
     assert found is not None and found.id == "p2-needs-first"
     done = run_cli("adopt", "next", str(root))
     assert done.stdout.startswith("Next: p2-needs-first (P2)")
@@ -237,10 +237,10 @@ def test_next_when_all_done_or_empty(tmp_path: Path, git_env: None):
             ok("p2-b", status="done"),
         ],
     )
-    _, why = next_step(load_answers(root / PROJECT))
+    _, why = next_step(load_answers(root / PROJECT).steps)
     assert why == "Every step of the adoption plan is done or dropped."
     root = plan_repo(tmp_path / "empty", [])
-    _, why = next_step(load_answers(root / PROJECT))
+    _, why = next_step(load_answers(root / PROJECT).steps)
     assert "alpha adopt gaps --save" in why
 
 

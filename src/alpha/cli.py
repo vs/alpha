@@ -340,7 +340,7 @@ def _adopt_step(args: argparse.Namespace) -> str:
     target: Path = args.target
     if args.adopt_command == "next":
         a = answers.load_answers(target / PROJECT_JSON)
-        found, why = adopt.next_step(a)
+        found, why = answers.next_step(a.steps)
         return f"Next: {adopt.describe_step(found)}" if found else why
     if args.adopt_command == "start":
         started = adopt.start(target, args.step)

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from alpha.answers import AnswersError, read_project_json
+from alpha.answers import AnswersError, next_step, parse_answers, read_project_json
 from alpha.merge import is_alpha_hook
 from alpha.shell import git_output
 
@@ -83,19 +83,15 @@ def hooks_off(target: Path, answers: dict[str, Any]) -> list[str]:
     return off
 
 
-def _next_step(answers: dict[str, Any]) -> str:
-    adoption: object = answers.get("adoption")
-    steps: object = (
-        cast(dict[str, Any], adoption).get("steps")
-        if isinstance(adoption, dict)
-        else []
-    )
-    for step in cast(list[object], steps) if isinstance(steps, list) else []:
-        if isinstance(step, dict):
-            s = cast(dict[str, Any], step)
-            if s.get("status") in ("pending", "in_progress"):
-                return f"the adoption plan's next step is {s.get('id')}"
-    return ""
+def _next_step(target: Path, answers: dict[str, Any]) -> str:
+    """What /alpha:install does next in an adopted repo: the step alpha adopt
+    next names. Nothing when the answers don't parse; adopt next says why."""
+    try:
+        steps = parse_answers(answers, target, proven=False).steps
+    except AnswersError:
+        return ""
+    found, _ = next_step(steps)
+    return f"the adoption plan's next step is {found.id}" if found else ""
 
 
 def status(target: Path) -> Status:
@@ -109,7 +105,7 @@ def status(target: Path) -> Status:
         off = hooks_off(target, answers)
         if off:
             return Status("hooks-off", "switched off: " + ", ".join(off))
-        return Status("installed", _next_step(answers))
+        return Status("installed", _next_step(target, answers))
     if answers is not None and "manifest" in answers:
         return Status(
             "old-kit",
