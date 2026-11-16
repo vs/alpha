@@ -28,7 +28,7 @@ def git(
             cwd=target,
             input=stdin,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             timeout=GIT_TIMEOUT,
             env={**os.environ, **env} if env else None,
         )

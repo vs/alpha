@@ -1,7 +1,6 @@
 import argparse
 import json
 import os
-import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -27,7 +26,7 @@ from alpha.generate import (
     load_project_principles,
 )
 from alpha.gitops import commit
-from alpha.shell import GitError
+from alpha.shell import GitError, git
 from alpha.status import status
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -434,12 +433,7 @@ def _bootstrap(target: Path, only: list[str], capture: bool) -> None:
 def _show_commits(target: Path, hashes: list[str]) -> None:
     print(f"Committed {len(hashes)} commits in {target}:")
     if hashes:
-        log = subprocess.run(
-            ["git", "-C", str(target), "show", "-s", "--format=%h %s", *hashes],
-            capture_output=True,
-            text=True,
-        )
-        print(log.stdout, end="")
+        print(git(target, "show", "-s", "--format=%h %s", *hashes).stdout, end="")
 
 
 def _commit(target: Path, trailers: list[str]) -> None:
