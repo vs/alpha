@@ -40,9 +40,10 @@ Task: `$ARGUMENTS`
 `<root>` is the repository root (`git rev-parse --show-toplevel`).
 
 - No `<root>/.claude/alpha/project.json` with an `installed` key: alpha isn't installed in this repo, or its install isn't finished, so there are no principles to follow. Point to `/alpha:install`, and stop.
+- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" status <root>`. When it prints `hooks-off`, the Stop checks, the commit-msg hook and the merge guard aren't running: tell the user, say `/alpha:install` switches them back on, then go on.
 - With `installed`, read before the first step:
   - project.json's `areas`: a product area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/alpha/specification.md lists them under "Not settled yet". Only `/alpha:update` settles one, when the user asks: a task that needs one names it to the user with its `/alpha:update <area>` request, and keeps its own choices in its own spec.
-  - `docs/alpha/principles.toml`: the active principles and their parameters. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
+  - `docs/alpha/principles.toml`: the active principles and their parameters. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one. A playbook step that names a principle the project dropped, or one that isn't active for the component you change (its `active` and `components`), stays in the todo list as `skip: <id> off`; where the project changed a principle's parameters, they replace the playbook's wording.
   - The parts of `docs/alpha/specification.md` and `CONTRIBUTING.md` that bear on the task, including CONTRIBUTING's Overrides and Exceptions.
   - CLAUDE.md: each component's commands, the definition of done, the commit convention and how to talk to the user.
   - `docs/alpha/adoption.md`, when it exists: a task never leaves more findings in a file than its baseline allows; the plan's own steps shrink baselines, not unrelated tasks (`stay-in-scope`).
@@ -80,13 +81,15 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 
 **Subagents.** Give bulk reading, searching and independent slices of work to subagents; keep their summaries, not their raw output. Each brief restates the user's goal, names the files and the result wanted, and says to follow CLAUDE.md, `docs/alpha/principles.toml`, `docs/alpha/specification.md` and `CONTRIBUTING.md`. A subagent runs on this chat's model unless the user names another. Two subagents never edit the same files at once. You own what they return: read their diff yourself and check its claims before building on it.
 
+**Branch.** Before the first commit, follow CONTRIBUTING.md's Branching: with feature branches, work on a short-lived branch (`git switch -c <branch>`) or in a worktree; trunk-based, commit on the main branch.
+
 **Worktrees.** A feature, a refactoring across many files, or work you'll leave running can go in its own git worktree, so the user's checkout stays untouched. Already in a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`, outside a submodule): stay there. Otherwise follow the user's stated preference (CLAUDE.md, memory, this conversation), or offer it once with your recommendation. Create it with the harness's own worktree tool when there is one (`EnterWorktree`); otherwise `git worktree add .claude/worktrees/<branch> -b <branch>` from the default branch (generated projects ignore `.claude/worktrees/`; check with `git check-ignore`). Then run each component's setup command and its tests, so a red baseline is known before you change anything. Subagents running side by side each get their own worktree (the Agent tool's `isolation: "worktree"`). The branch reaches main as CLAUDE.md says; leave removing the worktree to the user.
 
 **Done.** A playbook that changes files finishes with the project's definition of done in CLAUDE.md:
 
-1. The checks of every component you changed pass (the commands in CLAUDE.md, or `mise run check`), and the tests your change touches run green.
-2. The docs that move with the changed paths (the table in CONTRIBUTING.md) are updated in the same change.
+1. The checks of every component you changed pass (the commands in CLAUDE.md, or `mise run check`), and the tests your change touches run green. A source change that needs no test gets its reason recorded with `python3 .claude/alpha/hooks/untested.py "<why>" <path>…` (`tests-first-class`); the reviewer checks each reason.
+2. The docs that move with the changed paths (the table in CONTRIBUTING.md) are updated in the same change; a mapped path that needs no doc change gets `untested.py --docs "<why>" <path>…`. A new dependency gets its reason in the dependency log, `docs/alpha/dependencies.md` (`dependency-reasons`).
 3. Commit by following the commit skill (`.claude/skills/commit/SKILL.md`; it runs only when the user types it, so read the file), one logical change per commit, each passing the checks on its own.
 4. Don't run the principles reviewer or review the whole branch yourself: the principles review runs once, when the work reaches main, as the merge guard asks, and its findings are fixed or accepted there.
 
-**Reply.** Follow CLAUDE.md's communication rules and the playbook's reply line. Name each principle that changed a choice, and the choice. End with what you skipped or couldn't check, and any risk the user must know.
+**Reply.** Follow CLAUDE.md's communication rules and the playbook's reply line. Name each principle that changed a choice, and the choice. When the work is committed, say what is still ahead before it reaches main: the push or pull request, the full test suites (`python3 .claude/alpha/hooks/stop_checks.py tests`) and the principles review. End with what you skipped or couldn't check, and any risk the user must know.
