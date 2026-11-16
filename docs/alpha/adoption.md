@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 1 | 1 |
-| P4 Rework | 11 | 13 |
+| P4 Rework | 12 | 13 |
 | P6 Traceability | 0 | 1 |
 
 ## P2 Close tool gaps
@@ -41,7 +41,7 @@ Done when:
 | `p4-narrow-optionals-in-tests` | alpha | done |
 | `p4-one-git-runner` | alpha | done |
 | `p4-parse-project-json-once` | alpha | done |
-| `p4-log-dev-dependencies` | alpha | pending |
+| `p4-log-dev-dependencies` | alpha | done |
 | `p4-readme-python-requirement` | alpha | pending |
 
 ### `p4-name-bad-file-in-errors`: Name the real file in a decode error
