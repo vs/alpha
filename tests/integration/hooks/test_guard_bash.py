@@ -267,6 +267,7 @@ def test_reset_hard_is_allowed_on_a_clean_tree(project: Project) -> None:
         ("cd -- api && echo x > uv.lock", "api/uv.lock"),
         ("cd -P api; rm uv.lock", "api/uv.lock"),
         ("echo a\\\\ > .env", ".env"),
+        ('echo "\\"" > .env', ".env"),
     ],
 )
 def test_shell_writes_to_protected_paths_are_blocked(
@@ -292,6 +293,7 @@ def test_shell_writes_to_protected_paths_are_blocked(
         "echo a \\> .env",
         "[[ $x > .env ]] && echo later",
         "cd web && echo x > uv.lock",
+        'echo "a \\"b\\"" > api/src/app.py',
     ],
 )
 def test_reads_and_unprotected_writes_pass(project: Project, command: str) -> None:
