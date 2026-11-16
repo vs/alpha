@@ -119,7 +119,7 @@ Changes are written up in the GitHub release notes for each version.
 
 ### Cutting a release
 
-Bump the version in pyproject.toml, src/alpha/__init__.py and .claude-plugin/plugin.json (then uv lock) in a "chore: Release X.Y.Z" pull request; after it merges, tag vX.Y.Z on main and publish a GitHub release with the notes. Users get it with claude plugin marketplace update alpha.
+Bump the version in pyproject.toml, src/alpha/__init__.py and .claude-plugin/plugin.json (then uv lock), and run bin/alpha update . from this checkout, which is the new kit, so this repo records the new kit_version in the same "chore: Release X.Y.Z" pull request; after it merges, tag vX.Y.Z on main and publish a GitHub release with the notes. Users get it with claude plugin marketplace update alpha, then claude plugin update alpha@alpha.
 
 ## Security
 
