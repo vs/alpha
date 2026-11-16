@@ -738,12 +738,14 @@ def find_problems(
 
     docs_map: dict[str, Any] = principles.get("docs_map", {})
     every_doc = [str(d) for docs in docs_map.values() for d in docs]
+    no_docs = untested.notes(root, "docs")
     for glob, docs in docs_map.items():
         doc_list = [str(d) for d in docs]
         hit = [
             f
             for f in changed
             if _common.matches(f, [glob])
+            and f not in no_docs
             and is_behavior(f, principles, every_doc)
             and _common.principle_applies(
                 principles, "docs-with-code", component_name(f, principles)
@@ -753,7 +755,9 @@ def find_problems(
             for rel in hit:
                 problems.append(
                     f"{rel} changed but {', '.join(doc_list)} did not. Principle "
-                    "docs-with-code: update them, or say why no doc change is needed."
+                    "docs-with-code: update them. If the change alters no documented "
+                    "behavior, say why: python3 .claude/alpha/hooks/untested.py --docs "
+                    '"<why>" <path> ...; the principles-reviewer checks the reason.'
                 )
 
     if not run_commands:
