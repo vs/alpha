@@ -60,19 +60,14 @@ def strip_heredocs(command: str) -> str:
     return "\n".join(out)
 
 
-def _as_bash_reads(command: str, escaped_quote: str = "") -> str:
-    """The command with each unquoted newline made a ";" and, given
-    `escaped_quote`, each backslash-escaped quote outside single quotes
-    replaced by it: a non-POSIX lexer doesn't know escapes and would take an
-    escaped quote for one that opens or closes."""
+def _as_bash_reads(command: str) -> str:
+    """The command with each unquoted newline made a ";"."""
     out: list[str] = []
     quote = ""
     escaped = False
     for ch in command:
         if escaped:
             escaped = False
-            if escaped_quote and ch in "'\"":
-                ch = escaped_quote
         elif ch == "\\" and quote != "'":
             escaped = True
         elif quote:
@@ -282,18 +277,69 @@ def _redirect(token: str) -> str | None:
     return None
 
 
+OPERATOR_CHARS = set("();<>|&")
+
+
+def bash_words(command: str) -> list[str] | None:
+    """The command's words and operator runs as bash splits them, each word
+    with its quotes and backslashes kept, so a quoted ">" stays part of a word;
+    None when a quote doesn't close. A quote anywhere in a word belongs to it
+    (x"y " is one word), which Python's shlex gets wrong mid-word."""
+    tokens: list[str] = []
+    word: list[str] = []
+    quote = ""
+    i = 0
+
+    def flush() -> None:
+        if word:
+            tokens.append("".join(word))
+            word.clear()
+
+    while i < len(command):
+        ch = command[i]
+        if quote:
+            word.append(ch)
+            if ch == "\\" and quote == '"' and i + 1 < len(command):
+                word.append(command[i + 1])
+                i += 1
+            elif ch == quote:
+                quote = ""
+        elif ch == "\\":
+            word.append(command[i : i + 2])
+            i += 1
+        elif ch in "'\"":
+            quote = ch
+            word.append(ch)
+        elif ch == "#" and not word:
+            while i + 1 < len(command) and command[i + 1] != "\n":
+                i += 1  # a comment runs to the end of the line
+        elif ch == "\n":
+            flush()
+            tokens.append(";")
+        elif ch.isspace():
+            flush()
+        elif ch in OPERATOR_CHARS:
+            flush()
+            end = i
+            while end < len(command) and command[end] in OPERATOR_CHARS:
+                end += 1
+            tokens.append(command[i:end])
+            i = end - 1
+        else:
+            word.append(ch)
+        i += 1
+    if quote:
+        return None
+    flush()
+    return tokens
+
+
 def redirect_segments(command: str) -> list[tuple[list[str], list[str]]] | None:
-    """(words, redirect targets) per segment. Lexed without POSIX quote
-    removal, so a quoted ">" (as in grep '>' f) stays a word, not a redirect;
-    an escaped \\> and a comparison inside [[ ]] aren't redirects either."""
-    command = strip_heredocs(command).replace("\\\n", "")
-    lexer = shlex.shlex(
-        _as_bash_reads(command, escaped_quote="_"), posix=False, punctuation_chars=True
-    )
-    lexer.whitespace_split = True
-    try:
-        tokens = list(lexer)
-    except ValueError:
+    """(words, redirect targets) per segment; None when the command can't be
+    split. A quoted or escaped ">" and a comparison inside [[ ]] aren't
+    redirects."""
+    tokens = bash_words(strip_heredocs(command).replace("\\\n", ""))
+    if tokens is None:
         return None
     segments: list[tuple[list[str], list[str]]] = [([], [])]
     in_test = False
@@ -308,10 +354,7 @@ def redirect_segments(command: str) -> list[tuple[list[str], list[str]]] | None:
             continue
         if glued:
             segments.append(([], []))
-        before = tokens[i - 1] if i > 0 else ""
-        backslashes = len(before) - len(before.rstrip("\\"))
-        escaped = not glued and backslashes % 2 == 1
-        if in_test or escaped or i + 1 >= len(tokens):
+        if in_test or i + 1 >= len(tokens):
             continue
         try:
             segments[-1][1].extend(shlex.split(tokens[i + 1]))
