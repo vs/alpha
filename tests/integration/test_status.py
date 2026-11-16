@@ -98,3 +98,17 @@ def test_R1_5_an_adopted_repo_names_its_next_step(tmp_path: Path, git_env: None)
     found = status(repo)
     assert found.name == "installed"
     assert "p2-lint-ml" in found.detail
+
+
+def test_an_unreadable_project_json_still_routes(tmp_path: Path, git_env: None):
+    """/alpha:install routes on status, so a broken project.json mustn't stop
+    it; the next step says what is wrong with the file."""
+    repo = existing_repo(tmp_path / "repo")
+    answers = repo / ".claude/alpha/project.json"
+    answers.parent.mkdir(parents=True)
+    answers.write_text("{not json")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "chore: Break the answers")
+    done = run_cli("status", str(repo))
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.startswith("existing")

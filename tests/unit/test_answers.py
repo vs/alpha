@@ -492,7 +492,8 @@ def test_answers_write_refuses_to_merge_into_a_broken_file(
     saved.write_text("{oops")
     code, _, err = answers_write(tmp_path, '{"layout": "single"}', capsys, monkeypatch)
     assert code == 3
-    assert str(saved) in err and "not valid JSON" in err and "Fix" in err
+    assert str(saved) in err and "can't be read as the interview answers" in err
+    assert "fix it by hand" in err
     assert saved.read_text() == "{oops"
 
 
@@ -603,7 +604,9 @@ def test_write_into_non_utf8_answers_is_explained(tmp_path: Path):
     path = tmp_path / ".claude" / "alpha" / "project.json"
     path.parent.mkdir(parents=True)
     path.write_bytes(b'{"x": "\xff"}')
-    with pytest.raises(AnswersError, match="not valid JSON.*utf-8"):
+    with pytest.raises(
+        AnswersError, match="can't be read as the interview answers.*utf-8"
+    ):
         write_answers(tmp_path, '{"layout": "single"}')
 
 

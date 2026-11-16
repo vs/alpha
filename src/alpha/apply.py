@@ -9,7 +9,6 @@ agents and skills) are always replaced, never proposed for a hand merge.
 """
 
 import difflib
-import json
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -18,7 +17,13 @@ from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 from alpha import VERSION, adopt
-from alpha.answers import PROJECT_JSON, area_of, parse_answers, write_json
+from alpha.answers import (
+    PROJECT_JSON,
+    area_of,
+    parse_answers,
+    read_project_json,
+    write_json,
+)
 from alpha.defaults import Source, load_defaults
 from alpha.generate import (
     PRINCIPLES_TOML,
@@ -82,21 +87,12 @@ class Plan:
 
 
 def _project_json(target: Path) -> dict[str, Any]:
-    path = target / PROJECT_JSON
-    try:
-        data: object = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    top = read_project_json(target)
+    if top is None:
         raise GenerateError(
             f"{target} has no alpha answers ({PROJECT_JSON}). Run /alpha:install "
             "there first."
-        ) from None
-    except (OSError, ValueError) as e:
-        raise GenerateError(
-            f"Fix {PROJECT_JSON}: it can't be read as JSON ({e})."
-        ) from None
-    if not isinstance(data, dict):
-        raise GenerateError(f"Fix {PROJECT_JSON}: it isn't a JSON object.")
-    top = cast(dict[str, Any], data)
+        )
     if "manifest" in top and "installed" not in top:
         raise GenerateError(
             f"An older alpha set {target} up (its {PROJECT_JSON} has a manifest). "

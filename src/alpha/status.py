@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from alpha.answers import PROJECT_JSON
+from alpha.answers import AnswersError, read_project_json
 from alpha.merge import is_alpha_hook
 from alpha.shell import git_output
 
@@ -38,14 +38,6 @@ def _entries(target: Path) -> list[str]:
             continue
         found.append(rel)
     return sorted(found)
-
-
-def read_answers(target: Path) -> dict[str, Any] | None:
-    try:
-        data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return cast(dict[str, Any], data) if isinstance(data, dict) else None
 
 
 def _hooks_wired(target: Path) -> bool:
@@ -109,7 +101,10 @@ def _next_step(answers: dict[str, Any]) -> str:
 def status(target: Path) -> Status:
     if not target.is_dir():
         return Status("missing", f"{target} isn't a folder; create it first")
-    answers = read_answers(target)
+    try:
+        answers = read_project_json(target)
+    except AnswersError:
+        answers = None  # routes like a folder without one; install says why
     if answers is not None and "installed" in answers:
         off = hooks_off(target, answers)
         if off:

@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha import rendered, toml_write
-from alpha.answers import Answers, parse_answers
+from alpha.answers import Answers, parse_answers, read_project_json
 from alpha.defaults import Source, load_defaults
 from alpha.generate import (
     GenerateError,
@@ -45,7 +45,7 @@ from alpha.render.claude_settings import render_settings
 from alpha.render.docs import CHAIN_BEGIN, CHAIN_END
 from alpha.repo_checks import repo_checks
 from alpha.shell import git
-from alpha.status import CHAIN_STATE, SETTINGS, read_answers
+from alpha.status import CHAIN_STATE, SETTINGS
 
 REMOVED_DIRS = (".claude/alpha/", "docs/alpha/")
 MARKDOWN = ("CLAUDE.md", "CONTRIBUTING.md", "README.md")
@@ -412,7 +412,7 @@ def _plain_commands(a: Answers, source: Source) -> dict[str, str]:
 
 
 def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
-    top = read_answers(target)
+    top = read_project_json(target)
     if top is None or "installed" not in top:
         raise GenerateError(
             f"alpha isn't installed in {target}, so there is nothing to purge."

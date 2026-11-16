@@ -27,6 +27,7 @@ from helpers import (
 )
 
 from alpha import generate as generate_module
+from alpha.answers import AnswersError
 from alpha.cli import PLUGIN_ROOT
 from alpha.generate import GenerateError, bootstrap
 from alpha.principles import render_principles
@@ -519,7 +520,7 @@ def test_bootstrap_reads_the_answers_before_looking_for_mise(
     answers = project / ".claude/alpha/project.json"
     answers.write_text("{not json")
     monkeypatch.setenv("PATH", str(tmp_path))  # no mise on it
-    with pytest.raises(GenerateError) as err:
+    with pytest.raises(AnswersError) as err:
         bootstrap(project, principles)
     assert str(err.value).startswith(f"{answers} can't be read")
 
@@ -534,7 +535,7 @@ def test_bootstrap_names_unreadable_project_json(
     principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
     answers = project / ".claude/alpha/project.json"
     answers.write_text(text)
-    with pytest.raises(GenerateError) as err:
+    with pytest.raises(AnswersError) as err:
         bootstrap(project, principles)
     message = str(err.value)
     assert message.startswith(f"{answers} can't be read as the interview answers")
