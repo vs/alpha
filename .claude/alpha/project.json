@@ -256,7 +256,8 @@
             "run": "test $(grep -rnE \"^def (_git|run_git|git_output)[(]\" src/alpha | wc -l) -le 1 && uv run pytest -q"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-one-git-runner"
       },
       {
         "id": "p4-parse-project-json-once",
