@@ -11,7 +11,6 @@ import dataclasses
 import json
 import re
 import shutil
-import subprocess
 import tomllib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -45,7 +44,7 @@ from alpha.registry import load_registry
 from alpha.render.claude_settings import render_settings
 from alpha.render.docs import CHAIN_BEGIN, CHAIN_END
 from alpha.repo_checks import repo_checks
-from alpha.shell import GIT_TIMEOUT
+from alpha.shell import git
 from alpha.status import CHAIN_STATE, SETTINGS, read_answers
 
 REMOVED_DIRS = (".claude/alpha/", "docs/alpha/")
@@ -373,24 +372,8 @@ class Purge:
     subject: str
 
 
-def _git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    try:
-        return subprocess.run(
-            ["git", *args],
-            cwd=target,
-            capture_output=True,
-            text=True,
-            timeout=GIT_TIMEOUT,
-        )
-    except (OSError, subprocess.TimeoutExpired) as e:
-        raise GenerateError(
-            f"git {args[0]} didn't finish in {target} ({e}). Run it yourself to see "
-            "why, then rerun alpha purge."
-        ) from None
-
-
 def _tracked(target: Path) -> list[str]:
-    done = _git(target, "ls-files", "-z")
+    done = git(target, "ls-files", "-z")
     if done.returncode != 0:
         raise GenerateError(
             f"git ls-files failed in {target} ({done.stderr.strip()}). Fix that, "
@@ -624,7 +607,7 @@ def _without_own_rules(
     head = cast(dict[str, Any], survey.get("git", {})).get("head")
     if not isinstance(head, str):
         return perms
-    done = _git(target, "show", f"{head}:{SETTINGS}")
+    done = git(target, "show", f"{head}:{SETTINGS}")
     try:
         before: object = json.loads(done.stdout) if done.returncode == 0 else {}
     except ValueError:
@@ -677,18 +660,18 @@ def purge(
     if claude.is_dir() and not any(claude.iterdir()):
         claude.rmdir()
     rendered.forget(target)
-    _git(target, "update-ref", "-d", REVIEW_NOTES)
+    git(target, "update-ref", "-d", REVIEW_NOTES)
     args = ["commit", "-q", "-m", p.subject]
     for trailer in trailers:
         args += ["--trailer", trailer]
-    done = _git(target, *args, "--", *paths)
+    done = git(target, *args, "--", *paths)
     if done.returncode != 0:
         raise GenerateError(
             f"git commit failed in {target}: {(done.stderr or done.stdout).strip()}\n"
             "alpha's files are removed but not committed. Fix that, then commit "
             f"them yourself: git commit -m {p.subject!r} -- {' '.join(paths)}"
         )
-    head = _git(target, "rev-parse", "HEAD").stdout.strip()
+    head = git(target, "rev-parse", "HEAD").stdout.strip()
     if p.plain_checks:
         notes.append(
             "These checks ran through alpha's ratchet and now report the legacy "

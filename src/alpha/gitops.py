@@ -1,6 +1,5 @@
 import hashlib
 import json
-import subprocess
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
@@ -12,7 +11,7 @@ from alpha.generate import GenerateError
 from alpha.render.ci import DEPENDABOT, JACTIONLINT, SCHEDULED, WORKFLOW
 from alpha.render.tooling import BETTERLEAKS, LYCHEE, MISE, RUMDL, TYPOS
 from alpha.rendered import record
-from alpha.shell import GIT_TIMEOUT
+from alpha.shell import git
 
 HOOKS_PATH = ".claude/alpha/githooks"
 _TOOLING = [MISE, TYPOS, RUMDL, LYCHEE, BETTERLEAKS]
@@ -40,36 +39,13 @@ def commit_group(path: str, component_of: Mapping[str, str]) -> str:
     return "docs"
 
 
-def _git(
-    target: Path, *args: str, command: str = "commit"
-) -> subprocess.CompletedProcess[str]:
-    try:
-        return subprocess.run(
-            ["git", *args],
-            cwd=target,
-            capture_output=True,
-            text=True,
-            timeout=GIT_TIMEOUT,
-        )
-    except OSError as e:
-        raise GenerateError(
-            f'Cannot run git ({e}). Install git, then rerun "alpha {command} {target}".'
-        ) from e
-    except subprocess.TimeoutExpired:
-        raise GenerateError(
-            f"git {args[0]} took longer than {GIT_TIMEOUT:g}s in {target}, so alpha "
-            f'stopped it. Run it yourself to see what it waits for, then rerun "alpha '
-            f'{command} {target}".'
-        ) from None
-
-
 def status_paths(
     target: Path, *paths: str, command: str, untracked: str = "all"
 ) -> list[str]:
     """The paths `git status` lists, limited to `paths` when given, with
     untracked files shown as `untracked` says (normal: folders, all: every
     file)."""
-    done = _git(
+    done = git(
         target,
         "status",
         "--porcelain",
@@ -77,7 +53,6 @@ def status_paths(
         f"-u{untracked}",
         "--",
         *paths,
-        command=command,
     )
     if done.returncode != 0:
         raise GenerateError(
@@ -102,7 +77,7 @@ def status_paths(
 
 
 def _check(target: Path, *args: str, command: str = "commit") -> str:
-    done = _git(target, *args, command=command)
+    done = git(target, *args)
     if done.returncode != 0:
         detail = (done.stderr or done.stdout).strip()
         raise GenerateError(
@@ -114,13 +89,12 @@ def _check(target: Path, *args: str, command: str = "commit") -> str:
 
 def _check_identity(target: Path, command: str = "commit") -> None:
     for role in ("AUTHOR", "COMMITTER"):
-        done = _git(
+        done = git(
             target,
             "-c",
             "user.useConfigOnly=true",
             "var",
             f"GIT_{role}_IDENT",
-            command=command,
         )
         if done.returncode != 0:
             raise GenerateError(
@@ -162,9 +136,7 @@ def _commit_groups(
         if all(p.startswith(":(") for p in present):
             continue
         _check(target, "add", "-A", "--", *present, command=command)
-        staged = _git(
-            target, "diff", "--cached", "--quiet", "--", *present, command=command
-        )
+        staged = git(target, "diff", "--cached", "--quiet", "--", *present)
         if staged.returncode == 0:
             continue
         if staged.returncode != 1:
@@ -299,7 +271,7 @@ def commit(
 
 def _tracked(target: Path, path: str) -> bool:
     """Whether git tracks `path` (a file alpha deleted is staged by it)."""
-    return bool(_git(target, "ls-files", "--", path, command="commit").stdout.strip())
+    return bool(git(target, "ls-files", "--", path).stdout.strip())
 
 
 def digest(data: bytes) -> str:
