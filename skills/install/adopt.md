@@ -21,7 +21,7 @@ As `new-project.md` step 2: run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show
 
 ## 4. Interview
 
-Run the install areas in `SKILL.md`'s order from their guides, `<target>` as the target, moving on only after each check prints `ok`. The product areas stay open even where the repo's docs already describe them; `/alpha:update <area>` settles each later, reading those docs. These rules win over the guides' own:
+Run the install areas in `SKILL.md`'s order from their guides, `<target>` as the target, moving on only after each check prints `ok`. After the install areas, offer the product areas as `new-project.md` step 3 says, with one change: recommend Settle now for an area the repo's docs describe (a path in `documentation.existing`, or a doc the survey found), naming the doc, and Skip for now for the rest. These rules win over the guides' own:
 
 - Recommend what the repo already does when it meets the principle, else the kit default; say which it is. Never ask what the survey or the repo's files answer: read the README for identity, the manifests, lockfiles and CI for components and build, `LICENSE` for `identity.license_file` (keep the repo's license).
 - Where the repo falls short of an active principle, say so in one line and note it as a gap for step 5. Change no app code during the interview.

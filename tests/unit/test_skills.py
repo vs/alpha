@@ -185,12 +185,29 @@ def test_R1_5_install_works_the_plan() -> None:
     assert "Never set a step's status any other way" in plan
 
 
-def test_R5_2_install_reads_only_install_area_guides() -> None:
+def test_R5_2_install_offers_each_product_area_defaulting_to_skip() -> None:
     rules = _section("install/SKILL.md", "Rules for every path")
     listed = re.findall(r"`(\w+)\.md`", rules)
     assert listed == list(areas.INSTALL_AREAS)
-    assert "never settle one here" in rules
-    assert "`/alpha:update <area>`" in rules
+    assert "settle one only when the user picks it" in rules
+    interview = _section("install/new-project.md", "3. Interview, area by area")
+    offer = interview.split("Then offer the product areas")[1]
+    assert "one question per area" in offer
+    assert "Skip for now (Recommended)" in offer and "Settle now" in offer
+    assert "as `/alpha:update` step 3 says" in offer
+    assert "`/alpha:update <area>`" in offer
+    for unless in ("has a UI", "deployed", "stores data or does ML"):
+        assert unless in offer, unless
+    summary = _section("install/new-project.md", "4. Summary and confirmation")
+    assert "the settled product areas" in summary
+    resume = _section("install/new-project.md", "1. Start or resume")
+    assert "don't offer the others again" in resume
+    adopt = _section("install/adopt.md", "4. Interview")
+    assert "offer the product areas as `new-project.md` step 3 says" in adopt
+    assert "recommend Settle now for an area the repo's docs describe" in adopt
+    for guide in PRODUCT_GUIDES:
+        start = _section(guide, "Before you start")
+        assert "and `/alpha:install` when the user picks it" in start, guide
 
 
 def test_R7_2_only_install_and_update_settle_product_areas() -> None:
@@ -208,7 +225,9 @@ def test_R7_2_only_install_and_update_settle_product_areas() -> None:
     for guide in PRODUCT_GUIDES:
         start = _section(guide, "Before you start")
         assert "`/alpha:update` reads this guide" in start, guide
-        assert "Only `/alpha:update` settles a product area" in start, guide
+        assert "Only `/alpha:install` and `/alpha:update` settle a product area" in (
+            start
+        ), guide
 
 
 def test_R4_1_update_changes_a_component_or_an_install_answer() -> None:

@@ -30,7 +30,9 @@ license, components and stacks, tests, docs, CI, releases, git and secrets.
 It asks one question at a time, each with a recommended answer: a choice in
 Claude Code's question dialog, the recommendation first; a draft, such as the
 project's name, as text ending in the recommended answer, for you to confirm
-or rewrite. What the product does stays open until you ask.
+or rewrite. Then it offers each part of the product (requirements,
+performance, UI and the rest) one at a time, skipped unless you already know
+it; what you skip stays open until you ask.
 
 ## What you get
 
