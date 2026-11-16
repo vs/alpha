@@ -1,6 +1,6 @@
 # One update command: plan
 
-Tasks run in order; each is one commit that passes `mise run check`. Tasks 1 to 3 touch `tests/unit/test_skills.py`, so none runs side by side.
+Built native on 2026-11-16, one commit per task. Tasks run in order; each is one commit that passes `mise run check`. Tasks 1 to 3 touch `tests/unit/test_skills.py`, so none runs side by side.
 
 ## 1. One update skill replaces extend and specify
 
@@ -18,7 +18,7 @@ Tasks run in order; each is one commit that passes `mise run check`. Tasks 1 to 
 
 `feat(alpha): Offer product areas at install`
 
-- `skills/install/SKILL.md` "Rules for every path", `skills/install/new-project.md` (a step between the interview and the summary; the summary and final report), `skills/install/adopt.md` (the same step, Settle recommended where the repo's docs describe the area; the report).
+- `skills/install/SKILL.md` "Rules for every path", `skills/install/new-project.md` (the offer at the end of step 3, the resume rule, the summary), `skills/install/adopt.md` (the same step, Settle recommended where the repo's docs describe the area; the report).
 - `docs/specification.md`: R5.1 and R5.2, the install table's `empty` and `existing` rows, the Answers bullet "only specify settles them". README's install part.
 - Tests: `tests/unit/test_skills.py::test_R5_2_install_offers_each_product_area_defaulting_to_skip` (replacing `test_R5_2_install_reads_only_install_area_guides`), the final-report test; `tests/unit/test_answers.py::test_R5_1_a_product_area_may_be_settled_at_install` (a guard on current CLI behavior: it passes before the change, which the commit says).
 - Makes pass: F5, F6.
@@ -28,7 +28,7 @@ Tasks run in order; each is one commit that passes `mise run check`. Tasks 1 to 
 `feat(alpha): Point at /alpha:update in rendered docs`
 
 - `src/alpha/render/area_docs.py`, `src/alpha/render/docs.py`, `src/alpha/answers.py`, `src/alpha/core_areas.py`, `src/alpha/adopt.py`, `src/alpha/areas.py` (its comment), `project-files/checks/palette.py` (this repo's copy under `.claude/alpha/checks/` follows in the release PR's update), `project-files/skills/decision/SKILL.md`, `defaults/defaults.toml` (`performance-budgets` statement).
-- Tests: `tests/unit/test_skills.py::test_no_kit_file_names_a_removed_doc_or_skill` (REMOVED gains `/alpha:extend` and `/alpha:specify`; scan adds `defaults/`, `README.md`, `docs/specification.md`), `tests/integration/test_generate.py`, `tests/integration/test_update.py::test_R7_1_settling_areas_writes_their_docs`, `tests/integration/checks/test_palette.py`, `tests/integration/test_adopt_survey.py`, `tests/integration/test_apply.py`, `tests/unit/test_answers.py` docstring.
+- Tests: `tests/unit/test_skills.py::test_no_kit_file_names_a_removed_doc_or_skill` (REMOVED gains `/alpha:extend` and `/alpha:specify`; the scan adds `defaults/`, and `README.md` and `docs/specification.md` are checked for the two commands only), `tests/integration/test_generate.py`, `tests/integration/test_update.py::test_R7_1_settling_areas_writes_their_docs`, `tests/integration/checks/test_palette.py`, `tests/integration/test_adopt_survey.py`, `tests/integration/test_apply.py`, `tests/unit/test_answers.py` docstring.
 - Makes pass: F8.
 
 ## 4. CONTRIBUTING.md describes the alpha workflow

@@ -71,7 +71,7 @@ No new data and no CLI change: the answers, `areas` and `alpha update` stay as t
 
 <!-- rumdl-enable MD013 -->
 
-In an adopted repo the first item reads: "`/alpha:install` adopted this repo on `alpha/adopt`; run again, it carries out the next step of `docs/alpha/adoption.md`."
+In an adopted repo the first item reads: "`/alpha:install` adopted this repo on `alpha/adopt`; run again, it carries out the next step of `docs/alpha/adoption.md` while one is left."
 
 **For callers**: `/alpha:extend` and `/alpha:specify` stop existing when the plugin updates, a breaking change, so the next release is 2.0.0 (CONTRIBUTING.md, Releases) and its notes say to use `/alpha:update <request>`.
 
@@ -83,6 +83,11 @@ In an adopted repo the first item reads: "`/alpha:install` adopted this repo on 
 - The pointer reads `/alpha:update <area>` with the area's plain name (`/alpha:update design language`), matching the form `/alpha:specify` used (Claude's choice).
 - The routing stays in one SKILL.md rather than per-job files: the guides already hold each job's questions, and what's left per job is a few lines (Claude's choice, from the research).
 - The 2.0.0 bump happens in the release PR, not in this feature.
+- The routing test is `test_R11_4_update_routes_each_kind_of_request`, a new row R11.4 in `docs/specification.md`, since the spec's tests must start with their requirement's ID (found while building).
+- Install's offer of the product areas is the end of `new-project.md` step 3, not a step of its own, so no step number that `adopt.md` and the tests cite moves; a resumed interview finishes an area `in_progress` and doesn't offer the others again (Claude's choice, while building).
+- A settled section's own pointer stays bare (the Performance section's "changed through `/alpha:update`"), so it never reads like an open area's `/alpha:update <area>` request (found while building).
+- The removed-names test checks `README.md` and `docs/specification.md` for the two removed commands only: the spec names `docs/architecture.md` on purpose, as R6.2's example (found while building).
+- "An adopted repo" in `CONTRIBUTING.md` means one with a compliance plan, the same test the CLAUDE.md "Adoption plan" link uses (`area_docs.adoption_doc`); the line says the next step runs "while one is left", since a finished plan has none (Claude's choice, while building).
 - `CONTRIBUTING.md` describes the alpha workflow (the user's request), as its first section, so a reader meets how the process runs before its details; every line names an `/alpha:` command so purge removes it without a new remover (Claude's choice of placement and wording).
 
 ## Out of scope
