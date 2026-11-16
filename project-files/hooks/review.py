@@ -206,11 +206,62 @@ def _names(root: Path, old: str, new: str) -> list[str]:
     return [p for p in out.split("\0") if p]
 
 
+ANSWERS = ".claude/alpha/project.json"
+STEP_RECORDS = ("status", "branch")  # what alpha adopt start and done write
+
+
+def _answers_at(root: Path, tree: str) -> dict[str, Any] | None:
+    text = _git(root, "show", f"{tree}:{ANSWERS}")
+    try:
+        data: object = json.loads(text) if text is not None else None
+    except ValueError:
+        return None
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else None
+
+
+def _decisions(answers: dict[str, Any]) -> dict[str, Any]:
+    """The answers without what alpha's CLI records there: the installed
+    record (apply and update) and each plan step's status and branch."""
+    kept = {k: v for k, v in answers.items() if k != "installed"}
+    adoption: object = kept.get("adoption")
+    if isinstance(adoption, dict):
+        plan = cast("dict[str, Any]", adoption)
+        steps: object = plan.get("steps")
+        if isinstance(steps, list):
+            kept["adoption"] = {
+                **plan,
+                "steps": [
+                    {
+                        k: v
+                        for k, v in cast("dict[str, Any]", step).items()
+                        if k not in STEP_RECORDS
+                    }
+                    if isinstance(step, dict)
+                    else step
+                    for step in cast("list[object]", steps)
+                ],
+            }
+    return kept
+
+
+def _only_alphas_records(root: Path, old: str, new: str) -> bool:
+    """Whether the answers changed between the two trees only where alpha's
+    CLI records its own state."""
+    before, after = _answers_at(root, old), _answers_at(root, new)
+    return (
+        before is not None
+        and after is not None
+        and _decisions(before) == _decisions(after)
+    )
+
+
 def files_to_review(root: Path, last_tree: str | None) -> list[str]:
     """What the branch changed since main, and since the last review if any,
-    leaving out each file whose content is alpha's render."""
+    leaving out each file whose content is alpha's render, and the answers
+    when only alpha's own records in them changed."""
     head = tree_of(root, "HEAD")
-    files = _names(root, tree_of(root, main_base(root)), head)
+    base = tree_of(root, main_base(root))
+    files = _names(root, base, head)
     if last_tree is not None:
         since = set(_names(root, last_tree, head))
         files = [f for f in files if f in since]
@@ -220,6 +271,8 @@ def files_to_review(root: Path, last_tree: str | None) -> list[str]:
         files = [
             f for f in files if render.get(f) is None or render[f] != current.get(f)
         ]
+    if ANSWERS in files and _only_alphas_records(root, last_tree or base, head):
+        files.remove(ANSWERS)
     return files
 
 

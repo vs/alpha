@@ -217,6 +217,47 @@ def test_R10_3_alphas_own_writes_are_left_out(project: Project) -> None:
     assert review.files_to_review(project.root, None) == ["api/src/a.py"]
 
 
+ANSWERS = ".claude/alpha/project.json"
+
+
+def answers_on_main(project: Project) -> dict[str, Any]:
+    """main with an adopted project's answers, and a feature branch off it."""
+    data: dict[str, Any] = {
+        "releases": {"process": "Tag vX.Y.Z on main."},
+        "installed": {"kit_version": "1.1.0"},
+        "adoption": {
+            "steps": [{"id": "p4-a", "status": "pending", "reason": ""}],
+        },
+    }
+    commit(project, ANSWERS, json.dumps(data, indent=2))
+    project.git("update-ref", "refs/remotes/origin/main", "HEAD")
+    project.git("switch", "-q", "-c", "feature")
+    return data
+
+
+def test_alphas_records_in_the_answers_need_no_review(project: Project) -> None:
+    """alpha update moves installed.kit_version and alpha adopt start and done
+    set a step's status and branch: alpha's own records, not decisions."""
+    data = answers_on_main(project)
+    data["installed"]["kit_version"] = "1.1.1"
+    data["adoption"]["steps"][0].update(status="done", branch="alpha/p4-a")
+    commit(project, ANSWERS, json.dumps(data, indent=2))
+    assert review.files_to_review(project.root, None) == []
+    assert gate(project) is None
+
+
+@pytest.mark.parametrize("changed", ["an answer", "a dropped step's reason"])
+def test_a_changed_answer_is_still_reviewed(project: Project, changed: str) -> None:
+    data = answers_on_main(project)
+    data["installed"]["kit_version"] = "1.1.1"
+    if changed == "an answer":
+        data["releases"]["process"] = "Tag and publish."
+    else:
+        data["adoption"]["steps"][0]["reason"] = "not worth it"
+    commit(project, ANSWERS, json.dumps(data, indent=2))
+    assert review.files_to_review(project.root, None) == [ANSWERS]
+
+
 def test_R10_2_a_merged_branch_note_carries_nothing_into_its_next_work(
     project: Project,
 ) -> None:
