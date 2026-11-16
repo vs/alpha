@@ -134,7 +134,8 @@
             "run": "uv run pytest tests/integration/hooks/test_worktrees.py::test_merge_is_blocked_when_gh_cannot_report_the_pr_head"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-merge-gate-fails-closed"
       },
       {
         "id": "p6-r9-2-pr-head-test",
