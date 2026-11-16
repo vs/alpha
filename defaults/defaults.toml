@@ -1,7 +1,6 @@
 schema = 1
 
 [review]
-exclude = ["**/tests/**", "**/test/**", "docs/**", "**/*.md"]
 risk_paths = ["**/migrations/**", "**/*.proto", "**/openapi*.yaml", "**/openapi*.yml", "**/openapi*.json", "**/auth/**", "**/security/**", ".github/**", "docs/alpha/principles.toml"]
 
 [protected]
@@ -400,7 +399,7 @@ core = false
 [[principles]]
 id = "perf-budgets"
 title = "Performance budgets"
-statement = "Performance budgets set in the interview are enforced."
+statement = "Performance budgets set with /alpha:specify are enforced."
 rationale = "A budget that is written down and checked stops slow regressions from accumulating unnoticed."
 applies = ["budgets_set"]
 settled_by = "performance"
@@ -538,7 +537,7 @@ core = true
 [[principles]]
 id = "definition-of-done"
 title = "Definition of done"
-statement = "Tests written and passing, types and lint clean, docs updated, committed per the history principle, reviewer passed."
+statement = "Tests written and passing, types and lint clean, docs updated, committed per the history principle, reviewed before it reaches main."
 rationale = "One shared checklist for done keeps completion from being a matter of opinion."
 applies = ["always"]
 checked_by = ["reviewer", "hook:stop_checks"]

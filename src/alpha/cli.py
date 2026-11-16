@@ -53,7 +53,9 @@ def build_parser() -> argparse.ArgumentParser:
     dset = dsub.add_parser(
         "set", help="save a default for your future projects (after user consent)"
     )
-    dset.add_argument("--key", required=True, help="dotted key, e.g. review.max_lines")
+    dset.add_argument(
+        "--key", required=True, help="dotted key, e.g. testing.diff_coverage"
+    )
     dset.add_argument("--value", required=True, help="TOML value, or a plain string")
     dset.add_argument("--project", required=True, help="project that prompted this")
     dset.add_argument("--reason", required=True, help="why the default changes")

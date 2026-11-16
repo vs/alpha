@@ -553,6 +553,14 @@ def test_diff_coverage_answer_validated(tmp_path: Path, value: object):
         check(tmp_path, d)
 
 
+@pytest.mark.parametrize("key", ["run", "mutants"])
+def test_removed_testing_fields_are_refused(tmp_path: Path, key: str):
+    d = valid()
+    d["testing"][key] = "cargo mutants"
+    with pytest.raises(AnswersError, match=rf"testing\.{key}: is gone"):
+        check(tmp_path, d)
+
+
 def test_diff_coverage_answer_is_optional(tmp_path: Path):
     d = valid()
     d["testing"].pop("diff_coverage", None)

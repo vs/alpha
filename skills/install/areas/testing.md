@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Tests get the same care as the code they test ("Tests are as important as the core"). Decide which levels of test each component needs, so effort matches risk: unit tests always, and more where a component talks to other things or users depend on whole flows. Each level's tests live under `tests/<level>/` in the component. A test that covers an acceptance check names its requirement id (e.g. `R1`), so every check in the product brief traces to a test. The Stop hook already blocks a source change that comes with no test change.
+Tests get the same care as the code they test ("Tests are as important as the core"). Decide which levels of test each component needs, so effort matches risk: unit tests always, and more where a component talks to other things or users depend on whole flows. Each level's tests live under `tests/<level>/` in the component. A test that covers an acceptance check names its requirement id (e.g. `R1`), so every check in `docs/alpha/specification.md` traces to a test. The Stop hook already blocks a source change that comes with no test change.
 
 A project that must not fail (a library or tool others build on, a data store, anything handling money or safety) can opt into **exhaustive testing**, modeled on [how SQLite is tested](https://www.sqlite.org/testing.html). It switches on the "Exhaustive testing" principle: every branch taken both ways, every failure path forced by an injected failure, fuzz or property-based tests for whatever reads outside input, limits tested on both sides, a failing test before each bug fix, invariants asserted in the code, and tests run on the build that ships. The reviewer checks every change against it, and pull requests must cover every line and branch they change (Rust records branches too, on a pinned nightly used only for the coverage run). It takes several times more test code than product code, so it is off unless the user wants it.
 
@@ -24,7 +24,7 @@ Run this with the `alpha:grilling` skill (invoke it with the Skill tool and foll
 
 - **Levels per component** - recommend `defaults.testing.levels[kind]` for each component, in one question, then adjust:
   - add `integration` when the component makes network calls or stores data (`traits.network_calls`, `traits.persisted_data`);
-  - add `contract` for each component on either side of a call in `architecture.components[].calls` (only possible when components talk);
+  - add `contract` for each component that calls or is called by another (only when `components_talk` is true);
   - keep `end-to-end` for the component users drive (UI, CLI), testing whole flows from the acceptance checks.
 
   Explain each level in a few words: `unit` (one piece, no I/O), `integration` (with its real database, files or services), `end-to-end` (a whole user flow), `contract` (both sides keep to the contract file). Restate the acceptance convention in one line.

@@ -145,6 +145,9 @@ def test_survey_refusals(tmp_path: Path):
     project = root / ".claude/alpha/project.json"
     project.parent.mkdir(parents=True)
     project.write_text(json.dumps({"manifest": {}}))
+    with pytest.raises(AdoptError, match="An older alpha .* by-hand steps"):
+        survey(root, SOURCE)
+    project.write_text(json.dumps({"installed": {}}))
     with pytest.raises(AdoptError, match="/alpha:extend"):
         survey(root, SOURCE)
 

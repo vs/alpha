@@ -25,7 +25,7 @@ _DONE = (
     "Types and lint clean.",
     "Docs updated.",
     "Committed per the commit convention.",
-    "Reviewer passed.",
+    "Reviewed before it reaches main.",
 )
 _WORKING_RULES = (
     "- Before you change code, docs or config, read the parts of "

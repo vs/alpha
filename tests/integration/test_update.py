@@ -692,13 +692,13 @@ def test_a_failed_git_status_says_to_rerun_the_update(tmp_path: Path, git_env: N
         apply.plan(target, PLUGIN_ROOT, SOURCE, TODAY)
 
 
-def test_a_project_from_before_the_design_language_area_can_define_one(
+def test_an_open_design_language_area_can_be_settled_later(
     tmp_path: Path, git_env: None
 ):
     dest = place_answers(tmp_path, SCENARIO)
     data = json.loads(dest.read_text())
     language = data.pop("design_language")
-    del data["areas"]["design_language"]
+    data["areas"]["design_language"] = "open"
     dest.write_text(json.dumps(data))
     install(tmp_path)
     git(tmp_path, "init", "-q", "-b", "main")
@@ -717,7 +717,6 @@ def test_a_project_from_before_the_design_language_area_can_define_one(
     assert found["docs/alpha/principles.toml"] == "change"
     assert "- **One design language**: " in text_of(p, "CLAUDE.md")
     assert '"docs/alpha/design-language.md"' in text_of(p, "docs/alpha/principles.toml")
-    assert "docs/decisions" not in " ".join(kinds(p))
 
 
 def test_R11_1_the_base_is_the_render_alpha_last_committed(

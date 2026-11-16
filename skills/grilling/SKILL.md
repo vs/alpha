@@ -40,11 +40,11 @@ Work the tree in **rounds**. The **frontier** is every decision whose prerequisi
 
 ### A choice: in the dialog
 
-When the question has a few fixed answers (a license, a review mode, a yes or no, confirming a summary) and the `AskUserQuestion` tool is in your tool list, ask it there, never as plain text: the user confirms your recommendation with Enter or picks another option.
+When the question has a few fixed answers (a license, a branching model, a yes or no, confirming a summary) and the `AskUserQuestion` tool is in your tool list, ask it there, never as plain text: the user confirms your recommendation with Enter or picks another option.
 
 - One question per call.
 - Give it 2 to 4 options, each a few words with a one-line `description` of what it means or costs. Put your recommended option first, its label ending in " (Recommended)", its description saying why when that isn't obvious. Never add an "Other" option: the dialog adds one for a typed answer.
-- `header` names the topic in at most 12 characters ("License", "Review mode").
+- `header` names the topic in at most 12 characters ("License", "Branching").
 - Set `multiSelect: true` when the user may pick several options (a component's traits).
 - The dialog can hide the text above it, so the question names what it's about.
 - A yes-or-no question gets the options Yes and No, the recommended one first.
@@ -76,7 +76,7 @@ Each answer reshapes the tree: settled decisions push the frontier outward and u
 
 ## Where recommendations come from
 
-- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show --json` once per session and keep the result. Its `defaults` object holds the kit's preferred answers (the area guide names the key for each question, e.g. `defaults.review.max_lines`).
+- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show --json` once per session and keep the result. Its `defaults` object holds the kit's preferred answers (the area guide names the key for each question, e.g. `defaults.testing.diff_coverage`).
 - Build on the project's earlier answers in `<target>/.claude/alpha/project.json` (`<target>` is the folder the interview is setting up): a later question's recommendation follows from what the user already decided.
 - When neither gives you a basis (a product name, say), draft a recommendation from what the user has told you so far, and say it is your suggestion.
 
@@ -94,8 +94,8 @@ When the user's answer differs from a kit default:
 2. Ask exactly: "Make this the default for future projects too?"
 3. On yes, for a setting, run:
    `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults set --key <dotted key> --value <value> --project <slug> --reason "<user's reason>"`
-   - `--key` is the defaults key the recommendation came from, without the `defaults.` prefix (e.g. `review.max_lines`, `identity.license`, `stacks.backend`).
-   - `--value` is written as in TOML (`300`, `true`); plain words are stored as text.
+   - `--key` is the defaults key the recommendation came from, without the `defaults.` prefix (e.g. `testing.diff_coverage`, `identity.license`, `stacks.backend`).
+   - `--value` is written as in TOML (`80`, `true`); plain words are stored as text.
    - `--project` is `identity.slug` from project.json.
 4. Read the exit code. Never tell the user a default was saved unless the command exits 0.
    - If it exits 0, tell the user the new default is saved with their own defaults (the path it prints), so their next project starts from it.

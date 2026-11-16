@@ -394,8 +394,8 @@ def test_cli_names_an_alpha_source_checkout(tmp_path: Path):
             "testing.diff_coverage must be a whole number",
         ),
         ("git.convention", "3", "git.convention must be text"),
-        ("review.exclude", "docs/**", "review.exclude must be a list of text"),
-        ("review.exclude", "[1, 2]", "review.exclude must be a list of text"),
+        ("review.risk_paths", "docs/**", "review.risk_paths must be a list of text"),
+        ("review.risk_paths", "[1, 2]", "review.risk_paths must be a list of text"),
     ],
 )
 def test_set_default_rejects_unknown_keys_and_wrong_types(

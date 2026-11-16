@@ -20,7 +20,7 @@ Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run`.
 
 - It prints nothing to change: tell the user the project is up to date, and stop.
 - It refuses because an update is waiting to be committed: that update is applied already. Merge its proposals as step 3 says, then commit as step 5 says.
-- Otherwise summarize the list: the upgrade its first line names (e.g. `(kit 0.9.0 to 1.0.0)`), the files alpha adds, changes, merges and deletes, and each `conflict` that needs a hand merge. Show the diffs of `CLAUDE.md`, `CONTRIBUTING.md` and `docs/alpha/principles.toml`. Ask whether to apply it, and wait for a clear yes.
+- Otherwise summarize the list: the upgrade its first line names (e.g. `(kit 1.0.0 to 1.1.0)`), the files alpha adds, changes, merges and deletes, and each `conflict` that needs a hand merge. Show the diffs of `CLAUDE.md`, `CONTRIBUTING.md` and `docs/alpha/principles.toml`. Ask whether to apply it, and wait for a clear yes.
 
 ## 3. Apply and merge
 

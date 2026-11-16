@@ -387,6 +387,10 @@ def testing(raw: object, comps: "Sequence[Component] | None", talk: bool) -> Tes
             "is gone: each changed component's full suite runs once before main",
             "Remove it",
         )
+    if "mutants" in d:
+        raise fail(
+            f"{w}.mutants", "is gone: alpha runs no mutation testing", "Remove it"
+        )
     return Testing(tuple(entries), diff_coverage, exhaustive)
 
 

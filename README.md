@@ -215,8 +215,10 @@ alpha doesn't upgrade such a project on its own. By hand, in one sitting:
    at the survey's `git.head`), or `[]` for a project alpha generated.
    Reshape the answers: identity's target users and requirements go into a
    `requirements` area, `security.auth` into an `auth` area; drop the review
-   mode and thresholds, `testing.run`, `testing.mutants` and each
-   `proven_hash`. Then run `bin/alpha answers check` until it prints ok, and
+   mode and thresholds, `testing.run`, `testing.mutants`, each `proven_hash`,
+   the `decisions` list and each adoption step's `decision`, after moving any
+   rule still in force from them or from `docs/decisions/` into `docs/alpha/`
+   or `CONTRIBUTING.md`. Then run `bin/alpha answers check` until it prints ok, and
    `bin/alpha recipe try` for each drafted recipe. Commit steps 1 and 2:
    `apply` merges only into committed files.
 3. Run `bin/alpha apply <project>`: alpha's own files and hook entries are

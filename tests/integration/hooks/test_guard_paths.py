@@ -281,7 +281,7 @@ def test_principles_file_edit_asks(project: Project) -> None:
 
 
 def test_the_review_state_is_not_editable(project: Project) -> None:
-    path = str(project.root / ".claude/alpha/state/review.json")
+    path = str(project.root / ".claude/alpha/state/untested.json")
     proc = run(project, "Write", {"file_path": path})
     assert proc.returncode == 2
     assert "alpha's hooks keep their state there" in proc.stderr

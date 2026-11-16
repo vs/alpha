@@ -64,9 +64,16 @@ def _refuse_alpha(target: Path) -> None:
         data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    if isinstance(data, dict) and {"installed", "manifest"} & set(
-        cast(dict[str, Any], data)
-    ):
+    if not isinstance(data, dict):
+        return
+    top = cast(dict[str, Any], data)
+    if "manifest" in top and "installed" not in top:
+        raise AdoptError(
+            f"An older alpha set {target} up (its {PROJECT_JSON} has a manifest). "
+            "This alpha doesn't upgrade it on its own: follow the by-hand steps in "
+            "alpha's README (Projects an older alpha set up)."
+        )
+    if "installed" in top:
         raise AdoptError(
             f"alpha is already installed in {target}. Change it with /alpha:extend "
             "instead."

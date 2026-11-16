@@ -101,6 +101,7 @@ def test_steps_load(tmp_path: Path):
         ([step(status="dropped")], r"reason: is missing for a dropped step"),
         ([step(component="ghost")], r"steps\[0\]\.component: no component named"),
         ([step(owner="me")], r"steps\[0\]\.owner: unknown key"),
+        ([step(decision=3)], r"steps\[0\]\.decision: is gone"),
     ],
 )
 def test_bad_steps_are_named(tmp_path: Path, steps: list[dict[str, Any]], message: str):

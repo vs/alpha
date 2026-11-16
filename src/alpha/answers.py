@@ -817,6 +817,15 @@ def _override(raw: object, i: int, names: set[str] | None) -> Override:
     )
 
 
+def _old_manifest() -> AnswersError:
+    return fail(
+        "manifest",
+        "is from an alpha before 1.0, which this alpha doesn't upgrade on its own",
+        "Follow the by-hand steps in alpha's README (Projects an older alpha set "
+        "up): they replace it with an installed record",
+    )
+
+
 def _no_decisions() -> AnswersError:
     return fail(
         "decisions",
@@ -977,6 +986,12 @@ def _steps(
         where = f"adoption.steps[{i}]"
         e = obj(entry, where)
         for key in e:
+            if key == "decision":
+                raise fail(
+                    f"{where}.decision",
+                    "is gone: alpha keeps no decision records to link a step to",
+                    "Remove it",
+                )
             if key not in _STEP_KEYS:
                 raise fail(
                     f"{where}.{key}",
@@ -1085,6 +1100,8 @@ def parse_answers(
     for key in top:
         if key == "decisions":
             raise _no_decisions()
+        if key == "manifest":
+            raise _old_manifest()
         if key not in _TOP_KEYS:
             raise fail(
                 key,
@@ -1104,9 +1121,6 @@ def parse_answers(
         a: choice(areas_raw, a, "areas", _STATUSES) if a in areas_raw else "pending"
         for a in AREAS
     }
-    predates_design_area = _DESIGN not in areas_raw and _DESIGN not in top
-    if predates_design_area:
-        areas[_DESIGN] = "done"
     for area, status in areas.items():
         if status == "open" and area not in PRODUCT_AREAS:
             raise fail(
@@ -1217,9 +1231,7 @@ def parse_answers(
         else None
     )
     design_language: DesignLanguage | None = None
-    if predates_design_area:
-        design_language = DesignLanguage(defined=False)
-    elif active(_DESIGN):
+    if active(_DESIGN):
         design_language = core_areas.design_language(get(top, _DESIGN, ""))
     ui = core_areas.ui(get(top, "ui", ""), comps_or_none) if active("ui") else None
     releases = (
@@ -1301,6 +1313,8 @@ def write_answers(target: Path, text: str) -> Path:
             )
         if key == "decisions":
             raise _no_decisions()
+        if key == "manifest":
+            raise _old_manifest()
         if key not in _TOP_KEYS:
             raise fail(
                 key,

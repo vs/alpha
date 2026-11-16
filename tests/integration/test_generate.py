@@ -698,7 +698,7 @@ def test_cli_apply_uses_the_plugin_and_your_defaults(tmp_path: Path):
     place_answers(project, "python-ml-single")
     mine = tmp_path / "config"
     mine.mkdir()
-    (mine / "overrides.toml").write_text('[review]\nexclude = ["docs/**"]\n')
+    (mine / "overrides.toml").write_text('[review]\nrisk_paths = ["docs/**"]\n')
     env = {k: v for k, v in os.environ.items() if k != "ALPHA_SOURCE"}
     env["HOME"] = str(tmp_path / "home")
     env["ALPHA_CONFIG_DIR"] = str(mine)
@@ -711,7 +711,7 @@ def test_cli_apply_uses_the_plugin_and_your_defaults(tmp_path: Path):
     assert out.returncode == 0, out.stderr
     assert "warning" not in out.stderr
     principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
-    assert principles["review"]["exclude"] == ["docs/**"]
+    assert principles["review"]["risk_paths"][0] == "docs/**"
     data = json.loads((project / ".claude/alpha/project.json").read_text())
     assert data["installed"]["mode"] == "new"
 

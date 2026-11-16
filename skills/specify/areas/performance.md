@@ -23,8 +23,8 @@ A component's `budgets` may be `[]`: no budgets, so the principle stays off for 
 
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round covering every component:
 
-- **Expected load** - draft it from identity (who uses it and how) and the build area (what is deployed), e.g. "one person running a script" for a local tool. Explain in one line: reviews judge scale against it (a race or a query per item matters only when the load reaches it), and a `shortcut:` comment names the load past which it stops holding.
-- **Budgets** - draft each component's from `defaults.performance.budgets[kind]` (each entry reads `"<metric> < <limit>"`), then adjust them to the requirements from identity (e.g. a requirement about slow connections tightens the bundle; a batch job may need none). Say which come from the defaults.
+- **Expected load** - draft it from the requirements area (who uses it and how) and the build area (what is deployed), e.g. "one person running a script" for a local tool. Explain in one line: reviews judge scale against it (a race or a query per item matters only when the load reaches it), and a `shortcut:` comment names the load past which it stops holding.
+- **Budgets** - draft each component's from `defaults.performance.budgets[kind]` (each entry reads `"<metric> < <limit>"`), then adjust them to the requirements (e.g. a requirement about slow connections tightens the bundle; a batch job may need none). Say which come from the defaults.
 - **Measured by** - for each budget, recommend a tool that fits the component's stack and the CI from the build area; look it up, never assume.
 - Offer "no budgets" for a component where nothing is worth measuring yet, and say what it means: the principle stays off for it.
 

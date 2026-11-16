@@ -596,7 +596,7 @@ def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
     if glob == STATE_GLOB:
         return (
             f"{rel} is protected: alpha's hooks keep their state there "
-            f"({STATE_DIR}/), including the review record, and nothing else may "
+            f"({STATE_DIR}/), and nothing else may "
             "write or delete it; only /alpha:uninstall switches alpha's hooks off. "
             "Read it if you need to; ask the user if it's wrong."
         )
