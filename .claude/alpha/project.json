@@ -117,7 +117,8 @@
             "run": "uv run pytest tests/integration/hooks/test_guard_bash.py::test_no_verify_after_an_ansi_c_quoted_word_is_blocked"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-guard-fails-closed"
       },
       {
         "id": "p4-merge-gate-fails-closed",
