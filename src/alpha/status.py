@@ -1,14 +1,13 @@
 """What state a folder is in, for /alpha:install to take the matching path."""
 
 import json
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
 from alpha.answers import PROJECT_JSON
 from alpha.merge import is_alpha_hook
-from alpha.shell import GIT_TIMEOUT
+from alpha.shell import git_output
 
 HOOKS_PATH = ".claude/alpha/githooks"
 SETTINGS = ".claude/settings.json"
@@ -22,20 +21,6 @@ _IGNORED = frozenset({".DS_Store", ".git", ".claude/settings.local.json"})
 class Status:
     name: str
     detail: str = ""
-
-
-def git_output(target: Path, *args: str) -> str | None:
-    try:
-        done = subprocess.run(
-            ["git", *args],
-            cwd=target,
-            capture_output=True,
-            text=True,
-            timeout=GIT_TIMEOUT,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    return done.stdout.strip() if done.returncode == 0 else None
 
 
 def _entries(target: Path) -> list[str]:

@@ -17,13 +17,14 @@ from helpers import (
     run_cli,
 )
 
-from alpha import adopt, apply
+from alpha import adopt, apply, cli, shell
 from alpha.adopt import AdoptError, done, drop, gaps, merge_steps, next_step
 from alpha.answers import AnswersError, load_answers
 from alpha.defaults import Source, load_defaults
 from alpha.generate import load_project_principles, render_project
 from alpha.gitops import PROPOSALS, commit
 from alpha.registry import default_registry
+from alpha.shell import GitError
 
 PROJECT = ".claude/alpha/project.json"
 
@@ -461,12 +462,18 @@ def test_survey_hook_files_reach_the_principles(tmp_path: Path, git_env: None):
     assert principles["git"]["hook_files"] == [".husky/commit-msg"]
 
 
-def test_a_hung_git_stops_with_a_fix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_a_hung_git_stops_with_a_fix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     (bin_dir / "git").write_text("#!/bin/sh\nsleep 30\n")
     (bin_dir / "git").chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
-    monkeypatch.setattr(adopt, "GIT_TIMEOUT", 0.5)
-    with pytest.raises(AdoptError, match=r"git status took longer than 0\.5s"):
-        adopt.run_git(tmp_path, "status")
+    monkeypatch.setattr(shell, "GIT_TIMEOUT", 0.5)
+    with pytest.raises(GitError, match=r"git status took longer than 0\.5s"):
+        shell.git(tmp_path, "status")
+    assert cli.main(["adopt", "survey", str(tmp_path)]) == 1
+    assert "took longer than 0.5s" in capsys.readouterr().err

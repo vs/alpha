@@ -27,6 +27,7 @@ from alpha.generate import (
     load_project_principles,
 )
 from alpha.gitops import commit
+from alpha.shell import GitError
 from alpha.status import status
 
 PLUGIN_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -523,6 +524,14 @@ def _project(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    try:
+        return _dispatch(args)
+    except GitError as e:
+        print(e, file=sys.stderr)
+        return 1
+
+
+def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "version":
         print(VERSION)
         return 0

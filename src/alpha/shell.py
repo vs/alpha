@@ -10,6 +10,46 @@ from pathlib import Path
 GIT_TIMEOUT = 120.0  # seconds: a git command (and its hooks) that runs longer is stuck
 
 
+class GitError(Exception):
+    """git couldn't start, or ran longer than GIT_TIMEOUT."""
+
+
+def git(
+    target: Path,
+    *args: str,
+    stdin: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """git `args` in `target`, under GIT_TIMEOUT, with paths in its output
+    left unquoted."""
+    try:
+        return subprocess.run(
+            ["git", "-c", "core.quotepath=false", *args],
+            cwd=target,
+            input=stdin,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT,
+            env={**os.environ, **env} if env else None,
+        )
+    except OSError as e:
+        raise GitError(f"Cannot run git ({e}). Install git, then retry.") from e
+    except subprocess.TimeoutExpired:
+        raise GitError(
+            f"git {args[0]} took longer than {GIT_TIMEOUT:g}s in {target}, so alpha "
+            "stopped it. Run it yourself to see what it waits for, then retry."
+        ) from None
+
+
+def git_output(target: Path, *args: str) -> str | None:
+    """git's stripped output, or None when it fails or can't run."""
+    try:
+        done = git(target, *args)
+    except GitError:
+        return None
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
 @dataclass(frozen=True)
 class Ran:
     code: int

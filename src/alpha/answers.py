@@ -588,7 +588,7 @@ def _components(raw: object, layout: str, book: RecipeBook) -> tuple[Component, 
     return tuple(comps)
 
 
-def _git(raw: object) -> GitPrefs:
+def _git_prefs(raw: object) -> GitPrefs:
     d = obj(raw, "git")
     scopes = strings(d, "scopes", "git")
     for i, scope in enumerate(scopes):
@@ -1160,7 +1160,7 @@ def parse_answers(
     if active("components"):
         layout = choice(top, "layout", "", _LAYOUTS)
         comps = _components(get(top, "components", ""), layout, RecipeBook(drafted))
-    git = _git(get(top, "git", "")) if active("git") else None
+    git = _git_prefs(get(top, "git", "")) if active("git") else None
     workflow = (
         _workflow(get(top, "agent_workflow", "")) if active("agent_workflow") else None
     )

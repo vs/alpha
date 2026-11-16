@@ -17,7 +17,8 @@ from alpha.gitops import set_hooks_path, unset_hooks_path
 from alpha.merge import merge_settings, strip_alpha_hooks
 from alpha.render.claude_settings import alpha_hooks
 from alpha.render.docs import CHAIN_BEGIN, CHAIN_END, CHAINED_COMMIT_MSG
-from alpha.status import CHAIN_STATE, HOOKS_PATH, SETTINGS, git_output, read_answers
+from alpha.shell import git_output
+from alpha.status import CHAIN_STATE, HOOKS_PATH, SETTINGS, read_answers
 
 HOOKS_STATE = ".claude/alpha/state/hooks.json"
 

@@ -25,7 +25,7 @@ from alpha.gitops import HOOKS_PATH, status_paths
 from alpha.principles import diff_coverage
 from alpha.recipes import RecipeBook, matches
 from alpha.render.docs import CHAIN_BEGIN, CHAIN_END, CHAINED_COMMIT_MSG
-from alpha.shell import GIT_TIMEOUT, run_command
+from alpha.shell import git, run_command
 
 CAP = 50  # entries per list; the rest are counted
 SUBJECTS = 50  # recent commits checked against the convention
@@ -36,26 +36,8 @@ class AdoptError(Exception):
     """The repo can't be adopted as it is; the message says what to do."""
 
 
-def run_git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    try:
-        return subprocess.run(
-            ["git", *args],
-            cwd=target,
-            capture_output=True,
-            text=True,
-            timeout=GIT_TIMEOUT,
-        )
-    except OSError as e:
-        raise AdoptError(f"Cannot run git ({e}). Install git, then retry.") from e
-    except subprocess.TimeoutExpired:
-        raise AdoptError(
-            f"git {args[0]} took longer than {GIT_TIMEOUT:g}s in {target}, so alpha "
-            "stopped it. Run it yourself to see what it waits for, then retry."
-        ) from None
-
-
 def _out(target: Path, *args: str) -> str | None:
-    done = run_git(target, *args)
+    done = git(target, *args)
     return done.stdout.strip() if done.returncode == 0 else None
 
 
@@ -143,7 +125,7 @@ def _git_facts(target: Path, defaults: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tracked(target: Path) -> list[str]:
-    done = run_git(target, "ls-files", "-z")
+    done = git(target, "ls-files", "-z")
     if done.returncode != 0:
         raise AdoptError(f"git ls-files failed in {target}: {done.stderr.strip()}")
     return sorted(p for p in done.stdout.split("\0") if p)
@@ -258,7 +240,7 @@ _MUST_TRACK = (
 
 def _ignored(target: Path) -> list[str]:
     """`git check-ignore -v` lines for alpha's paths the repo ignores."""
-    done = run_git(target, "check-ignore", "-v", "--", *_MUST_TRACK)
+    done = git(target, "check-ignore", "-v", "--", *_MUST_TRACK)
     return [line for line in done.stdout.splitlines() if line.strip()]
 
 
@@ -348,7 +330,7 @@ def switch_branch(target: Path) -> str:
             f"A branch {ADOPT_BRANCH} already exists. Switch to it (git switch "
             f"{ADOPT_BRANCH}) to go on with that adoption, or delete it, then retry."
         )
-    done = run_git(target, "switch", "--quiet", "-c", ADOPT_BRANCH)
+    done = git(target, "switch", "--quiet", "-c", ADOPT_BRANCH)
     if done.returncode != 0:
         raise AdoptError(
             f"git couldn't create {ADOPT_BRANCH}: {done.stderr.strip()}. Fix that, "

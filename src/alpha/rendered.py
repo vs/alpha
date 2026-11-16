@@ -9,14 +9,12 @@ or another worktree never hides a change. Nothing here is committed to the
 project's files; the refs and notes stay local, and another clone has none.
 """
 
-import os
-import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from alpha.generate import GenerateError
-from alpha.shell import GIT_TIMEOUT
+from alpha.shell import git
 
 RENDERED_REF = "refs/alpha/rendered"
 NOTES_REF = "alpha-rendered"
@@ -28,38 +26,13 @@ _IDENTITY = {
 }
 
 
-def _git(
-    target: Path,
-    *args: str,
-    stdin: str | None = None,
-    env: Mapping[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    try:
-        return subprocess.run(
-            ["git", "-c", "core.quotepath=false", *args],
-            cwd=target,
-            input=stdin,
-            capture_output=True,
-            text=True,
-            timeout=GIT_TIMEOUT,
-            env={**os.environ, **(env or {})},
-        )
-    except OSError as e:
-        raise GenerateError(f"Cannot run git ({e}). Install git, then retry.") from e
-    except subprocess.TimeoutExpired:
-        raise GenerateError(
-            f"git {args[0]} took longer than {GIT_TIMEOUT:g}s in {target}, so alpha "
-            "stopped it. Run it yourself to see what it waits for, then retry."
-        ) from None
-
-
 def _must(
     target: Path,
     *args: str,
     stdin: str | None = None,
     env: Mapping[str, str] | None = None,
 ) -> str:
-    done = _git(target, *args, stdin=stdin, env=env)
+    done = git(target, *args, stdin=stdin, env=env)
     if done.returncode != 0:
         raise GenerateError(
             f"git {args[0]} failed in {target}: {done.stderr.strip()}. Fix that, "
@@ -95,7 +68,7 @@ def write_tree(target: Path, texts: Mapping[str, str], executable: set[str]) -> 
 def record(target: Path, tree: str) -> str:
     """Make `tree` alpha's latest render: a commit under RENDERED_REF, named
     by a note on HEAD. Returns the render commit."""
-    parent = _git(target, "rev-parse", "--verify", "-q", RENDERED_REF).stdout.strip()
+    parent = git(target, "rev-parse", "--verify", "-q", RENDERED_REF).stdout.strip()
     args = ["commit-tree", tree, "-m", "alpha render"]
     if parent:
         args += ["-p", parent]
@@ -119,7 +92,7 @@ def record(target: Path, tree: str) -> str:
 def _keep_through_rewrites(target: Path) -> None:
     """Have git copy the render note when a rebase or an amend rewrites the
     commit it's on (notes.rewrite.* default to true for listed refs)."""
-    listed = _git(target, "config", "--get-all", "notes.rewriteRef").stdout.split()
+    listed = git(target, "config", "--get-all", "notes.rewriteRef").stdout.split()
     if f"refs/notes/{NOTES_REF}" not in listed:
         _must(target, "config", "--add", "notes.rewriteRef", f"refs/notes/{NOTES_REF}")
 
@@ -133,7 +106,7 @@ class Base:
 def find_base(target: Path) -> Base | None:
     """The render the latest commit in HEAD's history with a render note names,
     or None (a new project, or a clone that never ran alpha)."""
-    listed = _git(target, "notes", f"--ref={NOTES_REF}", "list")
+    listed = git(target, "notes", f"--ref={NOTES_REF}", "list")
     if listed.returncode != 0 or not listed.stdout.strip():
         return None
     noted = {
@@ -141,14 +114,14 @@ def find_base(target: Path) -> Base | None:
         for parts in (line.split() for line in listed.stdout.splitlines())
         if len(parts) == 2
     }
-    history = _git(target, "rev-list", "--topo-order", "HEAD")
+    history = git(target, "rev-list", "--topo-order", "HEAD")
     if history.returncode != 0:
         return None
     for commit in history.stdout.split():
         if commit not in noted:
             continue
         render = _must(target, "cat-file", "blob", noted[commit]).strip()
-        if _git(target, "cat-file", "-e", f"{render}^{{tree}}").returncode != 0:
+        if git(target, "cat-file", "-e", f"{render}^{{tree}}").returncode != 0:
             return None  # the render was pruned; behave as a fresh clone
         return Base(render, _read_tree(target, render))
     return None
@@ -170,9 +143,9 @@ def _read_tree(target: Path, commit: str) -> dict[str, str]:
 
 def forget(target: Path) -> None:
     """Drop alpha's renders and their notes (purge)."""
-    _git(target, "update-ref", "-d", RENDERED_REF)
-    _git(target, "update-ref", "-d", f"refs/notes/{NOTES_REF}")
-    _git(
+    git(target, "update-ref", "-d", RENDERED_REF)
+    git(target, "update-ref", "-d", f"refs/notes/{NOTES_REF}")
+    git(
         target,
         "config",
         "--unset-all",

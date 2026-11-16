@@ -21,7 +21,7 @@ from alpha.recipes import (
     record_proof,
     render_template,
 )
-from alpha.shell import Ran, run_command
+from alpha.shell import Ran, git, run_command
 
 _TAIL_LINES = 40
 _NOT_FOUND = 127
@@ -165,12 +165,6 @@ def _users(target: Path, stack: str) -> list[str]:
     return paths
 
 
-def _git_out(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(target), *args], capture_output=True, text=True
-    )
-
-
 def _timed_out(command: str, step: str, again: str) -> str:
     return (
         f'"{command}" took longer than {_TIMEOUT_SECONDS:g}s, so alpha stopped it. '
@@ -249,7 +243,7 @@ def _try_adopted(
             f"No component uses the {stack} recipe yet, so alpha doesn't know where "
             "to prove it. Save the components (with this stack) first, then " + again
         )
-    head = _git_out(target, "rev-parse", "--short", "HEAD")
+    head = git(target, "rev-parse", "--short", "HEAD")
     if head.returncode != 0:
         return (
             f"{target} has no commit to prove the recipe on "
@@ -257,9 +251,7 @@ def _try_adopted(
         )
     with tempfile.TemporaryDirectory(prefix="alpha-try-") as scratch:
         tree = Path(scratch) / "repo"
-        added = _git_out(
-            target, "worktree", "add", "--detach", "--quiet", str(tree), "HEAD"
-        )
+        added = git(target, "worktree", "add", "--detach", "--quiet", str(tree), "HEAD")
         if added.returncode != 0:
             return (
                 f"git couldn't make a worktree of {target} to prove the recipe on "
@@ -295,8 +287,8 @@ def _try_adopted(
                     if line:
                         report.append(f"{path}: {line}")
         finally:
-            _git_out(target, "worktree", "remove", "--force", str(tree))
-            _git_out(target, "worktree", "prune")
+            git(target, "worktree", "remove", "--force", str(tree))
+            git(target, "worktree", "prune")
     report.insert(0, f"on {', '.join(paths)} at {head.stdout.strip()}")
     return None
 
