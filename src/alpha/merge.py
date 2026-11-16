@@ -1,11 +1,11 @@
 import json
-import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
 from alpha.generate import GenerateError
+from alpha.shell import GitError, git
 
 ChangeKind = Literal[
     "new", "change", "merge", "conflict", "stale", "skipped", "deleted"
@@ -26,20 +26,17 @@ def merge3(base: str, ours: str, theirs: str) -> tuple[str, bool]:
             paths[name] = Path(tmp) / name
             paths[name].write_text(text, encoding="utf-8", newline="")
         try:
-            done = subprocess.run(
-                [
-                    "git", "merge-file", "-p", "--diff3",
-                    "-L", "yours", "-L", "before", "-L", "alpha",
-                    str(paths["ours"]), str(paths["base"]), str(paths["theirs"]),
-                ],
-                capture_output=True,
+            done = git(
+                Path(tmp),
+                "merge-file", "-p", "--diff3",
+                "-L", "yours", "-L", "before", "-L", "alpha",
+                str(paths["ours"]), str(paths["base"]), str(paths["theirs"]),
             )  # fmt: skip
-        except OSError as e:
+        except GitError as e:
             raise _git_error(str(e)) from e
     if done.returncode < 0 or done.returncode == 255 or done.returncode > 127:
-        detail = done.stderr.decode("utf-8", "replace").strip()
-        raise _git_error(detail or f"exit {done.returncode}")
-    return done.stdout.decode("utf-8"), done.returncode > 0
+        raise _git_error(done.stderr.strip() or f"exit {done.returncode}")
+    return done.stdout, done.returncode > 0
 
 
 def _git_error(detail: str) -> GenerateError:

@@ -5,7 +5,6 @@ import importlib.util
 import os
 import posixpath
 import re
-import subprocess
 import tomllib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -13,7 +12,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
-from alpha.shell import GIT_TIMEOUT, Ran, run_command
+from alpha.shell import Ran, git, git_output, run_command
 
 # The component steps a baseline may hold. format_check is fixed once (plan
 # step P1), and setup isn't a check of the code.
@@ -390,20 +389,7 @@ def excepted_on_branch(target: Path, check: str) -> bool:
     point = _branch_point(target)
     if point is None:
         return common.newly_excepted(now, "", check)
-    try:
-        shown = subprocess.run(
-            ["git", "show", f"{point}:{contributing}"],
-            cwd=target,
-            capture_output=True,
-            text=True,
-            timeout=GIT_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        raise BaselineError(
-            f"git show took longer than {GIT_TIMEOUT:g}s reading {contributing} "
-            "where the branch started; check the repository isn't locked, then "
-            "retry."
-        ) from None
+    shown = git(target, "show", f"{point}:{contributing}")
     before = shown.stdout if shown.returncode == 0 else ""
     return common.newly_excepted(now, before, check)
 
@@ -411,14 +397,9 @@ def excepted_on_branch(target: Path, check: str) -> bool:
 def _branch_point(target: Path) -> str | None:
     """Where HEAD left the default branch (origin's, else main or master)."""
     for ref in ("origin/HEAD", "main", "master"):
-        done = subprocess.run(
-            ["git", "merge-base", ref, "HEAD"],
-            cwd=target,
-            capture_output=True,
-            text=True,
-        )
-        if done.returncode == 0:
-            return done.stdout.strip()
+        point = git_output(target, "merge-base", ref, "HEAD")
+        if point is not None:
+            return point
     return None
 
 

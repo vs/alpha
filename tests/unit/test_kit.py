@@ -159,3 +159,19 @@ def test_no_type_check_is_silenced_in_python():
         if "type: ignore" in text or "pyright: ignore" in text
     ]
     assert silenced == []
+
+
+GIT_ARGV = re.compile(r'\[\s*"git"\s*,')
+
+
+def test_every_git_call_in_src_goes_through_the_runner():
+    """shell.git runs git under GIT_TIMEOUT and reports a stuck or missing git
+    the same way; a direct call can hang a command or end in a traceback."""
+    direct = sorted(
+        f"{path.relative_to(PLUGIN_ROOT)}:{n}"
+        for path in (PLUGIN_ROOT / "src" / "alpha").rglob("*.py")
+        if path.name != "shell.py"
+        for n, line in enumerate(path.read_text("utf-8").splitlines(), 1)
+        if GIT_ARGV.search(line)
+    )
+    assert direct == []

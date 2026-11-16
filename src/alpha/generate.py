@@ -1,7 +1,6 @@
 import json
 import shlex
 import shutil
-import subprocess
 import sys
 import tomllib
 from collections.abc import Mapping, Sequence
@@ -31,7 +30,7 @@ from alpha.render.claude_settings import render_settings
 from alpha.render.docs import render_docs
 from alpha.render.tooling import MISE, render_tooling
 from alpha.repo_checks import repo_checks
-from alpha.shell import run_command
+from alpha.shell import GitError, git, run_command
 
 PRINCIPLES_TOML = "docs/alpha/principles.toml"
 _TAIL_LINES = 40
@@ -347,14 +346,9 @@ def _repo_checks(target: Path, capture: Sequence[str] = ()) -> None:
         # jactionlint and the secrets check need a repository; commit-skeleton
         # then keeps this one.
         try:
-            done = subprocess.run(
-                ["git", "init", "-q", "-b", "main"],
-                cwd=target,
-                capture_output=True,
-                text=True,
-            )
+            done = git(target, "init", "-q", "-b", "main")
             problem = done.stderr.strip() if done.returncode else ""
-        except OSError as e:
+        except GitError as e:
             problem = str(e)
         if problem:
             raise GenerateError(
