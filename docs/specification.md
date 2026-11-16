@@ -179,6 +179,7 @@ In an adopted repo with baselines, the checks that ran through the ratchet run p
   5. The user approves the spec and picks native or subagents.
   6. Build tests first, verify, finish with the definition of done.
   An open product area the feature needs is named to the user with `/alpha:update <area>`; the feature's own choices stay in its spec. `do` asks for no whole-branch review and no principles review. In subagent mode, a reviewer subagent checks each task against the spec before the next starts, as the pstack playbook does and as the user picks that mode; the principles review runs at merge.
+  Every playbook says when the hooks are off (`alpha status` prints `hooks-off`), skips a step whose principle the project dropped, commits on the branch CONTRIBUTING.md's Branching names, and ends with the definition of done: an `untested` note for a change that needs no test or doc, a dependency-log entry for a new dependency, and a reply that names what is still ahead before main (the push or pull request, the full suites, the principles review).
 
 ### Review
 
