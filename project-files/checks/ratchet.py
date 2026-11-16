@@ -1,4 +1,4 @@
-"""Run a baselined check: fail on findings the baseline doesn't hold (spec §8b).
+"""Run a baselined check: fail on findings the baseline doesn't hold.
 
 Usage, from anywhere in the project: ratchet.py <check-id> [--file <path>]
 [--capture]. The check's command and how its findings read come from its

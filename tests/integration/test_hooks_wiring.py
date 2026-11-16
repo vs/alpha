@@ -1,4 +1,4 @@
-"""alpha uninstall and alpha hooks on (rewrite spec, R1.4, R2.1 and R2.2)."""
+"""alpha uninstall and alpha hooks on (spec, R1.4, R2.1 and R2.2)."""
 
 import json
 import subprocess

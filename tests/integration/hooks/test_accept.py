@@ -1,4 +1,4 @@
-"""The user's `accept F-xxxxxx` (rewrite spec, R9.4)."""
+"""The user's `accept F-xxxxxx` (spec, R9.4)."""
 
 import json
 

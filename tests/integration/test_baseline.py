@@ -1,5 +1,5 @@
-"""alpha baseline show, capture and tighten, and bootstrap's capture (spec
-§8b), on a project whose check is a fake tool."""
+"""alpha baseline show, capture and tighten, and bootstrap's capture, on a
+project whose check is a fake tool."""
 
 import json
 import os

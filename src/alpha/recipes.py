@@ -71,11 +71,11 @@ class Recipe:
     coverage: str = ""
     coverage_report: str = ""
     workspace: Workspace | None = None
-    # How each step's findings read, for a baseline (spec §8b); keyed by step.
+    # How each step's findings read, for a baseline; keyed by step.
     baselines: Mapping[str, Baseline] = field(default_factory=lambda: {})
     # File names whose folder the adoption survey lists as a candidate.
     detect: tuple[str, ...] = ()
-    # Runs an existing repo's own tools (spec §5b, A1): no templates or
+    # Runs an existing repo's own tools: no templates or
     # bootstrap of its own, proven on the repo's code.
     adopted: bool = False
 
@@ -674,7 +674,7 @@ _INHERITED = (
 
 
 def adopted_data(entry: Mapping[str, Any], kit: Mapping[str, Any]) -> dict[str, Any]:
-    """An adopted recipe's entry over the kit recipe it extends (spec §5b, A1).
+    """An adopted recipe's entry over the kit recipe it extends.
     A step whose command the entry changes drops the kit's baseline reader for
     it, which reads the kit's tool; a changed `lint_file` drops the lint
     reader too, whose `file_command` runs the kit's."""

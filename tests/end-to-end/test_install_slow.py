@@ -1,4 +1,4 @@
-"""install on an empty folder, on real toolchains (rewrite spec, R1.1 and
+"""install on an empty folder, on real toolchains (spec, R1.1 and
 R12.2): uv, pnpm and mise, with network access."""
 
 import subprocess

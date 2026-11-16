@@ -1,4 +1,4 @@
-"""Notes that a source change needs no test (rewrite spec, R12.6).
+"""Notes that a source change needs no test (alpha's spec, R12.6).
 
 The Stop check asks for a test with every source change. A rename, a constant
 or wiring needs none: Claude says why here, and the note holds while the file

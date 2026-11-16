@@ -90,7 +90,7 @@ SURVEY = "defaults/survey.toml"
 
 
 def load_survey(source: Source) -> dict[str, list[str]]:
-    """The globs `alpha adopt survey` looks for, by kind (spec §5b): from the
+    """The globs `alpha adopt survey` looks for, by kind: from the
     checkout when it has them, otherwise the plugin's."""
     path = source.path / SURVEY
     if not path.is_file():

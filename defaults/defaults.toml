@@ -543,7 +543,7 @@ applies = ["always"]
 checked_by = ["reviewer", "hook:stop_checks"]
 core = true
 
-# The principles each kind of adoption-plan step serves (spec §5b): a check
+# The principles each kind of adoption-plan step serves: a check
 # step by its name (lint, typecheck, test, structure), a repository check by
 # its id, plus format, coverage and chain (alpha's commit check in the repo's
 # hook manager).

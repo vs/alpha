@@ -1,4 +1,4 @@
-"""Baselines end to end (spec §8b): a web+API repo with legacy findings is
+"""Baselines end to end: a web+API repo with legacy findings is
 adopted and bootstraps green with them baselined, fails on a new one,
 tightens when one is fixed, and refuses a pull request that grows a
 baseline."""

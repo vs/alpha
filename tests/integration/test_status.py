@@ -1,4 +1,4 @@
-"""alpha status: the state /alpha:install reads (rewrite spec, R1.2 and R1.5)."""
+"""alpha status: the state /alpha:install reads (spec, R1.2 and R1.5)."""
 
 import json
 from pathlib import Path

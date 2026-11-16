@@ -32,7 +32,7 @@ class Pin:
     version: str
     command: str  # the check as a project runs it from its root
     fails_with: int  # the exit code on a violation
-    # How its findings read, for a baseline (spec §8b), when they can.
+    # How its findings read, for a baseline, when they can.
     baseline: Baseline | None = None
 
 

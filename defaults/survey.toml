@@ -1,4 +1,4 @@
-# What `alpha adopt survey` looks for in an existing repo (spec §5b): facts,
+# What `alpha adopt survey` looks for in an existing repo: facts,
 # not opinions. Globs are relative to the repo root and matched against its
 # tracked files only, so ignored folders never count. Components are found by
 # each recipe's [detect] markers, not here.

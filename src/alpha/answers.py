@@ -261,7 +261,7 @@ _STEP_KEYS = frozenset(
 
 @dataclass(frozen=True)
 class Condition:
-    """One part of a step's acceptance (spec §5b): `kind` is one of
+    """One part of a step's acceptance: `kind` is one of
     CONDITIONS; `value` is its command, recipe field, check id or text."""
 
     kind: str
@@ -284,7 +284,7 @@ def describe_condition(c: Condition) -> str:
 
 @dataclass(frozen=True)
 class Step:
-    """A step of an adopted repo's compliance plan (spec §5b, step 6)."""
+    """A step of an adopted repo's compliance plan."""
 
     id: str
     phase: str
@@ -325,7 +325,7 @@ class Answers:
     performance: Performance | None
     overrides: tuple[Override, ...]
     recipes: dict[str, Recipe]
-    # Checks that run through the ratchet (spec §8b): `<step>:<component>` or
+    # Checks that run through the ratchet: `<step>:<component>` or
     # a repository check id. Only an adopted project has any.
     baselines: tuple[str, ...] = ()
     # Who runs git's hooks in an adopted repo: alpha ("alpha"), or the repo's

@@ -404,7 +404,7 @@ def bootstrap(
     capture_baselines: bool = False,
 ) -> None:
     """`capture_baselines`: record each listed baseline that's missing, once
-    its tools are installed (spec §8b); otherwise a missing one stops here."""
+    its tools are installed; otherwise a missing one stops here."""
     fix = (
         "Fix the failing step (is the component's toolchain installed?) and rerun "
         f'"alpha bootstrap {target}"'

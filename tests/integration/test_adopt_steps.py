@@ -1,4 +1,4 @@
-"""The compliance plan of an adopted repo (spec §5b, step 6)."""
+"""The compliance plan of an adopted repo."""
 
 import json
 import subprocess

@@ -1,4 +1,4 @@
-"""The hooks on a project with baselines (spec §8b): legacy findings don't
+"""The hooks on a project with baselines: legacy findings don't
 block, new ones do, and Claude can't edit a baseline."""
 
 import json

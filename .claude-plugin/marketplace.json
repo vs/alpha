@@ -1,6 +1,6 @@
 {
   "name": "alpha",
-  "description": "alpha, the interview-driven project skeleton kit",
+  "description": "alpha, a development process for Claude Code projects",
   "owner": {"name": "Semyon Vadishev"},
   "plugins": [{"name": "alpha", "source": "./"}]
 }

@@ -1,4 +1,4 @@
-"""Baselines switched on from the answers (spec §8b): which commands run
+"""Baselines switched on from the answers: which commands run
 through the ratchet, and what a project without baselines keeps."""
 
 import json

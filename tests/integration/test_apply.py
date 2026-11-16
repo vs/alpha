@@ -1,4 +1,4 @@
-"""alpha apply on an empty folder: a new project's files (rewrite spec, R1.1)."""
+"""alpha apply on an empty folder: a new project's files (spec, R1.1)."""
 
 import re
 from pathlib import Path

@@ -1,6 +1,6 @@
 """alpha's principles review, kept in git notes on the trees it reviewed.
 
-The review runs once, before work reaches main (rewrite spec, R9 and R10).
+The review runs once, before work reaches main (alpha's spec, R9 and R10).
 Reviewing a tree adds a note to that tree object under refs/notes/alpha-review.
 To find the last review, the branch's history since main is walked, each
 commit mapped to its tree; after a rebase, the newest note recorded for the

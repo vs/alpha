@@ -1,4 +1,4 @@
-"""alpha adopt survey: an existing repo, described in facts (spec §5b)."""
+"""alpha adopt survey: an existing repo, described in facts."""
 
 import json
 import subprocess

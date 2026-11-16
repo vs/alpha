@@ -222,7 +222,7 @@ def commit(
 
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
     adopting = state.get("kind") in ("new", "adopt")
-    # Captured or tightened baselines are alpha's writes too (spec §8b).
+    # Captured or tightened baselines are alpha's writes too.
     baselines = [BASELINE_DIR] if (target / BASELINE_DIR).is_dir() else []
     groups: list[tuple[str, list[str]]] = [
         (

@@ -1,4 +1,4 @@
-"""Adopted recipes (spec §5b, A1): a repo's own tools, as a recipe."""
+"""Adopted recipes: a repo's own tools, as a recipe."""
 
 import copy
 import json

@@ -309,7 +309,7 @@ def open_areas(*areas: str) -> Any:
     return mutate
 
 
-def test_open_areas_keep_their_principles_off(tmp_path: Path):
+def test_R5_3_open_areas_keep_their_principles_off(tmp_path: Path):
     """A principle waits for the open area that holds its parameters."""
     done = build_principles(D, A, "0.1.0")
     assert all(principle(done, pid)["active"] for pid in GATED)

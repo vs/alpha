@@ -1,4 +1,4 @@
-"""An adopted recipe on a real repo (spec §5b, A1): survey it, then prove a
+"""An adopted recipe on a real repo: survey it, then prove a
 recipe that runs its own mypy, black and pytest on its legacy code."""
 
 import json

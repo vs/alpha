@@ -1,4 +1,4 @@
-"""Switching alpha's hooks off and back on (rewrite spec, R1.4, R2.1, R2.2).
+"""Switching alpha's hooks off and back on (spec, R1.4, R2.1, R2.2).
 
 Neither direction deletes a file or commits. `uninstall` takes alpha's hook
 entries out of .claude/settings.json and alpha's commit-msg hook out of git:

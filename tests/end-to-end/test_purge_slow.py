@@ -1,4 +1,4 @@
-"""A purged project still builds and tests, on real toolchains (rewrite spec,
+"""A purged project still builds and tests, on real toolchains (spec,
 R3.3): uv, pnpm and mise, with network access."""
 
 import subprocess

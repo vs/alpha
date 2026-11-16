@@ -52,8 +52,8 @@ structure = "pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs ."
 format_file = "pnpm biome format --write {file}"
 lint_file = "pnpm biome lint --error-on-warnings {file}"
 
-# How each check's findings read, for an adopted project's baselines (spec
-# §8b). Matched against output recorded from the pinned tools; see
+# How each check's findings read, for an adopted project's baselines.
+# Matched against output recorded from the pinned tools; see
 # tests/fixtures/baseline-output/.
 [baseline.lint]
 command = "pnpm biome lint --error-on-warnings --reporter=github ."

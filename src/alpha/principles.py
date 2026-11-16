@@ -412,7 +412,7 @@ def _baselines(
     registry: Registry,
 ) -> list[dict[str, Any]]:
     """The [[baselines]] entries the ratchet reads, with each baselined check's
-    commands pointed at it (spec §8b)."""
+    commands pointed at it."""
     out["protected"]["paths"] = _dedupe([*out["protected"]["paths"], BASELINE_GLOB])
     out["review"]["risk_paths"] = _dedupe([*out["review"]["risk_paths"], BASELINE_GLOB])
     by_name = {c["name"]: c for c in out["components"]}
