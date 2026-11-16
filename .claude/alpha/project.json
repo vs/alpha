@@ -307,7 +307,8 @@
             "run": "grep -q \"Python 3.11\" README.md"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-readme-python-requirement"
       }
     ]
   },
