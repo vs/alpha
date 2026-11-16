@@ -76,7 +76,9 @@ def test_mise_pins_registry_versions(tmp_path: Path):
             assert pin is not None
             expected[pin.mise] = pin.version
     assert data["tools"] == expected
-    assert data["tools"]["typos"] == REGISTRY.tool("typos").pin.version  # pyright: ignore[reportOptionalMemberAccess]
+    typos = REGISTRY.tool("typos").pin
+    assert typos is not None
+    assert data["tools"]["typos"] == typos.version
     assert "check:typos" in data["tasks"]["ci"]["depends"]
 
 
