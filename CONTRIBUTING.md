@@ -97,6 +97,8 @@ GitHub Actions runs `.github/workflows/ci.yml` on every push to main and every p
 
 A `slow` job also runs `uv run pytest -m slow`: the end-to-end tests the default run leaves out, which bootstrap real projects with uv, pnpm, mise and cargo and need the network.
 
+A pull request that changes only files no test reads (`docs/alpha/`, this repo's own `.claude/`, `README.md`, `CLAUDE.md`, `CONTRIBUTING.md`) runs only the `repo` job; a `changes` job decides, and a push to main always runs every job.
+
 ### Artifacts and hosting
 
 | Component | Artifact | Hosting |
