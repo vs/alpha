@@ -110,9 +110,9 @@ def test_R1_5_an_adopted_repo_names_its_next_step(tmp_path: Path, git_env: None)
 
 
 def test_status_names_the_step_adopt_next_names(tmp_path: Path, git_env: None):
-    """Listed P6 first, the P2 step comes first by phase; a step waiting on an
-    unfinished one isn't ready. /alpha:install reads status, so it must agree
-    with alpha adopt next."""
+    """Listed after a P6 step, a P4 step comes first by phase; a step waiting on
+    an unfinished one isn't ready. /alpha:install reads status, so it must
+    agree with alpha adopt next."""
     repo = existing_repo(tmp_path / "repo")
     installed_with(
         repo,
@@ -140,3 +140,13 @@ def test_an_unreadable_project_json_still_routes(tmp_path: Path, git_env: None):
     done = run_cli("status", str(repo))
     assert done.returncode == 0, done.stderr
     assert done.stdout.startswith("existing")
+
+
+def test_status_says_why_the_plan_cant_be_read(tmp_path: Path, git_env: None):
+    """Without it, /alpha:install would see a bare "installed" and point the
+    user elsewhere while the plan stalled."""
+    repo = existing_repo(tmp_path / "repo")
+    installed_with(repo, [plan_step("p2-lint", "P2", phase_note="stray key")])
+    detail = status(repo).detail
+    assert detail.startswith("the adoption plan can't be read: ")
+    assert "phase_note" in detail

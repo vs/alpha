@@ -85,11 +85,11 @@ def hooks_off(target: Path, answers: dict[str, Any]) -> list[str]:
 
 def _next_step(target: Path, answers: dict[str, Any]) -> str:
     """What /alpha:install does next in an adopted repo: the step alpha adopt
-    next names. Nothing when the answers don't parse; adopt next says why."""
+    next names, or why the plan can't be read."""
     try:
         steps = parse_answers(answers, target, proven=False).steps
-    except AnswersError:
-        return ""
+    except AnswersError as e:
+        return f"the adoption plan can't be read: {e}"
     found, _ = next_step(steps)
     return f"the adoption plan's next step is {found.id}" if found else ""
 
