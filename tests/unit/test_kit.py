@@ -1,12 +1,16 @@
 """What the kit ships, as a whole: features the rewrite dropped stay gone."""
 
+import ast
+import contextlib
+import functools
+import io
 import re
 from pathlib import Path
 
 import pytest
 
 from alpha.answers import AnswersError, parse_answers
-from alpha.cli import PLUGIN_ROOT
+from alpha.cli import PLUGIN_ROOT, build_parser
 
 # The kit's shipped files.
 SHIPPED = ("src", "project-files", "skills", "recipes", "defaults", "registry", "bin")
@@ -65,3 +69,57 @@ def test_R15_1_no_decision_records(tmp_path: Path):
     assert named == []
     with pytest.raises(AnswersError, match=r"decisions: isn't part of the answers"):
         parse_answers({"schema": 1, "areas": {}, "decisions": []}, tmp_path, ())
+
+
+# `alpha <word> [<word>]` meant as a command: the first word is a subcommand
+# or hyphenated, or a cue (run, rerun, then, a quote or backtick) comes first.
+MENTION = re.compile(
+    r"(?P<cue>(?:\b(?:run|rerun|then) |[\"'`])?)"
+    r"\balpha (?P<first>[a-z][a-z-]*)(?: (?P<second>[a-z][a-z-]*))?"
+)
+
+
+def _string_literals(path: Path) -> list[str]:
+    """Each string in the module, an f-string's parts joined around {}."""
+    found: list[str] = []
+    for node in ast.walk(ast.parse(path.read_text("utf-8"))):
+        if isinstance(node, ast.JoinedStr):
+            found.append(
+                "".join(
+                    v.value
+                    if isinstance(v, ast.Constant) and isinstance(v.value, str)
+                    else "{}"
+                    for v in node.values
+                )
+            )
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            found.append(node.value)
+    return found
+
+
+@functools.cache
+def _invalid(*words: str) -> bool:
+    """Whether the CLI rejects `words` as an unknown (sub)command."""
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err), contextlib.suppress(SystemExit):
+        build_parser().parse_args(list(words))
+    return "invalid choice" in err.getvalue()
+
+
+def test_every_alpha_command_named_in_a_message_exists():
+    sources = [
+        p
+        for folder in ("src/alpha", "project-files")
+        for p in (PLUGIN_ROOT / folder).rglob("*.py")
+    ]
+    wrong: list[str] = []
+    for path in sources:
+        for text in _string_literals(path):
+            for m in MENTION.finditer(text):
+                first, second = m["first"], m["second"]
+                if _invalid(first):
+                    if m["cue"] or "-" in first:
+                        wrong.append(f"{path.name}: alpha {first}")
+                elif second and _invalid(first, second):
+                    wrong.append(f"{path.name}: alpha {first} {second}")
+    assert wrong == []

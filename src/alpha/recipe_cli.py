@@ -273,7 +273,7 @@ def _try_adopted(
                         f"{path} has no committed files, so there are no tools to "
                         "adopt. Set the component's stack to the kit's recipe "
                         "(alpha recipe list) or to one drafted without "
-                        '"adopted", and remove this recipe: alpha adopt apply '
+                        '"adopted", and remove this recipe: alpha apply '
                         "then writes its skeleton."
                     )
                 for step, command in check_commands(recipe.commands):

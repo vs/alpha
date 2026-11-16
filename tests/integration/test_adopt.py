@@ -173,7 +173,7 @@ def test_apply_records_the_installation(repo: Path):
     with pytest.raises(GenerateError, match="waiting to be committed"):
         apply.plan(
             repo, PLUGIN_ROOT, SOURCE, TODAY
-        )  # like any update, until commit-update
+        )  # like any update, until alpha commit
 
 
 def test_copied_hook_stays_executable(repo: Path):

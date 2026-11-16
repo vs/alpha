@@ -226,7 +226,7 @@ def load_project_principles(target: Path) -> dict[str, Any]:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except OSError:
         raise GenerateError(
-            f'{path} not found. Run "alpha generate {target}" first, in a folder '
+            f'{path} not found. Run "alpha apply {target}" first, in a folder '
             "that holds the interview answers."
         ) from None
     except tomllib.TOMLDecodeError as e:
