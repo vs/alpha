@@ -82,6 +82,25 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
 @pytest.mark.parametrize(
     "command",
     [
+        "echo $'it\\'s'; git commit --no-verify -m x",
+        "echo $'it\\'s'; rm -rf .claude/alpha",
+        "git commit -m 'unbalanced",
+        'echo a" "b > .env',  # only the redirect lexer fails on this one
+    ],
+)
+def test_no_verify_after_an_ansi_c_quoted_word_is_blocked(
+    project: Project, command: str
+) -> None:
+    """bash runs both parts, but shlex can't split the line, so the guard
+    can't check them: it blocks instead of letting them through."""
+    result = bash(project, command)
+    assert result.returncode == 2, result.stderr
+    assert "can't parse this command" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
         "git push",
         "git push -n",
         "git push --dry-run -u origin main",
@@ -91,7 +110,6 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
         "echo git push -f",
         "ls -f",
         "git status && git log -n 3",
-        "git commit -m 'unbalanced",
         "git push origin main -- +weird",
         "",
         "git -c user.name=x commit -m y",
@@ -250,6 +268,7 @@ def test_reset_hard_is_allowed_on_a_clean_tree(project: Project) -> None:
         ("cd -- api && echo x > uv.lock", "api/uv.lock"),
         ("cd -P api; rm uv.lock", "api/uv.lock"),
         ("echo a\\\\ > .env", ".env"),
+        ('echo "\\"" > .env', ".env"),
     ],
 )
 def test_shell_writes_to_protected_paths_are_blocked(
@@ -275,6 +294,7 @@ def test_shell_writes_to_protected_paths_are_blocked(
         "echo a \\> .env",
         "[[ $x > .env ]] && echo later",
         "cd web && echo x > uv.lock",
+        'echo "a \\"b\\"" > api/src/app.py',
     ],
 )
 def test_reads_and_unprotected_writes_pass(project: Project, command: str) -> None:

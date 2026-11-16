@@ -60,13 +60,19 @@ def strip_heredocs(command: str) -> str:
     return "\n".join(out)
 
 
-def _newlines_to_semicolons(command: str) -> str:
+def _as_bash_reads(command: str, escaped_quote: str = "") -> str:
+    """The command with each unquoted newline made a ";" and, given
+    `escaped_quote`, each backslash-escaped quote outside single quotes
+    replaced by it: a non-POSIX lexer doesn't know escapes and would take an
+    escaped quote for one that opens or closes."""
     out: list[str] = []
     quote = ""
     escaped = False
     for ch in command:
         if escaped:
             escaped = False
+            if escaped_quote and ch in "'\"":
+                ch = escaped_quote
         elif ch == "\\" and quote != "'":
             escaped = True
         elif quote:
@@ -82,9 +88,7 @@ def _newlines_to_semicolons(command: str) -> str:
 
 def split_segments(command: str) -> list[list[str]] | None:
     command = strip_heredocs(command).replace("\\\n", "")  # line continuations
-    lexer = shlex.shlex(
-        _newlines_to_semicolons(command), posix=True, punctuation_chars=True
-    )
+    lexer = shlex.shlex(_as_bash_reads(command), posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
         tokens = list(lexer)
@@ -278,17 +282,19 @@ def _redirect(token: str) -> str | None:
     return None
 
 
-def redirect_segments(command: str) -> list[tuple[list[str], list[str]]]:
+def redirect_segments(command: str) -> list[tuple[list[str], list[str]]] | None:
     """(words, redirect targets) per segment. Lexed without POSIX quote
     removal, so a quoted ">" (as in grep '>' f) stays a word, not a redirect;
     an escaped \\> and a comparison inside [[ ]] aren't redirects either."""
-    command = _newlines_to_semicolons(strip_heredocs(command).replace("\\\n", ""))
-    lexer = shlex.shlex(command, posix=False, punctuation_chars=True)
+    command = strip_heredocs(command).replace("\\\n", "")
+    lexer = shlex.shlex(
+        _as_bash_reads(command, escaped_quote="_"), posix=False, punctuation_chars=True
+    )
     lexer.whitespace_split = True
     try:
         tokens = list(lexer)
     except ValueError:
-        return []
+        return None
     segments: list[tuple[list[str], list[str]]] = [([], [])]
     in_test = False
     for i, token in enumerate(tokens):
@@ -383,7 +389,7 @@ def write_targets(command: str, cwd: Path) -> list[Path]:
             if word not in NOT_FILES:
                 targets += _files(here, word)
     here = cwd
-    for words, redirected in redirect_segments(command):
+    for words, redirected in redirect_segments(command) or []:
         if words and words[0] == "cd":
             here = _cd(here, _unquoted(words))
             continue
@@ -692,6 +698,13 @@ READ_ONLY_GIT = {
     "describe",
     "shortlog",
 }
+UNPARSED_MESSAGE = (
+    "alpha's command guard can't parse this command (a quote it can't pair up, "
+    "or $'...' quoting with an escaped quote), so it can't check what it runs. "
+    "Simplify the quoting, or put the text in a heredoc or a file (e.g. git "
+    "commit -F <file>), then run it again."
+)
+
 REVIEWER_MESSAGE = (
     "The principles-reviewer only reads: it may run the brief, git diff, log, "
     "show and status, and read files, but not write, delete or commit. Report "
@@ -725,6 +738,8 @@ def main() -> None:
         sys.exit(0)
     cwd_value = inp.get("cwd")
     cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else root
+    if split_segments(command) is None or redirect_segments(command) is None:
+        _common.block(UNPARSED_MESSAGE)
     if inp.get("agent_type") == REVIEWER:
         check_read_only(command, cwd)
     check_command(command, root, here=cwd)
