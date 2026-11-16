@@ -10,6 +10,9 @@ def own_alpha_config(
 ):
     monkeypatch.setenv("ALPHA_CONFIG_DIR", str(tmp_path_factory.mktemp("alpha")))
     monkeypatch.delenv("ALPHA_SOURCE", raising=False)
+    # CI sets CI=true, which freezes baselines and skips the hooks' slots; a
+    # test that needs it sets it itself.
+    monkeypatch.delenv("CI", raising=False)
 
 
 @pytest.fixture

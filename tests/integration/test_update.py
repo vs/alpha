@@ -850,7 +850,9 @@ def test_R7_1_settling_areas_writes_their_docs(tmp_path: Path, git_env: None):
     assert active["visual-system"] and active["perf-budgets"]
 
 
-def test_R11_1_the_base_survives_a_rebase(tmp_path: Path, git_env: None):
+def test_R11_1_the_base_survives_a_rebase(
+    tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
+):
     """CONTRIBUTING.md asks for a rebase before each pull request; the render
     note must move with alpha's commit."""
     target = generated_repo(tmp_path, SCENARIO)
@@ -859,6 +861,9 @@ def test_R11_1_the_base_survives_a_rebase(tmp_path: Path, git_env: None):
     git(target, "add", "notes.md")
     git(target, "commit", "-q", "-m", "docs: Add notes")
     before = git(target, "rev-parse", "HEAD~1")
+    # Within the same second as the commits, a rebase rewrites them to the
+    # same hashes.
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2001-01-01T00:00:00Z")
     git(target, "rebase", "-q", "--root", "--force-rebase")
     assert git(target, "rev-parse", "HEAD~1") != before  # alpha's commit, rewritten
     base = find_base(target)
