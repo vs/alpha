@@ -274,6 +274,8 @@ def test_reset_hard_is_allowed_on_a_clean_tree(project: Project) -> None:
         ('echo x"y "> .env "z"', ".env"),
         ("echo a'b c'>.env", ".env"),
         ("echo \"a\"'b' >> api/uv.lock", "api/uv.lock"),
+        ("echo x\r# > .env", ".env"),  # \r doesn't end a word, so # isn't a comment
+        ("echo x\xa0# > .env", ".env"),
     ],
 )
 def test_shell_writes_to_protected_paths_are_blocked(

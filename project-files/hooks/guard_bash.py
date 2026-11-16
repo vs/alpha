@@ -316,7 +316,7 @@ def bash_words(command: str) -> list[str] | None:
         elif ch == "\n":
             flush()
             tokens.append(";")
-        elif ch.isspace():
+        elif ch in " \t":  # bash splits only on these and newline
             flush()
         elif ch in OPERATOR_CHARS:
             flush()
