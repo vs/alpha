@@ -210,6 +210,8 @@ In an adopted repo with baselines, the checks that ran through the ratchet run p
 
 ### CLI
 
+alpha runs on Python 3.11 or newer as `python3`; on an older one the shim prints which Python it needs and stops. The tests cover 3.11 (the default run checks that every module imports and the CLI runs on it) and the Python `mise.toml` pins for development and CI.
+
 `bin/alpha` subcommands:
 
 - For users: `update [--dry-run]`, `uninstall`, `purge [--trailer …]`, `version`.
