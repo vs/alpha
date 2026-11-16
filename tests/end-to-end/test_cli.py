@@ -1,13 +1,12 @@
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
 import tomllib
 from pathlib import Path
 
-import pytest
+from alpha import pyguard
 
 ROOT = Path(__file__).resolve().parents[2]
 SHIM = ROOT / "bin" / "alpha"
@@ -33,14 +32,33 @@ def test_unknown_command_explains_usage():
     assert "usage" in out.stderr.lower()
 
 
-MIN_PYTHON = shutil.which("python3.11")
+def min_python() -> str:
+    """An interpreter of the Python version alpha supports at least: uv finds
+    an installed one or downloads it once."""
+    version = ".".join(str(n) for n in pyguard.MIN_PYTHON)
+    done = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--python",
+            version,
+            "--no-project",
+            "python",
+            "-c",
+            "import sys; print(sys.executable)",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert done.returncode == 0, done.stderr
+    return done.stdout.strip()
 
 
-@pytest.mark.skipif(MIN_PYTHON is None, reason="needs python3.11, the minimum")
 def test_every_module_imports_and_the_cli_runs_on_python_3_11():
     # The dev venv may run a newer Python whose lazy annotations hide names
     # used only under TYPE_CHECKING; users run alpha on 3.11 too.
-    assert MIN_PYTHON is not None
+    python = min_python()
     load_all = (
         "import importlib, pkgutil, alpha; "
         "[importlib.import_module(f'alpha.{m.name}') "
@@ -48,11 +66,11 @@ def test_every_module_imports_and_the_cli_runs_on_python_3_11():
     )
     env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
     done = subprocess.run(
-        [MIN_PYTHON, "-c", load_all], capture_output=True, text=True, env=env
+        [python, "-c", load_all], capture_output=True, text=True, env=env
     )
     assert done.returncode == 0, done.stderr
     done = subprocess.run(
-        [MIN_PYTHON, str(SHIM), "recipe", "list"],
+        [python, str(SHIM), "recipe", "list"],
         capture_output=True,
         text=True,
     )
