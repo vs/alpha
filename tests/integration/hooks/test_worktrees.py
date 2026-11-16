@@ -1,6 +1,7 @@
 """pstack works from git worktrees while CLAUDE_PROJECT_DIR stays on the main
 checkout, so every hook must act on the checkout the work happens in."""
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -28,16 +29,33 @@ def worktree(project: Project, branch: str = "topic") -> Path:
 
 
 def bash(
-    project: Project, command: str, cwd: Path | None = None
+    project: Project,
+    command: str,
+    cwd: Path | None = None,
+    env: dict[str, str | None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     payload: dict[str, Any] = {"tool_name": "Bash", "tool_input": {"command": command}}
     if cwd is not None:
         payload["cwd"] = str(cwd)
-    return project.run_hook("guard_bash.py", payload)
+    return project.run_hook("guard_bash.py", payload, env=env)
 
 
 def git(root: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
+
+
+def gh_reporting_head(project: Project, checkout: Path) -> dict[str, str | None]:
+    """An environment whose gh reports `checkout`'s HEAD as the pull
+    request's head on GitHub."""
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=checkout, capture_output=True, text=True
+    ).stdout.strip()
+    folder = project.root.parent / "fake-gh"
+    folder.mkdir(exist_ok=True)
+    gh = folder / "gh"
+    gh.write_text(f'#!/bin/sh\necho \'{{"headRefOid": "{head}"}}\'\n')
+    gh.chmod(0o755)
+    return {"PATH": f"{folder}:{os.environ['PATH']}"}
 
 
 def mark_reviewed(root: Path) -> None:
@@ -88,8 +106,21 @@ def test_merge_checks_the_checkout_that_has_the_branch(project: Project) -> None
     assert proc.returncode == 2
     assert proc.stderr.startswith("Nothing reaches main untested: the tests of api ")
     assert project.run_tests(cwd=wt).returncode == 0
-    assert bash(project, "gh pr merge topic --squash").returncode == 0
-    assert bash(project, "gh pr merge --squash", cwd=wt).returncode == 0
+    env = gh_reporting_head(project, wt)
+    assert bash(project, "gh pr merge topic --squash", env=env).returncode == 0
+    assert bash(project, "gh pr merge --squash", cwd=wt, env=env).returncode == 0
+
+
+def test_merge_is_blocked_when_gh_cannot_report_the_pr_head(project: Project) -> None:
+    """Offline, signed out or timed out, gh can't say where the pull request's
+    head is on GitHub, so alpha can't tell that what merges was reviewed."""
+    committed(project)
+    wt = worktree(project)
+    mark_reviewed(wt)
+    assert project.run_tests(cwd=wt).returncode == 0
+    proc = bash(project, "gh pr merge topic", env={"PATH": "/usr/bin:/bin"})
+    assert proc.returncode == 2
+    assert "can't ask GitHub where pull request topic's head is" in proc.stderr
 
 
 def test_a_merge_of_a_branch_not_checked_out_is_blocked(project: Project) -> None:
