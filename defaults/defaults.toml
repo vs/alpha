@@ -399,7 +399,7 @@ core = false
 [[principles]]
 id = "perf-budgets"
 title = "Performance budgets"
-statement = "Performance budgets set with /alpha:specify are enforced."
+statement = "Performance budgets set with /alpha:update are enforced."
 rationale = "A budget that is written down and checked stops slow regressions from accumulating unnoticed."
 applies = ["budgets_set"]
 settled_by = "performance"

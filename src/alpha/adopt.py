@@ -53,7 +53,7 @@ def _refuse_alpha(target: Path) -> None:
         )
     if "installed" in top:
         raise AdoptError(
-            f"alpha is already installed in {target}. Change it with /alpha:extend "
+            f"alpha is already installed in {target}. Change it with /alpha:update "
             "instead."
         )
 

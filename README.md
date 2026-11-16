@@ -30,7 +30,9 @@ license, components and stacks, tests, docs, CI, releases, git and secrets.
 It asks one question at a time, each with a recommended answer: a choice in
 Claude Code's question dialog, the recommendation first; a draft, such as the
 project's name, as text ending in the recommended answer, for you to confirm
-or rewrite. What the product does stays open until you ask.
+or rewrite. Then it offers each part of the product (requirements,
+performance, UI and the rest) one at a time, skipped unless you already know
+it; what you skip stays open until you ask.
 
 ## What you get
 
@@ -73,12 +75,12 @@ it. It never overwrites a file of yours.
 ## Settle the product
 
 ```text
-/alpha:specify requirements, performance
+/alpha:update let's settle requirements and performance
 ```
 
 The product's parts (requirements, architecture, errors, design language, UI,
 accessibility, observability, data, performance, auth) start open: you often
-can't know them on day one. `/alpha:specify` settles the ones you name. It
+can't know them on day one. `/alpha:update` settles the ones you name. It
 reads what your code and docs already say, offers two or three options with
 their trade-offs, asks you to choose, then writes the section and switches on
 the principles it gates.
@@ -94,7 +96,7 @@ neither.
 ## Exhaustive testing, if you ask
 
 For a project that must not fail, say yes to exhaustive testing in the
-interview (or later: `/alpha:extend test this exhaustively`). alpha adds a
+interview (or later: `/alpha:update test this exhaustively`). alpha adds a
 principle modeled on [how SQLite is tested](https://www.sqlite.org/testing.html):
 every branch taken both ways, every failure forced by injecting it, fuzz or
 property-based tests for outside input, limits tested on both sides, a
@@ -147,15 +149,17 @@ check. Nothing is built until you approve it and choose how: native, where
 Claude builds every task, or with subagents, where a fresh one builds each
 task and another reviews it. Each task's tests are written first and fail
 before the code makes them pass. A part of the product the feature needs that
-is still open is named with its `/alpha:specify` request.
+is still open is named with its `/alpha:update <area>` request.
 
 ## Change it later
 
 ```text
-/alpha:extend add a worker component
+/alpha:update add a worker component
 ```
 
-It asks again only what the change affects, and merges into files you edited.
+With a request, `/alpha:update` changes a component or a setup answer, or
+settles a product area. It asks again only what the change affects, and
+merges into files you edited.
 
 ## Decisions live in the docs
 
@@ -172,9 +176,9 @@ claude plugin marketplace update alpha
 claude plugin update alpha@alpha
 ```
 
-Then run `/alpha:update` in each project. alpha merges its newer hooks,
-checks and files into yours against the version it last wrote, which it keeps
-in git objects, never in a file of yours. Your edits stay; where they overlap
+Then run `/alpha:update`, with no request, in each project. alpha merges its
+newer hooks, checks and files into yours against the version it last wrote,
+which it keeps in git objects, never in a file of yours. Your edits stay; where they overlap
 alpha's change, it leaves a proposal, and the skill merges it with you.
 
 When you override a default, alpha asks whether to keep it for your next

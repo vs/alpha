@@ -149,7 +149,7 @@ def test_survey_refusals(tmp_path: Path):
     with pytest.raises(AdoptError, match="An older alpha .* by-hand steps"):
         survey(root, SOURCE)
     project.write_text(json.dumps({"installed": {}}))
-    with pytest.raises(AdoptError, match="/alpha:extend"):
+    with pytest.raises(AdoptError, match="/alpha:update"):
         survey(root, SOURCE)
 
 

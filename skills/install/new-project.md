@@ -1,10 +1,10 @@
 # Install: a new project
 
-Take an empty folder to a committed, enforced project skeleton: interview the user about the install areas, show a summary, then generate the files, install the toolchains and commit. The rules of `SKILL.md` beside this file hold throughout.
+Take an empty folder to a committed, enforced project skeleton: interview the user about the install areas and offer the product areas, show a summary, then generate the files, install the toolchains and commit. The rules of `SKILL.md` beside this file hold throughout.
 
 ## 1. Start or resume
 
-- If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done, which are pending and which are open (from its `areas`), and continue with the first install area in `SKILL.md`'s order that isn't done.
+- If `<target>/.claude/alpha/project.json` exists, resume: report which areas are done, which are pending and which are open (from its `areas`), and continue with the first install area in `SKILL.md`'s order that isn't done. When every install area is done, finish a product area marked `in_progress`, then go to step 4; don't offer the others again.
 - Otherwise create it:
   `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {"identity": "pending", "components": "pending", "testing": "pending", "documentation": "pending", "build": "pending", "security": "pending", "dependencies": "pending", "releases": "pending", "git": "pending", "agent_workflow": "pending", "requirements": "open", "architecture": "open", "errors": "open", "design_language": "open", "ui": "open", "accessibility": "open", "observability": "open", "data": "open", "performance": "open", "auth": "open"}, "overrides": []}'`
 
@@ -22,9 +22,11 @@ Then: "If you override a default during the interview, I'll ask whether to make 
 
 Run the install areas in `SKILL.md`'s order, one at a time, never skipping one and never shortcutting one to save time. For each that isn't done, read its guide and follow it through its check, with `<target>` as its target folder; move on only after the check prints `ok`. Before each area, tell the user in one line which comes next and what it settles. If the user wants to stop partway, leave project.json as it is and tell them `/alpha:install <target>` picks up where they left off.
 
+Then offer the product areas. Most users can't settle them on day one, so skipping is the default. Tell the user in one line that each is optional and stays open for `/alpha:update <area>` later. Then ask one question per area, in this order: requirements, architecture, errors, design language, UI, accessibility, observability, data, performance, auth. Each question names what the area settles, in a few words from its guide's Purpose, with the options "Skip for now (Recommended)" and "Settle now". Leave out an area that can't apply: UI and accessibility unless a component has a UI, observability unless one is deployed, data unless one stores data or does ML. For each area the user picks, settle it as `/alpha:update` step 3 says, reading `${CLAUDE_PLUGIN_ROOT}/skills/update/SKILL.md` with the Read tool: its guide, research, two or three options, grilling, `done`, its check. Leave every other area `open`.
+
 ## 4. Summary and confirmation
 
-Show a summary of every answer in plain words, grouped by area: identity (name, value proposition, license), components (kind, stack, path, traits; layout; whether they talk), testing (levels per component), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, extra protected paths), dependencies (updates and schedule), releases (scheme, changelog, scope, process), git history, agent workflow, and any overrides and defaults wishes. Then list the open product areas in one line, saying `/alpha:specify` settles each. Ask: "Generate the project with these answers?" and wait.
+Show a summary of every answer in plain words, grouped by area: identity (name, value proposition, license), components (kind, stack, path, traits; layout; whether they talk), testing (levels per component), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, extra protected paths), dependencies (updates and schedule), releases (scheme, changelog, scope, process), git history, agent workflow, and any overrides and defaults wishes. Then the settled product areas with their answers, and the open ones in one line, each with the `/alpha:update <area>` request that settles it. Ask: "Generate the project with these answers?" and wait.
 
 If the user wants a change, save it with `answers write` (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
 
@@ -55,5 +57,5 @@ Tell the user, briefly:
   - Each session starts with a warning if the project setup is broken.
 - **Reports on request:** `/review-change` (a change) and `/audit` (the whole repo); each changes no code.
 - **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved.
-- **Not settled yet:** the open product areas, each with the `/alpha:specify` request that settles it (`docs/alpha/specification.md` lists them); their principles stay off until then.
+- **Not settled yet:** the open product areas, each with the `/alpha:update <area>` request that settles it (`docs/alpha/specification.md` lists them); their principles stay off until then.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building with `/alpha:do <task>`.

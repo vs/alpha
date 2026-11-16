@@ -833,7 +833,7 @@ def test_R7_1_settling_areas_writes_their_docs(tmp_path: Path, git_env: None):
 
     target = generated_repo(tmp_path, SCENARIO, open_two)
     spec = target / "docs/alpha/specification.md"
-    assert "`/alpha:specify UI`" in spec.read_text()
+    assert "`/alpha:update UI`" in spec.read_text()
     data = answers(target)
     for area in ("ui", "performance"):
         data["areas"][area] = "done"
@@ -842,8 +842,8 @@ def test_R7_1_settling_areas_writes_their_docs(tmp_path: Path, git_env: None):
     apply.write(target, plan(target))
     text = spec.read_text()
     assert "## UI" in text and "## Performance" in text
-    assert "`/alpha:specify UI`" not in text
-    assert "`/alpha:specify performance`" not in text
+    assert "`/alpha:update UI`" not in text
+    assert "`/alpha:update performance`" not in text
     active = {
         p["id"]: p["active"] for p in load_project_principles(target)["principles"]
     }

@@ -10,8 +10,8 @@ INSTALL_AREAS: tuple[str, ...] = (
     "git",
     "agent_workflow",
 )
-# The areas that describe the product rather than wire its tooling: install
-# leaves them open, and only /alpha:specify settles them.
+# The areas that describe the product rather than wire its tooling: they stay
+# open until the user picks one at install or settles it with /alpha:update.
 PRODUCT_AREAS: tuple[str, ...] = (
     "requirements",
     "architecture",

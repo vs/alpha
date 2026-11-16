@@ -414,7 +414,7 @@ def security(raw: object, comps: "Sequence[Component] | None") -> Security:
     if "auth" in d:
         raise fail(
             f"{w}.auth",
-            "belongs to the auth area, which /alpha:specify settles",
+            "belongs to the auth area, which /alpha:update settles",
             "Remove it",
         )
     return Security(store, protected)

@@ -189,6 +189,50 @@ def test_contributing_and_readme(tmp_path: Path):
     assert "uv sync" in r and "pnpm install" in r and "pnpm vitest run" in r
 
 
+WORKFLOW = [
+    "/alpha:install",
+    "/alpha:update [request]",
+    "/alpha:do <task>",
+    "/alpha:uninstall",
+    "/alpha:purge",
+]
+
+
+def with_a_plan(data: dict[str, Any]) -> None:
+    step = {
+        "id": "p4-tests",
+        "phase": "P4",
+        "title": "Test the parser",
+        "why": "The parser has no tests.",
+        "principles": ["tests-matter"],
+        "acceptance": [{"run": "uv run pytest"}],
+        "status": "pending",
+    }
+    data["adoption"] = {"git_hooks": "alpha", "steps": [step]}
+
+
+def workflow(contributing: str) -> str:
+    return contributing.split("## Working with alpha\n")[1].split("\n## ")[0]
+
+
+def test_R6_1_contributing_describes_the_alpha_workflow(tmp_path: Path):
+    """The first section tells a reader how alpha runs the project; every
+    line names an /alpha: command, so purge's line remover takes it out."""
+    new = render(load(tmp_path / "new"))["CONTRIBUTING.md"]
+    assert new.startswith("# Contributing\n\n## Working with alpha\n\n")
+    section = workflow(new)
+    found = [section.index(f"`{command}`") for command in WORKFLOW]
+    assert found == sorted(found)
+    lines = [line for line in section.splitlines() if line]
+    assert lines and all("/alpha:" in line for line in lines)
+    assert "adoption.md" not in section
+    adopted = workflow(
+        render(load(tmp_path / "adopted", with_a_plan))["CONTRIBUTING.md"]
+    )
+    assert "adopted this repo on `alpha/adopt`" in adopted
+    assert "next step of `docs/alpha/adoption.md`" in adopted
+
+
 def test_dependencies_md_dates_each_row_in_full(tmp_path: Path):
     md = render(load(tmp_path))["docs/alpha/dependencies.md"]
     assert f"| pytest | api | Test runner | {TODAY.isoformat()} |" in md

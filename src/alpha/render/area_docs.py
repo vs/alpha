@@ -20,18 +20,18 @@ def _active(principles: dict[str, Any], principle_id: str) -> bool:
     )
 
 
-# Each product area's title, and the /alpha:specify request that settles it.
+# Each product area's title, and the /alpha:update request that settles it.
 SETTLE_REQUESTS: dict[str, tuple[str, str]] = {
-    "requirements": ("Target users and requirements", "/alpha:specify requirements"),
-    "architecture": ("Architecture", "/alpha:specify architecture"),
-    "errors": ("Errors", "/alpha:specify errors"),
-    "design_language": ("Design language", "/alpha:specify design language"),
-    "ui": ("UI", "/alpha:specify UI"),
-    "observability": ("Observability", "/alpha:specify observability"),
-    "data": ("Data", "/alpha:specify data"),
-    "accessibility": ("Accessibility", "/alpha:specify accessibility"),
-    "performance": ("Performance", "/alpha:specify performance"),
-    "auth": ("Auth", "/alpha:specify auth"),
+    "requirements": ("Target users and requirements", "/alpha:update requirements"),
+    "architecture": ("Architecture", "/alpha:update architecture"),
+    "errors": ("Errors", "/alpha:update errors"),
+    "design_language": ("Design language", "/alpha:update design language"),
+    "ui": ("UI", "/alpha:update UI"),
+    "observability": ("Observability", "/alpha:update observability"),
+    "data": ("Data", "/alpha:update data"),
+    "accessibility": ("Accessibility", "/alpha:update accessibility"),
+    "performance": ("Performance", "/alpha:update performance"),
+    "auth": ("Auth", "/alpha:update auth"),
 }
 
 
@@ -284,7 +284,7 @@ def _design_language_doc(a: Answers) -> str | None:
         "series colors, a one-off illustration). What it must not do is drift: a "
         "near-copy of a palette color, a second accent, a typeface nobody chose. "
         "Something the project will keep using goes into the design language "
-        "first (`/alpha:specify design language`).",
+        "first (`/alpha:update design language`).",
         "",
         _PALETTE_CHECKS[language.palette_check] + " "
         "`[visuals]` in [principles.toml](principles.toml) lists the files that "
@@ -497,7 +497,7 @@ def performance_section(a: Answers) -> list[str] | None:
             *rows,
             "",
             "A change that breaks a budget is fixed, or the budget is changed "
-            "through `/alpha:specify`.",
+            "through `/alpha:update`.",
             "",
         ]
     if load:

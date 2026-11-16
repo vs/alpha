@@ -70,7 +70,7 @@ def test_a_color_outside_the_palette_fails_and_says_how_to_proceed(
     assert "3 color(s) outside the palette" in done.stdout
     for way in (
         "use a palette color",
-        "/alpha:specify design language",
+        "/alpha:update design language",
         "exclude",
         '"advise"',
     ):
@@ -143,7 +143,7 @@ def test_an_enforced_palette_with_no_readable_color_fails_with_a_fix(
     done = run(root)
     assert done.returncode == 1
     assert "holds no hex, rgb() or hsl() color" in done.stdout
-    assert "/alpha:specify design language" in done.stdout
+    assert "/alpha:update design language" in done.stdout
     assert '"advise" or "off"' in done.stdout
     advised = run(root, "--advise")
     assert (advised.returncode, advised.stdout) == (0, "")

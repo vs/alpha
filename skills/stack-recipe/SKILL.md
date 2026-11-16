@@ -1,6 +1,6 @@
 ---
 name: stack-recipe
-description: Draft and prove a recipe for a stack alpha's kit has no recipe for (e.g. Go, Swift, Kotlin, Elixir) in the alpha interview - the commands, files and CI setup a component on that stack needs - so it can be generated. Use only inside /alpha:install or /alpha:extend (for a new project's stack, or to adopt an existing repo's own tools), or when the user asks to set up a stack the kit lacks.
+description: Draft and prove a recipe for a stack alpha's kit has no recipe for (e.g. Go, Swift, Kotlin, Elixir) in the alpha interview - the commands, files and CI setup a component on that stack needs - so it can be generated. Use only inside /alpha:install or /alpha:update (for a new project's stack, or to adopt an existing repo's own tools), or when the user asks to set up a stack the kit lacks.
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 

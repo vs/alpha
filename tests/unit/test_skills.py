@@ -1,4 +1,4 @@
-"""The plugin's skills and the area guides they read (spec, R1, R5,
+"""The plugin's skills and the area guides they read (spec, R1, R4, R5,
 R7 and R11)."""
 
 import argparse
@@ -20,13 +20,13 @@ from alpha.status import status
 SKILLS = PLUGIN_ROOT / "skills"
 CLI = '"${CLAUDE_PLUGIN_ROOT}/bin/alpha"'
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
-ENTRY = ["install", "extend", "specify", "update", "uninstall", "purge"]
+ENTRY = ["install", "update", "uninstall", "purge"]
 USER_ONLY = ["install", "uninstall", "purge"]
 ALL_SKILLS = ["grilling", "stack-recipe", *ENTRY, "do"]
 CLI_SKILLS = [s for s in ALL_SKILLS if s != "do"]
 INSTALL_PATHS = ["install/new-project.md", "install/adopt.md"]
 INSTALL_GUIDES = [f"install/areas/{a}.md" for a in areas.INSTALL_AREAS]
-PRODUCT_GUIDES = [f"specify/areas/{a}.md" for a in areas.PRODUCT_AREAS]
+PRODUCT_GUIDES = [f"install/areas/{a}.md" for a in areas.PRODUCT_AREAS]
 GUIDES = INSTALL_GUIDES + PRODUCT_GUIDES
 DOCS = [f"{s}/SKILL.md" for s in ALL_SKILLS] + INSTALL_PATHS + GUIDES
 # The answers each guide owns, beyond its area's own status.
@@ -185,33 +185,103 @@ def test_R1_5_install_works_the_plan() -> None:
     assert "Never set a step's status any other way" in plan
 
 
-def test_R5_2_install_reads_only_install_area_guides() -> None:
-    assert sorted(p.name for p in (SKILLS / "install/areas").iterdir()) == sorted(
-        f"{a}.md" for a in areas.INSTALL_AREAS
-    )
+def test_R5_2_install_offers_each_product_area_defaulting_to_skip() -> None:
     rules = _section("install/SKILL.md", "Rules for every path")
     listed = re.findall(r"`(\w+)\.md`", rules)
     assert listed == list(areas.INSTALL_AREAS)
-    for rel in ("install/SKILL.md", *INSTALL_PATHS):
-        assert "specify/areas" not in _text(rel), rel
-    assert "never settle one here" in rules
+    assert "settle one only when the user picks it" in rules
+    assert "covers only the install areas" not in rules
+    assert "In the install areas, what the project is about may be asked" in rules
+    interview = _section("install/new-project.md", "3. Interview, area by area")
+    offer = interview.split("Then offer the product areas")[1]
+    assert "one question per area" in offer
+    assert "Skip for now (Recommended)" in offer and "Settle now" in offer
+    assert "as `/alpha:update` step 3 says" in offer
+    assert "`/alpha:update <area>`" in offer
+    for unless in ("has a UI", "deployed", "stores data or does ML"):
+        assert unless in offer, unless
+    summary = _section("install/new-project.md", "4. Summary and confirmation")
+    assert "the settled product areas" in summary
+    resume = _section("install/new-project.md", "1. Start or resume")
+    assert "don't offer the others again" in resume
+    adopt = _section("install/adopt.md", "4. Interview")
+    assert "offer the product areas as `new-project.md` step 3 says" in adopt
+    assert "recommend Settle now for an area the repo's docs describe" in adopt
+    for guide in PRODUCT_GUIDES:
+        start = _section(guide, "Before you start")
+        assert "and `/alpha:install` when the user picks it" in start, guide
 
 
-def test_R7_2_only_specify_settles_product_areas() -> None:
-    assert sorted(p.name for p in (SKILLS / "specify/areas").iterdir()) == sorted(
-        f"{a}.md" for a in areas.PRODUCT_AREAS
+def test_R7_2_only_install_and_update_settle_product_areas() -> None:
+    assert sorted(p.name for p in (SKILLS / "install/areas").iterdir()) == sorted(
+        f"{a}.md" for a in areas.AREAS
     )
+    for gone in ("extend", "specify"):
+        assert not (SKILLS / gone).exists(), gone
     readers = [
         rel
         for rel in DOCS
-        if "specify/areas" in _text(rel) and not rel.startswith("specify/")
+        if "areas/" in _text(rel) and not rel.startswith(("install/", "update/"))
     ]
     assert readers == []
-    assert "skills/specify/areas/<area>.md" in _text("specify/SKILL.md")
-    for rel in ("install/SKILL.md", "extend/SKILL.md"):
-        assert "`/alpha:specify" in _text(rel), rel
     for guide in PRODUCT_GUIDES:
-        assert "Only `/alpha:specify` settles a product area" in _text(guide)
+        start = _section(guide, "Before you start")
+        assert "`/alpha:update` reads this guide" in start, guide
+        assert "Only `/alpha:install` and `/alpha:update` settle a product area" in (
+            start
+        ), guide
+
+
+def test_R4_1_update_changes_a_component_or_an_install_answer() -> None:
+    change = _section("update/SKILL.md", "4. Change a component or an install answer")
+    for part in (
+        "${CLAUDE_PLUGIN_ROOT}/skills/install/areas/<area>.md",
+        "send the whole `overrides` array",
+        "Revisit the",
+        "Fix .claude/alpha/project.json",
+        "`git mv`",
+    ):
+        assert part in change, part
+    text = _text("update/SKILL.md")
+    assert f"{CLI} bootstrap <target> --component <name>" in text
+    assert "offer the git area" in change
+
+
+def test_R7_1_update_settles_the_named_product_areas() -> None:
+    settle = _section("update/SKILL.md", "3. Settle a product area")
+    for part in (
+        "${CLAUDE_PLUGIN_ROOT}/skills/install/areas/<area>.md",
+        "Research first",
+        "two or three options",
+        "`alpha:grilling`",
+        "`done`",
+        f"{CLI} defaults show --json",
+    ):
+        assert part in settle, part
+
+
+def test_R11_4_update_routes_each_kind_of_request() -> None:
+    route = _section("update/SKILL.md", "2. Route the request")
+    rows = re.findall(r"^\| ([^|]+) \| ([^|]+) \|$", route, re.M)
+    kinds = [kind.strip() for kind, _ in rows[1:]]
+    assert [k.split(":")[0] for k in kinds] == [
+        "Empty",
+        "A product area",
+        "A component or an install answer",
+        "Several of these",
+        "Unclear",
+    ]
+    jobs = dict(zip(kinds, (job.strip() for _, job in rows[1:]), strict=True))
+    assert jobs["Empty"].startswith("Sync")
+    product = next(k for k in kinds if k.startswith("A product area"))
+    for area in areas.PRODUCT_AREAS:
+        assert area.replace("_", " ") in product.lower(), area
+    calls = _calls("update/SKILL.md")
+    assert calls.count("update <target>") == 1
+    assert [c for c in calls if c.startswith("commit <target>")] == [
+        'commit <target> --trailer "<line>"'
+    ]
+    assert "steps 5 to 9 once" in jobs["Several of these"]
 
 
 def test_R11_3_update_skill_merges_proposals() -> None:
@@ -219,7 +289,10 @@ def test_R11_3_update_skill_merges_proposals() -> None:
     order = ["update <target> --dry-run", "update <target>`.", "commit <target>"]
     found = [text.index(f"{CLI} {command}") for command in order]
     assert found == sorted(found)
-    merge = _section("update/SKILL.md", "3. Apply and merge")
+    preview = _section("update/SKILL.md", "5. Preview and confirm")
+    assert "the project is up to date, and stop" in preview
+    assert "wait for a clear yes" in preview
+    merge = _section("update/SKILL.md", "6. Apply and merge")
     assert "keeps both sides" in merge and "Never take only alpha's side" in merge
     assert ".claude/alpha/state/update/<path>" in merge
 
@@ -302,7 +375,7 @@ def test_docs_never_save_answers_with_the_file_tools(rel: str) -> None:
     assert "Write tool" not in text.replace("never with the Write tool", "")
 
 
-@pytest.mark.parametrize("rel", ["install/SKILL.md", "extend/SKILL.md"])
+@pytest.mark.parametrize("rel", ["install/SKILL.md", "update/SKILL.md"])
 def test_entry_skills_ask_one_question_at_a_time(rel: str) -> None:
     text = _text(rel)
     assert (
@@ -315,9 +388,7 @@ def test_entry_skills_ask_one_question_at_a_time(rel: str) -> None:
     ) in text
 
 
-@pytest.mark.parametrize(
-    "rel", ["install/SKILL.md", "extend/SKILL.md", "specify/SKILL.md"]
-)
+@pytest.mark.parametrize("rel", ["install/SKILL.md", "update/SKILL.md"])
 def test_answers_are_saved_with_one_line_answers_write(rel: str) -> None:
     text = _text(rel)
     assert f"{CLI} answers write <target> --json '<object>'" in text
@@ -327,22 +398,26 @@ def test_answers_are_saved_with_one_line_answers_write(rel: str) -> None:
 REMOVED = re.compile(
     r"docs/(product|architecture|build|security|releases|ui|data|performance"
     r"|observability)\.md|/alpha:new-project|/alpha:adopt\b|alpha:adopt\b|/alpha:go\b"
+    r"|/alpha:extend\b|/alpha:specify\b"
 )
+REMOVED_COMMANDS = re.compile(r"/alpha:(extend|specify)\b")
 
 
 def test_no_kit_file_names_a_removed_doc_or_skill() -> None:
     shipped = [
         p
-        for folder in ("skills", "project-files", "recipes", "src")
+        for folder in ("skills", "project-files", "recipes", "src", "defaults")
         for p in (PLUGIN_ROOT / folder).rglob("*")
         if p.is_file() and p.suffix in (".md", ".py", ".toml")
     ]
     assert len(shipped) > 50
     named = [str(p) for p in shipped if REMOVED.search(p.read_text())]
     assert not named, named
+    for doc in ("README.md", "docs/specification.md"):
+        assert not REMOVED_COMMANDS.search((PLUGIN_ROOT / doc).read_text()), doc
 
 
-# --- install, extend, specify, uninstall, purge ---
+# --- install, update, uninstall, purge ---
 
 
 def test_new_project_creates_install_areas_pending_and_product_areas_open() -> None:
@@ -368,7 +443,7 @@ def test_the_final_report_names_the_review_at_merge_and_uninstall() -> None:
     assert 'a finding on a risk path needs your "accept"' in report
     assert "batched" not in report
     assert "Only `/alpha:uninstall` switches these hooks off" in report
-    assert "`/alpha:specify` request" in report
+    assert "`/alpha:update <area>` request" in report
 
 
 def test_adopt_installs_in_order() -> None:
@@ -387,33 +462,6 @@ def test_adopt_records_the_chain_markers_and_existing_docs() -> None:
     assert "`# alpha:begin` and `# alpha:end`" in interview
     assert "`documentation.existing`" in interview
     assert "It gets no adopted recipe and no baselines" in interview
-
-
-def test_extend_runs_the_update_loop_and_hands_product_areas_on() -> None:
-    text = _text("extend/SKILL.md")
-    for part in (
-        "update <target> --dry-run",
-        "bootstrap <target> --component",
-        "commit <target>",
-        "Revisit the",
-        ".claude/alpha/state/update/",
-        "new Claude Code session",
-        "send the whole `overrides` array",
-        "skills/install/areas/<area>.md",
-    ):
-        assert part in text, part
-    assert "point to `/alpha:specify <area>` and stop" in _section(
-        "extend/SKILL.md", "2. What changes"
-    )
-
-
-def test_specify_researches_offers_options_and_commits() -> None:
-    text = _text("specify/SKILL.md")
-    for part in ("Research first", "two or three options", "alpha:grilling"):
-        assert part in text, part
-    order = ["update <target> --dry-run", "update <target>`.", "commit <target>"]
-    found = [text.index(f"{CLI} {command}") for command in order]
-    assert found == sorted(found)
 
 
 def test_uninstall_and_purge_say_what_they_keep() -> None:
@@ -464,19 +512,19 @@ def test_guide_saves_and_checks_its_own_area(guide: str) -> None:
 
 
 @pytest.mark.parametrize("guide", INSTALL_GUIDES)
-def test_install_guides_hand_control_to_install_and_extend(guide: str) -> None:
+def test_install_guides_hand_control_to_install_and_update(guide: str) -> None:
     start = _section(guide, "Before you start")
     assert "`/alpha:install` reads this guide" in start
-    assert "`/alpha:extend`" in start
+    assert "`/alpha:update`" in start
 
 
 @pytest.mark.parametrize(
     "guide",
     [
-        "specify/areas/design_language.md",
-        "specify/areas/ui.md",
-        "specify/areas/accessibility.md",
-        "specify/areas/data.md",
+        "install/areas/design_language.md",
+        "install/areas/ui.md",
+        "install/areas/accessibility.md",
+        "install/areas/data.md",
     ],
 )
 def test_areas_that_may_not_apply_ask_nothing(guide: str) -> None:
@@ -484,7 +532,7 @@ def test_areas_that_may_not_apply_ask_nothing(guide: str) -> None:
 
 
 def test_data_guide_explains_the_append_only_rule() -> None:
-    text = _text("specify/areas/data.md")
+    text = _text("install/areas/data.md")
     assert "append-only" in text and "Stop hook" in text
 
 
@@ -499,16 +547,16 @@ def test_agent_workflow_says_the_reviewer_runs_before_main() -> None:
 
 
 def test_design_language_is_the_users_to_skip() -> None:
-    questions = _section("specify/areas/design_language.md", "Questions")
+    questions = _section("install/areas/design_language.md", "Questions")
     assert "Either answer is fine; never argue for one." in questions
     assert 'save `{"defined": false}`' in questions
     assert "Don't suggest colors, typefaces or diagram styles anywhere later" in (
         questions
     )
-    purpose = _section("specify/areas/design_language.md", "Purpose")
+    purpose = _section("install/areas/design_language.md", "Purpose")
     assert "enforces and recommends nothing" in purpose
     assert "When `design_language.defined` is true" in _section(
-        "specify/areas/ui.md", "Questions"
+        "install/areas/ui.md", "Questions"
     )
     assert "In an adoption, never recommend `enforce`" in questions
     assert "key `design_language.palette_check`" in questions

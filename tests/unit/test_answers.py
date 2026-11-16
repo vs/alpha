@@ -117,13 +117,28 @@ def test_every_area_is_either_setup_or_spec():
 
 def test_R5_1_install_needs_only_the_install_areas(tmp_path: Path):
     """Install settles name, purpose and license; the target users,
-    requirements and auth wait in product areas for /alpha:specify."""
+    requirements and auth wait in product areas for /alpha:update."""
     d = valid()
     setup_only(d)
     a = check(tmp_path, d)
     assert a.identity and a.security and a.agent_workflow
     assert a.requirements is None and a.auth is None
     assert all(a.areas[area] == "open" for area in PRODUCT_AREAS)
+
+
+def test_R5_1_a_product_area_may_be_settled_at_install(tmp_path: Path):
+    """A product area the user picks in the install interview is done
+    while the others stay open."""
+    full = valid()
+    d = valid()
+    setup_only(d)
+    d["areas"]["performance"] = "done"
+    d["performance"] = full["performance"]
+    a = check(tmp_path, d)
+    assert a.performance is not None
+    assert a.areas["performance"] == "done"
+    others = [area for area in PRODUCT_AREAS if area != "performance"]
+    assert all(a.areas[area] == "open" for area in others)
 
 
 @pytest.mark.parametrize(
