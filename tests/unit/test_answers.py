@@ -19,7 +19,6 @@ from alpha.answers import (
     write_json,
 )
 from alpha.areas import AREAS, INSTALL_AREAS, PRODUCT_AREAS
-from alpha.core_areas import DesignLanguage
 from alpha.validate import fail
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "answers_valid.json"
@@ -341,6 +340,13 @@ def test_a_decisions_list_is_refused(tmp_path: Path):
     d = valid()
     d["decisions"] = [{"area": "git", "title": "Trunk"}]
     with pytest.raises(AnswersError, match=r"decisions: isn't part of the answers"):
+        check(tmp_path, d)
+
+
+def test_a_pre_1_0_manifest_points_to_the_by_hand_steps(tmp_path: Path):
+    d = valid()
+    d["manifest"] = {"kit_version": "0.8.0"}
+    with pytest.raises(AnswersError, match=r"manifest: is from an alpha before 1\.0"):
         check(tmp_path, d)
 
 
@@ -792,13 +798,13 @@ def test_write_json_keeps_old_file_when_write_fails(tmp_path: Path):
     assert [p.name for p in tmp_path.iterdir()] == ["project.json"]
 
 
-def test_answers_from_before_the_design_language_area_read_as_skipped(tmp_path: Path):
+def test_answers_without_the_design_language_area_are_unfinished(tmp_path: Path):
+    """A product area the answers leave out is pending, not settled."""
     d = valid()
     del d["design_language"]
     del d["areas"]["design_language"]
-    a = check(tmp_path, d)
-    assert a.design_language == DesignLanguage(defined=False)
-    assert a.areas["design_language"] == "done"
+    with pytest.raises(AnswersError, match=r"areas.design_language: is pending"):
+        check(tmp_path, d)
 
 
 def test_a_design_language_area_the_interview_started_must_finish(tmp_path: Path):

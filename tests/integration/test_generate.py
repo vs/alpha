@@ -28,12 +28,10 @@ from helpers import (
 
 from alpha import generate as generate_module
 from alpha.cli import PLUGIN_ROOT
-from alpha.defaults import Source
 from alpha.generate import GenerateError, bootstrap
 from alpha.principles import render_principles
 
 ROOT = PLUGIN_ROOT
-SRC = Source(ROOT, True)
 PROJECT_JSON = ".claude/alpha/project.json"
 
 
@@ -71,7 +69,7 @@ def test_open_areas_render_as_not_settled(tmp_path: Path):
 
 
 def test_open_areas_that_cannot_apply_are_not_listed(tmp_path: Path):
-    """F4: a CLI with no UI, deployment or stored data isn't told to settle
+    """A CLI with no UI, deployment or stored data isn't told to settle
     its UI, accessibility, observability or data."""
     path = place_answers(tmp_path, "rust-cli")
     data = json.loads(path.read_text())
@@ -111,7 +109,7 @@ REMOVED_DOCS = (
 def test_the_specification_is_one_file(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
-    """F1, F3: the product's specification is docs/alpha/specification.md; the files
+    """The product's specification is docs/alpha/specification.md; the files
     hooks read or the user kept stay where they are."""
     written = generate_scenario(tmp_path, "web-ts-plus-python-api")
     spec = (tmp_path / "docs/alpha/specification.md").read_text()
@@ -144,7 +142,7 @@ def test_the_specification_is_one_file(
 def test_the_process_is_in_contributing(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
-    """F2: CONTRIBUTING.md holds how the project is built, released and kept
+    """CONTRIBUTING.md holds how the project is built, released and kept
     secure, and how its data changes."""
     generate_scenario(tmp_path, "web-ts-plus-python-api")
     text = (tmp_path / "CONTRIBUTING.md").read_text()
@@ -166,7 +164,7 @@ def test_the_process_is_in_contributing(
 def test_claude_md_links_only_existing_docs(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
-    """F5: every link in CLAUDE.md's docs list points to a file it has."""
+    """Every link in CLAUDE.md's docs list points to a file it has."""
     for scenario in ("web-ts-plus-python-api", "rust-cli"):
         target = tmp_path / scenario
         generate_scenario(target, scenario)
@@ -215,13 +213,6 @@ def test_missing_answers_file_is_explained(tmp_path: Path):
     with pytest.raises(GenerateError, match=r"has no alpha answers.*/alpha:install"):
         install(tmp_path)
     assert list(tmp_path.iterdir()) == []
-
-
-def source_head() -> str | None:
-    done = subprocess.run(
-        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True
-    )
-    return done.stdout.strip() if done.returncode == 0 else None
 
 
 def test_gitignore_prefixes_component_paths(
@@ -344,7 +335,7 @@ def test_copies_hook_scripts_tools_and_executable_githook(
 def test_no_decision_records_are_written(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
-    """F1: no records and no decisions list; the override's reason reaches
+    """No records and no decisions list; the override's reason reaches
     the principles file instead of a record path."""
     files = generate_scenario(tmp_path, "web-ts-plus-python-api")
     assert not (tmp_path / "docs/decisions").exists()
@@ -590,19 +581,20 @@ def test_bootstrap_repo_check_failure_names_command_and_fix(
     )
 
 
-def test_bootstrap_without_mise_toml_skips_the_repository_checks(
+def test_bootstrap_without_mise_toml_says_how_to_restore_it(
     tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
 ):
     project = tmp_path / "proj"
     project.mkdir()
     generate_scenario(project, "python-ml-single")
-    (project / "mise.toml").unlink()  # a project from before the repository checks
+    (project / "mise.toml").unlink()
     monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
-    bootstrap(
-        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
-    )
-    ran = (tmp_path / "tools.log").read_text()
-    assert "mise" not in ran
+    with pytest.raises(GenerateError, match=r"mise\.toml is missing.*alpha update"):
+        bootstrap(
+            project,
+            tomllib.loads((project / "docs/alpha/principles.toml").read_text()),
+        )
+    assert not (tmp_path / "tools.log").exists()
 
 
 def test_bootstrap_only_named_components(
@@ -698,7 +690,7 @@ def test_cli_apply_uses_the_plugin_and_your_defaults(tmp_path: Path):
     place_answers(project, "python-ml-single")
     mine = tmp_path / "config"
     mine.mkdir()
-    (mine / "overrides.toml").write_text('[review]\nexclude = ["docs/**"]\n')
+    (mine / "overrides.toml").write_text('[review]\nrisk_paths = ["docs/**"]\n')
     env = {k: v for k, v in os.environ.items() if k != "ALPHA_SOURCE"}
     env["HOME"] = str(tmp_path / "home")
     env["ALPHA_CONFIG_DIR"] = str(mine)
@@ -711,7 +703,7 @@ def test_cli_apply_uses_the_plugin_and_your_defaults(tmp_path: Path):
     assert out.returncode == 0, out.stderr
     assert "warning" not in out.stderr
     principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
-    assert principles["review"]["exclude"] == ["docs/**"]
+    assert principles["review"]["risk_paths"][0] == "docs/**"
     data = json.loads((project / ".claude/alpha/project.json").read_text())
     assert data["installed"]["mode"] == "new"
 
@@ -747,7 +739,7 @@ def test_cli_commit_with_trailers(
     assert body.endswith("\n\nA: b\nC: d")
 
 
-def test_answers_still_load_after_the_manifest_is_added(
+def test_answers_still_load_after_the_install_record_is_added(
     tmp_path: Path, generate_scenario: GenerateScenario
 ):
     generate_scenario(tmp_path, "web-ts-plus-python-api")

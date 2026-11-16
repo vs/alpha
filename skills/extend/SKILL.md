@@ -1,6 +1,6 @@
 ---
 name: extend
-description: Change a project alpha installed - add, remove, rename or move a component, switch on an area that didn't apply, or revisit an install area's answers - re-asking only what the change affects and merging the result without overwriting the user's edits. Use when the user asks to change a project alpha installed. Run as /alpha:extend [what to change].
+description: Change a project alpha installed - add, remove, rename or move a component, or revisit an install area's answers - re-asking only what the change affects and merging the result without overwriting the user's edits. Use when the user asks to change a project alpha installed. Run as /alpha:extend [what to change].
 allowed-tools: Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)
 ---
 
@@ -28,7 +28,7 @@ Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run`. If it li
 Take the request from `$ARGUMENTS`, or ask. A product area (requirements, architecture, errors, design language, UI, accessibility, observability, data, performance, auth) is `/alpha:specify`'s: point to `/alpha:specify <area>` and stop. Otherwise pick the install area: `components` to add, remove, rename or move a component; else the area that owns the answer. Read its guide, `${CLAUDE_PLUGIN_ROOT}/skills/install/areas/<area>.md`, with the Read tool, and follow it with `<target>` as its target. These rules win over the guide's own:
 
 - Use the current answers as the recommendations and ask only what the change affects. Keep every other answer as it is.
-- Keep every existing entry of `overrides` unchanged. `answers write` replaces each top-level key, so send the whole `overrides` array: every existing entry verbatim, plus any new one. An override for a removed or renamed component stops applying; if it should carry over, add a new override for the new name, with its reason. Say why the change was made in the message of the commit step 7 makes, not in a record.
+- Keep every existing entry of `overrides` unchanged. `answers write` replaces each top-level key, so send the whole `overrides` array: every existing entry verbatim, plus any new one. An override for a removed or renamed component stops applying; if it should carry over, add a new override for the new name, with its reason. Say why the change was made in the message of the commit step 7 makes.
 - Moving a component's folder (e.g. a root CLI moving to `cli/` so a second component can be added) means moving app code, which alpha doesn't do. The user moves it with `git mv` and commits (you can do that as ordinary work), then continues.
 
 ## 3. Loop until valid
@@ -44,7 +44,7 @@ Go on when it lists the changes with no problem.
 
 ## 4. Show and confirm
 
-Summarize the list. Show the diffs of CLAUDE.md, `docs/alpha/principles.toml` and the docs, and say which files will need a hand merge (each `conflict  <path> (your edits overlap alpha's change: merge by hand)`). When the first line names an upgrade, such as `(kit 0.9.0 to 1.0.0)`, the change also brings the project to this kit, so it lists files the request doesn't touch: tell the user so before they confirm. Write nothing to alpha's files until the user confirms; the answers in project.json are already saved.
+Summarize the list. Show the diffs of CLAUDE.md, `docs/alpha/principles.toml` and the docs, and say which files will need a hand merge (each `conflict  <path> (your edits overlap alpha's change: merge by hand)`). When the first line names an upgrade, such as `(kit 1.0.0 to 1.1.0)`, the change also brings the project to this kit, so it lists files the request doesn't touch: tell the user so before they confirm. Write nothing to alpha's files until the user confirms; the answers in project.json are already saved.
 
 ## 5. Apply
 

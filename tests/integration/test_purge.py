@@ -1,4 +1,4 @@
-"""alpha purge on real repositories (rewrite spec, R3.1, R3.3 and R3.4)."""
+"""alpha purge on real repositories (spec, R3.1, R3.3 and R3.4)."""
 
 import json
 import shutil

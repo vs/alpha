@@ -1,4 +1,4 @@
-"""alpha purge: alpha out of a project, in one commit (rewrite spec, R3).
+"""alpha purge: alpha out of a project, in one commit (spec, R3).
 
 Everything is planned in memory first: the files to delete, and for each kept
 file alpha wrote an edit that removes only what points at alpha. The result is

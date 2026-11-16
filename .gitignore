@@ -5,5 +5,3 @@ __pycache__/
 .claude/settings.local.json
 .claude/worktrees/
 .DS_Store
-coverage.xml
-.coverage

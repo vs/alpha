@@ -526,11 +526,11 @@ STATE_MESSAGE = "alpha's hooks keep their state there"
 @pytest.mark.parametrize(
     "command",
     [
-        "echo '{}' > .claude/alpha/state/review.json",
-        "rm .claude/alpha/state/review.json",
+        "echo '{}' > .claude/alpha/state/untested.json",
+        "rm .claude/alpha/state/untested.json",
         "rm -rf .claude",
         "rm -rf .claude/alpha",
-        "sed -i '' 's/false/true/' .claude/alpha/state/review.json",
+        "sed -i '' 's/false/true/' .claude/alpha/state/untested.json",
     ],
 )
 def test_the_review_state_is_not_writable_from_bash(
@@ -543,7 +543,7 @@ def test_the_review_state_is_not_writable_from_bash(
 
 def test_plain_git_clean_and_reading_the_state_pass(project: Project) -> None:
     assert bash(project, "git clean -fd").returncode == 0
-    assert bash(project, "cat .claude/alpha/state/review.json").returncode == 0
+    assert bash(project, "cat .claude/alpha/state/untested.json").returncode == 0
 
 
 @pytest.mark.parametrize(

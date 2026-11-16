@@ -65,7 +65,7 @@ Leave out `proven`: a drafted recipe is always less proven, and alpha marks it s
 
 ## Adopting a repo's tools
 
-For an adoption, the recipe runs the tools the repo already uses, on its real code (spec §5b):
+For an adoption, the recipe runs the tools the repo already uses, on its real code:
 
 - Name it `<component>-<stack>` (e.g. `api-python`), set `"adopted": true`, and set it as the component's `stack`. When the repo's tools are the kit's (`recipe list`), add `"extends": "<kit stack>"` and give only what differs: it takes the kit's commands, globs, CI setup, rules and readers.
 - Facts come from the repo: its manifests and lockfile, its CI workflow and task runner (`Makefile`, `package.json` scripts) for the commands it already runs, and its real test layout for `test_globs` (e.g. `spec/**`, `**/__tests__/**`). Use those commands as they are.

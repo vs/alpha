@@ -13,7 +13,7 @@ Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" adopt survey <target> --save`. If it refu
 Then save the start, keeping what the survey saved in `adoption`:
 `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" answers write <target> --json '{"schema": 1, "areas": {…the install areas "pending", the product areas "open", as new-project.md step 1…}, "overrides": [], "adoption": {…the saved adoption…}}'`
 
-Tell the user in a few lines what the survey found: candidate components and stacks, CI, docs (and any decision records of its own), hook managers, and how many recent commits follow the convention. A repo with docs and no code yet has no candidates: say that alpha generates the skeleton of each component the interview settles.
+Tell the user in a few lines what the survey found: candidate components and stacks, CI, docs, hook managers, and how many recent commits follow the convention. A repo with docs and no code yet has no candidates: say that alpha generates the skeleton of each component the interview settles.
 
 ## 3. Defaults
 
@@ -28,7 +28,7 @@ Run the install areas in `SKILL.md`'s order from their guides, `<target>` as the
 - Components: start from the survey's candidates, and add the parts the repo's docs describe that have no code yet. A component whose folder holds code gets an adopted recipe, with or without a manifest, drafted with `alpha:stack-recipe` (named `<component>-<stack>`, extending the kit's recipe when the repo's tools are the kit's). Prove each with `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe try <target> <recipe>`; each check it reports with findings goes into `adoption.baselines` as `<step>:<component>`.
 - A component with no project structure yet (its folder is missing or holds only docs) has no tools to adopt; never write its files yourself. Ask, recommending yes: "<component> has no project structure yet. Generate alpha's <stack> skeleton for it in <path>?" On yes, set its `stack` to the kit's recipe (`recipe list` names it), or to one `alpha:stack-recipe` drafts and proves. It gets no adopted recipe and no baselines; step 7 writes its manifest, strict settings and setup test and commits them. A component at the repository root: after step 7.4, commit what its bootstrap made beyond the lockfile, as that step's note says. On no, leave it out and say `/alpha:extend` adds it later; if no component is left, say alpha has nothing to enforce there yet, and stop.
 - Git history: set `adoption.git_hooks` to `alpha` when the survey found no hook manager and no `hooks_path`, else `chain` (the repo's manager stays in charge and calls alpha's check between `# alpha:begin` and `# alpha:end` lines). Commits already in history stay as they are.
-- Documentation: where the repo already has a doc for an area alpha writes (architecture, a glossary, a dependency log), record its path in `documentation.existing`, so alpha's file refers to it instead of repeating it. A decision-record folder stays the repo's own; alpha writes no records.
+- Documentation: where the repo already has a doc for an area alpha writes (architecture, a glossary, a dependency log), record its path in `documentation.existing`, so alpha's file refers to it instead of repeating it.
 - Repository checks: offer to baseline the ones the repo likely fails today (`typos`, `markdown`, `links`, `agent-config`, `actions`) by adding them to `adoption.baselines`.
 
 ## 5. Assessment

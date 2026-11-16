@@ -28,7 +28,7 @@ NOTES_DIR = ".claude/alpha/notes"
 SETTINGS = ".claude/settings.json"
 LOCAL_SETTINGS = ".claude/settings.local.json"
 UNINSTALL = "/alpha:uninstall"
-BASELINE_DIR = ".claude/alpha/baselines"  # spec §8b; only shrinks
+BASELINE_DIR = ".claude/alpha/baselines"  # only shrinks
 PRINCIPLES = "docs/alpha/principles.toml"
 NOT_FOUND = 127
 TAIL_LINES = 60
@@ -596,7 +596,7 @@ def protected_message(rel: str, glob: str, principles: dict[str, Any]) -> str:
     if glob == STATE_GLOB:
         return (
             f"{rel} is protected: alpha's hooks keep their state there "
-            f"({STATE_DIR}/), including the review record, and nothing else may "
+            f"({STATE_DIR}/), and nothing else may "
             "write or delete it; only /alpha:uninstall switches alpha's hooks off. "
             "Read it if you need to; ask the user if it's wrong."
         )

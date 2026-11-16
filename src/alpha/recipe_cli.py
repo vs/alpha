@@ -241,7 +241,7 @@ def _prove_step(
 def _try_adopted(
     target: Path, stack: str, recipe: Recipe, report: list[str]
 ) -> str | None:
-    """Prove an adopted recipe on a worktree of the repo's HEAD (spec §5b)."""
+    """Prove an adopted recipe on a worktree of the repo's HEAD."""
     again = f'run "alpha recipe try {target} {stack}" again.'
     paths = _users(target, stack)
     if not paths:

@@ -33,23 +33,23 @@ Run these with the `alpha:grilling` skill (invoke it with the Skill tool and fol
 
 Round 1:
 
-- **Components** - which parts does the project need? Recommend a list with a name and a kind for each, drawn from the requirements (e.g. a browser UI needs a `frontend`; an API needs a `backend`). Keep it to the simplest set that meets the requirements.
+- **Components** - which parts does the project need? Recommend a list with a name and a kind for each, drawn from what the project must do (e.g. a browser UI needs a `frontend`; an API needs a `backend`). Keep it to the simplest set that does it.
 
 Round 2 (needs the component list):
 
 - **Layout** - with one component, recommend `single`; with more, `monorepo` is required. Rule: `single` means exactly one component, at path `"."`.
 - **Stack per component** - recommend `defaults.stacks[kind]`. The user may pick any stack. Say which stacks the kit has proven recipes for (from `recipe list`); for any other, explain in one line that a recipe will be drafted and proven for this project, and that it's less proven.
-- **Talk to each other** - ask only when there is more than one component: "Do these components call each other?" Explain: yes turns on the "Contracts are the source of truth" principle, so their interfaces are defined once (e.g. OpenAPI) and checked. With one component, set `components_talk` to `false` without asking.
+- **Talk to each other** - ask only when there is more than one component: "Do these components call each other?" Explain: once the architecture area is settled with `/alpha:specify`, yes means the "Contracts are the source of truth" principle applies, so their interfaces are defined once (e.g. OpenAPI) and checked. With one component, set `components_talk` to `false` without asking.
 
 Round 3 (needs the layout):
 
 - **Workspace** - only when a `monorepo` has a Rust component: say in one line that its Rust components form one Cargo workspace at the root (one lockfile, toolchain and build folder, dependencies pinned once), and recommend it. Save `"workspace": false` only when the user wants separate crates, through the grilling skill's override protocol (key `components.workspace`).
 - **Path per component** - with `single`, the path is `"."` (don't ask). With `monorepo`, recommend the component's name as its folder; folders must not be nested in each other.
-- **Traits per component** - ask all six for each component in one question, recommending answers from its kind and the requirements. Explain each in one sentence:
-  - *Has a UI* - turns on the visual-system and accessibility principles. (The design language is separate: any project may define one, with or without a UI.)
-  - *Deployed* - turns on config from the environment and observability (structured logs).
+- **Traits per component** - ask all six for each component in one question, recommending answers from its kind and what the user said. Explain each in one sentence:
+  - *Has a UI* - the visual-system and accessibility principles apply once the ui and accessibility areas are settled with `/alpha:specify`. (The design language is separate: any project may define one, with or without a UI.)
+  - *Deployed* - turns on config from the environment; observability (structured logs) applies once that area is settled.
   - *Makes network calls* - every external call then needs a timeout and a failure path.
-  - *Stores data* - every schema change must be a migration, reversible where possible.
+  - *Stores data* - once the data area is settled, every schema change must be a migration, reversible where possible.
   - *Machine learning* - adds reproducibility rules for seeds, data versions and experiment configs.
   - *Non-trivial logic* - keeps business rules pure, with side effects at the edges, so they're easy to test.
 

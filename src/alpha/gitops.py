@@ -222,7 +222,7 @@ def commit(
 
     scopes = [str(s) for s in principles.get("git", {}).get("scopes", [])]
     adopting = state.get("kind") in ("new", "adopt")
-    # Captured or tightened baselines are alpha's writes too (spec §8b).
+    # Captured or tightened baselines are alpha's writes too.
     baselines = [BASELINE_DIR] if (target / BASELINE_DIR).is_dir() else []
     groups: list[tuple[str, list[str]]] = [
         (
@@ -284,7 +284,7 @@ def commit(
     for path, recorded in sorted(conflicts.items()):
         file = target / path
         now = digest(file.read_bytes()) if file.is_file() else None
-        unmerged = now is not None and recorded in (now, now.removeprefix("sha256:"))
+        unmerged = now is not None and recorded == now
         if unmerged:
             notes.append(
                 f"{path}: alpha's change wasn't merged in (proposal: "

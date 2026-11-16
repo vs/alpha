@@ -25,7 +25,7 @@ When no component has a UI, ask nothing: save `{"components": []}`, so the visua
 
 Otherwise run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as one round per component with a UI. Facts first: look up what the component's stack and framework usually use (its manifest, the stack's docs) and recommend from that. Never assume a library the stack can't use. When `design_language.defined` is true, it comes first: recommend typography, icons and theming that match it, and say the tokens file is where its colors, type and shape live in code.
 
-- **Component library** - recommend one that fits the stack and the users from identity; explain that a library brings accessible, consistent building blocks.
+- **Component library** - recommend one that fits the stack and the users from the requirements area; explain that a library brings accessible, consistent building blocks.
 - **Design tokens** - recommend a path inside the component (e.g. `<path>/src/styles/tokens.css`, or the platform's theme file). Explain: every color, spacing and font comes from there, so a restyle is one file.
 - **Icons** and **typography** - recommend what the library pairs with.
 - **Theming** - recommend `defaults.ui.theming`.

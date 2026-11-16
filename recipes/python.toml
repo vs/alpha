@@ -29,8 +29,8 @@ structure = "uv run deptry ."
 format_file = "uv run ruff format {file}"
 lint_file = "uv run ruff check {file}"
 
-# How each check's findings read, for an adopted project's baselines (spec
-# §8b). Matched against output recorded from the pinned tools; see
+# How each check's findings read, for an adopted project's baselines.
+# Matched against output recorded from the pinned tools; see
 # tests/fixtures/baseline-output/.
 [baseline.lint]
 command = "uv run ruff check --output-format concise"

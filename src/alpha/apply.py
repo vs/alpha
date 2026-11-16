@@ -1,6 +1,6 @@
 """Write alpha's files into a folder: a new project, an adoption, or an update.
 
-All three are one operation (spec of the rewrite, "Writing files"): render
+All three are one operation (spec, "Writing files: one pipeline"): render
 the answers with this kit, merge each file three ways (alpha's last render,
 the file on disk, the new render), and write. A new project and an adoption
 have no base; an update's base is the render alpha last committed

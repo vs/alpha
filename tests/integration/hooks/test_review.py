@@ -1,4 +1,4 @@
-"""The principles review in git notes on trees (rewrite spec, R9 and R10)."""
+"""The principles review in git notes on trees (spec, R9 and R10)."""
 
 import json
 from typing import Any

@@ -77,8 +77,8 @@ def test_claude_md_says_where_code_and_tests_live(tmp_path: Path):
     assert "`web/**/node_modules/**`" in commands
 
 
-def test_output_keys_hold_no_decision_records(tmp_path: Path):
-    """F1: the docs say how things are; no decision records are written."""
+def test_render_writes_exactly_these_files(tmp_path: Path):
+    """The docs say how things are; no decision records are written."""
     out = render(load(tmp_path))
     assert set(out) == {
         "README.md",
@@ -94,7 +94,7 @@ def test_output_keys_hold_no_decision_records(tmp_path: Path):
 
 
 def test_overrides_are_listed_with_their_reason(tmp_path: Path):
-    """F2: each override is a row of CONTRIBUTING.md's Overrides table, and
+    """Each override is a row of CONTRIBUTING.md's Overrides table, and
     CLAUDE.md marks its principle overridden."""
     out = render(load(tmp_path))
     contributing = out["CONTRIBUTING.md"]

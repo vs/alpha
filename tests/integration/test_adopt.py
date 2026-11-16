@@ -1,4 +1,4 @@
-"""alpha apply on an existing repo: the adoption (spec §5b, step 5)."""
+"""alpha apply on an existing repo: the adoption."""
 
 import json
 import os

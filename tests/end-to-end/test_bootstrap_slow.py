@@ -38,7 +38,7 @@ NEEDS_CARGO = pytest.mark.skipif(
 def test_bootstrap_runs_green(
     tmp_path: Path, scenario: str, generate_scenario: GenerateScenario, git_env: None
 ):
-    """R2: generate and bootstrap leave a skeleton whose checks all pass."""
+    """Generate and bootstrap leave a skeleton whose checks all pass."""
     generate_scenario(tmp_path, scenario)
     principles = tomllib.loads((tmp_path / "docs/alpha/principles.toml").read_text())
     bootstrap(tmp_path, principles)

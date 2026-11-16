@@ -1,4 +1,4 @@
-"""How a check's findings read, so a baseline can count them (spec §8b)."""
+"""How a check's findings read, so a baseline can count them."""
 
 import functools
 import importlib.util

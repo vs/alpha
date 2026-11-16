@@ -1,4 +1,4 @@
-"""purge's removers, one per kind of kept file (rewrite spec, R3.2 and R3.3)."""
+"""purge's removers, one per kind of kept file (spec, R3.2 and R3.3)."""
 
 import re
 import subprocess

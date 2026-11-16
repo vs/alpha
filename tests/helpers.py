@@ -237,7 +237,7 @@ def prove(target: Path) -> None:
         record_proof(target, stack, fields)
 
 
-# --- an existing repo to adopt (spec §5b) ---
+# --- an existing repo to adopt ---
 
 EXISTING: dict[str, str] = {
     "pyproject.toml": '[project]\nname = "legacy"\nversion = "1.0"\n',

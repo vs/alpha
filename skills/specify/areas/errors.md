@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Decide how errors reach whoever uses each component, before any code exists ("Fail fast, fail helpfully"): one format per component and one shared list of categories, so the same problem is named the same way everywhere. Whatever the format, every error a user sees says what went wrong and how to fix it; that rule is always on and needs no answer.
+Decide how errors reach whoever uses each component ("Fail fast, fail helpfully"): one format per component and one shared list of categories, so the same problem is named the same way everywhere. Whatever the format, every error a user sees says what went wrong and how to fix it; that rule is always on and needs no answer.
 
 ## Fields this area settles
 

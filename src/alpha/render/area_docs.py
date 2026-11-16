@@ -525,7 +525,7 @@ PHASE_NAMES = {
 
 
 def adoption_doc(a: Answers) -> str | None:
-    """The compliance plan of an adopted repo (spec §5b, step 6)."""
+    """The compliance plan of an adopted repo."""
     if not a.steps:
         return None
     lines = [

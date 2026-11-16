@@ -337,7 +337,7 @@ def cli_env(tmp_path: Path, src: Source | None = None) -> dict[str, str]:
 
 
 def test_cli_show_json_and_set(tmp_path: Path):
-    """R7: a default set with alpha defaults set shows on top of the kit's."""
+    """A default set with alpha defaults set shows on top of the kit's."""
     env = cli_env(tmp_path)
     shown = run_cli("defaults", "show", "--json", env=env)
     assert shown.returncode == 0, shown.stderr
@@ -394,8 +394,8 @@ def test_cli_names_an_alpha_source_checkout(tmp_path: Path):
             "testing.diff_coverage must be a whole number",
         ),
         ("git.convention", "3", "git.convention must be text"),
-        ("review.exclude", "docs/**", "review.exclude must be a list of text"),
-        ("review.exclude", "[1, 2]", "review.exclude must be a list of text"),
+        ("review.risk_paths", "docs/**", "review.risk_paths must be a list of text"),
+        ("review.risk_paths", "[1, 2]", "review.risk_paths must be a list of text"),
     ],
 )
 def test_set_default_rejects_unknown_keys_and_wrong_types(
@@ -450,7 +450,6 @@ def test_malformed_user_defaults_are_explained(tmp_path: Path):
 SURVEY_KEYS = (
     "ci",
     "docs",
-    "decisions",
     "migrations",
     "task_runners",
     "hook_managers",

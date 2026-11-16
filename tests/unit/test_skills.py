@@ -1,4 +1,4 @@
-"""The plugin's skills and the area guides they read (rewrite spec, R1, R5,
+"""The plugin's skills and the area guides they read (spec, R1, R5,
 R7 and R11)."""
 
 import argparse

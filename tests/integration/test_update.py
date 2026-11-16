@@ -61,7 +61,7 @@ def commit(target: Path, message: str) -> None:
     git(target, "commit", "-q", "-m", message)
 
 
-def smaller_reviews(data: dict[str, Any]) -> None:
+def add_a_risk_path(data: dict[str, Any]) -> None:
     data["agent_workflow"]["extra_risk_paths"].append("infra/**")
 
 
@@ -78,7 +78,7 @@ def move_component(data: dict[str, Any], name: str, new: str) -> None:
         return value
 
     for key in list(data):
-        if key not in ("overrides", "manifest"):
+        if key != "overrides":
             data[key] = moved(data[key])
     for c in data["components"]:
         if c["name"] == name:
@@ -88,7 +88,7 @@ def move_component(data: dict[str, Any], name: str, new: str) -> None:
 def remove_component(data: dict[str, Any], name: str) -> None:
     data["components"] = [c for c in data["components"] if c["name"] != name]
     for key, section in data.items():
-        if key in ("overrides", "manifest") or not isinstance(section, dict):
+        if key == "overrides" or not isinstance(section, dict):
             continue
         entries: object = cast(dict[str, Any], section).get("components")
         if isinstance(entries, list):
@@ -160,13 +160,13 @@ def test_answers_that_still_hold_decisions_are_refused(tmp_path: Path, git_env: 
 
 
 def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env: None):
-    """R5: an answer change lands and the user's edit in CLAUDE.md survives."""
+    """An answer change lands and the user's edit in CLAUDE.md survives."""
     target = generated_repo(tmp_path, SCENARIO)
     claude_md = target / "CLAUDE.md"
     claude_md.write_text(claude_md.read_text() + "Team rule: ask before deploys.\n")
     commit(target, "docs: Add a team rule")
     data = answers(target)
-    smaller_reviews(data)
+    add_a_risk_path(data)
     data["git"]["scopes"].append("deps")
     save(target, data)
     p = plan(target)
@@ -180,7 +180,7 @@ def test_user_edits_stay_and_the_change_lands(tmp_path: Path, git_env: None):
 
 
 def test_settling_an_open_area_applies_it(tmp_path: Path, git_env: None):
-    """F6: an area left open at setup is applied once it is settled."""
+    """An area left open at setup is applied once it is settled."""
     path = place_answers(tmp_path, SCENARIO)
     full = json.loads(path.read_text())
     opened = json.loads(path.read_text())
@@ -332,7 +332,7 @@ def test_removing_a_component_with_a_scoped_override_plans_cleanly(
     apply.write(target, p)
     commit_the_update(target)
     data = answers(target)
-    smaller_reviews(data)
+    add_a_risk_path(data)
     save(target, data)
     assert kinds(plan(target))["docs/alpha/principles.toml"] == "change"
 
@@ -424,7 +424,7 @@ def test_update_with_nothing_to_change_writes_nothing(tmp_path: Path, git_env: N
 def test_cli_dry_run_prints_changes_and_writes_nothing(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
-    smaller_reviews(data)
+    add_a_risk_path(data)
     save(target, data)
     out = run_cli(
         "update", str(target), "--dry-run", env={"ALPHA_SOURCE": str(PLUGIN_ROOT)}
@@ -581,7 +581,7 @@ def test_commit_update_errors_name_commit_update(
 ):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
-    smaller_reviews(data)
+    add_a_risk_path(data)
     save(target, data)
     apply.write(target, plan(target))
     for role in ("AUTHOR", "COMMITTER"):
@@ -639,15 +639,6 @@ def test_commit_update_handles_a_deleted_conflict_file(tmp_path: Path, git_env: 
     assert not (target / UPDATE_STATE).exists()
 
 
-TOOLING = (
-    "mise.toml",
-    "_typos.toml",
-    ".rumdl.toml",
-    "lychee.toml",
-    ".betterleaks.toml",
-)
-
-
 def test_update_refuses_a_project_from_a_newer_alpha(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
@@ -692,13 +683,13 @@ def test_a_failed_git_status_says_to_rerun_the_update(tmp_path: Path, git_env: N
         apply.plan(target, PLUGIN_ROOT, SOURCE, TODAY)
 
 
-def test_a_project_from_before_the_design_language_area_can_define_one(
+def test_an_open_design_language_area_can_be_settled_later(
     tmp_path: Path, git_env: None
 ):
     dest = place_answers(tmp_path, SCENARIO)
     data = json.loads(dest.read_text())
     language = data.pop("design_language")
-    del data["areas"]["design_language"]
+    data["areas"]["design_language"] = "open"
     dest.write_text(json.dumps(data))
     install(tmp_path)
     git(tmp_path, "init", "-q", "-b", "main")
@@ -717,7 +708,6 @@ def test_a_project_from_before_the_design_language_area_can_define_one(
     assert found["docs/alpha/principles.toml"] == "change"
     assert "- **One design language**: " in text_of(p, "CLAUDE.md")
     assert '"docs/alpha/design-language.md"' in text_of(p, "docs/alpha/principles.toml")
-    assert "docs/decisions" not in " ".join(kinds(p))
 
 
 def test_R11_1_the_base_is_the_render_alpha_last_committed(
@@ -731,7 +721,7 @@ def test_R11_1_the_base_is_the_render_alpha_last_committed(
     assert rendered == (target / "docs/alpha/principles.toml").read_text().rstrip("\n")
     assert "sha256:" not in (target / PROJECT_JSON).read_text()
     data = answers(target)
-    smaller_reviews(data)
+    add_a_risk_path(data)
     save(target, data)
     assert kinds(plan(target)) == {"docs/alpha/principles.toml": "change"}
 
@@ -739,7 +729,7 @@ def test_R11_1_the_base_is_the_render_alpha_last_committed(
 def test_R11_1_a_discarded_update_is_planned_again(tmp_path: Path, git_env: None):
     target = generated_repo(tmp_path, SCENARIO)
     data = answers(target)
-    smaller_reviews(data)
+    add_a_risk_path(data)
     save(target, data)
     commit(target, "chore: Add a risk path")
     apply.write(target, plan(target))
@@ -789,7 +779,7 @@ def test_R11_2_a_kit_change_merges_and_replaces_alphas_files(
     commit(target, "docs: Add our section")
     data = answers(target)
     data["installed"]["kit_version"] = "0.0.1"
-    smaller_reviews(data)
+    add_a_risk_path(data)
     (target / PROJECT_JSON).write_text(json.dumps(data))
     commit(target, "chore: As an older kit left it")
     p = plan(target)

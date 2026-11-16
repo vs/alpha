@@ -10,7 +10,7 @@ Decide how the project's history reads: the commit message convention, the scope
 
 ## Fields this area settles
 
-- `git.convention` - `"conventional"` (the only convention alpha v0.1 enforces).
+- `git.convention` - `"conventional"` (the only convention alpha enforces).
 - `git.scopes` - the scopes a commit may name, e.g. `["api", "web"]`.
 - `git.branching` - `"trunk"` or `"feature-branches"`.
 - `areas.git` - `"in_progress"` while you work, `"done"` at the end.
@@ -19,7 +19,7 @@ Decide how the project's history reads: the commit message convention, the scope
 
 Run these with the `alpha:grilling` skill (invoke it with the Skill tool and follow it), as a design tree in rounds. All three are independent, so ask them in one round.
 
-- **Convention** - recommend `defaults.git.convention`. Explain in plain words: every commit reads `type(scope): description`, e.g. `feat(api): add image upload`; the description is at most 50 characters, imperative, and has no trailing period, and may start lowercase; body lines wrap at 72. The allowed types are `defaults.git.types`. Say plainly that v0.1 enforces conventional commits only; if the user wants another convention, explain it can't be enforced yet and ask them to accept conventional or stop here.
+- **Convention** - recommend `defaults.git.convention`. Explain in plain words: every commit reads `type(scope): description`, e.g. `feat(api): add image upload`; the description is at most 50 characters, imperative, and has no trailing period, and may start lowercase; body lines wrap at 72. The allowed types are `defaults.git.types`. Say plainly that alpha enforces conventional commits only; if the user wants another convention, explain it can't be enforced yet and ask them to accept conventional or stop here.
 - **Scopes** - recommend the component names from `components[].name` (the kit's default). Explain: a scope says which part a commit touches. The list is what the docs suggest; the hook accepts any scope of lowercase letters, digits and hyphens (`[a-z0-9-]+`), so a commit can also name an area such as `deps`, or leave the scope out. The user may add extra scopes to the list; each must use that same form.
 - **Branching** - recommend `defaults.git.branching`. Explain the two choices in one line each: `trunk` (small commits straight to the main branch, each leaving the checks green) and `feature-branches` (short-lived branches merged through pull requests; before a pull request, Claude rebases the branch on main into small, ordered commits and pushes it with `--force-with-lease`; the hooks block a plain `--force` and any rewrite of main).
 

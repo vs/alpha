@@ -1,4 +1,4 @@
-"""alpha adopt survey: an existing repo, described in facts (spec §5b)."""
+"""alpha adopt survey: an existing repo, described in facts."""
 
 import json
 import subprocess
@@ -94,7 +94,8 @@ def test_survey_lists_files(tmp_path: Path):
     result = survey(root, SOURCE)
     files = result["files"]
     assert files["ci"] == [".github/workflows/ci.yml"]
-    assert files["decisions"] == ["docs/adr/0001-use-postgres.md"]
+    assert "decisions" not in files
+    assert "docs/adr/0001-use-postgres.md" in files["docs"]
     assert files["license"] == ["LICENSE"]
     assert "README.md" in files["docs"]
     assert files["env_examples"] == ["api/.env.example"]
@@ -144,6 +145,9 @@ def test_survey_refusals(tmp_path: Path):
     project = root / ".claude/alpha/project.json"
     project.parent.mkdir(parents=True)
     project.write_text(json.dumps({"manifest": {}}))
+    with pytest.raises(AdoptError, match="An older alpha .* by-hand steps"):
+        survey(root, SOURCE)
+    project.write_text(json.dumps({"installed": {}}))
     with pytest.raises(AdoptError, match="/alpha:extend"):
         survey(root, SOURCE)
 

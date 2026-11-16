@@ -404,7 +404,7 @@ def bootstrap(
     capture_baselines: bool = False,
 ) -> None:
     """`capture_baselines`: record each listed baseline that's missing, once
-    its tools are installed (spec §8b); otherwise a missing one stops here."""
+    its tools are installed; otherwise a missing one stops here."""
     fix = (
         "Fix the failing step (is the component's toolchain installed?) and rerun "
         f'"alpha bootstrap {target}"'
@@ -427,9 +427,13 @@ def bootstrap(
             "legacy findings from new ones. To record today's findings as the "
             f'baselines, rerun "alpha bootstrap {target} --capture-baselines".'
         )
-    repo_checks = (target / MISE).is_file()
-    if repo_checks:
-        _require_mise(target)  # before the components' slow steps
+    if not (target / MISE).is_file():
+        raise GenerateError(
+            f"{target / MISE} is missing, and the repository checks run from it. "
+            f'Restore it with "git checkout -- {MISE}" or "alpha update {target}", '
+            f'then rerun "alpha bootstrap {target}".'
+        )
+    _require_mise(target)  # before the components' slow steps
     book = project_book(target)
     for c in principles["components"]:
         if only and c["name"] not in only:
@@ -455,5 +459,4 @@ def bootstrap(
                 continue  # just captured from this very run: it holds
             _run(c["name"], command, cwd, fix)
         _capture(target, own)
-    if repo_checks:
-        _repo_checks(target, [m for m in uncaptured if ":" not in m])
+    _repo_checks(target, [m for m in uncaptured if ":" not in m])

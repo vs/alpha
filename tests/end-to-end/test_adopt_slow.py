@@ -1,4 +1,4 @@
-"""Adopting a real repo end to end (spec §5b): survey facts aside, apply
+"""Adopting a real repo end to end: survey facts aside, apply
 alpha's files onto a uv service with legacy findings, merge the conflicts,
 capture the baselines while bootstrapping green, commit, and check that the
 app is untouched and alpha treats it as its own."""

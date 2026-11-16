@@ -34,9 +34,9 @@ Round one is a single question:
 
 - **Define a design language?** - explain in two lines what defining it switches on (the page, the reviewer's check on every visual, the UI area drawing from it) and that skipping it switches all of that off. Recommend yes when a component has a UI or the user already has a brand or style guide, and skipping otherwise. Either answer is fine; never argue for one.
 
-When the user skips, ask nothing else: save `{"defined": false}`, so alpha enforces nothing about the project's visuals. Don't suggest colors, typefaces or diagram styles anywhere later in the interview.
+When the user skips, ask nothing else: save `{"defined": false}`, so alpha enforces nothing about the project's visuals. Don't suggest colors, typefaces or diagram styles anywhere later in this session.
 
-When the user defines one, facts first: read any guide, tokens file or brand page the user points to and recommend from it. With nothing to read, propose a small, complete language that fits the product and its users from identity, and say it's a starting point. Then one round:
+When the user defines one, facts first: read any guide, tokens file or brand page the user points to and recommend from it. With nothing to read, propose a small, complete language that fits the product and its users from the requirements area, and say it's a starting point. Then one round:
 
 - **Character** - the look and feel in a sentence or two.
 - **Colors** - the palette by role: at least the background, the text, one accent, and the status colors the project needs. Recommend the fewest that cover the visuals the project will have; each needs enough contrast with the surface it sits on.

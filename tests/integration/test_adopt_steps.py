@@ -1,4 +1,4 @@
-"""The compliance plan of an adopted repo (spec §5b, step 6)."""
+"""The compliance plan of an adopted repo."""
 
 import json
 import subprocess
@@ -101,6 +101,7 @@ def test_steps_load(tmp_path: Path):
         ([step(status="dropped")], r"reason: is missing for a dropped step"),
         ([step(component="ghost")], r"steps\[0\]\.component: no component named"),
         ([step(owner="me")], r"steps\[0\]\.owner: unknown key"),
+        ([step(decision=3)], r"steps\[0\]\.decision: is gone"),
     ],
 )
 def test_bad_steps_are_named(tmp_path: Path, steps: list[dict[str, Any]], message: str):
@@ -298,7 +299,7 @@ def test_done_confirm_needs_the_flag(tmp_path: Path, git_env: None):
 
 
 def test_drop_needs_a_reason_and_keeps_it(tmp_path: Path, git_env: None):
-    """F4: a dropped step keeps the reason the user agreed to."""
+    """A dropped step keeps the reason the user agreed to."""
     root = plan_repo(tmp_path, [ok("p2-a")])
     with pytest.raises(AdoptError, match="--reason"):
         drop(root, "p2-a", "  ")

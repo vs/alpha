@@ -1,5 +1,5 @@
 """The user accepts review findings by replying `accept F-xxxxxx` and nothing
-else: the only way to accept a finding on a risk path (rewrite spec, R9.4).
+else: the only way to accept a finding on a risk path (alpha's spec, R9.4).
 
 Claude Code runs this hook for every prompt, including subagent reports and
 messages from other sessions, with no field telling them apart from the user;

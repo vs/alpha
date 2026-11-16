@@ -1,4 +1,4 @@
-"""Adopting an existing repo (spec §5b): the survey of what's already there."""
+"""Adopting an existing repo: the survey of what's already there."""
 
 import json
 import os
@@ -64,9 +64,16 @@ def _refuse_alpha(target: Path) -> None:
         data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    if isinstance(data, dict) and {"installed", "manifest"} & set(
-        cast(dict[str, Any], data)
-    ):
+    if not isinstance(data, dict):
+        return
+    top = cast(dict[str, Any], data)
+    if "manifest" in top and "installed" not in top:
+        raise AdoptError(
+            f"An older alpha set {target} up (its {PROJECT_JSON} has a manifest). "
+            "This alpha doesn't upgrade it on its own: follow the by-hand steps in "
+            "alpha's README (Projects an older alpha set up)."
+        )
+    if "installed" in top:
         raise AdoptError(
             f"alpha is already installed in {target}. Change it with /alpha:extend "
             "instead."
@@ -189,7 +196,7 @@ def _components(files: list[str], book: RecipeBook) -> list[dict[str, Any]]:
 def survey(
     target: Path, source: Source, book: RecipeBook | None = None
 ) -> dict[str, Any]:
-    """What the repo already has, in facts (spec §5b, step 1)."""
+    """What the repo already has, in facts."""
     _refuse_alpha(target)
     _repo(target)
     files = _tracked(target)
@@ -221,7 +228,7 @@ def saved_adoption(target: Path) -> dict[str, Any]:
     return cast(dict[str, Any], adoption) if isinstance(adoption, dict) else {}
 
 
-# --- installing alpha onto the repo (spec §5b, step 5) ---
+# --- installing alpha onto the repo ---
 
 ADOPT_BRANCH = "alpha/adopt"
 SETTINGS = ".claude/settings.json"
@@ -350,7 +357,7 @@ def switch_branch(target: Path) -> str:
     return ADOPT_BRANCH
 
 
-# --- the compliance plan (spec §5b, step 6) ---
+# --- the compliance plan ---
 
 _CHECK_STEPS = ("lint", "typecheck", "test")
 _TITLES = {
@@ -387,7 +394,7 @@ def _gap(
 
 
 def gaps(a: Answers, defaults: dict[str, Any]) -> list[dict[str, Any]]:
-    """The mechanical steps the answers call for, in phase order (spec §5b)."""
+    """The mechanical steps the answers call for, in phase order."""
     found: list[dict[str, Any]] = []
     if a.git_hooks == "chain":
         found.append(
