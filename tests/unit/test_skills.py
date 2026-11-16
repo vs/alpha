@@ -396,19 +396,23 @@ def test_answers_are_saved_with_one_line_answers_write(rel: str) -> None:
 REMOVED = re.compile(
     r"docs/(product|architecture|build|security|releases|ui|data|performance"
     r"|observability)\.md|/alpha:new-project|/alpha:adopt\b|alpha:adopt\b|/alpha:go\b"
+    r"|/alpha:extend\b|/alpha:specify\b"
 )
+REMOVED_COMMANDS = re.compile(r"/alpha:(extend|specify)\b")
 
 
 def test_no_kit_file_names_a_removed_doc_or_skill() -> None:
     shipped = [
         p
-        for folder in ("skills", "project-files", "recipes", "src")
+        for folder in ("skills", "project-files", "recipes", "src", "defaults")
         for p in (PLUGIN_ROOT / folder).rglob("*")
         if p.is_file() and p.suffix in (".md", ".py", ".toml")
     ]
     assert len(shipped) > 50
     named = [str(p) for p in shipped if REMOVED.search(p.read_text())]
     assert not named, named
+    for doc in ("README.md", "docs/specification.md"):
+        assert not REMOVED_COMMANDS.search((PLUGIN_ROOT / doc).read_text()), doc
 
 
 # --- install, update, uninstall, purge ---

@@ -430,7 +430,7 @@ def _identity(raw: object, base: Path) -> Identity:
         d,
         where,
         ("target_users", "requirements", "domain_jargon"),
-        "belongs to the requirements area, which /alpha:specify settles",
+        "belongs to the requirements area, which /alpha:update settles",
     )
     slug = string(d, "slug", where)
     if not NAME.fullmatch(slug):
@@ -1177,8 +1177,8 @@ def parse_answers(
             continue
         if area in PRODUCT_AREAS and status == "pending":
             fix = (
-                f'Set areas.{area} to "open": install leaves product areas for '
-                "/alpha:specify to settle when the user asks"
+                f'Set areas.{area} to "open": a product area the user didn\'t pick '
+                "stays open, for /alpha:update to settle when the user asks"
             )
         else:
             fix = f"Finish the {area} part of the interview, then retry"

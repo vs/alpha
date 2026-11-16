@@ -82,7 +82,7 @@ def test_R12_5_projects_get_the_agents_and_skills(tmp_path: Path):
         "Stop hook" not in reviewer and "after a planned piece of work" not in reviewer
     )
     decision = (tmp_path / ".claude/skills/decision/SKILL.md").read_text()
-    assert "`/alpha:specify`" in decision
+    assert "`/alpha:update <area>`" in decision
 
 
 def test_R13_2_commit_msg_is_the_only_git_hook(tmp_path: Path):

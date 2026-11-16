@@ -58,11 +58,11 @@ def test_open_areas_render_as_not_settled(tmp_path: Path):
         "accessibility",
         "performance",
     ):
-        assert f"`/alpha:specify {area}`" in not_settled, area
+        assert f"`/alpha:update {area}`" in not_settled, area
     sections = product.split("## Not settled yet")[1]
     assert "## Responsibilities and contracts\n\nNot settled yet" in sections
     assert "## Errors\n\nNot settled yet" in sections
-    assert "`/alpha:specify auth`" in sections
+    assert "`/alpha:update auth`" in sections
     for heading in ("## UI", "## Data", "## Performance", "## Observability"):
         assert heading not in product, heading
     for doc in ("docs/alpha/design-language.md", "docs/alpha/glossary.md"):
@@ -80,9 +80,9 @@ def test_open_areas_that_cannot_apply_are_not_listed(tmp_path: Path):
     spec = (tmp_path / "docs/alpha/specification.md").read_text()
     listed = spec.split("## Not settled yet")[1]
     for area in ("UI", "accessibility", "observability", "data"):
-        assert f"`/alpha:specify {area}`" not in listed, area
+        assert f"`/alpha:update {area}`" not in listed, area
     for area in ("architecture", "errors", "design language", "performance"):
-        assert f"`/alpha:specify {area}`" in listed, area
+        assert f"`/alpha:update {area}`" in listed, area
 
 
 def test_done_areas_have_no_not_settled_section(

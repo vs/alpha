@@ -301,7 +301,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "",
         "- [Principles](docs/alpha/principles.toml)",
         "- [Specification](docs/alpha/specification.md): what the product does; "
-        "`/alpha:specify` settles each open part, and each feature gets a folder "
+        "`/alpha:update <area>` settles each open part, and each feature gets a folder "
         "in `docs/alpha/features/`",
         "- [Contributing](CONTRIBUTING.md): how the project is built, checked, "
         "released and kept secure",
@@ -483,7 +483,7 @@ def _specification(a: Answers) -> str:
         lines += [row(r.id, r.text, r.acceptance) for r in req.items]
     elif req:
         lines.append(
-            "None yet: `/alpha:specify requirements` adds them, with their "
+            "None yet: `/alpha:update requirements` adds them, with their "
             "acceptance checks."
         )
     else:
