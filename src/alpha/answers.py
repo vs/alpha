@@ -1361,9 +1361,17 @@ def write_answers(target: Path, text: str) -> Path:
                 f"Remove it; allowed keys are "
                 f"{', '.join(sorted(_TOP_KEYS - {'installed'}))}",
             )
-    path = target / PROJECT_JSON
     data = read_project_json(target) or {}
-    data.update(cast(dict[str, Any], update))
+    fields = cast(dict[str, Any], update)
+    if "adoption" in fields:
+        _keep_step_records(data.get("adoption"), fields["adoption"])
+    data.update(fields)
+    return save_answers(target, data)
+
+
+def save_answers(target: Path, data: Mapping[str, Any]) -> Path:
+    """Replace `target`'s project.json with `data`, or stop saying why not."""
+    path = target / PROJECT_JSON
     try:
         write_json(path, data)
     except OSError as e:
@@ -1373,6 +1381,45 @@ def write_answers(target: Path, text: str) -> Path:
             "Check the folder's permissions and free space, then retry",
         ) from None
     return path
+
+
+def _step_list(adoption: object) -> list[object]:
+    steps: object = (
+        cast(dict[str, Any], adoption).get("steps")
+        if isinstance(adoption, dict)
+        else None
+    )
+    return cast(list[object], steps) if isinstance(steps, list) else []
+
+
+def _keep_step_records(saved: object, update: object) -> None:
+    """Refuse an adoption update that changes a step's status or branch, or
+    adds a step that isn't pending: only alpha adopt start, done and drop set
+    those, done after checking the step's acceptance, so the review can
+    trust them as alpha's records."""
+    before = {
+        str(s.get("id")): s
+        for s in (
+            cast(dict[str, Any], e) for e in _step_list(saved) if isinstance(e, dict)
+        )
+    }
+    for i, entry in enumerate(_step_list(update)):
+        if not isinstance(entry, dict):
+            continue
+        step = cast(dict[str, Any], entry)
+        old = before.get(str(step.get("id")))
+        new_step = {"status": "pending", "branch": None}
+        for key in ("status", "branch"):
+            was = old.get(key) if old is not None else new_step[key]
+            now = step.get(key, None if old is not None else was)
+            if now != was:
+                raise fail(
+                    f"adoption.steps[{i}].{key}",
+                    f"is {now!r}, but only alpha adopt start, done and drop "
+                    f"change it (saved: {was!r})",
+                    "Keep it as saved, and run alpha adopt start, done or drop "
+                    "for the step",
+                )
 
 
 def write_json(path: Path, data: Mapping[str, Any]) -> None:

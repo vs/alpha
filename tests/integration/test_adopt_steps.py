@@ -318,6 +318,18 @@ def test_start_sets_in_progress_and_branch(tmp_path: Path, git_env: None):
     assert saved["status"] == "in_progress" and saved["branch"] == "alpha/p2-a"
 
 
+def test_a_step_that_cant_be_saved_says_why(tmp_path: Path, git_env: None):
+    root = plan_repo(tmp_path, [ok("p2-a")])
+    folder = (root / PROJECT).parent
+    folder.chmod(0o555)
+    try:
+        result = run_cli("adopt", "start", str(root), "p2-a")
+    finally:
+        folder.chmod(0o755)
+    assert result.returncode == 1 and "Traceback" not in result.stderr
+    assert "Check the folder's permissions and free space" in result.stderr
+
+
 def test_unknown_step_lists_the_ids(tmp_path: Path, git_env: None):
     root = plan_repo(tmp_path, [ok("p2-a")])
     result = run_cli("adopt", "done", str(root), "p9")

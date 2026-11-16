@@ -826,3 +826,40 @@ def test_design_language_answers_without_their_area_are_not_done(tmp_path: Path)
         AnswersError, match=r"areas\.design_language: is pending, not done"
     ):
         check(tmp_path, d)
+
+
+def saved_plan(tmp_path: Path) -> dict[str, Any]:
+    step = {"id": "p4-a", "phase": "P4", "status": "pending"}
+    plan: dict[str, Any] = {"adoption": {"steps": [step]}}
+    write_answers(tmp_path, json.dumps(plan))
+    return plan
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("status", "done"), ("branch", "alpha/p4-a")]
+)
+def test_answers_write_refuses_a_steps_status_or_branch(
+    tmp_path: Path, field: str, value: str
+):
+    """Only alpha adopt start, done and drop change these: done checks the
+    step's acceptance, and the review trusts them as alpha's records."""
+    plan = saved_plan(tmp_path)
+    plan["adoption"]["steps"][0][field] = value
+    with pytest.raises(
+        AnswersError, match=rf"adoption\.steps\[0\]\.{field}: .*alpha adopt"
+    ):
+        write_answers(tmp_path, json.dumps(plan))
+
+
+def test_answers_write_refuses_a_new_step_that_isnt_pending(tmp_path: Path):
+    plan = saved_plan(tmp_path)
+    plan["adoption"]["steps"].append({"id": "p4-b", "phase": "P4", "status": "done"})
+    with pytest.raises(AnswersError, match=r"adoption\.steps\[1\]\.status"):
+        write_answers(tmp_path, json.dumps(plan))
+
+
+def test_answers_write_keeps_a_steps_status_as_saved(tmp_path: Path):
+    plan = saved_plan(tmp_path)
+    plan["adoption"]["steps"][0]["title"] = "Retitled"
+    plan["adoption"]["steps"].append({"id": "p4-b", "phase": "P4", "status": "pending"})
+    write_answers(tmp_path, json.dumps(plan))
