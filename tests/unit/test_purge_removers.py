@@ -37,20 +37,27 @@ ALPHA = re.compile(
 )
 
 
-def rendered_claude_md(tmp_path: Path) -> str:
+def rendered(tmp_path: Path, doc: str) -> str:
     path = tmp_path / ".claude/alpha/project.json"
     path.parent.mkdir(parents=True)
     path.write_text(FIXTURE.read_text())
     a = load_answers(path)
     defaults = load_defaults(Source(PLUGIN_ROOT, True))
-    return render_docs(a, build_principles(defaults, a, "0.1.0"), 2026, TODAY)[
-        "CLAUDE.md"
-    ]
+    return render_docs(a, build_principles(defaults, a, "0.1.0"), 2026, TODAY)[doc]
+
+
+def test_R3_2_purge_removes_the_alpha_workflow(tmp_path: Path) -> None:
+    contributing = rendered(tmp_path, "CONTRIBUTING.md")
+    assert "## Working with alpha" in contributing
+    cleaned = clean_markdown(contributing, REMOVED)
+    assert "## Working with alpha" not in cleaned
+    assert not [line for line in cleaned.splitlines() if "/alpha:" in line]
+    assert "## Checks" in cleaned
 
 
 def test_R3_2_only_alphas_lines_leave_claude_md(tmp_path: Path) -> None:
     mine = "- Ask Dana before touching the billing code."
-    text = rendered_claude_md(tmp_path).replace(
+    text = rendered(tmp_path, "CLAUDE.md").replace(
         "## Working rules\n\n", f"## Working rules\n\n{mine}\n"
     )
     cleaned = clean_markdown(text, REMOVED)

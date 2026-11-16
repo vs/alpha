@@ -364,6 +364,30 @@ CHAIN_BEGIN = "# alpha:begin"
 CHAIN_END = "# alpha:end"
 
 
+def _workflow_section(a: Answers) -> list[str]:
+    """How alpha runs the project. Every line names an /alpha: command, so
+    purge's line remover takes the whole section out."""
+    install = (
+        "- `/alpha:install` adopted this repo on `alpha/adopt`; run again, it "
+        "carries out the next step of `docs/alpha/adoption.md` while one is left."
+        if area_docs.adoption_doc(a) is not None
+        else "- `/alpha:install` set up this process once."
+    )
+    return [
+        "## Working with alpha",
+        "",
+        install,
+        "- `/alpha:update [request]` keeps it current: with no request it brings "
+        "alpha's files to the installed kit; with one it adds or changes a "
+        "component or a setup answer, or settles a product area "
+        "(`/alpha:update performance`).",
+        "- `/alpha:do <task>` works each task by a playbook; a feature goes through "
+        "research, a spec and a plan the user approves before any code.",
+        "- `/alpha:uninstall` switches alpha's hooks off and `/alpha:install` "
+        "switches them back on; `/alpha:purge` removes alpha in one commit.",
+    ]
+
+
 def _contributing(
     a: Answers,
     principles: dict[str, Any],
@@ -372,7 +396,7 @@ def _contributing(
     assert a.git is not None
     git = principles["git"]
     branching = _BRANCHING.get(a.git.branching, f"Branching model: {a.git.branching}.")
-    lines = ["# Contributing", "", "## One-time setup", ""]
+    lines = ["# Contributing", "", *_workflow_section(a), "", "## One-time setup", ""]
     if git.get("hooks") == "chain":
         lines += [
             "The project's own git hook manager runs alpha's commit check "
