@@ -68,6 +68,10 @@ jobs:
           node-version: "26"
       - name: "setup"
         run: "uv sync"
+      # The kit's Rust bootstrap installs the pinned toolchains on first use;
+      # run it once alone, or the parallel tests race in ~/.rustup.
+      - name: "Rust toolchains"
+        run: 'uv run pytest -m slow -n0 -k "test_bootstrap_runs_green and rust"'
       - name: "slow tests"
         run: "uv run pytest -m slow"
       - name: "Checks left the tree unchanged"

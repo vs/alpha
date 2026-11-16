@@ -11,8 +11,10 @@ def own_alpha_config(
     monkeypatch.setenv("ALPHA_CONFIG_DIR", str(tmp_path_factory.mktemp("alpha")))
     monkeypatch.delenv("ALPHA_SOURCE", raising=False)
     # CI sets CI=true, which freezes baselines and skips the hooks' slots; a
-    # test that needs it sets it itself.
+    # test that needs it sets it itself. UV_LOCKED makes uv refuse to create
+    # the lockfile of a project a test generates.
     monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("UV_LOCKED", raising=False)
 
 
 @pytest.fixture
