@@ -509,6 +509,14 @@ def brief(root: Path) -> str:
             "",
         ]
         lines += [f"- {path}: {reason}" for path, reason in sorted(noted.items())]
+    no_docs = untested.notes(root, "docs")
+    if no_docs:
+        lines += [
+            "",
+            "## Changes Claude says need no doc update (check each reason)",
+            "",
+        ]
+        lines += [f"- {path}: {reason}" for path, reason in sorted(no_docs.items())]
     lines += ["", "## Review afresh" if previous else "## Changed files", ""]
     lines += [f"- {path}" for path in fresh] or ["(none)"]
     lines += _changed_visuals(root, base, head, principles, fresh)

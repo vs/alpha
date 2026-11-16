@@ -60,7 +60,8 @@ def strip_heredocs(command: str) -> str:
     return "\n".join(out)
 
 
-def _newlines_to_semicolons(command: str) -> str:
+def _as_bash_reads(command: str) -> str:
+    """The command with each unquoted newline made a ";"."""
     out: list[str] = []
     quote = ""
     escaped = False
@@ -82,9 +83,7 @@ def _newlines_to_semicolons(command: str) -> str:
 
 def split_segments(command: str) -> list[list[str]] | None:
     command = strip_heredocs(command).replace("\\\n", "")  # line continuations
-    lexer = shlex.shlex(
-        _newlines_to_semicolons(command), posix=True, punctuation_chars=True
-    )
+    lexer = shlex.shlex(_as_bash_reads(command), posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
         tokens = list(lexer)
@@ -278,17 +277,70 @@ def _redirect(token: str) -> str | None:
     return None
 
 
-def redirect_segments(command: str) -> list[tuple[list[str], list[str]]]:
-    """(words, redirect targets) per segment. Lexed without POSIX quote
-    removal, so a quoted ">" (as in grep '>' f) stays a word, not a redirect;
-    an escaped \\> and a comparison inside [[ ]] aren't redirects either."""
-    command = _newlines_to_semicolons(strip_heredocs(command).replace("\\\n", ""))
-    lexer = shlex.shlex(command, posix=False, punctuation_chars=True)
-    lexer.whitespace_split = True
-    try:
-        tokens = list(lexer)
-    except ValueError:
-        return []
+OPERATOR_CHARS = set("();<>|&")
+
+
+def bash_words(command: str) -> list[str] | None:
+    """The command's words and operator runs as bash splits them, each word
+    with its quotes and backslashes kept, so a quoted ">" stays part of a word;
+    None when a quote doesn't close. A quote anywhere in a word belongs to it
+    (x"y " is one word), which Python's shlex gets wrong mid-word."""
+    tokens: list[str] = []
+    word: list[str] = []
+    quote = ""
+    i = 0
+
+    def flush() -> None:
+        if word:
+            tokens.append("".join(word))
+            word.clear()
+
+    while i < len(command):
+        ch = command[i]
+        if quote:
+            word.append(ch)
+            if ch == "\\" and quote == '"' and i + 1 < len(command):
+                word.append(command[i + 1])
+                i += 1
+            elif ch == quote:
+                quote = ""
+        elif ch == "\\":
+            word.append(command[i : i + 2])
+            i += 1
+        elif ch in "'\"":
+            quote = ch
+            word.append(ch)
+        elif ch == "#" and not word:
+            while i + 1 < len(command) and command[i + 1] != "\n":
+                i += 1  # a comment runs to the end of the line
+        elif ch == "\n":
+            flush()
+            tokens.append(";")
+        elif ch in " \t":  # bash splits only on these and newline
+            flush()
+        elif ch in OPERATOR_CHARS:
+            flush()
+            end = i
+            while end < len(command) and command[end] in OPERATOR_CHARS:
+                end += 1
+            tokens.append(command[i:end])
+            i = end - 1
+        else:
+            word.append(ch)
+        i += 1
+    if quote:
+        return None
+    flush()
+    return tokens
+
+
+def redirect_segments(command: str) -> list[tuple[list[str], list[str]]] | None:
+    """(words, redirect targets) per segment; None when the command can't be
+    split. A quoted or escaped ">" and a comparison inside [[ ]] aren't
+    redirects."""
+    tokens = bash_words(strip_heredocs(command).replace("\\\n", ""))
+    if tokens is None:
+        return None
     segments: list[tuple[list[str], list[str]]] = [([], [])]
     in_test = False
     for i, token in enumerate(tokens):
@@ -302,10 +354,7 @@ def redirect_segments(command: str) -> list[tuple[list[str], list[str]]]:
             continue
         if glued:
             segments.append(([], []))
-        before = tokens[i - 1] if i > 0 else ""
-        backslashes = len(before) - len(before.rstrip("\\"))
-        escaped = not glued and backslashes % 2 == 1
-        if in_test or escaped or i + 1 >= len(tokens):
+        if in_test or i + 1 >= len(tokens):
             continue
         try:
             segments[-1][1].extend(shlex.split(tokens[i + 1]))
@@ -383,7 +432,7 @@ def write_targets(command: str, cwd: Path) -> list[Path]:
             if word not in NOT_FILES:
                 targets += _files(here, word)
     here = cwd
-    for words, redirected in redirect_segments(command):
+    for words, redirected in redirect_segments(command) or []:
         if words and words[0] == "cd":
             here = _cd(here, _unquoted(words))
             continue
@@ -522,15 +571,23 @@ def check_merge(root: Path, words: list[str]) -> None:
             f"was reviewed and tested. Run git switch {branch} (or gh pr "
             "checkout), then merge from there."
         )
-    remote = pr_head(checkout, target or branch or "")
+    check_review(checkout)
+    pull_request = target or branch
+    remote = pr_head(checkout, pull_request)
+    if remote is None:
+        _common.block(
+            f"alpha can't ask GitHub where pull request {pull_request}'s head is "
+            "(gh pr view failed or timed out), so it can't check that what merges "
+            "is what was reviewed and tested. Check gh auth status and the "
+            "network, then merge again."
+        )
     local = (git_output(checkout, "rev-parse", "HEAD") or "").strip()
-    if remote and local and remote != local:
+    if remote != local:
         _common.block(
             f"The pull request's head on GitHub ({remote[:12]}) isn't this "
             f"checkout's HEAD ({local[:12]}): push the branch first, so what merges "
             "is what was reviewed and tested."
         )
-    check_review(checkout)
 
 
 def gh_command(segment: list[str]) -> list[str] | None:
@@ -692,6 +749,13 @@ READ_ONLY_GIT = {
     "describe",
     "shortlog",
 }
+UNPARSED_MESSAGE = (
+    "alpha's command guard can't parse this command (a quote it can't pair up, "
+    "or $'...' quoting with an escaped quote), so it can't check what it runs. "
+    "Simplify the quoting, or put the text in a heredoc or a file (e.g. git "
+    "commit -F <file>), then run it again."
+)
+
 REVIEWER_MESSAGE = (
     "The principles-reviewer only reads: it may run the brief, git diff, log, "
     "show and status, and read files, but not write, delete or commit. Report "
@@ -725,6 +789,8 @@ def main() -> None:
         sys.exit(0)
     cwd_value = inp.get("cwd")
     cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else root
+    if split_segments(command) is None or redirect_segments(command) is None:
+        _common.block(UNPARSED_MESSAGE)
     if inp.get("agent_type") == REVIEWER:
         check_read_only(command, cwd)
     check_command(command, root, here=cwd)
