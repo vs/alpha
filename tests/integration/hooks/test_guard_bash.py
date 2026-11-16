@@ -85,7 +85,9 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
         "echo $'it\\'s'; git commit --no-verify -m x",
         "echo $'it\\'s'; rm -rf .claude/alpha",
         "git commit -m 'unbalanced",
-        'echo a" "b > .env',  # only the redirect lexer fails on this one
+        # shlex reads a mid-word # as a comment; bash, and the redirect
+        # lexer, see an unclosed quote
+        "echo a#'b > .env",
     ],
 )
 def test_no_verify_after_an_ansi_c_quoted_word_is_blocked(
@@ -269,6 +271,11 @@ def test_reset_hard_is_allowed_on_a_clean_tree(project: Project) -> None:
         ("cd -P api; rm uv.lock", "api/uv.lock"),
         ("echo a\\\\ > .env", ".env"),
         ('echo "\\"" > .env', ".env"),
+        ('echo x"y "> .env "z"', ".env"),
+        ("echo a'b c'>.env", ".env"),
+        ("echo \"a\"'b' >> api/uv.lock", "api/uv.lock"),
+        ("echo x\r# > .env", ".env"),  # \r doesn't end a word, so # isn't a comment
+        ("echo x\xa0# > .env", ".env"),
     ],
 )
 def test_shell_writes_to_protected_paths_are_blocked(
@@ -295,6 +302,8 @@ def test_shell_writes_to_protected_paths_are_blocked(
         "[[ $x > .env ]] && echo later",
         "cd web && echo x > uv.lock",
         'echo "a \\"b\\"" > api/src/app.py',
+        "echo x # > .env",
+        'echo "x # > .env"',
     ],
 )
 def test_reads_and_unprotected_writes_pass(project: Project, command: str) -> None:
