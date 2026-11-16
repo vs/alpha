@@ -239,7 +239,7 @@
             "run": "uv run pytest tests/unit/test_kit.py::test_no_type_check_is_silenced_in_python && uv run pyright"
           }
         ],
-        "status": "in_progress",
+        "status": "done",
         "branch": "alpha/p4-narrow-optionals-in-tests"
       },
       {
