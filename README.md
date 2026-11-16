@@ -106,6 +106,8 @@ Rust reports none.
 
 ## Needs
 
+Python 3.11 or newer as `python3`, which runs alpha itself: on an older one
+it stops and says how to get a newer one (macOS ships 3.9). Then
 [uv](https://docs.astral.sh/uv/) and [pnpm](https://pnpm.io/) for the Python
 and TypeScript components, [rustup](https://rustup.rs/) for Rust ones, and
 [mise](https://mise.jdx.dev/) to install and run the repository checks. A
