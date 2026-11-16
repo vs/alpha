@@ -124,6 +124,17 @@ def test_apply_refuses_when_git_status_fails(repo: Path):
         _plan(repo)
 
 
+def test_a_non_utf8_repo_file_is_named_in_the_error(repo: Path):
+    readme = repo / "README.md"
+    readme.write_bytes(readme.read_bytes() + b"caf\xe9\n")
+    git(repo, "commit", "-qam", "docs: Add a Latin-1 line")
+    done = run_cli("apply", str(repo), "--dry-run")
+    assert done.returncode == 1
+    assert "Traceback" not in done.stderr
+    assert done.stderr.startswith(f"{readme} isn't UTF-8 text")
+    assert "principles.toml" not in done.stderr
+
+
 def test_apply_refuses_unfinished_answers(repo: Path):
     data = adoption_answers(repo)
     data["areas"]["testing"] = "in_progress"

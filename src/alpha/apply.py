@@ -81,7 +81,16 @@ class Plan:
 
 
 def _read(path: Path) -> str | None:
-    return path.read_bytes().decode("utf-8") if path.is_file() else None
+    if not path.is_file():
+        return None
+    try:
+        return path.read_bytes().decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise GenerateError(
+            f"{path} isn't UTF-8 text (byte {e.start} can't be decoded), so alpha "
+            "can't merge its changes into it. Convert it to UTF-8 (e.g. iconv -f "
+            "latin1 -t utf-8), commit that, then rerun."
+        ) from None
 
 
 def _project_json(target: Path) -> dict[str, Any]:
