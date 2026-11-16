@@ -44,12 +44,15 @@ def git(root: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
 
 
-def gh_reporting_head(project: Project, checkout: Path) -> dict[str, str | None]:
-    """An environment whose gh reports `checkout`'s HEAD as the pull
-    request's head on GitHub."""
-    head = subprocess.run(
+def head_of(checkout: Path) -> str:
+    return subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=checkout, capture_output=True, text=True
     ).stdout.strip()
+
+
+def gh_reporting_head(project: Project, head: str) -> dict[str, str | None]:
+    """An environment whose gh reports `head` as the pull request's head on
+    GitHub."""
     folder = project.root.parent / "fake-gh"
     folder.mkdir(exist_ok=True)
     gh = folder / "gh"
@@ -106,9 +109,30 @@ def test_merge_checks_the_checkout_that_has_the_branch(project: Project) -> None
     assert proc.returncode == 2
     assert proc.stderr.startswith("Nothing reaches main untested: the tests of api ")
     assert project.run_tests(cwd=wt).returncode == 0
-    env = gh_reporting_head(project, wt)
+    env = gh_reporting_head(project, head_of(wt))
     assert bash(project, "gh pr merge topic --squash", env=env).returncode == 0
     assert bash(project, "gh pr merge --squash", cwd=wt, env=env).returncode == 0
+
+
+def test_R9_2_a_pr_head_that_differs_from_local_head_blocks_the_merge(
+    project: Project,
+) -> None:
+    """R9.2: what merges must be what was reviewed and tested, so a pull
+    request whose head on GitHub isn't the checkout's HEAD (a push missed, or
+    someone else pushed) is blocked until the two agree."""
+    committed(project)
+    wt = worktree(project)
+    mark_reviewed(wt)
+    assert project.run_tests(cwd=wt).returncode == 0
+    elsewhere = "0" * 40
+    proc = bash(project, "gh pr merge topic", env=gh_reporting_head(project, elsewhere))
+    assert proc.returncode == 2
+    assert proc.stderr.startswith(
+        f"The pull request's head on GitHub ({elsewhere[:12]}) isn't this "
+        f"checkout's HEAD ({head_of(wt)[:12]}): push the branch first"
+    )
+    same = gh_reporting_head(project, head_of(wt))
+    assert bash(project, "gh pr merge topic", env=same).returncode == 0
 
 
 def test_merge_is_blocked_when_gh_cannot_report_the_pr_head(project: Project) -> None:

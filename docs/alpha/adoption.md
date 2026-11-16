@@ -8,7 +8,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | --- | --- | --- |
 | P2 Close tool gaps | 1 | 1 |
 | P4 Rework | 13 | 13 |
-| P6 Traceability | 0 | 1 |
+| P6 Traceability | 1 | 1 |
 
 ## P2 Close tool gaps
 
@@ -178,7 +178,7 @@ Done when:
 
 | Step | Component | Status |
 | --- | --- | --- |
-| `p6-r9-2-pr-head-test` | alpha | pending |
+| `p6-r9-2-pr-head-test` | alpha | done |
 
 ### `p6-r9-2-pr-head-test`: Test R9.2 through the command guard
 
