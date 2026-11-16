@@ -393,9 +393,10 @@ def _stack_rules(principles: dict[str, Any], touched: set[str] | None) -> list[s
     ]
 
 
-def _diff(root: Path, old: str, new: str, leave_out: list[str]) -> list[str]:
-    excluded = [f":(exclude,literal){path}" for path in leave_out]
-    out = _git(root, "diff", "--no-renames", old, new, "--", ".", *excluded) or ""
+def _diff(root: Path, old: str, new: str, paths: list[str]) -> list[str]:
+    """The diff of `paths` between the two trees, cut at DIFF_LINES."""
+    only = [f":(literal){path}" for path in paths]
+    out = _git(root, "diff", "--no-renames", old, new, "--", *only) or ""
     lines = out.splitlines()
     if len(lines) <= DIFF_LINES:
         return lines

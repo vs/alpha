@@ -205,7 +205,9 @@ def test_R10_3_the_brief_holds_only_files_changed_since(project: Project) -> Non
     text = review.brief(project.root)
     changed = text.split("## Changed files\n\n")[1].split("\n\n")[0]
     assert changed.splitlines() == ["- api/src/c.py"]
-    assert "api/src/a.py" not in text.split("## Diff")[1]
+    diff = text.split("## Diff")[1]
+    assert "diff --git a/api/src/c.py b/api/src/c.py" in diff
+    assert "api/src/a.py" not in diff
 
 
 def test_R10_3_alphas_own_writes_are_left_out(project: Project) -> None:
