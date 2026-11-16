@@ -6,7 +6,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 
 | Phase | Done | Steps |
 | --- | --- | --- |
-| P2 Close tool gaps | 0 | 1 |
+| P2 Close tool gaps | 1 | 1 |
 | P4 Rework | 0 | 13 |
 | P6 Traceability | 0 | 1 |
 
@@ -14,7 +14,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 
 | Step | Component | Status |
 | --- | --- | --- |
-| `p2-ci-green` | alpha | pending |
+| `p2-ci-green` | alpha | done |
 
 ### `p2-ci-green`: Get the generated CI green on main
 
