@@ -85,6 +85,7 @@ def test_blocked(project: Project, command: str, needle: str) -> None:
         "echo $'it\\'s'; git commit --no-verify -m x",
         "echo $'it\\'s'; rm -rf .claude/alpha",
         "git commit -m 'unbalanced",
+        'echo a" "b > .env',  # only the redirect lexer fails on this one
     ],
 )
 def test_no_verify_after_an_ansi_c_quoted_word_is_blocked(

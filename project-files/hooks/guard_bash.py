@@ -699,9 +699,9 @@ READ_ONLY_GIT = {
     "shortlog",
 }
 UNPARSED_MESSAGE = (
-    "alpha's command guard can't parse this command (an unbalanced quote, or "
-    "$'...' quoting with an escaped quote), so it can't check what it runs. "
-    "Balance the quotes, or put the text in a heredoc or a file (e.g. git "
+    "alpha's command guard can't parse this command (a quote it can't pair up, "
+    "or $'...' quoting with an escaped quote), so it can't check what it runs. "
+    "Simplify the quoting, or put the text in a heredoc or a file (e.g. git "
     "commit -F <file>), then run it again."
 )
 
