@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["tests/**/*.{ts,tsx}"],
+  "project": ["**/*.{ts,tsx}", "!**/*.config.{ts,mts}"],
+  // Knip can't see that dependency-cruiser loads @swc/core: its config's
+  // `parser: "swc"` is how it reads TypeScript 7 sources.
+  "ignoreDependencies": ["@swc/core"]
+}

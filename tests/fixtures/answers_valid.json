@@ -1,0 +1,350 @@
+{
+  "schema": 1,
+  "areas": {
+    "identity": "done",
+    "components": "done",
+    "testing": "done",
+    "documentation": "done",
+    "build": "done",
+    "security": "done",
+    "dependencies": "done",
+    "releases": "done",
+    "git": "done",
+    "agent_workflow": "done",
+    "requirements": "done",
+    "architecture": "done",
+    "errors": "done",
+    "design_language": "done",
+    "ui": "done",
+    "accessibility": "done",
+    "observability": "done",
+    "data": "done",
+    "performance": "done",
+    "auth": "done"
+  },
+  "identity": {
+    "name": "Pico Trust",
+    "slug": "pico-trust",
+    "value_proposition": "Hide short trust signals inside ordinary images so they survive re-sharing.",
+    "license": "MIT",
+    "license_file": null,
+    "copyright_holder": "Semyon Vadishev"
+  },
+  "layout": "monorepo",
+  "components_talk": true,
+  "components": [
+    {
+      "name": "api",
+      "path": "api",
+      "kind": "backend",
+      "stack": "python",
+      "traits": {
+        "has_ui": false,
+        "deployed": true,
+        "network_calls": true,
+        "persisted_data": true,
+        "ml": false,
+        "nontrivial_logic": true
+      }
+    },
+    {
+      "name": "web",
+      "path": "web",
+      "kind": "frontend",
+      "stack": "typescript",
+      "traits": {
+        "has_ui": true,
+        "deployed": true,
+        "network_calls": true,
+        "persisted_data": false,
+        "ml": false,
+        "nontrivial_logic": false
+      }
+    }
+  ],
+  "git": {
+    "convention": "conventional",
+    "scopes": [
+      "api",
+      "web"
+    ],
+    "branching": "trunk"
+  },
+  "agent_workflow": {
+    "extra_risk_paths": []
+  },
+  "architecture": {
+    "components": [
+      {
+        "name": "api",
+        "responsibility": "Embeds and verifies trust payloads in images.",
+        "calls": []
+      },
+      {
+        "name": "web",
+        "responsibility": "Lets users verify an image in the browser.",
+        "calls": [
+          "api"
+        ]
+      }
+    ],
+    "contracts": {
+      "format": "openapi",
+      "paths": [
+        "api/openapi.yaml"
+      ]
+    },
+    "glossary": [
+      {
+        "term": "Payload",
+        "meaning": "The signed trust data hidden in an image."
+      },
+      {
+        "term": "Intact",
+        "meaning": "A payload whose signature still verifies."
+      }
+    ]
+  },
+  "errors": {
+    "components": [
+      {
+        "name": "api",
+        "format": "problem-json"
+      },
+      {
+        "name": "web",
+        "format": "user-message"
+      }
+    ],
+    "categories": [
+      "validation",
+      "not-found",
+      "conflict",
+      "unavailable",
+      "internal"
+    ]
+  },
+  "testing": {
+    "components": [
+      {
+        "name": "api",
+        "levels": [
+          "unit",
+          "integration",
+          "contract"
+        ]
+      },
+      {
+        "name": "web",
+        "levels": [
+          "unit",
+          "end-to-end"
+        ]
+      }
+    ]
+  },
+  "documentation": {
+    "external": "folder",
+    "external_path": "docs/guide",
+    "external_location": "",
+    "mappings": [
+      {
+        "paths": [
+          "api/**/routes/**"
+        ],
+        "docs": [
+          "docs/guide/**"
+        ]
+      },
+      {
+        "paths": [
+          "web/**/pages/**"
+        ],
+        "docs": [
+          "docs/guide/**"
+        ]
+      },
+      {
+        "paths": [
+          "**/openapi*.yaml"
+        ],
+        "docs": [
+          "docs/alpha/specification.md"
+        ]
+      }
+    ]
+  },
+  "build": {
+    "ci": "github-actions",
+    "environments": [
+      "production"
+    ],
+    "components": [
+      {
+        "name": "api",
+        "artifact": "container",
+        "hosting": "Fly.io"
+      },
+      {
+        "name": "web",
+        "artifact": "static-site",
+        "hosting": "Cloudflare Pages"
+      }
+    ]
+  },
+  "security": {
+    "secret_store": "Fly.io secrets",
+    "extra_protected": [
+      "api/keys/**"
+    ]
+  },
+  "dependencies": {
+    "updates": "dependabot",
+    "schedule": "weekly"
+  },
+  "observability": {
+    "components": [
+      {
+        "name": "api",
+        "log_format": "json",
+        "correlation": "traceparent",
+        "telemetry": "none"
+      },
+      {
+        "name": "web",
+        "log_format": "json",
+        "correlation": "traceparent",
+        "telemetry": "none"
+      }
+    ]
+  },
+  "design_language": {
+    "defined": true,
+    "character": "Calm and technical: flat, high contrast, generous whitespace, no gradients or shadows.",
+    "colors": [
+      {
+        "name": "surface",
+        "value": "#FFFFFF (light), #0D1117 (dark)",
+        "use": "page and diagram backgrounds"
+      },
+      {
+        "name": "text",
+        "value": "#1F2328 (light), #E6EDF3 (dark)",
+        "use": "text, labels and diagram lines"
+      },
+      {
+        "name": "accent",
+        "value": "#0B5FFF",
+        "use": "links, primary actions and the highlighted path in a diagram"
+      },
+      {
+        "name": "danger",
+        "value": "#CF222E",
+        "use": "errors and a payload that fails verification"
+      }
+    ],
+    "typography": "Inter for text and labels, JetBrains Mono for code; system fallbacks",
+    "shape": "4 px grid, 6 px corners, 1.5 px lines, no shadows",
+    "imagery": "lucide outline icons at 1.5 px; no illustrations",
+    "diagrams": "Mermaid in Markdown, themed with the palette; boxes for components, the accent color for the path being explained",
+    "source": "",
+    "palette_check": "advise",
+    "third_party": [
+      "docs/partners/**"
+    ]
+  },
+  "ui": {
+    "components": [
+      {
+        "name": "web",
+        "library": "shadcn/ui",
+        "tokens": "web/src/styles/tokens.css",
+        "icons": "lucide",
+        "typography": "Inter, system fallback",
+        "theming": "light-dark",
+        "visual_regression": "Playwright screenshots"
+      }
+    ]
+  },
+  "accessibility": {
+    "level": "WCAG 2.2 AA",
+    "components": [
+      {
+        "name": "web",
+        "checks": "axe in the end-to-end tests, plus keyboard-only runs of R2"
+      }
+    ]
+  },
+  "releases": {
+    "scheme": "semver",
+    "changelog": "file",
+    "scope": "repo",
+    "process": "Tag vX.Y.Z on main; CI builds the container and the static site."
+  },
+  "data": {
+    "components": [
+      {
+        "name": "api",
+        "storage": "PostgreSQL",
+        "migration_tool": "Alembic",
+        "migrations": [
+          "api/migrations/versions/**"
+        ],
+        "reversible": true
+      }
+    ],
+    "ml": null
+  },
+  "performance": {
+    "components": [
+      {
+        "name": "api",
+        "budgets": [
+          {
+            "metric": "p95 response time",
+            "limit": "300 ms",
+            "measured_by": "k6 in CI against staging"
+          }
+        ]
+      },
+      {
+        "name": "web",
+        "budgets": [
+          {
+            "metric": "JavaScript bundle",
+            "limit": "200 KB gzipped",
+            "measured_by": "the build's size report in CI"
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "principle": "observability",
+      "scope": "component:api",
+      "change": "loosen",
+      "params": {},
+      "reason": "The api is a single-process prototype; structured logs are enough until it is deployed beyond one host."
+    }
+  ],
+  "requirements": {
+    "target_users": "Journalists and fact-checkers who publish photos and need provenance to travel with them.",
+    "items": [
+      {
+        "id": "R1",
+        "text": "A user can embed a signed trust payload into an image.",
+        "acceptance": "Given a PNG and a payload, when the user embeds it, then the returned image decodes back to the same payload."
+      },
+      {
+        "id": "R2",
+        "text": "A user can verify an image from the browser.",
+        "acceptance": "Given an embedded image, when the user opens it in the web app, then the app shows the payload and whether it is intact."
+      }
+    ],
+    "domain_jargon": false
+  },
+  "auth": {
+    "method": "API keys for publishers; verification is public."
+  }
+}

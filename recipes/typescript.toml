@@ -1,0 +1,116 @@
+stack = "typescript"
+proven = true
+bootstrap = [
+  "pnpm add -D typescript vitest @biomejs/biome @types/node knip dependency-cruiser @swc/core @vitest/coverage-v8",
+  # CI's pnpm/action-setup installs the version recorded here.
+  "pnpm pkg set packageManager=pnpm@$(pnpm --version)",
+]
+lockfiles = ["pnpm-lock.yaml"]
+ignores = ["node_modules/", "dist/", "coverage/"]
+# --coverage.include lists the files no test imports too (vitest reports only
+# imported files otherwise), so an untested new file counts as uncovered. The
+# excludes are needed because vitest's defaults don't cover config files, and a
+# given exclude may replace them.
+coverage = "pnpm vitest run --coverage --coverage.reporter=cobertura --coverage.include='**/*.{ts,tsx}' --coverage.exclude='**/*.config.{ts,mts}' --coverage.exclude='**/*.test.{ts,tsx}' --coverage.exclude='tests/**'"
+coverage_report = "coverage/cobertura-coverage.xml"
+dependabot = "npm"  # Dependabot's npm ecosystem covers pnpm
+manifests = ["package.json"]
+source_globs = ["**/*.ts", "**/*.tsx"]
+test_globs = ["tests/**/*.ts", "tests/**/*.tsx", "**/*.test.ts", "**/*.test.tsx"]
+exclude_globs = [
+  "**/.*/**",
+  "**/node_modules/**",
+  "**/dist/**",
+  "**/build/**",
+  "**/coverage/**",
+  "**/*.config.ts",
+  "**/*.config.mts",
+]
+allow = [
+  "Bash(pnpm vitest:*)",
+  "Bash(pnpm biome:*)",
+  "Bash(pnpm tsc:*)",
+  "Bash(pnpm knip:*)",
+  "Bash(pnpm depcruise:*)",
+  "Bash(pnpm install:*)",
+  "Bash(pnpm add:*)",
+]
+
+# The files whose folder `alpha adopt survey` lists as a candidate component.
+# A JavaScript-only package is found too; the interview decides what it is.
+[detect]
+markers = ["package.json", "tsconfig.json"]
+
+[commands]
+setup = "pnpm install"
+test = "pnpm vitest run"
+lint = "pnpm biome lint --error-on-warnings ."
+format = "pnpm biome format --write ."
+format_check = "pnpm biome format ."
+typecheck = "pnpm tsc --noEmit"
+structure = "pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs ."
+format_file = "pnpm biome format --write {file}"
+lint_file = "pnpm biome lint --error-on-warnings {file}"
+
+# How each check's findings read, for an adopted project's baselines (spec
+# §8b). Matched against output recorded from the pinned tools; see
+# tests/fixtures/baseline-output/.
+[baseline.lint]
+command = "pnpm biome lint --error-on-warnings --reporter=github ."
+pattern = '^::(?:error|warning) title=(?P<rule>[^,]+),file=(?P<file>[^,]+),'
+file_command = "pnpm biome lint --error-on-warnings --reporter=github {file}"
+
+# A config error names no file, so the file is optional.
+[baseline.typecheck]
+command = "pnpm tsc --noEmit --pretty false"
+pattern = '^(?:(?P<file>[^(\s][^(]*)\(\d+,\d+\): )?error (?P<rule>TS\d+):'
+
+[baseline.test]
+command = "pnpm vitest run"
+pattern = '^ FAIL  (?P<file>\S+)(?: > (?P<rule>.+))?$'
+
+[files]
+"package.json" = "package.json.tmpl"
+"tsconfig.json" = "tsconfig.json.tmpl"
+"biome.json" = "biome.json.tmpl"
+"tests/setup.test.ts" = "setup.test.ts.tmpl"
+".node-version" = "node-version.tmpl"
+"pnpm-workspace.yaml" = "pnpm-workspace.yaml.tmpl"
+"knip.jsonc" = "knip.jsonc.tmpl"
+".dependency-cruiser.cjs" = "dependency-cruiser.cjs.tmpl"
+
+[why]
+typescript = "Type checking and compilation"
+vitest = "Test runner"
+"@vitest/coverage-v8" = "Coverage of the lines a pull request changes"
+"@biomejs/biome" = "Linting and formatting"
+"@types/node" = "Node.js type definitions"
+knip = "Unused files, exports and dependencies"
+dependency-cruiser = "Circular and undeclared imports"
+"@swc/core" = "Parses TypeScript sources for dependency-cruiser"
+
+[ci]
+env = {}
+
+# Pinned to commit SHAs, as registry/actions.toml has them; `version` is the tag.
+[[ci.steps]]
+uses = "pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115"
+version = "v6.1.1"
+with = { package_json_file = "${dir}package.json" }
+
+[[ci.steps]]
+uses = "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1"
+version = "v7.1.0"
+with = { node-version-file = "${dir}.node-version", cache = "pnpm", cache-dependency-path = "${dir}pnpm-lock.yaml" }
+
+[[rules]]
+id = "top-level-imports"
+rule = "Import at the top of the file only: no `await import()` and no `import(\"pkg\").Type` in types."
+
+[[rules]]
+id = "unknown-at-boundaries"
+rule = "External data (JSON, request bodies, environment) enters as `unknown` and is narrowed by a schema or a type guard, never by `as`."
+
+[[rules]]
+id = "pnpm-for-dependencies"
+rule = "Add and remove dependencies with `pnpm add` and `pnpm remove`, and don't approve a dependency's install scripts (`pnpm approve-builds`) without asking the user."

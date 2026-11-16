@@ -1,0 +1,29 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.9, pytest-9.2.0, pluggy-1.7.0
+rootdir: /ROOT
+configfile: pyproject.toml
+collected 2 items
+
+tests/test_bad.py FF                                                     [100%]
+
+=================================== FAILURES ===================================
+__________________________________ test_fails __________________________________
+
+    def test_fails():
+>       assert 1 == 2
+E       assert 1 == 2
+
+tests/test_bad.py:2: AssertionError
+_____________________________ TestGroup.test_also ______________________________
+
+self = <test_bad.TestGroup object at 0x0>
+
+    def test_also(self):
+>       assert False
+E       assert False
+
+tests/test_bad.py:7: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_bad.py::test_fails - assert 1 == 2
+FAILED tests/test_bad.py::TestGroup::test_also - assert False
+============================== 2 failed in 0.02s ===============================

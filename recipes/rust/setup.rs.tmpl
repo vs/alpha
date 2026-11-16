@@ -1,0 +1,19 @@
+//! Checks that the lints this project relies on stay switched on.
+
+const MANIFEST: &str = include_str!("../Cargo.toml");
+
+#[test]
+fn unsafe_code_is_forbidden() {
+    assert!(
+        MANIFEST.contains("unsafe_code = \"forbid\""),
+        "Cargo.toml must keep `unsafe_code = \"forbid\"` under [lints.rust]"
+    );
+}
+
+#[test]
+fn clippy_pedantic_is_on() {
+    assert!(
+        MANIFEST.contains("pedantic = { level = \"warn\", priority = -1 }"),
+        "Cargo.toml must keep clippy's pedantic group under [lints.clippy]"
+    );
+}

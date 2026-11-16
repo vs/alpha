@@ -1,0 +1,2 @@
+::error file=.claude/skills/x/SKILL.md,line=1,col=1,endLine=1,endColumn=2,title=AS-001::SKILL.md must have YAML frontmatter between --- markers
+::notice file=,line=1,col=1,endLine=1,endColumn=1,title=VER-001::No tool or spec versions pinned. Version-dependent rules will use default assumptions.

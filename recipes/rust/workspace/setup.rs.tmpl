@@ -1,0 +1,28 @@
+//! Checks that the lints this project relies on stay switched on.
+
+const WORKSPACE: &str = include_str!("../$root/Cargo.toml");
+const MANIFEST: &str = include_str!("../Cargo.toml");
+
+#[test]
+fn unsafe_code_is_forbidden() {
+    assert!(
+        WORKSPACE.contains("unsafe_code = \"forbid\""),
+        "The root Cargo.toml must keep `unsafe_code = \"forbid\"` under [workspace.lints.rust]"
+    );
+}
+
+#[test]
+fn clippy_pedantic_is_on() {
+    assert!(
+        WORKSPACE.contains("pedantic = { level = \"warn\", priority = -1 }"),
+        "The root Cargo.toml must keep clippy's pedantic group under [workspace.lints.clippy]"
+    );
+}
+
+#[test]
+fn workspace_lints_are_inherited() {
+    assert!(
+        MANIFEST.contains("[lints]\nworkspace = true"),
+        "Cargo.toml must keep `workspace = true` under [lints]"
+    );
+}

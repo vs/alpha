@@ -1,0 +1,460 @@
+from typing import Any, cast
+
+from alpha.answers import (
+    DEPENDENCY_LOG,
+    DESIGN_LANGUAGE_DOC,
+    Answers,
+    AnswersError,
+    Component,
+    Documentation,
+)
+from alpha.areas import INSTALL_AREAS
+from alpha.baseline import BASELINE_GLOB, ratchet_command
+from alpha.recipes import RecipeBook
+from alpha.registry import Registry, default_registry
+from alpha.repo_checks import PALETTE, RepoCheck, principles_entries, repo_checks
+from alpha.toml_write import dumps
+from alpha.validate import fail, prefixed
+
+_COMPONENT_FACTS = (
+    "has_ui",
+    "deployed",
+    "network_calls",
+    "persisted_data",
+    "ml",
+    "nontrivial_logic",
+    "budgets_set",
+)
+_PROJECT_ONLY = (
+    "multi_component",
+    "communicating_components",
+    "domain_jargon",
+    "exhaustive_testing",
+    "design_language",
+)
+VISUAL_KINDS = ("sources", "carriers", "opaque", "exclude", "palette_files")
+
+_HEADER = """\
+# Single source of truth for this project's principles, review thresholds,
+# protected paths and component commands. Edit by hand or through alpha skills;
+# hooks and reviewers read this file.
+"""
+
+
+def _budgets(a: Answers) -> dict[str, list[str]]:
+    plans = a.performance.components if a.performance else ()
+    return {
+        p.name: [f"{b.metric}: {b.limit} ({b.measured_by})" for b in p.budgets]
+        for p in plans
+        if p.budgets
+    }
+
+
+def component_facts(c: Component, a: Answers) -> dict[str, bool]:
+    t = c.traits
+    return {
+        "has_ui": c.has_ui,
+        "deployed": t.deployed,
+        "network_calls": t.network_calls,
+        "persisted_data": t.persisted_data,
+        "ml": t.ml,
+        "nontrivial_logic": t.nontrivial_logic,
+        "budgets_set": c.name in _budgets(a),
+    }
+
+
+def compute_facts(a: Answers, defaults: dict[str, Any]) -> dict[str, bool]:
+    per = [component_facts(c, a) for c in a.components]
+    multi = len(a.components) > 1
+    facts = {key: any(f[key] for f in per) for key in _COMPONENT_FACTS}
+    facts["multi_component"] = multi
+    facts["communicating_components"] = multi and a.components_talk
+    facts["domain_jargon"] = a.requirements.domain_jargon if a.requirements else False
+    facts["exhaustive_testing"] = exhaustive_testing(a, defaults)
+    facts["design_language"] = bool(a.design_language and a.design_language.defined)
+    return facts
+
+
+def _waits_for_area(principle: dict[str, Any], a: Answers) -> bool:
+    """Whether the principle is off because the area that holds its
+    parameters is still open."""
+    area = principle.get("settled_by")
+    return area is not None and a.areas[area] == "open"
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(items))
+
+
+def _applicable(applies: list[str], a: Answers, project: dict[str, bool]) -> list[str]:
+    names: list[str] = []
+    for c in a.components:
+        facts = component_facts(c, a)
+        for cond in applies:
+            if cond == "always" or (
+                project[cond] if cond in _PROJECT_ONLY else facts.get(cond, False)
+            ):
+                names.append(c.name)
+                break
+    return names
+
+
+def _docs_map(documentation: Documentation) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for m in documentation.mappings:
+        for glob in m.paths:
+            out[glob] = _dedupe([*out.get(glob, []), *m.docs])
+    return out
+
+
+def exhaustive_testing(a: Answers, defaults: dict[str, Any]) -> bool:
+    """The answer when the interview set one, else the kit's default."""
+    if a.testing is not None and a.testing.exhaustive is not None:
+        return a.testing.exhaustive
+    return defaults.get("testing", {}).get("exhaustive") is True
+
+
+def workspace_members(a: Answers, defaults: dict[str, Any]) -> frozenset[str]:
+    """The components that share their stack's workspace at the repository
+    root: in a monorepo, those whose recipe has one, unless
+    the answers or the kit's default switch it off."""
+    on = a.workspace
+    if on is None:
+        on = defaults.get("components", {}).get("workspace") is True
+    if not on or a.layout != "monorepo":
+        return frozenset()
+    book = a.book()
+    return frozenset(
+        c.name
+        for c in a.components
+        if c.path != "." and book.get(c.stack).workspace is not None
+    )
+
+
+def diff_coverage(a: Answers, defaults: dict[str, Any]) -> int:
+    """Every changed line under exhaustive testing; otherwise the answer when
+    the interview set one, else the kit's default."""
+    answer = a.testing.diff_coverage if a.testing is not None else None
+    if exhaustive_testing(a, defaults):
+        if answer not in (None, 100):
+            raise fail(
+                "testing.diff_coverage",
+                f"is {answer} but exhaustive testing covers every line a pull "
+                "request changes",
+                'Leave diff_coverage out, or set "exhaustive": false in testing',
+            )
+        return 100
+    if answer is not None:
+        return answer
+    try:
+        value = defaults["testing"]["diff_coverage"]
+    except KeyError:
+        raise AnswersError(
+            "defaults: [testing] diff_coverage is missing (the defaults checkout "
+            "is older than this kit). Add 'diff_coverage = 80' under [testing] in "
+            "defaults/defaults.toml, or update the checkout."
+        ) from None
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 100:
+        raise AnswersError(
+            f"defaults: [testing] diff_coverage is {value!r}, not a whole "
+            "percentage from 0 to 100. Fix it in defaults/defaults.toml, e.g. "
+            "'diff_coverage = 80'."
+        )
+    return value
+
+
+# Migration tools whose migrations are SQL files: squawk lints only added
+# `.sql` files, so a tool that writes Python (Alembic, Django) gets no squawk
+# check. A tool counts when its name, lowercased, contains one of these.
+SQL_MIGRATION_TOOLS = (
+    "sql",
+    "flyway",
+    "dbmate",
+    "goose",
+    "golang-migrate",
+    "migrate",
+    "atlas",
+    "prisma",
+    "sqitch",
+)
+
+
+def writes_sql(migration_tool: str) -> bool:
+    """Whether the migration tool's migrations are SQL files squawk can lint."""
+    tool = migration_tool.lower()
+    return any(name in tool for name in SQL_MIGRATION_TOOLS)
+
+
+def build_principles(
+    defaults: dict[str, Any],
+    a: Answers,
+    kit_version: str,
+    *,
+    registry: Registry | None = None,
+) -> dict[str, Any]:
+    missing = [
+        area for area in INSTALL_AREAS if area != "components" and not getattr(a, area)
+    ]
+    if missing:
+        raise AnswersError(
+            f"Answers are incomplete: {', '.join(missing)} must be done. Finish "
+            "the interview areas, then retry."
+        )
+    assert a.git and a.agent_workflow and a.documentation and a.identity
+    assert a.security
+    data = a.data.components if a.data else ()
+    migration_paths = _dedupe([g for d in data for g in d.migrations])
+    squawk_paths = _dedupe(
+        [
+            g
+            for d in data
+            if "postgres" in d.storage.lower() and writes_sql(d.migration_tool)
+            for g in d.migrations
+        ]
+    )
+    tokens = {u.name: u.tokens for u in a.ui.components} if a.ui else {}
+    defined_language = a.design_language is not None and a.design_language.defined
+    review = dict(defaults["review"])
+    if a.performance is not None and a.performance.expected_load:
+        review["expected_load"] = a.performance.expected_load
+    review["risk_paths"] = _dedupe(
+        [
+            *defaults["review"]["risk_paths"],
+            *a.agent_workflow.extra_risk_paths,
+            *(a.architecture.contracts.paths if a.architecture else ()),
+            *migration_paths,
+            *(p for t in tokens.values() for p in (t, f"{t}/**")),
+            *([DESIGN_LANGUAGE_DOC] if defined_language else []),
+        ]
+    )
+
+    components: list[dict[str, Any]] = []
+    protected = list(defaults["protected"]["paths"])
+    book = a.book()
+    members = workspace_members(a, defaults)
+    for c in a.components:
+        recipe = book.get(c.stack)
+        member = c.name in members
+        # A workspace's lockfile and its own manifest are at the repository
+        # root, shared by every member.
+        lockfiles = [prefixed("." if member else c.path, x) for x in recipe.lockfiles]
+        manifests = [prefixed(c.path, m) for m in recipe.manifests]
+        rules = {r.id: r.rule for r in recipe.rules}
+        shared: list[str] = []
+        if member:
+            assert recipe.workspace is not None  # workspace_members checked it
+            manifests += recipe.manifests
+            rules.update({r.id: r.rule for r in recipe.workspace.rules})
+            shared = sorted(recipe.workspace.root_templates)
+        protected += lockfiles
+        components.append(
+            {
+                "name": c.name,
+                "path": c.path,
+                "kind": c.kind,
+                "stack": c.stack,
+                "manifests": manifests,
+                "lockfiles": lockfiles,
+                "source_globs": [prefixed(c.path, g) for g in recipe.source_globs],
+                "test_globs": [prefixed(c.path, g) for g in recipe.test_globs],
+                "exclude_globs": [prefixed(c.path, g) for g in recipe.exclude_globs],
+                "commands": dict(recipe.commands),
+                "rules": [
+                    {"id": f"{c.stack}:{rule_id}", "rule": rule}
+                    for rule_id, rule in rules.items()
+                ],
+                # The files at the repository root that alpha writes for the
+                # workspace this component is a member of.
+                **({"workspace": shared} if member else {}),
+            }
+        )
+
+    project = compute_facts(a, defaults)
+    principles: list[dict[str, Any]] = []
+    for p in defaults["principles"]:
+        names = (
+            [] if _waits_for_area(p, a) else _applicable(list(p["applies"]), a, project)
+        )
+        principles.append(
+            {
+                "id": p["id"],
+                "title": p["title"],
+                "statement": p["statement"],
+                "rationale": p["rationale"],
+                "applies": list(p["applies"]),
+                "core": p["core"],
+                "checked_by": list(p["checked_by"]),
+                "active": bool(names),
+                "components": names,
+                "override": "",
+                "params": dict(p.get("params", {})),
+                "component_params": {},
+            }
+        )
+
+    by_id = {p["id"]: p for p in principles}
+    if a.accessibility is not None and a.accessibility.level:
+        by_id["accessibility"]["params"]["level"] = a.accessibility.level
+    visuals: dict[str, Any] = {}
+    language = a.design_language
+    if language is not None and language.defined:
+        listed = defaults.get("design_language", {}).get("visuals")
+        if "design-language" not in by_id or listed is None:
+            raise AnswersError(
+                "defaults: the design-language principle or its "
+                "[design_language.visuals] list is missing (the defaults checkout "
+                "is older than this kit). Update the checkout, or unset "
+                "ALPHA_SOURCE to use the installed kit's defaults."
+            )
+        by_id["design-language"]["params"]["language"] = DESIGN_LANGUAGE_DOC
+        visuals = {
+            "palette_check": language.palette_check,
+            "palette": [c.value for c in language.colors],
+            **{kind: list(listed[kind]) for kind in VISUAL_KINDS},
+        }
+        visuals["exclude"] = _dedupe([*visuals["exclude"], *language.third_party])
+        if language.palette_check == "enforce":
+            by_id["design-language"]["checked_by"].append(f"ci:{PALETTE}")
+    by_id["perf-budgets"]["component_params"].update(
+        {name: {"budgets": b} for name, b in _budgets(a).items()}
+    )
+    by_id["visual-system"]["component_params"].update(
+        {name: {"tokens": t} for name, t in tokens.items()}
+    )
+    by_id["accessibility"]["component_params"].update(
+        {
+            c.name: {"checks": c.checks}
+            for c in (a.accessibility.components if a.accessibility else ())
+        }
+    )
+    if a.data is not None and a.data.ml is not None:
+        ml = {
+            "data_versioning": a.data.ml.versioning,
+            "seeds": a.data.ml.seeds,
+            "tracking": a.data.ml.tracking,
+        }
+        by_id["reproducible"]["component_params"].update(
+            {c.name: dict(ml) for c in a.components if c.traits.ml}
+        )
+    present = {c.name for c in a.components}
+    for i, o in enumerate(a.overrides):
+        target = by_id.get(o.principle)
+        if target is None:
+            raise AnswersError(
+                f"overrides[{i}].principle: unknown principle '{o.principle}'. "
+                f"Known ids: {', '.join(sorted(by_id))}."
+            )
+        comp = o.scope.removeprefix("component:") if o.scope != "project" else None
+        if comp is not None and comp not in present:
+            continue
+        if o.change in ("tighten", "loosen"):
+            if comp is None:
+                cast(dict[str, Any], target["params"]).update(o.params)
+            elif o.params:
+                per = cast(dict[str, dict[str, Any]], target["component_params"])
+                per.setdefault(comp, {}).update(o.params)
+        elif comp is not None:
+            target["components"] = [n for n in target["components"] if n != comp]
+            if not target["components"]:
+                target["active"] = False
+        else:
+            target["active"] = False
+        said = f"{o.change} ({o.scope})" + (f": {o.reason}" if o.reason else "")
+        target["override"] = "; ".join(filter(None, [target["override"], said]))
+
+    docs_map = _docs_map(a.documentation)
+    protected += a.security.extra_protected
+    git_section: dict[str, Any] = {
+        "convention": a.git.convention,
+        "types": list(defaults["git"]["types"]),
+        "scopes": list(a.git.scopes),
+        "branching": a.git.branching,
+    }
+    if a.git_hooks == "chain":  # the repo's hook manager calls alpha's check
+        git_section["hooks"] = "chain"
+        if a.hook_files:
+            git_section["hook_files"] = list(a.hook_files)
+    out: dict[str, Any] = {
+        "schema": 1,
+        "kit_version": kit_version,
+        "project": {"name": a.identity.name, "slug": a.identity.slug},
+        "review": review,
+        "protected": {
+            "paths": _dedupe(protected),
+            "extra": list(a.security.extra_protected),
+        },
+        "git": git_section,
+        "docs_map": docs_map,
+        "dependency_log": a.documentation.existing.get("dependencies", DEPENDENCY_LOG),
+        "data": {"migration_paths": migration_paths, "squawk_paths": squawk_paths},
+        "testing": {
+            "diff_coverage": diff_coverage(a, defaults),
+            **({"exhaustive": True} if project["exhaustive_testing"] else {}),
+        },
+        "components": components,
+        "principles": principles,
+    }
+    if visuals:
+        out["visuals"] = visuals
+    pins = registry or default_registry()
+    checks = repo_checks(a, out, pins)
+    out["repo_checks"] = principles_entries(checks)
+    if a.baselines:
+        out["baselines"] = _baselines(a, out, book, checks, pins)
+    return out
+
+
+def _baselines(
+    a: Answers,
+    out: dict[str, Any],
+    book: RecipeBook,
+    checks: list[RepoCheck],
+    registry: Registry,
+) -> list[dict[str, Any]]:
+    """The [[baselines]] entries the ratchet reads, with each baselined check's
+    commands pointed at it (spec §8b)."""
+    out["protected"]["paths"] = _dedupe([*out["protected"]["paths"], BASELINE_GLOB])
+    out["review"]["risk_paths"] = _dedupe([*out["review"]["risk_paths"], BASELINE_GLOB])
+    by_name = {c["name"]: c for c in out["components"]}
+    stacks = {c.name: c.stack for c in a.components}
+    repo = {c.id: c for c in checks}
+    entries: list[dict[str, Any]] = []
+    for i, check in enumerate(a.baselines):
+        where = f"adoption.baselines[{i}]"
+        step, _, name = check.partition(":")
+        if name:
+            comp = by_name[name]
+            baseline = book.get(stacks[name]).baselines[step]
+            commands = comp["commands"]
+            commands[step] = ratchet_command(check, comp["path"])
+            if step == "lint" and commands.get("lint_file"):
+                commands["lint_file"] = (
+                    ratchet_command(check, comp["path"]) + " --file {file}"
+                )
+            entry = {"id": check, "dir": comp["path"], **baseline.to_data()}
+            coverage = book.get(stacks[name]).coverage
+            if step == "test" and coverage:
+                # CI runs the tests with coverage on a pull request instead.
+                entry["coverage_command"] = coverage
+            entries.append(entry)
+            continue
+        found = repo.get(check)
+        if found is None:
+            raise AnswersError(
+                f"{where}: the project has no {check} check (its answers don't "
+                "switch it on). Remove it.",
+                where,
+            )
+        pin = registry.tool(found.tool).pin if found.tool else None
+        if pin is None or pin.baseline is None:
+            raise AnswersError(
+                f"{where}: the registry doesn't say how {check}'s findings read "
+                "(no pin.baseline), so it can't be baselined. Remove it.",
+                where,
+            )
+        entries.append({"id": check, "dir": ".", **pin.baseline.to_data()})
+    return entries
+
+
+def render_principles(data: dict[str, Any]) -> str:
+    return _HEADER + "\n" + dumps(data)

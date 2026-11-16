@@ -1,0 +1,135 @@
+stack = "rust"
+proven = true
+# The toolchain comes from rust-toolchain.toml (rustup installs it on first
+# use); these add its components, the nightly of the coverage run and the
+# cargo subcommands the checks run. `cargo install` of an installed version
+# does nothing.
+bootstrap = [
+  "rustup component add rustfmt clippy llvm-tools-preview",
+  "rustup toolchain install ${coverage_toolchain} --profile minimal --component llvm-tools-preview",
+  "cargo install --locked cargo-llvm-cov@0.9.1 cargo-machete@0.9.2",
+]
+lockfiles = ["Cargo.lock"]
+ignores = ["target/", "coverage.xml"]
+# Only this command runs on the nightly: stable Rust records no branches
+#. cargo-llvm-cov leaves test files (tests/, tests.rs) out of
+# the report.
+coverage = "cargo +${coverage_toolchain} llvm-cov --branch --cobertura --output-path coverage.xml"
+coverage_report = "coverage.xml"
+dependabot = "cargo"
+manifests = ["Cargo.toml"]
+source_globs = ["**/*.rs"]
+# Unit tests live in a `tests.rs` module file next to the code (see the
+# tests-beside-code rule), so the hooks see tests change with it.
+test_globs = ["tests/**/*.rs", "**/tests.rs"]
+exclude_globs = ["**/.*/**", "**/target/**"]
+allow = [
+  "Bash(cargo fetch:*)",
+  "Bash(cargo test:*)",
+  "Bash(cargo fmt:*)",
+  "Bash(cargo clippy:*)",
+  "Bash(cargo check:*)",
+  "Bash(cargo machete:*)",
+  "Bash(cargo llvm-cov:*)",
+  "Bash(cargo add:*)",
+  "Bash(rustfmt --edition:*)",
+]
+
+# The dated nightly of the coverage run, written here and nowhere else. To move
+# it: pick a newer date, rerun the slow tests (`uv run pytest -m slow -k rust`
+# proves that `--branch` still reaches diff-cover) and release the kit;
+# `alpha update` then carries the date into each project's CI workflow.
+[vars]
+coverage_toolchain = "nightly-2026-11-10"
+
+# The files whose folder `alpha adopt survey` lists as a candidate component.
+[detect]
+markers = ["Cargo.toml"]
+
+# cargo fetch writes Cargo.lock if it's missing and never updates a current
+# one; in CI a stale lockfile changes and the unchanged-tree step fails.
+# Clippy can't lint a single file, so lint_file is empty. In a workspace each
+# command covers the member it runs in; clippy also lints the sibling members
+# that member depends on unless told `--no-deps`.
+[commands]
+setup = "cargo fetch"
+test = "cargo test"
+lint = "cargo clippy --all-targets --no-deps -- -D warnings"
+format = "cargo fmt"
+format_check = "cargo fmt --check"
+typecheck = "cargo check --all-targets"
+structure = "cargo machete"
+format_file = "rustfmt --edition 2024 {file}"
+lint_file = ""
+
+[files]
+"Cargo.toml" = "Cargo.toml.tmpl"
+"clippy.toml" = "clippy.toml.tmpl"
+"rust-toolchain.toml" = "rust-toolchain.toml.tmpl"
+"tests/setup.rs" = "setup.rs.tmpl"
+
+# In a monorepo the Rust components form one Cargo workspace at the repository
+# root: one Cargo.lock, toolchain, clippy.toml and target/.
+# `layout = "single"` keeps the [files] above.
+[workspace]
+root_ignores = ["target/"]
+member_ignores = ["coverage.xml"]
+
+[workspace.files]
+"Cargo.toml" = "workspace/Cargo.toml.tmpl"
+"clippy.toml" = "clippy.toml.tmpl"
+"rust-toolchain.toml" = "rust-toolchain.toml.tmpl"
+
+[workspace.member_files]
+"Cargo.toml" = "workspace/member.Cargo.toml.tmpl"
+"tests/setup.rs" = "workspace/setup.rs.tmpl"
+
+[[workspace.rules]]
+id = "cargo-for-dependencies"
+rule = "Declare each dependency once, in `[workspace.dependencies]` of the root Cargo.toml, and name it in a member with `foo.workspace = true`; add and remove them with cargo commands where cargo supports it, never by copying versions into a member."
+
+[why]
+rustfmt = "Formatting (a toolchain component)"
+clippy = "Linting, with the pedantic group (a toolchain component)"
+cargo-llvm-cov = "Coverage of the lines and branches a pull request changes, run on the dated nightly the kit pins (a kit release moves the date, and `alpha update` brings it in)"
+cargo-machete = "Unused dependencies"
+
+[ci]
+env = {}
+
+# Pinned to commit SHAs, as registry/actions.toml has them; `version` is the tag.
+# setup-rust-toolchain installs the toolchain rust-toolchain.toml names, with
+# its components, and caches target/ and the cargo registry. `${dir}` is the
+# folder that holds rust-toolchain.toml: the component's, or the repository
+# root for a workspace member. Its first use installs the coverage nightly
+# beside it, without making it the default.
+[[ci.steps]]
+uses = "actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30"
+version = "v2.0.1"
+with = { toolchain = "${coverage_toolchain}", components = "llvm-tools-preview", override = "false", cache = "false" }
+
+[[ci.steps]]
+uses = "actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30"
+version = "v2.0.1"
+with = { rust-src-dir = "${dir}.", cache-workspaces = "${dir}." }
+
+[[ci.steps]]
+uses = "taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39"
+version = "v2.90.3"
+with = { tool = "cargo-llvm-cov@0.9.1,cargo-machete@0.9.2" }
+
+[[rules]]
+id = "cargo-for-dependencies"
+rule = "Add and remove dependencies with `cargo add` and `cargo remove`, never by editing `[dependencies]` in `Cargo.toml` by hand."
+
+[[rules]]
+id = "typed-boundaries"
+rule = "Parse external input (arguments, environment, files, JSON) into typed structs at the boundary (clap and serde derives); don't pass `serde_json::Value` or raw strings inward."
+
+[[rules]]
+id = "errors-with-context"
+rule = "A library returns its own error enum; a binary adds context to each error it passes up, saying what failed and how to fix it. `expect()` only for an invariant, with a message naming it."
+
+[[rules]]
+id = "tests-beside-code"
+rule = "Put a module's unit tests in a `tests.rs` file beside it (`#[cfg(test)] mod tests;`), not inline, and behavior through the public API in `tests/`."

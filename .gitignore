@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+.claude/worktrees/
+.DS_Store
+coverage.xml
+.coverage

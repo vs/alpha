@@ -1,0 +1,39 @@
+[project]
+name = "$slug-$name"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = []
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+# Measure every file here, so a file no test imports counts as uncovered and
+# diff-cover can see it. Dot-dirs (.venv, .claude) aren't this project's code.
+source = ["."]
+# Tests and their helpers (the recipe's test_globs) aren't code to cover.
+omit = [".*/*", "tests/*", "**/test_*.py", "**/*_test.py", "**/conftest.py"]
+
+[tool.coverage.report]
+include_namespace_packages = true  # files in folders without __init__.py too
+
+[tool.pyright]
+typeCheckingMode = "strict"
+reportUnnecessaryTypeIgnoreComment = "error"
+
+[tool.deptry]
+extend_exclude = ["\\.claude"]  # alpha's hooks, not this project's code
+
+[tool.ruff]
+extend-exclude = [".claude"]
+
+[tool.ruff.lint]
+# BLE: no catch-all except. ERA: no commented-out code. PGH, RUF100: no blanket
+# or stale suppressions. PLC0415: imports at the top. TRY002: raise specific types.
+select = ["E", "F", "I", "UP", "B", "BLE", "ERA", "PGH", "RUF100", "PLC0415", "TRY002"]

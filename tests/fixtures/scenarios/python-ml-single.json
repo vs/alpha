@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "areas": {
+    "identity": "done",
+    "components": "done",
+    "testing": "done",
+    "documentation": "done",
+    "build": "done",
+    "security": "done",
+    "dependencies": "done",
+    "releases": "done",
+    "git": "done",
+    "agent_workflow": "done",
+    "requirements": "done",
+    "architecture": "done",
+    "errors": "done",
+    "design_language": "done",
+    "ui": "done",
+    "accessibility": "done",
+    "observability": "done",
+    "data": "done",
+    "performance": "done",
+    "auth": "done"
+  },
+  "identity": {
+    "name": "Leaf Lens",
+    "slug": "leaf-lens",
+    "value_proposition": "Spot common houseplant diseases from a single leaf photo.",
+    "license": "Apache-2.0",
+    "license_file": null,
+    "copyright_holder": "Semyon Vadishev"
+  },
+  "layout": "single",
+  "components_talk": false,
+  "components": [
+    {
+      "name": "ml",
+      "path": ".",
+      "kind": "ml",
+      "stack": "python",
+      "traits": {
+        "has_ui": false,
+        "deployed": false,
+        "network_calls": false,
+        "persisted_data": false,
+        "ml": true,
+        "nontrivial_logic": true
+      }
+    }
+  ],
+  "git": {
+    "convention": "conventional",
+    "scopes": [
+      "ml"
+    ],
+    "branching": "trunk"
+  },
+  "agent_workflow": {
+    "extra_risk_paths": [
+      "data/**"
+    ]
+  },
+  "architecture": {
+    "components": [
+      {
+        "name": "ml",
+        "responsibility": "Trains and evaluates the leaf classifier.",
+        "calls": []
+      }
+    ],
+    "contracts": {
+      "format": "none",
+      "paths": []
+    },
+    "glossary": []
+  },
+  "errors": {
+    "components": [
+      {
+        "name": "ml",
+        "format": "exceptions"
+      }
+    ],
+    "categories": [
+      "validation",
+      "not-found",
+      "unavailable",
+      "internal"
+    ]
+  },
+  "testing": {
+    "components": [
+      {
+        "name": "ml",
+        "levels": [
+          "unit",
+          "integration"
+        ]
+      }
+    ]
+  },
+  "documentation": {
+    "external": "readme",
+    "external_path": "",
+    "external_location": "",
+    "mappings": []
+  },
+  "build": {
+    "ci": "github-actions",
+    "environments": [],
+    "components": [
+      {
+        "name": "ml",
+        "artifact": "package",
+        "hosting": ""
+      }
+    ]
+  },
+  "security": {
+    "secret_store": "",
+    "extra_protected": []
+  },
+  "dependencies": {
+    "updates": "dependabot",
+    "schedule": "monthly"
+  },
+  "observability": {
+    "components": []
+  },
+  "design_language": {
+    "defined": false
+  },
+  "ui": {
+    "components": []
+  },
+  "accessibility": {
+    "level": "",
+    "components": []
+  },
+  "releases": {
+    "scheme": "calver",
+    "changelog": "none",
+    "scope": "repo",
+    "process": "Tag a calendar version on main when a model is promoted."
+  },
+  "data": {
+    "components": [],
+    "ml": {
+      "versioning": "DVC",
+      "seeds": "fixed seeds recorded in the run config",
+      "tracking": "MLflow"
+    }
+  },
+  "performance": {
+    "components": [
+      {
+        "name": "ml",
+        "budgets": []
+      }
+    ]
+  },
+  "overrides": [],
+  "requirements": {
+    "target_users": "Hobby gardeners who want a quick second opinion before treating a plant.",
+    "items": [
+      {
+        "id": "R1",
+        "text": "A user can classify a leaf photo into a known disease or healthy.",
+        "acceptance": "Given a labelled validation set, when the model classifies it, then top-1 accuracy is at least 85%."
+      }
+    ],
+    "domain_jargon": false
+  },
+  "auth": {
+    "method": "none"
+  }
+}

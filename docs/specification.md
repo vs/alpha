@@ -1,0 +1,292 @@
+# alpha: specification
+
+What alpha does, for whoever changes it. alpha is a Claude Code plugin with a Python CLI (`bin/alpha`). It puts a development process into a project for Claude Code to work under: principles, docs, Claude Code and git hooks, CI, and a test setup per component that passes from the first commit. It writes no app code. It sets up the process only and leaves the product's parts open until the user asks to settle them; it keeps its docs in one place, reviews once before main without looping, and can be switched off or removed cleanly.
+
+## Commands
+
+| Command | Form | What it does |
+|---|---|---|
+| `install` | skill | Puts alpha into a folder: a new project in an empty folder, an adoption in an existing repo, or the hooks back on where they were switched off. In an adopted repo with plan steps left, it carries out the next one. |
+| `extend` | skill | Applies a change the user describes to an installed project: a component, an answer of an install area. |
+| `specify` | skill | Settles one or more product areas the user names, writing their docs into `docs/alpha/`. |
+| `do` | skill | Works a task by a playbook; a feature goes through research, brainstorming, a spec and a plan. |
+| `update` | skill and CLI | Brings alpha's files in line with the answers and the installed kit; the CLI merges, the skill resolves conflicts. |
+| `uninstall` | skill and CLI | Removes alpha's hooks; deletes no file, commits nothing. |
+| `purge` | skill and CLI | Uninstalls, deletes alpha's files, and commits the removal as one commit. |
+
+## Requirements
+
+A test that proves an acceptance check names its ID. Checks on a skill's text test its structure; how the skill behaves with a person answering is checked by running it.
+
+| ID | Requirement | Acceptance check | Test |
+|---|---|---|---|
+| R1.1 | `install` in an empty folder sets up a new project from the install answers. | Given an empty folder and finished install answers, when `alpha apply`, `alpha bootstrap` and `alpha commit` run, then the folder holds the files of the Layout section and no app code, every component check and `mise run ci` pass, and the tree is clean on `main`. | `tests/integration/test_apply.py::test_R1_1_a_new_project_gets_the_layout` (integration); `tests/end-to-end/test_install_slow.py::test_R1_1_empty_folder_becomes_a_checked_project` (end-to-end) |
+| R1.2 | `install` tells the folder's state apart and takes the matching path. | Given each state in the install section's table, when `alpha status <folder>` runs, then it prints that state's name and, for a refusal, what to do; the install skill names the path it takes for each. | `tests/integration/test_status.py::test_R1_2_each_folder_state_is_told_apart` (integration); `tests/unit/test_skills.py::test_R1_2_install_routes_each_state` (unit) |
+| R1.3 | `install` in an existing repo adopts it, with the compliance plan in `docs/alpha/`. | Given a clean repo with legacy lint findings and finished adoption answers, when `alpha apply`, `alpha bootstrap --capture-baselines` and `alpha commit` run, then alpha's files are committed on `alpha/adopt`, the existing findings pass as baselined, a new finding fails its check, and the plan is `docs/alpha/adoption.md`. | `tests/integration/test_adopt.py::test_R1_3_adoption_installs_on_its_branch` (integration); `tests/end-to-end/test_adopt_slow.py::test_R1_3_legacy_findings_pass_and_new_ones_fail` (end-to-end) |
+| R1.4 | `install` where alpha is installed with its hooks off turns them back on without asking. | Given an installed project after `alpha uninstall` (alpha mode and chain mode), when `alpha hooks on` runs, then `settings.json` has every alpha hook entry again with its other entries unchanged, and `core.hooksPath` is alpha's (alpha mode) or the chained snippet is back where it was (chain mode); the install skill asks no question on this path. | `tests/integration/test_hooks_wiring.py::test_R1_4_hooks_on_restores_what_uninstall_removed` (integration); `tests/unit/test_skills.py::test_R1_4_install_turns_hooks_on_without_asking` (unit) |
+| R1.5 | `install` in an adopted repo with plan steps left carries out the next step. | Given an adopted repo whose `adoption.steps` has a pending step, when `alpha status` runs, then it prints `installed` with the next step, and the install skill follows `adopt next`, `start`, the work, and `adopt done`. | `tests/integration/test_status.py::test_R1_5_an_adopted_repo_names_its_next_step` (integration); `tests/unit/test_skills.py::test_R1_5_install_works_the_plan` (unit) |
+| R2.1 | `uninstall` removes alpha's hook entries and its `core.hooksPath`, and nothing else. | Given an installed project whose `settings.json` also holds the user's own hook and permissions, when `alpha uninstall` runs, then no hook command names `.claude/alpha/hooks/`, the user's hook and every permission stay, `core.hooksPath` is unset, no file is deleted, and HEAD is unchanged. | `tests/integration/test_hooks_wiring.py::test_R2_1_uninstall_removes_only_the_hook_wiring` (integration) |
+| R2.2 | In a repo whose hook manager runs git's hooks, `uninstall` keeps the manager's `core.hooksPath` and takes out alpha's chained call. | Given an adopted repo with `git_hooks = chain`, `core.hooksPath = .husky` and alpha's marked snippet in `.husky/commit-msg`, when `alpha uninstall` runs, then `core.hooksPath` is still `.husky`, the snippet is gone, and a commit with a bad message succeeds; given a chained call without the markers, uninstall changes nothing and names the line to remove by hand. | `tests/integration/test_hooks_wiring.py::test_R2_2_a_chained_repo_keeps_its_hooks_path` (integration) |
+| R2.3 | The guards block every habitual way to switch the hooks off other than `uninstall`, and keep working when the principles file is missing. | Given an installed project, each of these is blocked with a message naming `/alpha:uninstall`: an Edit or Write that removes or changes an alpha hook entry in `settings.json`; `"disableAllHooks"` added to `settings.json` or `settings.local.json`; an Edit or Write under `.claude/alpha/`; a Bash redirect, `cp`, `mv`, `rm`, `tee`, `truncate`, `ln`, `install`, `sed -i` or `perl -i` onto `settings.json`, `settings.local.json`, `.claude/alpha/` or `docs/alpha/principles.toml`; `git rm`, `git mv`, `git checkout <rev> -- <path>` and `git restore --source` on those paths; `git config core.hooksPath <other>` and `--unset`. The same holds with `docs/alpha/principles.toml` deleted. An Edit of `settings.json` that only adds a permission passes. | `tests/integration/hooks/test_guard_paths.py::test_R2_3_edits_to_the_hook_wiring_are_blocked` (integration); `tests/integration/hooks/test_guard_bash.py::test_R2_3_shell_ways_to_switch_the_hooks_off_are_blocked` (integration) |
+| R2.4 | `uninstall` works despite the guards. | Given an installed project with its hooks on, when the command guard sees `<plugin>/bin/alpha uninstall .`, then it passes, and the command removes the hooks. | `tests/integration/hooks/test_guard_bash.py::test_R2_4_alpha_uninstall_passes_the_guard` (integration) |
+| R3.1 | `purge` uninstalls, deletes alpha's files even when edited, and commits the removal as one commit. | Given an installed project with committed hand edits in `.claude/skills/commit/SKILL.md` and `docs/alpha/specification.md`, when `alpha purge` runs, then `.claude/alpha/`, alpha's agents and skills, `docs/alpha/` and every entry alpha wrote in `settings.json` (hooks and permissions) are gone, the hooks are uninstalled, and HEAD is one new commit holding exactly those removals and edits, in the project's commit convention. | `tests/integration/test_purge.py::test_R3_1_purge_removes_alpha_in_one_commit` (integration) |
+| R3.2 | `purge` removes from `CLAUDE.md` only the lines that point at alpha's hooks, docs, skills and agents. | Given a generated `CLAUDE.md` with a line the user added, when `alpha purge` runs, then no line names `.claude/alpha/`, `docs/alpha/`, an `/alpha:` command or a removed skill or agent, the user's line and the principles, commands and rules stay, and no heading is left without content. | `tests/unit/test_purge_removers.py::test_R3_2_only_alphas_lines_leave_claude_md` (unit) |
+| R3.3 | After `purge` the project still builds and tests, and no kept file points at what was removed. | Given a generated project with two components, when `alpha purge` runs, then no kept file (`CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, tool configs, `mise.toml`, CI workflows, `.gitignore`, `settings.json`) names a deleted path or links into `docs/alpha/`, and every component check and `mise run ci` pass; given a kept file a remover can't clean (a reformatted `mise.toml` task), purge writes nothing and names the file and line. | `tests/integration/test_purge.py::test_R3_3_no_kept_file_names_a_deleted_path` (integration); `tests/integration/test_purge.py::test_R3_3_an_uncleanable_file_stops_purge` (integration); `tests/end-to-end/test_purge_slow.py::test_R3_3_a_purged_project_builds_and_tests` (end-to-end) |
+| R3.4 | `purge` commits only alpha's removals, never the user's uncommitted work, and keeps the repo's own files. | Given an uncommitted change to `README.md`, then purge leaves it uncommitted; given an uncommitted change to a file purge edits or deletes, then purge refuses and names it; given an adopted repo that had its own `.claude/agents/committer.md` before adoption, then purge keeps it. | `tests/integration/test_purge.py::test_R3_4_purge_commits_only_alphas_paths` (integration); `tests/integration/test_purge.py::test_R3_4_purge_keeps_the_repos_own_files` (integration) |
+| R4.1 | `extend` applies a described change to an installed project and keeps the user's edits. | Given a generated project with a hand edit in `CLAUDE.md`, when a component is added, or the commit scopes change, and `alpha update`, `alpha bootstrap --component` (for a component) and `alpha commit` run, then the change is applied, the edit survives, and a second `alpha update --dry-run` prints nothing to change. | `tests/integration/test_update.py::test_R4_1_a_new_component_merges_and_keeps_an_edit` (integration); `tests/integration/test_update.py::test_R4_1_a_changed_answer_merges_and_keeps_an_edit` (integration) |
+| R5.1 | The answers of an install hold only the install areas; product areas stay open. | Given answers with the ten install areas done and every product area open, when `alpha answers check` runs, then it prints ok; identity holds no target users or requirements and security no auth; an install area marked open is refused with a message naming it. | `tests/unit/test_answers.py::test_R5_1_install_needs_only_the_install_areas` (unit); `tests/unit/test_answers.py::test_R5_1_an_install_area_cant_stay_open` (unit) |
+| R5.2 | The install interview runs only the install areas and may ask what the project is about in one line. | Given the install skill, then it reads the area guides of exactly the install areas, and none of the product areas. | `tests/unit/test_skills.py::test_R5_2_install_reads_only_install_area_guides` (unit) |
+| R5.3 | A principle a product area settles stays off while that area is open. | Given a component with a UI and ui and accessibility open, then `visual-system` and `accessibility` are inactive in `docs/alpha/principles.toml`; likewise each principle with `settled_by`. | `tests/unit/test_principles.py::test_R5_3_open_areas_keep_their_principles_off` (unit) |
+| R6.1 | alpha writes the process into `CONTRIBUTING.md`, every other doc under `docs/alpha/`, and nothing else into `docs/`. | Given a generated project, then `CONTRIBUTING.md` holds the components, checks, testing, documentation, branching, build, CI, hosting, releases, secrets, protected paths, overrides and exceptions; `docs/alpha/` holds `principles.toml`, `dependencies.md` and `specification.md`; no other file under `docs/` was written by alpha. | `tests/integration/test_apply.py::test_R6_1_docs_go_to_contributing_and_docs_alpha` (integration) |
+| R6.2 | Where the project already has a doc for an area, alpha's file refers to it. | Given answers that name `docs/architecture.md` for architecture, `docs/GLOSSARY.md` for the glossary and `docs/deps.md` for the dependency log, then `docs/alpha/specification.md`'s Architecture section and `docs/alpha/glossary.md` link to theirs instead of repeating them, `docs/alpha/dependencies.md` points to `docs/deps.md`, and the Stop hook checks `docs/deps.md` when a lockfile changes. | `tests/unit/test_render_docs.py::test_R6_2_an_existing_doc_is_referred_to` (unit); `tests/integration/hooks/test_stop_checks.py::test_R6_2_the_dependency_log_path_comes_from_the_principles` (integration) |
+| R6.3 | In an existing repo alpha never overwrites `CLAUDE.md`, `README.md` or `LICENSE`. | Given a repo with its own three files, when `alpha apply` runs, then each is unchanged on disk and alpha's version is a proposal for a hand merge. | `tests/integration/test_adopt.py::test_R6_3_root_files_get_proposals` (integration) |
+| R6.4 | alpha generates `CLAUDE.md`, `README.md` and `LICENSE` at the root. | Given a generated project, then `README.md` holds the name, the one-line purpose and each component's setup, test and run commands, `LICENSE` holds the chosen license, and `CLAUDE.md` exists. | `tests/unit/test_render_docs.py::test_R6_4_root_docs_are_generated` (unit) |
+| R7.1 | `specify` settles the product areas the user names and closes them. | Given a project with ui and performance open, when both are answered, marked done and `alpha update` runs, then `docs/alpha/specification.md` has their sections and no longer lists them as open, and their principles are active. | `tests/integration/test_update.py::test_R7_1_settling_areas_writes_their_docs` (integration) |
+| R7.2 | Only `specify` works on the product layer, and only when the user asks. | Given the kit's skills, then only `specify` reads a product area guide, and `do`, `extend` and `install` point to `/alpha:specify` instead of settling one. | `tests/unit/test_skills.py::test_R7_2_only_specify_settles_product_areas` (unit) |
+| R8.1 | `do` works a task by a playbook; a feature goes through research, brainstorming, a spec and a plan in its own folder. | Given the do skill, then its feature playbook runs deep research into how other projects build the feature, brainstorms with the user one question at a time with two or three approaches, and writes `research.md`, `specification.md` and `plan.md` into `docs/alpha/features/<date>-<feature>/`, the spec naming a test per acceptance check and approved before code. | `tests/unit/test_do_skill.py::test_R8_1_a_feature_gets_research_spec_and_plan` (unit) |
+| R8.2 | `do` runs no whole-branch review. | Given the do skill and its playbooks, then none asks for a review of the whole branch; the principles review happens at merge. | `tests/unit/test_do_skill.py::test_R8_2_do_runs_no_whole_branch_review` (unit) |
+| R9.1 | The principles review never runs at Stop or after a task. | Given a project with 2,000 unreviewed lines on a branch, when the Stop hook runs, then it doesn't ask for a review. | `tests/integration/hooks/test_stop_checks.py::test_R9_1_stop_never_asks_for_a_review` (integration) |
+| R9.2 | Nothing reaches main before its tree is reviewed with no open findings. | Given a branch whose files to review (Review section) aren't empty and whose HEAD tree has no note, when Claude runs `git push origin main` or `gh pr merge`, then the command guard blocks it and says to run the principles-reviewer; given a clean note on HEAD's tree and a recorded test pass, it passes; given nothing to review (a fresh install's first push), it passes; given uncommitted changes to tracked files, the brief and the gate refuse; given a PR whose head on GitHub isn't the local HEAD, `gh pr merge` is blocked until it is pushed. | `tests/integration/hooks/test_review.py::test_R9_2_merge_waits_for_a_review_of_the_head_tree` (integration) |
+| R9.3 | A review never loops: after a review with findings, a fix check judges those findings and reviews only files no finding names that changed since. | Given a reviewed tree whose note holds open findings F-1 (in `a.py`) and F-2, when commits fix F-1, accept F-2 with an `Accepts:` trailer and add `c.py`, then the next brief is a fix check listing F-1 and F-2 and reviewing `c.py` only; its record may add findings on `c.py` and none on `a.py`; once F-1 and F-2 are resolved and `c.py` has none, the merge passes. | `tests/integration/hooks/test_review.py::test_R9_3_a_fix_check_reviews_only_whats_new` (integration) |
+| R9.4 | Only the user accepts a finding on a risk path. | Given an open finding on a risk path, then an `Accepts:` trailer alone leaves it open; when the user's whole prompt is `accept F-xxxxxx`, the UserPromptSubmit hook marks it accepted in the note; a prompt with more text accepts nothing and says so. | `tests/integration/hooks/test_accept.py::test_R9_4_only_the_users_prompt_accepts_a_risk_path_finding` (integration) |
+| R10.1 | A review's result is a git note on the reviewed tree, under its own notes ref, recorded from any worktree; nothing else writes it. | Given the reviewer's json for a tree a brief handed out, when the SubagentStop hook records it, then `git notes --ref=alpha-review show <tree>` holds the result, also when the brief ran in a linked worktree and the hook in the main checkout; a tree no brief handed out is refused; Claude's `git notes --ref=alpha-review add`, `edit`, `remove`, `copy`, `merge`, a `git notes` with `GIT_NOTES_REF` naming it, and `git update-ref refs/notes/alpha-review` are blocked. | `tests/integration/hooks/test_review_record.py::test_R10_1_a_review_is_a_note_on_its_tree` (integration); `tests/integration/hooks/test_guard_bash.py::test_R10_1_writing_review_notes_is_blocked` (integration) |
+| R10.2 | The last reviewed tree is found by walking the history; with none, the branch since main is reviewed. | Given commits A–B–C after main, with a note on B's tree only, then the brief's base is B's tree; with a merge from main after B, still B (walked in topological order); after a rebase that gives every commit a new tree, the newest note recorded for this branch; with no note at all, the tree of the merge base with main (`origin/HEAD`, `origin/main`, `origin/master`, `main`, `master`, the first that exists); a note on the merge base or main's history carries no open findings into the branch. | `tests/integration/hooks/test_review.py::test_R10_2_the_last_reviewed_tree_is_found_in_history` (integration) |
+| R10.3 | A review covers only the files changed since the last reviewed tree. | Given a note on B's tree and C changing one file, then the brief lists that file and its diff, and no file B already had; given main merged in after B, no file only main changed; given an `alpha update` after B, no file whose content is alpha's render. | `tests/integration/hooks/test_review.py::test_R10_3_the_brief_holds_only_files_changed_since` (integration) |
+| R10.4 | The review notes stay local. | Given an installed project, then nothing alpha writes configures notes to be pushed, and Claude's `git push` with a `refs/notes/` refspec, `--mirror`, or a fetch into `refs/notes/alpha-review` is blocked. | `tests/integration/hooks/test_guard_bash.py::test_R10_4_moving_review_notes_between_clones_is_blocked` (integration) |
+| R11.1 | `update` merges changed answers against alpha's last render, kept in git objects that follow the branch's history, not in project.json. | Given a generated project, then alpha's last commit carries a note naming its render; after an answer changes, `alpha update` merges with that render as the base; when the user discards update's writes before `alpha commit`, the next `update --dry-run` lists the changes again; an update on branch B ignores a render committed only on branch A; with no render note (another clone), every alpha-written file that differs becomes a two-sided proposal, except the files alpha owns, which are replaced. | `tests/integration/test_update.py::test_R11_1_the_base_is_the_render_alpha_last_committed` (integration); `tests/integration/test_update.py::test_R11_1_a_discarded_update_is_planned_again` (integration); `tests/integration/test_update.py::test_R11_1_without_a_render_note_differences_become_proposals` (integration) |
+| R11.2 | `update` brings a project to a newer kit the same way, and alpha's own files never need a hand merge. | Given a generated project with a hand edit in `CONTRIBUTING.md`, when the kit's renderer changes another part of it, a copied hook changes, a hook is renamed and `alpha update` runs, then `CONTRIBUTING.md` holds both changes, the hook is replaced, the old hook file is deleted, and `settings.json`'s alpha entries name the new hook. | `tests/integration/test_update.py::test_R11_2_a_kit_change_merges_and_replaces_alphas_files` (integration) |
+| R11.3 | The update skill resolves the conflicts the CLI leaves. | Given the update skill, then it runs `alpha update`, merges each proposal by hand keeping both sides, and commits with `alpha commit`. | `tests/unit/test_skills.py::test_R11_3_update_skill_merges_proposals` (unit) |
+| R12.1 | Setup data stays: Python, TypeScript and Rust recipes; drafted recipes proven by `recipe try` and saved by `recipe save`; the registry with pins and `registry stale`; the user's defaults layer with "make this the default?". | Given a drafted recipe, then `answers check` refuses it until `recipe try` proves it, and again after an edit, with the proof in `.claude/alpha/state/` and nothing about it in `project.json`; `registry stale` lists a tool reviewed 181 days ago; `defaults set` puts a value on top of the kit's. | `tests/integration/test_recipes.py::test_R12_1_a_drafted_recipe_needs_a_local_proof` (integration); `tests/integration/test_registry.py::test_R12_1_stale_tools_are_listed` (integration); `tests/integration/test_defaults.py::test_R12_1_a_user_default_wins` (integration) |
+| R12.2 | The checks stay: secrets, vulnerabilities, spelling, Markdown, links, agent config, weekly tool freshness, immutable migrations and SQL lint, review dates, palette, diff coverage, and each changed component's full suite before main with a remembered pass. | Given a generated project, then `mise.toml` has a task per check in the Hooks and checks section; secrets, spelling, Markdown, links, agent config, actions, immutable migrations and palette each fail on a seeded violation (vulnerabilities and tool freshness need the network and are checked for their wiring only); the merge guard blocks until `stop_checks.py tests` passed on the current files. | `tests/integration/test_repo_checks.py::test_R12_2_every_check_is_wired` (integration); `tests/end-to-end/test_install_slow.py::test_R12_2_each_check_fails_on_its_seed` (end-to-end); `tests/integration/hooks/test_guard_bash.py::test_R12_2_main_waits_for_a_test_pass` (integration) |
+| R12.3 | Adopted repos keep baselines with the ratchet and the compliance plan. | Given an adopted repo with a lint baseline, then a fixed finding tightens the baseline, a new finding fails, and `adopt done` marks a step only when its acceptance holds. | `tests/integration/test_baseline.py::test_R12_3_the_ratchet_only_tightens` (integration); `tests/integration/test_adopt.py::test_R12_3_a_step_is_done_only_when_its_acceptance_holds` (integration) |
+| R12.4 | CI generation and per-stack permissions stay. | Given a project with CI on GitHub Actions, then `.github/workflows/ci.yml`, `scheduled.yml` and `dependabot.yml` are written with actions pinned by SHA, and `settings.json` allows each component's stack commands. | `tests/unit/test_render_ci.py::test_R12_4_ci_runs_each_components_checks` (unit); `tests/unit/test_render_settings.py::test_R12_4_each_stack_gets_its_permissions` (unit) |
+| R12.5 | The agents and skills stay: `principles-reviewer`, `committer`, `/commit`, `review-change`, `/audit`, `decision`. | Given a generated project, then `.claude/agents/` holds the two agents and `.claude/skills/` the four skills, and none of them names a decision record. | `tests/integration/test_apply.py::test_R12_5_projects_get_the_agents_and_skills` (integration) |
+| R12.6 | The hooks stay: command guard, file guard, Stop checks, post-edit checks, session and subagent context, the `commit-msg` git hook, `untested` notes, the review record and the risk-path accept. | Given a generated project, then `settings.json` wires SessionStart, SubagentStart, UserPromptSubmit, PreToolUse (Bash; Edit, Write, MultiEdit), PostToolUse, Stop, SubagentStop and the reviewer's SubagentStop, and `untested.py` records a reason the Stop check accepts while the file is unchanged. | `tests/unit/test_render_settings.py::test_R12_6_settings_wire_each_hook` (unit); `tests/integration/hooks/test_stop_checks.py::test_R12_6_an_untested_note_holds_until_the_file_changes` (integration) |
+| R13.1 | Fast checks run on each edit and at Stop, and bind Claude only. | Given an edit of a source file, then post-edit formats and lints it; given changed source at Stop, then the Stop hook runs the type check, the structure check and the fast repository checks, and no test suite. | `tests/integration/hooks/test_post_edit.py::test_R13_1_an_edit_is_formatted_and_linted` (integration); `tests/integration/hooks/test_stop_checks.py::test_R13_1_stop_runs_types_structure_and_fast_checks` (integration) |
+| R13.2 | The only git hook is `commit-msg`. | Given a generated project, then `.claude/alpha/githooks/` holds only `commit-msg`, and it rejects a message that breaks the convention for any committer. | `tests/integration/test_apply.py::test_R13_2_commit_msg_is_the_only_git_hook` (integration); `tests/integration/hooks/test_commit_msg.py::test_R13_2_a_bad_message_is_rejected` (integration) |
+| R14.1 | The mutation-testing gate, `/debt` with the `shortcut:` ledger check, and the interview evals are gone. | Given the kit's shipped files (`src/`, `project-files/`, `skills/`, `recipes/`, `defaults/`, `registry/`, `bin/`, `pyproject.toml`), then none names `cargo-mutants`, `ci:mutants`, `check:shortcuts`, the `debt` skill or `alpha-evals`, and `src/alpha_evals`, `bin/alpha-evals` and `evals/` don't exist. | `tests/unit/test_kit.py::test_R14_1_dropped_features_are_gone` (unit) |
+| R15.1 | There are no decision records in any form. | Given the kit's shipped files, then none writes or reads `docs/decisions/` or a decision record, and the answers refuse a `decisions` key. | `tests/unit/test_kit.py::test_R15_1_no_decision_records` (unit) |
+| R16.1 | No committed file alpha writes holds file hashes or a tree snapshot. | Given a generated, updated and adopted project with a drafted recipe, then no file in the tree alpha wrote, `project.json` included, holds a `sha256:` digest, a 40- or 64-hex digest, a `proven_hash`, or a list of the project's files with hashes; alpha's render lives in git objects. | `tests/integration/test_apply.py::test_R16_1_no_committed_file_holds_file_hashes` (integration) |
+
+## Design
+
+### Layout of a project
+
+```text
+CLAUDE.md                 alpha's (proposed, not written, in an existing repo)
+README.md                 alpha's (same)
+LICENSE                   alpha's (same)
+CONTRIBUTING.md           the process: everything install sets up
+CHANGELOG.md              when the releases area keeps one
+mise.toml                 the repository checks' tools and tasks
+_typos.toml, .rumdl.toml, lychee.toml, .betterleaks.toml
+.gitignore
+.github/                  ci, scheduled, dependabot, jactionlint
+docs/alpha/
+  principles.toml         the one file the hooks and reviewer read
+  dependencies.md         the dependency log
+  specification.md        the product: purpose, open areas, settled areas
+  glossary.md             once architecture is settled with a glossary
+  design-language.md      once the design language is settled
+  adoption.md             an adopted repo's compliance plan
+  features/<date>-<feature>/  research.md, specification.md, plan.md
+.claude/
+  settings.json           permissions and alpha's hook entries
+  agents/                 principles-reviewer.md, committer.md
+  skills/                 commit, decision, review-change, audit
+  alpha/
+    project.json          the answers and the install record
+    hooks/, checks/, githooks/commit-msg
+    baselines/            adopted repos only
+    state/                gitignored
+<component>/              manifest, configs, a setup test
+```
+
+`docs/alpha/specification.md` at install holds the one-line purpose and the list of open product areas, each with the `/alpha:specify` request that settles it. `specify` adds each settled area's section. Where the project already has a doc for an area, alpha's file links to it instead of repeating it (R6.2), from `documentation.existing`, a map of area to path that the documentation area fills in an existing repo. That covers the product sections, `glossary.md`, `design-language.md` and `dependencies.md`; the dependency log's path the Stop hook checks comes from `docs/alpha/principles.toml`.
+
+**alpha's own files** are the copied hooks, checks and git hook under `.claude/alpha/`, the copied agents and skills, and alpha's hook entries in `settings.json`. alpha always replaces them, never proposes a hand merge for them, and deletes the ones a newer kit no longer ships (the kit lists retired names). The exception is a path the repo had before adoption (recorded in `installed.preexisting`, paths only): alpha proposes for it and never deletes it.
+
+### Answers
+
+`.claude/alpha/project.json`, parsed at the boundary into frozen dataclasses, with a message per error naming the field and the fix.
+
+- **Install areas:** `identity` (name, slug, one-line purpose, license or license file, copyright holder), `components`, `testing` (levels, diff coverage, exhaustive), `documentation` (where user docs live, docs map, existing docs per area), `build`, `security` (secret store, extra protected paths), `dependencies`, `releases`, `git`, `agent_workflow` (extra risk paths only).
+- **Product areas** (start `open`; only `specify` settles them): `requirements` (target users, requirements with acceptance checks, domain jargon), `architecture` (with the glossary), `errors`, `design_language`, `ui`, `accessibility`, `observability`, `data`, `performance`, `auth`.
+- `installed` = `{kit_version, mode: "new" | "adopted", on: <date>, components: {<name>: <date added>}, preexisting: [<path>]}`, written by `alpha apply`. The component dates keep the dependency log's entries stable across updates.
+- A drafted recipe's proof is a hash of the recipe in `.claude/alpha/state/proofs.json` (gitignored); another clone runs `recipe try` once before alpha uses that recipe there.
+- A principle with `settled_by = "<area>"` stays inactive while that area is open.
+
+### Writing files: one pipeline
+
+`render(answers, kit) → {path: text}` is pure: principles, docs, settings, tooling, CI, component templates, and alpha's own files. `alpha apply` and `alpha update` then:
+
+1. Find the base: walk `git rev-list --topo-order HEAD` for the first commit with a note under `refs/notes/alpha-rendered`; the note names a render commit, whose tree is the base. `apply` on an `empty` or `existing` folder ignores any base.
+2. For each path, merge three ways (base, disk, new render) with `git merge-file` (`merge.py`): `new`, `change`, `merge`, `conflict` (a proposal in `.claude/alpha/state/update/<path>`), `stale`, `skipped`. alpha's own files are replaced; `settings.json` keeps the user's entries and gets alpha's hook entries and permissions replaced by the render's; `.gitignore` merges by lines. Without a base, any other file that exists and differs is a two-sided proposal.
+3. Write the files. A dry run writes nothing.
+
+`alpha commit <project>` commits alpha's writes in groups (docs, chore, tooling, one per component or workspace, ci, dependabot). Then it stores the render as a commit (a temporary index, `write-tree`, `commit-tree` with alpha's fixed identity, parent the previous render), points `refs/alpha/rendered` at it so every render stays reachable, and adds a note on its own last commit naming it. A user who discards update's writes before `alpha commit` leaves the base where it was; each branch and worktree finds the render its own history committed. Another clone has no notes and gets proposals, except for alpha's own files.
+
+A kit upgrade is the same operation: the base is what the older kit rendered, read from git, so no older kit runs.
+
+### install
+
+The skill runs `alpha status <folder>` and follows it:
+
+| State | When | install does |
+|---|---|---|
+| `empty` | Nothing but `.DS_Store` and `.claude/settings.local.json`, in a plain folder, a git repo with no commits, or a folder inside another repository (apply gives it its own). | A new project: defaults, the interview (one question at a time, a recommendation each, "make this the default for future projects?" on an override), a summary, `alpha apply`, `alpha bootstrap`, `alpha commit` on `main` (git init when needed), "save this drafted recipe?". |
+| `interview` | `project.json` without `installed` or `manifest`. | Resumes the new project's interview, or the adoption, at the first step not done. |
+| `existing` | A git repo with commits, a clean tree, HEAD on a branch, no `installed`. Docs-only repos too. | An adoption: survey, the install areas' interview with the repo's practice as the recommendations, an assessment, a compliance plan, then `alpha apply` on `alpha/adopt`, `alpha bootstrap --capture-baselines` and `alpha commit`. |
+| `adopting` | `alpha/adopt` exists and isn't checked out. | Says to switch to it (`git switch alpha/adopt`) and run install again. |
+| `uncommitted` | A git repo with files but no commits, a dirty tree, or a detached HEAD. | Refuses, saying to commit, stash or switch to a branch. |
+| `not-a-repo` | Files but no git repository. | Refuses: "Run git init and commit the files, then install again." |
+| `old-kit` | `project.json` with `manifest` and no `installed`. | Refuses and names the by-hand steps below. |
+| `hooks-off` | Installed, and `settings.json` has no alpha hook entry, or in alpha mode `core.hooksPath` isn't alpha's, or in chain mode the snippet is out. A fresh clone is here too, since `core.hooksPath` is local. | Runs `alpha hooks on` and reports what it restored, asking nothing and committing nothing. |
+| `installed` | Installed with its hooks on. | In an adopted repo with plan steps left, carries out the next step (`adopt next`, `start`, the work, `adopt done`); otherwise points to `/alpha:extend`, `/alpha:specify` and `/alpha:update`. |
+
+The area guides are files under `skills/install/areas/` (install areas) and `skills/specify/areas/` (product areas), read by those skills, not plugin skills of their own. `grilling` and `stack-recipe` are skills.
+
+### uninstall, hooks on
+
+- `alpha uninstall <project>`: removes from `settings.json` every hook entry whose command names `.claude/alpha/hooks/` (an emptied matcher group and an emptied event go too) and unsets `core.hooksPath` when it is `.claude/alpha/githooks`. `core.hooksPath` is repository config, so this switches the git hook off for every worktree. In chain mode, it moves alpha's marked snippet (`# alpha:begin` to `# alpha:end`) out of the hook manager's file into `.claude/alpha/state/chain.json`; without markers it changes nothing and names the line to remove by hand. No file is deleted, nothing is committed.
+- `alpha hooks on <project>`: puts alpha's hook entries back from the render (merged into the file as it is), sets `core.hooksPath` in alpha mode, and puts the chained snippet back where it was in chain mode.
+- The compliance step that chains alpha's check (`p0-chain-commit-hook`) writes the snippet with those markers.
+- The guards (R2.3) protect the wiring, and find the project by `.claude/alpha/hooks/`, so a missing principles file doesn't switch them off. Each message names `/alpha:uninstall`. `alpha uninstall` itself is a CLI the guards don't parse as a write (they guard habits, not evasion); `git -c core.hooksPath=…` stays unguarded for the same reason.
+- The uninstall and purge skills are user-invocable only (`disable-model-invocation`), and CLAUDE.md says Claude runs them only when the user asks (decided with the user).
+
+### purge
+
+`alpha purge <project>` first plans everything in memory, then writes:
+
+1. Refuse during an unfinished update, and while a file purge edits or deletes has uncommitted or staged changes, naming them.
+2. Plan the deletions: `.claude/alpha/`, alpha's agents and skills, `docs/alpha/`, `settings.json` if nothing but alpha's entries is left; never a path in `installed.preexisting`.
+3. Plan the edits to kept files, each a pure remover over the layout `render` writes: in `settings.json`, alpha's hook entries and every permission the render holds; in `CLAUDE.md`, `CONTRIBUTING.md` and `README.md`, each line naming `.claude/alpha/`, `docs/alpha/`, an `/alpha:` command or a removed skill or agent, then a heading left empty; in the tool configs, entries naming `.claude/alpha/`; in `mise.toml`, the secrets task rewritten to scan the same files without alpha's script (`git rev-parse --git-dir >/dev/null && git ls-files … | xargs -0 -r betterleaks dir … --`), then tasks whose `run` names `.claude/alpha/` and their names in any `depends`; in CI, the steps that run them; a component command that runs through `ratchet.py`, back to the plain command; in `.gitignore`, lines naming `.claude/alpha/`; the chained snippet.
+4. Scan every kept file alpha wrote. One that still names a deleted path or links into `docs/alpha/` stops purge before anything is written, naming the file and line to fix by hand.
+5. Uninstall, write, delete `refs/alpha/rendered`, `refs/notes/alpha-rendered` and `refs/notes/alpha-review`.
+6. Stage exactly those paths and commit `chore: Remove alpha` with `--trailer` lines as `alpha commit` takes them. Uncommitted changes elsewhere stay uncommitted.
+
+In an adopted repo with baselines, the checks that ran through the ratchet run plain afterwards, so they report the legacy findings again; purge names those checks in its output. The build and the tests pass.
+
+### extend, specify, do
+
+- **extend** changes the install areas and components: re-ask only what the change affects, `answers write`, `alpha update --dry-run`, confirm, `alpha update`, merge proposals, `alpha bootstrap --component`, `alpha commit`. A product area request points to `/alpha:specify`.
+- **specify** takes the areas the user names (one or several). For each: research what the code and docs already imply and the kit default, lay out two or three options, settle the questions with `grilling`, save with `answers write`, mark the area `done`. Then `alpha update`, verify the sections and principles, `alpha commit`.
+- **do** works a task by a playbook adapted from pstack (investigation, feature, bug fix, refactoring, perf, prototype, session pickup, pause). The feature playbook:
+  1. Research the code the feature touches.
+  2. Deep research: subagents look at how other projects build the feature (libraries, products, write-ups) and write `research.md` with sources.
+  3. Brainstorm with the user as superpowers does: one question at a time, two or three approaches with trade-offs and a recommendation, the design shown in sections the user confirms.
+  4. Write `specification.md` (requirements, acceptance checks, a test per check, design, decisions, out of scope) and `plan.md` (ordered tasks, files, tests).
+  5. The user approves the spec and picks native or subagents.
+  6. Build tests first, verify, finish with the definition of done.
+  An open product area the feature needs is named to the user with `/alpha:specify`; the feature's own choices stay in its spec. `do` asks for no whole-branch review and no principles review. In subagent mode, a reviewer subagent checks each task against the spec before the next starts, as the pstack playbook does and as the user picks that mode; the principles review runs at merge.
+
+### Review
+
+- **When:** only at the merge gate. The command guard runs it on `git push` to a main branch, which must send the checkout's own HEAD, and on `gh pr merge`, whose branch must be checked out here (else it blocks, saying to check it out); for `gh pr merge` the PR's head on GitHub must be the local HEAD. The gate also needs a remembered test pass on the current files (`stop_checks.py tests`). Stop never asks for a review.
+- **Where:** a note per reviewed tree under `refs/notes/alpha-review`: `{"kind": "review" | "fix-check", "branch": <name>, "base": <tree>, "findings": [{id, principle, file, line, problem, fix, status}]}`, with status `open`, `fixed` or `accepted`.
+- **Main:** the first of `origin/HEAD`, `origin/main`, `origin/master`, `main`, `master` that exists; the merge base is `git merge-base HEAD <main>`.
+- **Last review:** walk `git rev-list --topo-order <merge base>..HEAD` for the first commit whose tree has a note. None (a rebase gave every commit a new tree): the newest note whose `branch` is the current branch. None: no review yet. Notes on the merge base or main's history don't count, so their open findings never carry into a branch.
+- **Files to review:** those that differ between the merge base's tree and `HEAD^{tree}` (the branch's own changes) and between the last reviewed tree, if any, and `HEAD^{tree}`, leaving out each file whose content equals alpha's render at HEAD (alpha's own writes). An empty list needs no review.
+- **Brief** (`review.py brief`): refuses while tracked files have uncommitted changes, since the reviewer reads the working tree. With no open findings in the last note, an ordinary review of the files to review. With open findings, a fix check: those findings with the commits since and their `Accepts:` trailers, plus an ordinary review of the files to review that no open finding names. The brief records the tree it hands out in `<git common dir>/alpha/briefs.json`, so any worktree's hook can check it.
+- **Record** (`review_record.py`, SubagentStop of `principles-reviewer`): parses the json, refuses a tree no brief handed out, writes the note. A fix check's record sets the status of the findings it was given and may add findings only on the files it reviewed afresh. Hand-backs are read from the transcript.
+- **Accepting:** an `Accepts: F-xxxxxx <reason>` trailer accepts a finding when the fix check finds the reason holds. A finding on a risk path (`review.risk_paths` plus `agent_workflow.extra_risk_paths`) is accepted only by the user: when the whole prompt is `accept F-xxxxxx` (one or more ids), `accept.py` (UserPromptSubmit) marks it accepted in the note.
+- **Guarded:** Claude's `git notes` writes on `alpha-review` (by `--ref` or `GIT_NOTES_REF`), `git update-ref` on it, and moving it between clones (a push with a `refs/notes/` refspec or `--mirror`, a fetch into it) are blocked.
+
+### Hooks and checks
+
+- **Command guard:** `--no-verify` (and `commit -n`); changes to `core.hooksPath`; writes to the review notes and moving them between clones; a plain `--force` push and any rewrite of main (a lease push to main, amending a commit already on main); the merge gate; Bash writes, `git rm`, `git mv`, `git checkout <rev> --` and `git restore --source` on protected paths, `.claude/alpha/`, `settings.json`, `settings.local.json` and `docs/alpha/principles.toml`; the reviewer runs read-only. Staging by path is a working rule in CLAUDE.md, not something the hooks enforce.
+- **File guard:** protected paths, `.claude/alpha/`, the hook wiring and `disableAllHooks` in the settings files, the weakening patterns (skip markers, ignore comments, loosened strictness) unless an Exceptions row names the file, and an "ask" for `docs/alpha/principles.toml`.
+- **Post-edit:** `format_file` and `lint_file` per component.
+- **Stop:** secrets in added lines, source changed without tests (unless an `untested` note holds), mapped docs not updated, a lockfile change without a dependency-log entry, an edited migration that existed before the session, the type check and structure check of each changed component, the `stop = true` repository checks; cached per tree and command; three blocks then a message. No review, no test suite.
+- **SubagentStop:** the same checks on the subagent's own files.
+- **Session and subagent context:** where the docs are, exceptions, overrides, the code-writing principles, and a warning when `core.hooksPath` or the principles file is broken.
+- **Risk-path accept:** `accept.py` on UserPromptSubmit, as above.
+- **Git hook:** `commit-msg` only.
+- **Untested notes:** `python3 .claude/alpha/hooks/untested.py "<why>" <path>...`, kept in state with each file's blob until it changes.
+- **Repository checks:** secrets, vulns, typos, markdown, links, links-online, agent-config, actions, review-dates, toolchain; `migrations` and `squawk` once data is settled with migration paths; `palette` once the design language is settled with `enforce`; diff coverage in CI.
+- The hooks keep parsing on Python 3.9 (their late `tomllib` imports and the three `PLC0415` Exceptions rows stay), so an older `python3` gets the guard message rather than an ImportError.
+
+### CLI
+
+`bin/alpha` subcommands:
+
+- For users: `update [--dry-run]`, `uninstall`, `purge [--trailer …]`, `version`.
+- Helpers the skills call: `status`, `apply [--dry-run]`, `bootstrap [--component …] [--capture-baselines]`, `commit [--trailer …]`, `hooks on`, `answers check|write`, `defaults show|set`, `recipe list|check|try|save`, `registry list|show|stale`, `baseline show|capture|tighten`, `adopt survey|gaps|next|start|done|drop`.
+
+### alpha's own source
+
+```text
+src/alpha/
+  cli.py, recipe_cli.py  argparse and exit codes
+  answers.py, core_areas.py, areas.py  the answers: dataclasses, parsing, areas
+  defaults.py, registry.py  the kit defaults with the user layer, the registry
+  recipes.py             recipe model, templates, drafted recipes, local proofs
+  principles.py          the principles table
+  repo_checks.py         the repository checks
+  render/                docs.py, area_docs.py, tooling.py, ci.py,
+                         claude_settings.py, markdown.py
+  generate.py            rendering a project, bootstrap
+  apply.py               plan, merge, write
+  rendered.py            the render commits, their notes, finding the base
+  merge.py               three-way merge, line and JSON unions
+  gitops.py, shell.py    git and commit groups, running commands
+  status.py              the folder's state
+  hooks_wiring.py        uninstall, hooks on, the chained call
+  purge.py               the removers, the scan, purge
+  adopt.py, baseline.py  survey and plan steps, baselines
+project-files/hooks/     _common.py, guard_bash.py, guard_paths.py, post_edit.py,
+                         stop_checks.py, session_start.py, subagent_start.py,
+                         review.py, review_record.py, accept.py, untested.py,
+                         commit_msg.py
+project-files/checks/    secret_scan.py, diff_checks.py, ratchet.py,
+                         review_dates.py, palette.py
+skills/                  install, extend, specify, do, update, uninstall, purge,
+                         grilling, stack-recipe
+```
+
+### How information is stored
+
+- **Committed:** the answers and the install record (`.claude/alpha/project.json`); everything under `docs/alpha/`; `CONTRIBUTING.md`, `CLAUDE.md`, `README.md`, `LICENSE`, `CHANGELOG.md`; `mise.toml`, the tool configs, CI and `.gitignore`; `.claude/settings.json`, alpha's hooks, checks and git hook, the copied agents and skills; baselines in an adopted repo; each component's scaffolding.
+- **In local git, not as files:** alpha's renders (`refs/alpha/rendered`) and the notes that name them (`refs/notes/alpha-rendered`), the base for updates, kept through rebases by `notes.rewriteRef`; the review notes (`refs/notes/alpha-review`); `core.hooksPath`. None of these is pushed, so a fresh clone starts `hooks-off`, gets proposals on its first update and reviews afresh.
+- **Gitignored, per clone:** `.claude/alpha/state/` (recipe proofs, untested notes, what uninstall saved, a pending update and its proposals, Stop counters and caches, subagent edit records), `<git common dir>/alpha/briefs.json`, `.claude/alpha/notes/` (resume notes).
+- **Outside the project:** `~/.config/alpha/` (the user's own defaults and recipes) and the plugin itself (the kit).
+- **Never stored:** decision records, and file hashes or tree snapshots in committed files.
+
+## Decisions
+
+- `update` stays, with alpha's last render in local git objects as its base; no answers copy in project.json and no running an older kit. The base follows the branch's history (a note on alpha's commit names the render) instead of one repo-wide ref, so a discarded update, another branch or a worktree can't hide changes; `refs/alpha/rendered` only keeps the renders reachable.
+- uninstall and purge aren't guarded against Claude; the skills are user-invocable only and CLAUDE.md forbids running them unasked.
+- A review's findings are the only blocker after it; a fix check judges them and reviews only the files changed since that no finding names.
+- The type check runs at Stop; post-edit formats and lints.
+- In chain mode, uninstall takes alpha's chained snippet out of the hook manager's file, and install puts it back.
+- A drafted recipe's proof lives in gitignored state; another clone proves it again.
+- A risk-path finding is accepted only by the user's exact `accept F-xxxxxx` prompt.
+- purge removes every entry alpha wrote in `settings.json`, permissions included, as requirement 3 says.
+- The command guard blocks habits that switch checks off or rewrite main, not shared-work commands such as `add -A`, `reset --hard` or `stash`.
+- `CHANGELOG.md` stays at the root, where release tooling and readers expect it; under `docs/alpha/` a purge would delete the project's changelog.
+- alpha creates no user-docs folder; the documentation area records the path and the docs map uses it.
+- The folder states and what install does in each, as in the install table; a fresh clone counts as hooks-off.
+- The hooks-off path of install and `uninstall` commit nothing, so a re-enable after an uncommitted uninstall leaves no diff.
+- purge also removes alpha's lines from the kept files, CONTRIBUTING.md and README.md included, so the project builds and tests and its links resolve without alpha; it plans in memory and writes nothing when a file can't be cleaned. In an adopted repo, the baselined checks report their legacy findings again afterwards.
+- alpha's own files are always replaced and never proposed, so the guards never stand in the way of a merge; a repo's own file at the same path before adoption is kept.
+- An adopted repo's compliance plan is worked by running install again.
+- `agent_workflow` keeps only the extra risk paths; review mode and thresholds lose their job when the review runs only at merge.
+- `do` never closes a product area; it names `/alpha:specify` for one the feature needs and keeps the feature's own choices in its spec.
+- Area guides are files read by `install` and `specify`, not plugin skills.
+- The requirements and target users, and auth, are product areas of their own (`requirements`, `auth`).
+
+## Out of scope
+
+- Upgrading projects set up by an alpha before 1.0 automatically; they follow the steps below by hand.
+- Pushing or sharing review notes or render notes between clones.
+- New stacks, new checks, new principles.
+- Changes to adoption beyond its interview scope, the plan's path and the marked chain snippet.
+
+## Upgrading a project an alpha before 1.0 set up
+
+alpha refuses such a project (`old-kit`) and doesn't upgrade it on its own. By hand, in one sitting:
+
+1. Move `docs/principles.toml` and `docs/dependencies.md` to `docs/alpha/`, and fold `docs/specification.md`, `docs/glossary.md`, `docs/design-language.md` and `docs/adoption.md` into `docs/alpha/`; old feature specs in `docs/specs/` go to `docs/alpha/features/`. The old hooks find no principles file after the move and stop checking, so do this in one sitting.
+2. Replace `manifest` in `.claude/alpha/project.json` with an `installed` record, read from it: `kit_version` its kit version, `mode` `"adopted"` when it has `adopted_at` else `"new"`, `on` that date (else `generated_at`), `components` its `added`, and `preexisting` the files alpha writes that the repo had when the adoption surveyed it (`git ls-tree -r --name-only` at the survey's `git.head`; `[]` for a project alpha generated). Reshape the answers (identity's target users and requirements into `requirements`, `security.auth` into `auth`; drop the review mode, thresholds, `testing.run`, `testing.mutants` and each `proven_hash`), then `alpha answers check` until ok and `alpha recipe try` for each drafted recipe. Commit steps 1 and 2: `alpha apply` merges only into committed files.
+3. Run `alpha apply`: alpha's own files and hook entries are replaced, and every other alpha-written file that differs is a proposal to merge by hand. Then `alpha bootstrap` and `alpha commit`.
+4. In chain mode, wrap the chained call in the hook manager's file in `# alpha:begin` and `# alpha:end`.

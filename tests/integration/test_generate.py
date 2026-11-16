@@ -1,0 +1,937 @@
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import tomllib
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+import pytest
+import yaml
+from helpers import (
+    SCENARIOS,
+    SHIM,
+    GenerateScenario,
+    generated_repo,
+    git,
+    install,
+    place_answers,
+    prove,
+    run_cli,
+    setup_only,
+    shell_recipe,
+    single_component,
+)
+
+from alpha import generate as generate_module
+from alpha.cli import PLUGIN_ROOT
+from alpha.defaults import Source
+from alpha.generate import GenerateError, bootstrap
+from alpha.principles import render_principles
+
+ROOT = PLUGIN_ROOT
+SRC = Source(ROOT, True)
+PROJECT_JSON = ".claude/alpha/project.json"
+
+
+def test_open_areas_render_as_not_settled(tmp_path: Path):
+    """Open areas are listed in the specification and get no section of their
+    own beyond saying so."""
+    path = place_answers(tmp_path, "web-ts-plus-python-api")
+    data = json.loads(path.read_text())
+    setup_only(data)
+    path.write_text(json.dumps(data))
+    written = install(tmp_path)
+    product = (tmp_path / "docs/alpha/specification.md").read_text()
+    not_settled = product.split("## Not settled yet")[1]
+    for area in (
+        "requirements",
+        "auth",
+        "architecture",
+        "errors",
+        "design language",
+        "UI",
+        "observability",
+        "data",
+        "accessibility",
+        "performance",
+    ):
+        assert f"`/alpha:specify {area}`" in not_settled, area
+    sections = product.split("## Not settled yet")[1]
+    assert "## Responsibilities and contracts\n\nNot settled yet" in sections
+    assert "## Errors\n\nNot settled yet" in sections
+    assert "`/alpha:specify auth`" in sections
+    for heading in ("## UI", "## Data", "## Performance", "## Observability"):
+        assert heading not in product, heading
+    for doc in ("docs/alpha/design-language.md", "docs/alpha/glossary.md"):
+        assert doc not in written and not (tmp_path / doc).exists(), doc
+
+
+def test_open_areas_that_cannot_apply_are_not_listed(tmp_path: Path):
+    """F4: a CLI with no UI, deployment or stored data isn't told to settle
+    its UI, accessibility, observability or data."""
+    path = place_answers(tmp_path, "rust-cli")
+    data = json.loads(path.read_text())
+    setup_only(data)
+    path.write_text(json.dumps(data))
+    install(tmp_path)
+    spec = (tmp_path / "docs/alpha/specification.md").read_text()
+    listed = spec.split("## Not settled yet")[1]
+    for area in ("UI", "accessibility", "observability", "data"):
+        assert f"`/alpha:specify {area}`" not in listed, area
+    for area in ("architecture", "errors", "design language", "performance"):
+        assert f"`/alpha:specify {area}`" in listed, area
+
+
+def test_done_areas_have_no_not_settled_section(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    assert (
+        "Not settled yet" not in (tmp_path / "docs/alpha/specification.md").read_text()
+    )
+
+
+REMOVED_DOCS = (
+    "docs/product.md",
+    "docs/architecture.md",
+    "docs/build.md",
+    "docs/security.md",
+    "docs/releases.md",
+    "docs/ui.md",
+    "docs/data.md",
+    "docs/performance.md",
+    "docs/observability.md",
+)
+
+
+def test_the_specification_is_one_file(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    """F1, F3: the product's specification is docs/alpha/specification.md; the files
+    hooks read or the user kept stay where they are."""
+    written = generate_scenario(tmp_path, "web-ts-plus-python-api")
+    spec = (tmp_path / "docs/alpha/specification.md").read_text()
+    assert spec.startswith("# Pico Trust: specification\n")
+    headings = [line for line in spec.splitlines() if line.startswith("## ")]
+    assert headings == [
+        "## Value proposition",
+        "## Target users",
+        "## Requirements",
+        "## Responsibilities",
+        "## Contracts",
+        "## Errors",
+        "## Auth",
+        "## UI",
+        "## Data",
+        "## Performance",
+        "## Observability",
+    ]
+    for doc in REMOVED_DOCS:
+        assert doc not in written and not (tmp_path / doc).exists(), doc
+    for kept in (
+        "docs/alpha/principles.toml",
+        "docs/alpha/dependencies.md",
+        "docs/alpha/design-language.md",
+        "docs/alpha/glossary.md",
+    ):
+        assert (tmp_path / kept).is_file(), kept
+
+
+def test_the_process_is_in_contributing(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    """F2: CONTRIBUTING.md holds how the project is built, released and kept
+    secure, and how its data changes."""
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    text = (tmp_path / "CONTRIBUTING.md").read_text()
+    for heading in (
+        "## Components",
+        "## Checks",
+        "## Commit convention",
+        "## Branching",
+        "## Build, CI and hosting",
+        "## Releases",
+        "## Security",
+        "## Migrations",
+    ):
+        assert f"\n{heading}\n" in text, heading
+    assert "| api | container | Fly.io |" in text
+    assert "## Auth" not in text and "## Experiments" not in text
+
+
+def test_claude_md_links_only_existing_docs(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    """F5: every link in CLAUDE.md's docs list points to a file it has."""
+    for scenario in ("web-ts-plus-python-api", "rust-cli"):
+        target = tmp_path / scenario
+        generate_scenario(target, scenario)
+        docs = (target / "CLAUDE.md").read_text().split("## Docs\n")[1]
+        links = re.findall(r"\]\(([^)]+)\)", docs.split("\n## ")[0])
+        assert links, scenario
+        for link in links:
+            assert (target / link).exists(), (scenario, link)
+
+
+def test_refuses_non_empty_folder(tmp_path: Path):
+    place_answers(tmp_path, "python-ml-single")
+    (tmp_path / "README.md").write_text("x")
+    (tmp_path / ".DS_Store").write_text("")
+    with pytest.raises(GenerateError, match=r"not empty \(found: README.md\)"):
+        install(tmp_path)
+
+
+def test_refusal_lists_offending_entries_sorted_with_a_fix(tmp_path: Path):
+    place_answers(tmp_path, "python-ml-single")
+    (tmp_path / "b.txt").write_text("x")
+    (tmp_path / "a").mkdir()
+    (tmp_path / ".claude" / "skills").mkdir()
+    (tmp_path / ".claude" / "alpha" / "state").mkdir()
+    with pytest.raises(GenerateError) as err:
+        install(tmp_path)
+    assert str(err.value) == (
+        f"{tmp_path} is not empty (found: .claude/skills, a, b.txt). A new project "
+        "starts in an empty folder; /alpha:install adopts an existing repo instead "
+        "(commit its files first)."
+    )
+    assert sorted(p.name for p in tmp_path.iterdir()) == [".claude", "a", "b.txt"]
+
+
+def test_accepts_alpha_dir_ds_store_and_local_settings(tmp_path: Path):
+    place_answers(tmp_path, "python-ml-single")
+    (tmp_path / ".DS_Store").write_text("")
+    (tmp_path / ".claude" / "settings.local.json").write_text("{}")
+    files = install(tmp_path)
+    assert ".claude/settings.local.json" not in files
+    assert ".DS_Store" not in files
+    assert (tmp_path / ".claude" / "settings.local.json").read_text() == "{}"
+
+
+def test_missing_answers_file_is_explained(tmp_path: Path):
+    with pytest.raises(GenerateError, match=r"has no alpha answers.*/alpha:install"):
+        install(tmp_path)
+    assert list(tmp_path.iterdir()) == []
+
+
+def source_head() -> str | None:
+    done = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True
+    )
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def test_gitignore_prefixes_component_paths(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    assert (tmp_path / ".gitignore").read_text() == (
+        ".claude/alpha/state/\n"
+        ".claude/alpha/notes/\n"
+        ".claude/settings.local.json\n"
+        ".claude/worktrees/\n"
+        ".DS_Store\n"
+        ".claude/alpha/hooks/__pycache__/\n"
+        ".claude/alpha/checks/__pycache__/\n"
+        ".env\n"
+        ".env.*\n"
+        "**/.env\n"
+        "**/.env.*\n"
+        "!.env.example\n"
+        "api/**/.venv/\n"
+        "api/**/__pycache__/\n"
+        "api/**/.pytest_cache/\n"
+        "api/**/coverage.xml\n"
+        "api/**/.coverage\n"
+        "web/**/node_modules/\n"
+        "web/**/dist/\n"
+        "web/**/coverage/\n"
+    )
+
+
+def test_gitignore_for_root_component(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    assert (tmp_path / ".gitignore").read_text() == (
+        ".claude/alpha/state/\n"
+        ".claude/alpha/notes/\n"
+        ".claude/settings.local.json\n"
+        ".claude/worktrees/\n"
+        ".DS_Store\n"
+        ".claude/alpha/hooks/__pycache__/\n"
+        ".claude/alpha/checks/__pycache__/\n"
+        ".env\n"
+        ".env.*\n"
+        "**/.env\n"
+        "**/.env.*\n"
+        "!.env.example\n"
+        ".venv/\n"
+        "__pycache__/\n"
+        ".pytest_cache/\n"
+        "coverage.xml\n"
+        ".coverage\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("rel", "ignored"),
+    [
+        (".env", True),
+        (".env.local", True),
+        ("api/.env", True),
+        ("api/.env.production", True),
+        (".env.example", False),
+        ("api/.env.example", False),
+    ],
+)
+def test_gitignore_ignores_env_files_but_not_the_example(
+    tmp_path: Path,
+    generate_scenario: GenerateScenario,
+    git_env: None,
+    rel: str,
+    ignored: bool,
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    git(tmp_path, "init", "-q")
+    done = subprocess.run(
+        ["git", "check-ignore", "-q", "--no-index", rel], cwd=tmp_path
+    )
+    assert (done.returncode == 0) == ignored
+
+
+def test_copies_hook_scripts_tools_and_executable_githook(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    hooks = tmp_path / ".claude/alpha/hooks"
+    expected = sorted(p.name for p in (ROOT / "project-files/hooks").glob("*.py"))
+    assert sorted(p.name for p in hooks.iterdir()) == expected
+    for name in expected:
+        source = ROOT / "project-files/hooks" / name
+        assert (hooks / name).read_bytes() == source.read_bytes()
+    githook = tmp_path / ".claude/alpha/githooks/commit-msg"
+    assert (
+        githook.read_bytes()
+        == (ROOT / "project-files/githooks/commit-msg").read_bytes()
+    )
+    assert os.access(githook, os.X_OK)
+    reviewer = tmp_path / ".claude/agents/principles-reviewer.md"
+    assert (
+        reviewer.read_text()
+        == (ROOT / "project-files/agents/principles-reviewer.md").read_text()
+    )
+    decision = tmp_path / ".claude/skills/decision/SKILL.md"
+    assert (
+        decision.read_text()
+        == (ROOT / "project-files/skills/decision/SKILL.md").read_text()
+    )
+    skill = tmp_path / ".claude/skills/commit/SKILL.md"
+    assert (
+        skill.read_text() == (ROOT / "project-files/skills/commit/SKILL.md").read_text()
+    )
+    for name in ("review-change", "audit"):
+        assert (tmp_path / f".claude/skills/{name}/SKILL.md").read_text() == (
+            ROOT / f"project-files/skills/{name}/SKILL.md"
+        ).read_text()
+    agent = tmp_path / ".claude/agents/committer.md"
+    assert agent.read_text() == (ROOT / "project-files/agents/committer.md").read_text()
+
+
+def test_no_decision_records_are_written(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    """F1: no records and no decisions list; the override's reason reaches
+    the principles file instead of a record path."""
+    files = generate_scenario(tmp_path, "web-ts-plus-python-api")
+    assert not (tmp_path / "docs/decisions").exists()
+    assert not [f for f in files if f.startswith("docs/decisions")]
+    answers = json.loads((tmp_path / ".claude/alpha/project.json").read_text())
+    assert "decisions" not in answers
+    principles = (tmp_path / "docs/alpha/principles.toml").read_text()
+    assert 'override = "loosen (component:api): The api is a single-process' in (
+        principles
+    )
+    assert "override_decision" not in principles
+
+
+def fake_tools(
+    tmp_path: Path,
+    exit_codes: dict[str, int],
+    tools: tuple[str, ...] = ("uv", "pnpm", "mise"),
+) -> Path:
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir()
+    log = tmp_path / "tools.log"
+    for tool in tools:
+        script = bin_dir / tool
+        script.write_text(
+            f'#!/bin/sh\necho "$(basename "$PWD"): {tool} $*" >> "{log}"\n'
+            f'echo "{tool} output"\nexit {exit_codes.get(tool, 0)}\n'
+        )
+        script.chmod(0o755)
+    return bin_dir
+
+
+def test_bootstrap_runs_bootstrap_setup_test_per_component(
+    tmp_path: Path,
+    generate_scenario: GenerateScenario,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
+    bootstrap(
+        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    )
+    announced = [
+        "api: uv add --dev pytest pytest-cov ruff pyright deptry",
+        "api: uv sync",
+        "api: uv run ruff format --check",
+        "api: uv run ruff check",
+        "api: uv run pyright",
+        "api: uv run deptry .",
+        "api: uv run pytest",
+        "web: pnpm add -D typescript vitest @biomejs/biome @types/node "
+        "knip dependency-cruiser @swc/core @vitest/coverage-v8",
+        "web: pnpm pkg set packageManager=pnpm@$(pnpm --version)",
+        "web: pnpm install",
+        "web: pnpm biome format .",
+        "web: pnpm biome lint --error-on-warnings .",
+        "web: pnpm tsc --noEmit",
+        "web: pnpm knip && pnpm depcruise --config .dependency-cruiser.cjs .",
+        "web: pnpm vitest run",
+    ]
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    repo = [
+        "mise trust --yes",
+        f"mise install {' '.join(tools)}",
+        "mise run --continue-on-error ci",  # every failing check, not the first
+    ]
+    ran = [
+        *announced[:8],
+        "web: pnpm --version",
+        "web: pnpm pkg set packageManager=pnpm@pnpm output",
+        *announced[9:-2],
+        "web: pnpm knip",  # the && list runs as two commands
+        "web: pnpm depcruise --config .dependency-cruiser.cjs .",
+        announced[-1],
+        *(f"proj: {command}" for command in repo),
+    ]
+    assert (tmp_path / "tools.log").read_text().splitlines() == ran
+    out = capsys.readouterr()
+    assert out.err.splitlines() == [
+        *(f"alpha: {line}" for line in announced),
+        *(f"alpha: repository checks: {command}" for command in repo),
+    ]
+    assert out.out == ""
+    # jactionlint needs a repository; commit-skeleton keeps this one.
+    assert git(project, "rev-parse", "--show-toplevel") == str(project.resolve())
+
+
+def test_bootstrap_without_mise_says_how_to_install(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv", "pnpm"))
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+        )
+    assert str(err.value) == (
+        "mise is not installed. Install it (brew install mise, or "
+        "https://mise.jdx.dev/getting-started.html), then rerun "
+        f'"alpha bootstrap {project}".'
+    )
+    assert not (tmp_path / "tools.log").exists()  # before the slow steps
+
+
+def mise_recording_argv(bin_dir: Path, fail_on: str = "") -> Path:
+    """A stand-in mise that writes each call's argv as a JSON line; it exits 1
+    with a message when its first argument is `fail_on`."""
+    log = bin_dir / "mise.argv"
+    mise = bin_dir / "mise"
+    mise.write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        f"open({str(log)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        f"if sys.argv[1:2] == [{fail_on!r}]:\n"
+        "    print('mise ERROR failed to install jactionlint'); sys.exit(1)\n"
+    )
+    mise.chmod(0o755)
+    return log
+
+
+def test_bootstrap_installs_only_the_project_s_check_tools(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    # A bare `mise install` would also install the user's global tools.
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv", "pnpm"))
+    log = mise_recording_argv(bin_dir)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    bootstrap(
+        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    )
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    assert "github:betterleaks/betterleaks" in tools
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    assert calls == [
+        ["trust", "--yes"],
+        ["install", *tools],
+        ["run", "--continue-on-error", "ci"],
+    ]
+
+
+def test_bootstrap_install_failure_points_at_the_install(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
+    mise_recording_argv(bin_dir, fail_on="install")
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+        )
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    install = f"mise install {' '.join(tools)}"
+    message = str(err.value)
+    assert message.startswith(f'"{install}" failed in {project} (exit 1).')
+    assert "mise ERROR failed to install jactionlint" in message
+    assert message.endswith(
+        f'Check your network, or run "{install}" in {project} to see which tool '
+        f'failed, then rerun "alpha bootstrap {project}"'
+    )
+    assert "mise run check" not in message
+
+
+@pytest.mark.parametrize("text", ["{not json", "[1, 2]"])
+def test_bootstrap_names_unreadable_project_json(
+    tmp_path: Path, generate_scenario: GenerateScenario, text: str
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    answers = project / ".claude/alpha/project.json"
+    answers.write_text(text)
+    with pytest.raises(GenerateError) as err:
+        bootstrap(project, principles)
+    message = str(err.value)
+    assert message.startswith(f"{answers} can't be read as the interview answers")
+    assert "Restore it with git checkout .claude/alpha/project.json" in message
+
+
+def test_bootstrap_step_times_out_with_a_fix(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
+    mise = bin_dir / "mise"
+    mise.write_text('#!/bin/sh\n[ "$1" = install ] && sleep 30\nexit 0\n')
+    mise.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    monkeypatch.setattr(generate_module, "STEP_TIMEOUT", 5)
+    started = time.monotonic()
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+        )
+    assert time.monotonic() - started < 20
+    tools = list(tomllib.loads((project / "mise.toml").read_text())["tools"])
+    install = f"mise install {' '.join(tools)}"
+    message = str(err.value)
+    assert message.startswith(
+        f'"{install}" took longer than 5s in {project}, so alpha stopped it. '
+        "If it waits for input, run it there yourself;"
+    )
+    assert message.endswith(f'then rerun "alpha bootstrap {project}"')
+
+
+def test_bootstrap_repo_check_failure_names_command_and_fix(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = fake_tools(tmp_path, {}, tools=("uv",))
+    mise = bin_dir / "mise"
+    mise.write_text(
+        '#!/bin/sh\n[ "$*" = "run --continue-on-error ci" ] || exit 0\n'
+        'echo "README.md:3:1: teh should be the"\nexit 2\n'
+    )
+    mise.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+        )
+    assert str(err.value) == (
+        f'"mise run --continue-on-error ci" failed in {project} (exit 2). Last '
+        "lines of its output:\n"
+        "README.md:3:1: teh should be the\n"
+        "Fix what the repository checks report (mise run check:<id> reruns one) "
+        f'and rerun "alpha bootstrap {project}"'
+    )
+
+
+def test_bootstrap_without_mise_toml_skips_the_repository_checks(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    (project / "mise.toml").unlink()  # a project from before the repository checks
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
+    bootstrap(
+        project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    )
+    ran = (tmp_path / "tools.log").read_text()
+    assert "mise" not in ran
+
+
+def test_bootstrap_only_named_components(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    bootstrap(project, principles, only=["api"])
+    ran = (tmp_path / "tools.log").read_text().splitlines()
+    components = [line for line in ran if not line.startswith("proj: mise ")]
+    assert components and all(line.startswith("api: ") for line in components)
+    assert ran[-1] == "proj: mise run --continue-on-error ci"  # still run
+
+
+def test_bootstrap_unknown_component_is_explained(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {})}:/usr/bin:/bin")
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    with pytest.raises(GenerateError) as e:
+        bootstrap(project, principles, only=["worker"])
+    assert str(e.value) == (
+        "No component named worker in docs/alpha/principles.toml (components: "
+        "api, web)."
+    )
+    assert not (tmp_path / "tools.log").exists()
+
+
+def test_bootstrap_failure_names_command_output_and_fix(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "web-ts-plus-python-api")
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {'pnpm': 3})}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+        )
+    message = str(err.value)
+    assert (
+        '"pnpm add -D typescript vitest @biomejs/biome @types/node '
+        'knip dependency-cruiser @swc/core @vitest/coverage-v8"'
+    ) in message
+    assert "exit 3" in message
+    assert "pnpm output" in message
+    assert message.endswith(
+        "Fix the failing step (is the component's toolchain installed?) and rerun "
+        f'"alpha bootstrap {project}"'
+    )
+
+
+def test_bootstrap_keeps_only_the_last_40_lines(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir()
+    uv = bin_dir / "uv"
+    uv.write_text('#!/bin/sh\nfor i in $(seq 1 100); do echo "line $i"; done\nexit 1\n')
+    uv.chmod(0o755)
+    (bin_dir / "mise").write_text("#!/bin/sh\n")
+    (bin_dir / "mise").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    with pytest.raises(GenerateError) as err:
+        bootstrap(
+            project, tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+        )
+    message = str(err.value)
+    assert "line 61\n" in message and "line 100\n" in message
+    assert "line 60\n" not in message
+
+
+def test_cli_apply_prints_summary(tmp_path: Path):
+    place_answers(tmp_path, "python-ml-single")
+    out = run_cli("apply", str(tmp_path), env={"ALPHA_SOURCE": str(ROOT)})
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.startswith("alpha apply: ") and "alpha commit" in out.stdout
+    assert out.stderr == ""
+    assert (tmp_path / "CLAUDE.md").is_file()
+
+
+def test_cli_apply_uses_the_plugin_and_your_defaults(tmp_path: Path):
+    project = tmp_path / "proj"
+    place_answers(project, "python-ml-single")
+    mine = tmp_path / "config"
+    mine.mkdir()
+    (mine / "overrides.toml").write_text('[review]\nexclude = ["docs/**"]\n')
+    env = {k: v for k, v in os.environ.items() if k != "ALPHA_SOURCE"}
+    env["HOME"] = str(tmp_path / "home")
+    env["ALPHA_CONFIG_DIR"] = str(mine)
+    out = subprocess.run(
+        [sys.executable, str(SHIM), "apply", str(project)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert out.returncode == 0, out.stderr
+    assert "warning" not in out.stderr
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    assert principles["review"]["exclude"] == ["docs/**"]
+    data = json.loads((project / ".claude/alpha/project.json").read_text())
+    assert data["installed"]["mode"] == "new"
+
+
+def test_cli_apply_error_exits_1(tmp_path: Path):
+    place_answers(tmp_path, "python-ml-single")
+    (tmp_path / "README.md").write_text("x")
+    out = run_cli("apply", str(tmp_path), env={"ALPHA_SOURCE": str(ROOT)})
+    assert out.returncode == 1
+    assert "is not empty (found: README.md)" in out.stderr
+
+
+def test_cli_bootstrap_without_principles_exits_1(tmp_path: Path):
+    out = run_cli("bootstrap", str(tmp_path))
+    assert out.returncode == 1
+    assert "docs/alpha/principles.toml" in out.stderr
+    assert "alpha generate" in out.stderr
+
+
+def test_cli_commit_with_trailers(
+    tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    out = run_cli("commit", str(tmp_path), "--trailer", "A: b", "--trailer", "C: d")
+    assert out.returncode == 0, out.stderr
+    assert "build(ml): Set up python toolchain and tests" in out.stdout
+    body = subprocess.run(
+        ["git", "log", "-1", "--format=%B"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert body.endswith("\n\nA: b\nC: d")
+
+
+def test_answers_still_load_after_the_manifest_is_added(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "web-ts-plus-python-api")
+    out = run_cli("answers", "check", str(tmp_path / PROJECT_JSON))
+    assert out.returncode == 0, out.stderr
+
+
+def edit_principles(target: Path, edit: Callable[[dict[str, Any]], object]) -> None:
+    path = target / "docs/alpha/principles.toml"
+    data = tomllib.loads(path.read_text())
+    edit(data)
+    path.write_text(render_principles(data))
+
+
+def assert_explained(out: subprocess.CompletedProcess[str], *needles: str) -> None:
+    assert out.returncode == 1
+    assert "Traceback" not in out.stderr
+    for needle in needles:
+        assert needle in out.stderr
+
+
+def test_cli_bootstrap_explains_unknown_stack(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    edit_principles(tmp_path, lambda d: d["components"][0].update(stack="cobol"))
+    out = run_cli("bootstrap", str(tmp_path))
+    assert_explained(
+        out, 'No recipe for stack "cobol"', "Use one of: python, rust, typescript"
+    )
+
+
+def test_cli_bootstrap_explains_missing_principles_key(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    edit_principles(tmp_path, lambda d: d["components"][0]["commands"].pop("setup"))
+    out = run_cli("bootstrap", str(tmp_path))
+    assert_explained(
+        out,
+        'docs/alpha/principles.toml: components[0] ("ml").commands.setup is missing',
+        "git checkout docs/alpha/principles.toml",
+    )
+
+
+def test_cli_apply_explains_write_failure(tmp_path: Path):
+    project = tmp_path / "proj"
+    place_answers(project, "python-ml-single")
+    project.chmod(0o555)
+    try:
+        out = run_cli("apply", str(project), env={"ALPHA_SOURCE": str(ROOT)})
+    finally:
+        project.chmod(0o755)
+    assert out.returncode == 1, out.stderr
+    assert "Permission denied" in out.stderr and "rerun" in out.stderr
+
+
+def shell_project(target: Path) -> list[str]:
+    data = json.loads((SCENARIOS / "python-ml-single.json").read_text())
+    single_component(data, dict(data["components"][0], stack="shell"))
+    data["recipes"] = {"shell": shell_recipe()}
+    dest = target / ".claude/alpha/project.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(data))
+    prove(target)
+    return install(target)
+
+
+def test_a_drafted_recipe_drives_every_generated_file(tmp_path: Path):
+    files = shell_project(tmp_path)
+    assert "tool.cfg" in files and "tests/setup.sh" in files
+    assert (tmp_path / "tool.cfg").read_text() == "name = leaf-lens-ml\n"
+    ci = yaml.safe_load((tmp_path / ".github/workflows/ci.yml").read_text())
+    runs = [s.get("run") for s in ci["jobs"]["ml"]["steps"] if "run" in s]
+    assert runs[:2] == ["true", "sh tests/setup.sh"]
+    deps = yaml.safe_load((tmp_path / ".github/dependabot.yml").read_text())
+    assert [u["package-ecosystem"] for u in deps["updates"]] == ["github-actions"]
+    settings = json.loads((tmp_path / ".claude/settings.json").read_text())
+    assert "Bash(sh:*)" in settings["permissions"]["allow"]
+    assert "out/" in (tmp_path / ".gitignore").read_text().splitlines()
+    contributing = (tmp_path / "CONTRIBUTING.md").read_text()
+    assert "(less proven: recipe drafted for this project)" in contributing
+
+
+def test_bootstrap_runs_a_drafted_recipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    shell_project(project)
+    monkeypatch.setenv("PATH", f"{fake_tools(tmp_path, {}, ('mise',))}:/usr/bin:/bin")
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    bootstrap(project, principles)
+
+
+@pytest.mark.parametrize(
+    "path", ["CLAUDE.md", "docs/alpha/principles.toml", ".gitignore", "README.md"]
+)
+def test_a_template_cannot_replace_a_file_alpha_generates(tmp_path: Path, path: str):
+    data = json.loads((SCENARIOS / "python-ml-single.json").read_text())
+    single_component(data, dict(data["components"][0], stack="shell"))
+    recipe = shell_recipe()
+    recipe["templates"][path] = "hijacked\n"
+    data["recipes"] = {"shell": recipe}
+    dest = tmp_path / ".claude/alpha/project.json"
+    dest.parent.mkdir(parents=True)
+    dest.write_text(json.dumps(data))
+    prove(tmp_path)
+    with pytest.raises(GenerateError, match=rf"{re.escape(path)}.*alpha generates"):
+        install(tmp_path)
+    assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_tooling_commit(tmp_path: Path, git_env: None):
+    repo = generated_repo(tmp_path, "web-ts-plus-python-api")
+    subjects = git(repo, "log", "--format=%s").splitlines()
+    subject = "build: Pin the repository's check tools"
+    assert subject in subjects
+    tooling = git(repo, "log", "--grep", subject, "--format=%H").splitlines()
+    assert len(tooling) == 1
+    files = git(repo, "show", "--name-only", "--format=", tooling[0]).splitlines()
+    assert sorted(files) == [
+        ".betterleaks.toml",
+        ".rumdl.toml",
+        "_typos.toml",
+        "lychee.toml",
+        "mise.toml",
+    ]
+    ci = git(repo, "log", "--grep", "^ci: Run every", "--format=%H").splitlines()
+    ci_files = git(repo, "show", "--name-only", "--format=", ci[0]).splitlines()
+    assert ".github/workflows/scheduled.yml" in ci_files
+
+
+MALFORMED: list[tuple[Callable[[dict[str, Any]], object], str]] = [
+    (
+        lambda d: d["components"][0].update(commands="uv run pytest"),
+        'components[0] ("ml").commands must be a table of step = "command"',
+    ),
+    (
+        lambda d: d["components"][0]["commands"].update(test=3),
+        'components[0] ("ml").commands.test must be text',
+    ),
+    (
+        lambda d: d["components"][0].pop("path"),
+        'components[0] ("ml").path is missing',
+    ),
+    (lambda d: d.pop("components"), "components is missing"),
+    (lambda d: d["project"].pop("slug"), "project.slug is missing"),
+]
+
+
+@pytest.mark.parametrize(("edit", "problem"), MALFORMED)
+def test_bootstrap_rejects_malformed_principles_with_component_and_fix(
+    tmp_path: Path,
+    generate_scenario: GenerateScenario,
+    edit: Callable[[dict[str, Any]], object],
+    problem: str,
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    edit_principles(tmp_path, edit)
+    done = run_cli("bootstrap", str(tmp_path))
+    assert done.returncode == 1
+    path = tmp_path / "docs/alpha/principles.toml"
+    assert done.stderr.startswith(f"{path}: {problem}"), done.stderr
+    assert "git checkout docs/alpha/principles.toml" in done.stderr
+    assert "Traceback" not in done.stderr
+
+
+def test_generate_keeps_the_users_own_license_file(tmp_path: Path):
+    answers = place_answers(tmp_path, "python-ml-single")
+    data = json.loads(answers.read_text())
+    data["identity"]["license"] = "Custom"
+    data["identity"]["license_file"] = "LICENSE"
+    answers.write_text(json.dumps(data))
+    (tmp_path / "LICENSE").write_text("Do what thou wilt.\n")
+    install(tmp_path)
+    assert (tmp_path / "LICENSE").read_text() == "Do what thou wilt.\n"
+
+
+def test_bootstrap_rejects_a_baseline_without_an_id(
+    tmp_path: Path, generate_scenario: GenerateScenario
+):
+    generate_scenario(tmp_path, "python-ml-single")
+    edit_principles(tmp_path, lambda d: d.update(baselines=[{"check": "lint"}]))
+    done = run_cli("bootstrap", str(tmp_path))
+    assert done.returncode == 1
+    assert "docs/alpha/principles.toml: baselines[0].id is missing" in done.stderr
+    assert "Traceback" not in done.stderr

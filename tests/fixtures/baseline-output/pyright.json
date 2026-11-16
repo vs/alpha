@@ -1,0 +1,232 @@
+{
+    "version": "1.1.414",
+    "time": "1794409498155",
+    "generalDiagnostics": [
+        {
+            "file": "/ROOT/pkg/bad.py",
+            "severity": "error",
+            "message": "Import \"os\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 7
+                },
+                "end": {
+                    "line": 0,
+                    "character": 9
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/ROOT/pkg/bad.py",
+            "severity": "warning",
+            "message": "Import \"requests\" could not be resolved from source",
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 7
+                },
+                "end": {
+                    "line": 1,
+                    "character": 15
+                }
+            },
+            "rule": "reportMissingModuleSource"
+        },
+        {
+            "file": "/ROOT/pkg/bad.py",
+            "severity": "error",
+            "message": "Import \"requests\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 7
+                },
+                "end": {
+                    "line": 1,
+                    "character": 15
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/ROOT/pkg/bad.py",
+            "severity": "error",
+            "message": "Return type is unknown",
+            "range": {
+                "start": {
+                    "line": 4,
+                    "character": 4
+                },
+                "end": {
+                    "line": 4,
+                    "character": 5
+                }
+            },
+            "rule": "reportUnknownParameterType"
+        },
+        {
+            "file": "/ROOT/pkg/bad.py",
+            "severity": "error",
+            "message": "Type of parameter \"x\" is unknown",
+            "range": {
+                "start": {
+                    "line": 4,
+                    "character": 6
+                },
+                "end": {
+                    "line": 4,
+                    "character": 7
+                }
+            },
+            "rule": "reportUnknownParameterType"
+        },
+        {
+            "file": "/ROOT/pkg/bad.py",
+            "severity": "error",
+            "message": "Type annotation is missing for parameter \"x\"",
+            "range": {
+                "start": {
+                    "line": 4,
+                    "character": 6
+                },
+                "end": {
+                    "line": 4,
+                    "character": 7
+                }
+            },
+            "rule": "reportMissingParameterType"
+        },
+        {
+            "file": "/ROOT/pkg/bad.py",
+            "severity": "error",
+            "message": "Return type is unknown",
+            "range": {
+                "start": {
+                    "line": 5,
+                    "character": 11
+                },
+                "end": {
+                    "line": 5,
+                    "character": 18
+                }
+            },
+            "rule": "reportUnknownVariableType"
+        },
+        {
+            "file": "/ROOT/pkg/bad.py",
+            "severity": "error",
+            "message": "Type \"Literal['s']\" is not assignable to return type \"int\"\n  \"Literal['s']\" is not assignable to \"int\"",
+            "range": {
+                "start": {
+                    "line": 9,
+                    "character": 11
+                },
+                "end": {
+                    "line": 9,
+                    "character": 14
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "/ROOT/pkg/syn.py",
+            "severity": "error",
+            "message": "\"(\" was not closed",
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 10
+                },
+                "end": {
+                    "line": 0,
+                    "character": 11
+                }
+            }
+        },
+        {
+            "file": "/ROOT/pkg/syn.py",
+            "severity": "error",
+            "message": "Expected parameter name",
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 11
+                },
+                "end": {
+                    "line": 0,
+                    "character": 12
+                }
+            }
+        },
+        {
+            "file": "/ROOT/pkg/syn.py",
+            "severity": "error",
+            "message": "Position-only parameter separator not allowed as first parameter",
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 11
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            }
+        },
+        {
+            "file": "/ROOT/pkg/syn.py",
+            "severity": "error",
+            "message": "Expected expression",
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            }
+        },
+        {
+            "file": "/ROOT/pkg/syn.py",
+            "severity": "error",
+            "message": "Expected \":\"",
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            }
+        },
+        {
+            "file": "/ROOT/pkg/syn.py",
+            "severity": "error",
+            "message": "Statements must be separated by newlines or semicolons",
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 0
+                },
+                "end": {
+                    "line": 1,
+                    "character": 0
+                }
+            }
+        }
+    ],
+    "summary": {
+        "filesAnalyzed": 3,
+        "errorCount": 13,
+        "warningCount": 1,
+        "informationCount": 0,
+        "timeInSec": 0.123
+    }
+}
+

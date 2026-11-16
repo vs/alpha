@@ -1,0 +1,8 @@
+Scanning 2 files...
+Warning: Skipping processing of pkg/syn.py because of the following error: "SyntaxError: Expected a parameter or the end of the parameter list at byte range 11..12".
+
+pkg/bad.py:2:8: DEP001 'requests' imported but missing from the dependency definitions
+pyproject.toml: DEP002 'six' defined as a dependency but not used in the codebase
+Found 2 dependency issues.
+
+For more information, see the documentation: https://deptry.com/

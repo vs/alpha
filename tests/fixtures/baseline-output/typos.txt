@@ -1,0 +1,2 @@
+./docs/guide.md:3:9: error: `teh` should be `the`
+./docs/guide.md:7:1: error: `recieve` should be `receive`
