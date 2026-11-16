@@ -273,7 +273,8 @@
             "run": "test $(grep -rnE \"PROJECT_JSON[)][.]read_text|json[.]loads[(]path[.]read_text\" src/alpha | grep -v answers.py | wc -l) -le 1 && uv run pytest -q"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-parse-project-json-once"
       },
       {
         "id": "p4-log-dev-dependencies",
