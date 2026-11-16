@@ -62,17 +62,21 @@ def test_R1_2_each_folder_state_is_told_apart(tmp_path: Path, git_env: None):
     assert out.stdout.startswith("not-a-repo: run git init")
 
 
-def test_R1_5_an_adopted_repo_names_its_next_step(tmp_path: Path, git_env: None):
-    repo = existing_repo(tmp_path / "repo")
-    step = {
-        "id": "p2-lint-ml",
-        "phase": "P2",
-        "title": "Add a linter",
-        "why": "Nothing lints it.",
+def plan_step(sid: str, phase: str, **more: object) -> dict[str, object]:
+    return {
+        "id": sid,
+        "phase": phase,
+        "title": "A step",
+        "why": "Why it matters.",
         "acceptance": [{"run": "true"}],
         "status": "pending",
+        **more,
     }
-    data = adoption_answers(repo, steps=[step])
+
+
+def installed_with(repo: Path, steps: list[dict[str, object]]) -> None:
+    """repo, adopted with alpha's hooks on and this plan."""
+    data = adoption_answers(repo, steps=steps)
     data["installed"] = {"kit_version": "1.0.0", "mode": "adopted"}
     (repo / ".claude/alpha/project.json").write_text(json.dumps(data))
     git(repo, "config", "core.hooksPath", ".claude/alpha/githooks")
@@ -95,9 +99,33 @@ def test_R1_5_an_adopted_repo_names_its_next_step(tmp_path: Path, git_env: None)
             }
         )
     )
+
+
+def test_R1_5_an_adopted_repo_names_its_next_step(tmp_path: Path, git_env: None):
+    repo = existing_repo(tmp_path / "repo")
+    installed_with(repo, [plan_step("p2-lint-ml", "P2")])
     found = status(repo)
     assert found.name == "installed"
     assert "p2-lint-ml" in found.detail
+
+
+def test_status_names_the_step_adopt_next_names(tmp_path: Path, git_env: None):
+    """Listed after a P6 step, a P4 step comes first by phase; a step waiting on
+    an unfinished one isn't ready. /alpha:install reads status, so it must
+    agree with alpha adopt next."""
+    repo = existing_repo(tmp_path / "repo")
+    installed_with(
+        repo,
+        [
+            plan_step("p2-lint", "P2", status="done"),
+            plan_step("p6-trace", "P6"),
+            plan_step("p4-wait", "P4", depends_on=["p6-trace"]),
+            plan_step("p4-first", "P4"),
+        ],
+    )
+    assert status(repo).detail == "the adoption plan's next step is p4-first"
+    out = run_cli("adopt", "next", str(repo))
+    assert out.stdout.startswith("Next: p4-first ")
 
 
 def test_an_unreadable_project_json_still_routes(tmp_path: Path, git_env: None):
@@ -112,3 +140,23 @@ def test_an_unreadable_project_json_still_routes(tmp_path: Path, git_env: None):
     done = run_cli("status", str(repo))
     assert done.returncode == 0, done.stderr
     assert done.stdout.startswith("existing")
+
+
+def test_status_says_why_the_plan_cant_be_read(tmp_path: Path, git_env: None):
+    """Without it, /alpha:install would see a bare "installed" and point the
+    user elsewhere while the plan stalled."""
+    repo = existing_repo(tmp_path / "repo")
+    installed_with(repo, [plan_step("p2-lint", "P2", phase_note="stray key")])
+    detail = status(repo).detail
+    assert detail.startswith("the adoption plan can't be read: ")
+    assert "phase_note" in detail
+
+
+def test_a_new_project_has_no_adoption_plan_to_report(tmp_path: Path, git_env: None):
+    repo = generated_repo(tmp_path / "p", "python-ml-single")
+    answers = repo / ".claude/alpha/project.json"
+    data = json.loads(answers.read_text())
+    data["stray"] = "key"
+    answers.write_text(json.dumps(data))
+    git(repo, "commit", "-qam", "chore: Break the answers")
+    assert status(repo).detail == ""

@@ -1062,6 +1062,23 @@ def _steps(
     return tuple(steps)
 
 
+FINISHED = ("done", "dropped")
+
+
+def next_step(steps: Sequence[Step]) -> tuple[Step | None, str]:
+    """The next ready step, phase by phase, or None and why none is. A step
+    depends only on steps listed before it, so while any is unfinished, one
+    is ready."""
+    finished = {s.id for s in steps if s.status in FINISHED}
+    by_phase = sorted(steps, key=lambda s: PHASES.index(s.phase))  # stable
+    for s in by_phase:
+        if s.id not in finished and set(s.depends_on) <= finished:
+            return s, ""
+    if not steps:
+        return None, "The plan has no steps: run alpha adopt gaps --save first."
+    return None, "Every step of the adoption plan is done or dropped."
+
+
 def read_project_json(target: Path) -> dict[str, Any] | None:
     """`target`'s project.json as it is, for a reader that needs more or less
     than finished answers (an interview under way, the installed record), or
