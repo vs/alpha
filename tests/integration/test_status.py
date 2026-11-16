@@ -150,3 +150,13 @@ def test_status_says_why_the_plan_cant_be_read(tmp_path: Path, git_env: None):
     detail = status(repo).detail
     assert detail.startswith("the adoption plan can't be read: ")
     assert "phase_note" in detail
+
+
+def test_a_new_project_has_no_adoption_plan_to_report(tmp_path: Path, git_env: None):
+    repo = generated_repo(tmp_path / "p", "python-ml-single")
+    answers = repo / ".claude/alpha/project.json"
+    data = json.loads(answers.read_text())
+    data["stray"] = "key"
+    answers.write_text(json.dumps(data))
+    git(repo, "commit", "-qam", "chore: Break the answers")
+    assert status(repo).detail == ""
