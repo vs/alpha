@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 1 | 1 |
-| P4 Rework | 4 | 13 |
+| P4 Rework | 5 | 13 |
 | P6 Traceability | 0 | 1 |
 
 ## P2 Close tool gaps
@@ -34,7 +34,7 @@ Done when:
 | `p4-messages-name-real-commands` | alpha | done |
 | `p4-guard-fails-closed` | alpha | done |
 | `p4-merge-gate-fails-closed` | alpha | done |
-| `p4-run-slow-suite-in-ci` | alpha | pending |
+| `p4-run-slow-suite-in-ci` | alpha | done |
 | `p4-pin-python-and-uv` | alpha | pending |
 | `p4-test-min-python` | alpha | pending |
 | `p4-record-test-skips` | alpha | pending |

@@ -1,7 +1,17 @@
+import os
 from pathlib import Path
 
 import pytest
 from helpers import GenerateScenario, install, place_answers
+
+
+def pytest_configure() -> None:
+    """Before any fixture, module-scoped ones included: CI sets CI=true, which
+    freezes baselines and skips the hooks' slots (a test that needs it sets it
+    itself), and UV_LOCKED, which makes uv refuse to create the lockfile of a
+    project a test generates."""
+    for name in ("CI", "UV_LOCKED"):
+        os.environ.pop(name, None)
 
 
 @pytest.fixture(autouse=True)
@@ -10,9 +20,6 @@ def own_alpha_config(
 ):
     monkeypatch.setenv("ALPHA_CONFIG_DIR", str(tmp_path_factory.mktemp("alpha")))
     monkeypatch.delenv("ALPHA_SOURCE", raising=False)
-    # CI sets CI=true, which freezes baselines and skips the hooks' slots; a
-    # test that needs it sets it itself.
-    monkeypatch.delenv("CI", raising=False)
 
 
 @pytest.fixture

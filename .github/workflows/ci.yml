@@ -41,6 +41,41 @@ jobs:
         run: "uv run pytest"
       - name: "Checks left the tree unchanged"
         run: 'git diff --exit-code && test -z "$(git status --porcelain)"'
+  slow:
+    # The end-to-end tests addopts leaves out: they bootstrap real projects
+    # with uv, pnpm, mise and cargo, and need the network.
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 30
+    env:
+      UV_LOCKED: "1"
+    steps:
+      - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: "astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2" # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - uses: "jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b" # v5.2.7
+        with:
+          install: true
+          cache: true
+      - uses: "pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115" # v6.1.1
+        with:
+          version: "12.18.0"
+      - uses: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1" # v7.1.0
+        with:
+          node-version: "26"
+      - name: "setup"
+        run: "uv sync"
+      # The kit's Rust bootstrap installs the pinned toolchains on first use;
+      # run it once alone, or the parallel tests race in ~/.rustup.
+      - name: "Rust toolchains"
+        run: 'uv run pytest -m slow -n0 -k "test_bootstrap_runs_green and rust"'
+      - name: "slow tests"
+        run: "uv run pytest -m slow"
+      - name: "Checks left the tree unchanged"
+        run: 'git diff --exit-code && test -z "$(git status --porcelain)"'
   repo:
     runs-on: "ubuntu-latest"
     timeout-minutes: 30

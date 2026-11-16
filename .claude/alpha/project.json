@@ -167,7 +167,8 @@
             "run": "grep -Rq \"pytest -m slow\" .github/workflows/"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-run-slow-suite-in-ci"
       },
       {
         "id": "p4-pin-python-and-uv",
