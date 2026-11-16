@@ -828,8 +828,8 @@ def test_design_language_answers_without_their_area_are_not_done(tmp_path: Path)
         check(tmp_path, d)
 
 
-def saved_plan(tmp_path: Path, status: str = "pending") -> dict[str, Any]:
-    step = {"id": "p4-a", "phase": "P4", "status": status}
+def saved_plan(tmp_path: Path) -> dict[str, Any]:
+    step = {"id": "p4-a", "phase": "P4", "status": "pending"}
     plan: dict[str, Any] = {"adoption": {"steps": [step]}}
     write_answers(tmp_path, json.dumps(plan))
     return plan

@@ -1361,12 +1361,17 @@ def write_answers(target: Path, text: str) -> Path:
                 f"Remove it; allowed keys are "
                 f"{', '.join(sorted(_TOP_KEYS - {'installed'}))}",
             )
-    path = target / PROJECT_JSON
     data = read_project_json(target) or {}
     fields = cast(dict[str, Any], update)
     if "adoption" in fields:
         _keep_step_records(data.get("adoption"), fields["adoption"])
     data.update(fields)
+    return save_answers(target, data)
+
+
+def save_answers(target: Path, data: Mapping[str, Any]) -> Path:
+    """Replace `target`'s project.json with `data`, or stop saying why not."""
+    path = target / PROJECT_JSON
     try:
         write_json(path, data)
     except OSError as e:

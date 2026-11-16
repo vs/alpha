@@ -18,7 +18,7 @@ from alpha.answers import (
     describe_condition,
     load_answers,
     read_project_json,
-    write_json,
+    save_answers,
 )
 from alpha.defaults import Source, load_defaults, load_survey
 from alpha.gitops import HOOKS_PATH, status_paths
@@ -588,7 +588,7 @@ def _save_step(
     # these commands set.
     data = read_project_json(target) or {}
     data["adoption"] = {**saved, "steps": raw}
-    write_json(target / PROJECT_JSON, data)
+    save_answers(target, data)
 
 
 def start(target: Path, sid: str) -> Step:
