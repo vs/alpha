@@ -94,7 +94,8 @@ def test_survey_lists_files(tmp_path: Path):
     result = survey(root, SOURCE)
     files = result["files"]
     assert files["ci"] == [".github/workflows/ci.yml"]
-    assert files["decisions"] == ["docs/adr/0001-use-postgres.md"]
+    assert "decisions" not in files
+    assert "docs/adr/0001-use-postgres.md" in files["docs"]
     assert files["license"] == ["LICENSE"]
     assert "README.md" in files["docs"]
     assert files["env_examples"] == ["api/.env.example"]

@@ -15,14 +15,6 @@ ci = [
 ]
 # Docs the project already has, which alpha's docs merge with.
 docs = ["README*", "CONTRIBUTING*", "CHANGELOG*", "CLAUDE.md", "AGENTS.md", "docs/**/*.md"]
-# Decision records kept in the usual places.
-decisions = [
-  "docs/decisions/*.md",
-  "docs/adr/*.md",
-  "docs/adrs/*.md",
-  "adr/*.md",
-  "docs/architecture/decisions/*.md",
-]
 # Schema migrations.
 migrations = ["**/migrations/**", "**/alembic/versions/**", "**/db/migrate/**"]
 # Where the commands that already run are written down.

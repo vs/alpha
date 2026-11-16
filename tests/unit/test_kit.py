@@ -54,19 +54,14 @@ def test_R14_1_dropped_features_are_gone():
 
 RECORD_USE = re.compile(
     r"docs/decisions|decision records? (in|under|that)|decision log|"
-    r"`decisions\[\]`|`Kind: (product|technical)`|--decision|fold-decisions"
+    r"`decisions\[\]`|`Kind: (product|technical)`|--decision|fold-decisions|"
+    r"accepted record|supersedes? (it|the record)|decisions = \["
 )
 
 
 def test_R15_1_no_decision_records(tmp_path: Path):
-    """Decisions live in the docs. Only the survey, which finds a repo's own
-    records, may name them."""
-    allowed = {"defaults/survey.toml"}
-    named = sorted(
-        rel
-        for rel, text in _texts().items()
-        if rel not in allowed and RECORD_USE.search(text)
-    )
+    """Decisions live in the docs; no shipped file names a record."""
+    named = sorted(rel for rel, text in _texts().items() if RECORD_USE.search(text))
     assert named == []
     with pytest.raises(AnswersError, match=r"decisions: isn't part of the answers"):
         parse_answers({"schema": 1, "areas": {}, "decisions": []}, tmp_path, ())

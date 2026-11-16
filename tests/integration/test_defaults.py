@@ -450,7 +450,6 @@ def test_malformed_user_defaults_are_explained(tmp_path: Path):
 SURVEY_KEYS = (
     "ci",
     "docs",
-    "decisions",
     "migrations",
     "task_runners",
     "hook_managers",
