@@ -65,7 +65,8 @@
             "run": "test -f .github/workflows/ci.yml && gh run list --workflow ci.yml --branch main --limit 1 --json conclusion --jq \".[0].conclusion\" | grep -qx success"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p2-ci-green"
       },
       {
         "id": "p4-name-bad-file-in-errors",
