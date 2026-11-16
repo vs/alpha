@@ -222,7 +222,7 @@
             "run": "! grep -rnE \"pytest[.]skip[(]|mark[.]skipif|mark[.]skip[(]\" tests"
           }
         ],
-        "status": "in_progress",
+        "status": "done",
         "branch": "alpha/p4-record-test-skips"
       },
       {
