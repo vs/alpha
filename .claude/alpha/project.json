@@ -185,7 +185,8 @@
             "run": "grep -q \"^python = \" mise.toml && grep -q \"^uv = \" mise.toml"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-pin-python-and-uv"
       },
       {
         "id": "p4-test-min-python",
