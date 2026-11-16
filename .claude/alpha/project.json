@@ -205,7 +205,8 @@
             "run": "out=$(uv run --python 3.11 pytest -q -rs tests/end-to-end/test_cli.py) && ! printf %s \"$out\" | grep -q SKIPPED"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-test-min-python"
       },
       {
         "id": "p4-record-test-skips",

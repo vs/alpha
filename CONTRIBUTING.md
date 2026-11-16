@@ -65,6 +65,8 @@ Conventional commits: `type(scope): description`.
 
 Put each level's tests under `tests/<level>/` in the component.
 
+The default run (`uv run pytest`) checks the CLI on Python 3.11, alpha's minimum, too: uv downloads that interpreter the first time, so that run needs the network once.
+
 A test that covers an acceptance check names its requirement id (e.g. `R1`) in its name, so each check in docs/alpha/specification.md traces to a test.
 
 ## Documentation
