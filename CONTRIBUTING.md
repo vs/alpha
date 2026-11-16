@@ -65,7 +65,7 @@ Conventional commits: `type(scope): description`.
 
 Put each level's tests under `tests/<level>/` in the component.
 
-The default run (`uv run pytest`) checks the CLI on Python 3.11, alpha's minimum, too: uv downloads that interpreter the first time, so that run needs the network once.
+The default run (`uv run pytest`) also checks the CLI on Python 3.11, alpha's minimum, and the version guard on 3.9: uv downloads those interpreters the first time, so that run needs the network once. No test skips when a tool is missing: the slow tests need uv, pnpm, mise and cargo, and fail without them.
 
 A test that covers an acceptance check names its requirement id (e.g. `R1`) in its name, so each check in docs/alpha/specification.md traces to a test.
 

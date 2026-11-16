@@ -117,19 +117,32 @@ def place_rust_monorepo(
     return answers
 
 
-def old_python() -> str | None:
-    for candidate in ("/usr/bin/python3", "python3.9", "python3.10"):
-        exe = shutil.which(candidate)
-        if exe is None:
-            continue
-        done = subprocess.run(
-            [exe, "-c", "import sys; print(sys.version_info[:2] < (3, 11))"],
-            capture_output=True,
-            text=True,
-        )
-        if done.returncode == 0 and done.stdout.strip() == "True":
-            return exe
-    return None
+def uv_python(version: str) -> str:
+    """An interpreter of `version`: uv finds an installed one or downloads it
+    once."""
+    done = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--python",
+            version,
+            "--no-project",
+            "python",
+            "-c",
+            "import sys; print(sys.executable)",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert done.returncode == 0, done.stderr
+    return done.stdout.strip()
+
+
+def old_python() -> str:
+    """Python 3.9, older than alpha supports: the shim and the hooks still
+    parse on it, so they can say which Python alpha needs."""
+    return uv_python("3.9")
 
 
 def union_annotations(tree: ast.Module) -> list[int]:

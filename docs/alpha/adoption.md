@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 1 | 1 |
-| P4 Rework | 7 | 13 |
+| P4 Rework | 8 | 13 |
 | P6 Traceability | 0 | 1 |
 
 ## P2 Close tool gaps
@@ -37,7 +37,7 @@ Done when:
 | `p4-run-slow-suite-in-ci` | alpha | done |
 | `p4-pin-python-and-uv` | alpha | done |
 | `p4-test-min-python` | alpha | done |
-| `p4-record-test-skips` | alpha | pending |
+| `p4-record-test-skips` | alpha | done |
 | `p4-narrow-optionals-in-tests` | alpha | pending |
 | `p4-one-git-runner` | alpha | pending |
 | `p4-parse-project-json-once` | alpha | pending |
@@ -114,15 +114,15 @@ Done when:
 
 - `out=$(uv run --python 3.11 pytest -q -rs tests/end-to-end/test_cli.py) && ! printf %s "$out" | grep -q SKIPPED` passes
 
-### `p4-record-test-skips`: Record each tool-dependent skip as an exception
+### `p4-record-test-skips`: Remove each tool-dependent skip
 
-Six tests skip when a tool is missing, with no row in an Exceptions table, so a runner without them gets a green run that proves less.
+Six tests skipped when a tool was missing, so a runner without it got a green run that proved less. Each now gets its tool (uv fetches the old Pythons) or fails without it.
 
 Serves `never-weaken-checks`.
 
 Done when:
 
-- `for f in test_pyguard.py test_session_start.py test_render_tooling.py test_defaults.py test_bootstrap_slow.py test_cli.py; do grep -q "$f" CONTRIBUTING.md || exit 1; done` passes
+- `! grep -rnE "pytest[.]skip[(]|mark[.]skipif|mark[.]skip[(]" tests` passes
 
 ### `p4-narrow-optionals-in-tests`: Narrow Optionals instead of ignoring pyright
 

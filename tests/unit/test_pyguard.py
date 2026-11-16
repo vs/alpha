@@ -36,8 +36,6 @@ def test_runs_before_the_guard_on_python_3_9(path: Path):
 
 def test_shim_on_old_python_prints_the_guard_message():
     exe = old_python()
-    if exe is None:
-        pytest.skip("no python3 older than 3.11 on this machine")
     done = subprocess.run(
         [exe, str(PLUGIN_ROOT / "bin" / "alpha"), "version"],
         capture_output=True,

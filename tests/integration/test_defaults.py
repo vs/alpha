@@ -1,6 +1,5 @@
 import json
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -277,14 +276,16 @@ def test_list_gap_without_text_adds_no_blank_line(existing: str, gap: str):
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(shutil.which("rumdl") is None, reason="rumdl is not installed")
 def test_changelog_with_entries_passes_rumdl(tmp_path: Path):
     src = make_source(tmp_path / "src")
     day = date(2026, 10, 19)
     set_default(src, "testing.diff_coverage", "90", "demo", "r1", day)
     set_default(src, "testing.exhaustive", "true", "demo", "r2", day)
+    pin = REGISTRY.tool("rumdl").pin
+    assert pin is not None
     run = subprocess.run(
-        ["rumdl", "check", "--no-config", str(user_files(src)[1])],
+        ["mise", "exec", f"{pin.mise}@{pin.version}", "--"]
+        + ["rumdl", "check", "--no-config", str(user_files(src)[1])],
         capture_output=True,
         text=True,
     )
