@@ -692,6 +692,13 @@ READ_ONLY_GIT = {
     "describe",
     "shortlog",
 }
+UNPARSED_MESSAGE = (
+    "alpha's command guard can't parse this command (an unbalanced quote, or "
+    "$'...' quoting with an escaped quote), so it can't check what it runs. "
+    "Balance the quotes, or put the text in a heredoc or a file (e.g. git "
+    "commit -F <file>), then run it again."
+)
+
 REVIEWER_MESSAGE = (
     "The principles-reviewer only reads: it may run the brief, git diff, log, "
     "show and status, and read files, but not write, delete or commit. Report "
@@ -725,6 +732,8 @@ def main() -> None:
         sys.exit(0)
     cwd_value = inp.get("cwd")
     cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else root
+    if split_segments(command) is None:
+        _common.block(UNPARSED_MESSAGE)
     if inp.get("agent_type") == REVIEWER:
         check_read_only(command, cwd)
     check_command(command, root, here=cwd)
