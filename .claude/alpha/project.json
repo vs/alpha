@@ -151,7 +151,8 @@
             "run": "uv run pytest tests/integration/hooks/test_worktrees.py::test_R9_2_a_pr_head_that_differs_from_local_head_blocks_the_merge"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p6-r9-2-pr-head-test"
       },
       {
         "id": "p4-run-slow-suite-in-ci",
