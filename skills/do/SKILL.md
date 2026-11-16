@@ -40,7 +40,7 @@ Task: `$ARGUMENTS`
 `<root>` is the repository root (`git rev-parse --show-toplevel`).
 
 - No `<root>/.claude/alpha/project.json` with an `installed` key: alpha isn't installed in this repo, or its install isn't finished, so there are no principles to follow. Point to `/alpha:install`, and stop.
-- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" status <root>`. When it prints `hooks-off`, the Stop checks, the commit-msg hook and the merge guard aren't running: tell the user, say `/alpha:install` switches them back on, then go on.
+- Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" status <root>`. When it prints `hooks-off`, tell the user which hooks it names after `switched off:`, say `/alpha:install` switches them back on, then go on.
 - With `installed`, read before the first step:
   - project.json's `areas`: a product area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/alpha/specification.md lists them under "Not settled yet". Only `/alpha:update` settles one, when the user asks: a task that needs one names it to the user with its `/alpha:update <area>` request, and keeps its own choices in its own spec.
   - `docs/alpha/principles.toml`: the active principles and their parameters. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one. A playbook step that names a principle the project dropped, or one that isn't active for the component you change (its `active` and `components`), stays in the todo list as `skip: <id> off`; where the project changed a principle's parameters, they replace the playbook's wording.
@@ -88,7 +88,7 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 **Done.** A playbook that changes files finishes with the project's definition of done in CLAUDE.md:
 
 1. The checks of every component you changed pass (the commands in CLAUDE.md, or `mise run check`), and the tests your change touches run green. A source change that needs no test gets its reason recorded with `python3 .claude/alpha/hooks/untested.py "<why>" <path>…` (`tests-first-class`); the reviewer checks each reason.
-2. The docs that move with the changed paths (the table in CONTRIBUTING.md) are updated in the same change; a mapped path that needs no doc change gets `untested.py --docs "<why>" <path>…`. A new dependency gets its reason in the dependency log, `docs/alpha/dependencies.md` (`dependency-reasons`).
+2. The docs that move with the changed paths (the table in CONTRIBUTING.md) are updated in the same change; a mapped path that needs no doc change gets `untested.py --docs "<why>" <path>…`. A new dependency gets its reason in the dependency log, the file `dependency_log` in `docs/alpha/principles.toml` names (`dependency-reasons`).
 3. Commit by following the commit skill (`.claude/skills/commit/SKILL.md`; it runs only when the user types it, so read the file), one logical change per commit, each passing the checks on its own.
 4. Don't run the principles reviewer or review the whole branch yourself: the principles review runs once, when the work reaches main, as the merge guard asks, and its findings are fixed or accepted there.
 
