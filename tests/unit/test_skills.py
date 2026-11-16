@@ -195,6 +195,7 @@ def test_R5_2_install_offers_each_product_area_defaulting_to_skip() -> None:
     interview = _section("install/new-project.md", "3. Interview, area by area")
     offer = interview.split("Then offer the product areas")[1]
     assert "one question per area" in offer
+    assert "settle it right away, before the next question" in offer
     assert "Skip for now (Recommended)" in offer and "Settle now" in offer
     assert "as `/alpha:update` step 3 says" in offer
     assert "`/alpha:update <area>`" in offer
@@ -202,14 +203,20 @@ def test_R5_2_install_offers_each_product_area_defaulting_to_skip() -> None:
         assert unless in offer, unless
     summary = _section("install/new-project.md", "4. Summary and confirmation")
     assert "the settled product areas" in summary
-    resume = _section("install/new-project.md", "1. Start or resume")
-    assert "don't offer the others again" in resume
+    for rel, title in (
+        ("install/new-project.md", "1. Start or resume"),
+        ("install/adopt.md", "1. Resume"),
+    ):
+        resume = _section(rel, title)
+        assert "finish a product area marked `in_progress`" in resume, rel
+        assert "offer the ones after the last product area settled" in resume, rel
     adopt = _section("install/adopt.md", "4. Interview")
     assert "offer the product areas as `new-project.md` step 3 says" in adopt
     assert "recommend Settle now for an area the repo's docs describe" in adopt
     for guide in PRODUCT_GUIDES:
         start = _section(guide, "Before you start")
         assert "and `/alpha:install` when the user picks it" in start, guide
+        assert "Their rules win over this guide's" in start, guide
 
 
 def test_R7_2_only_install_and_update_settle_product_areas() -> None:
@@ -218,9 +225,12 @@ def test_R7_2_only_install_and_update_settle_product_areas() -> None:
     )
     for gone in ("extend", "specify"):
         assert not (SKILLS / gone).exists(), gone
+    playbooks = [
+        f"do/playbooks/{p.name}" for p in (SKILLS / "do/playbooks").glob("*.md")
+    ]
     readers = [
         rel
-        for rel in DOCS
+        for rel in [*DOCS, *playbooks]
         if "areas/" in _text(rel) and not rel.startswith(("install/", "update/"))
     ]
     assert readers == []
@@ -237,9 +247,8 @@ def test_R4_1_update_changes_a_component_or_an_install_answer() -> None:
     for part in (
         "${CLAUDE_PLUGIN_ROOT}/skills/install/areas/<area>.md",
         "send the whole `overrides` array",
-        "Revisit the",
-        "Fix .claude/alpha/project.json",
         "`git mv`",
+        'as "Reading a dry run" says',
     ):
         assert part in change, part
     text = _text("update/SKILL.md")
@@ -258,6 +267,34 @@ def test_R7_1_update_settles_the_named_product_areas() -> None:
         f"{CLI} defaults show --json",
     ):
         assert part in settle, part
+
+
+def test_update_reads_every_dry_run_the_same_way() -> None:
+    """Each refusal the CLI prints has one instruction, whichever step ran
+    the dry run; a no at the preview gives the user a way out."""
+    reading = _section("update/SKILL.md", "Reading a dry run")
+    for refusal in (
+        "an update is waiting to be committed",
+        "Revisit the `<area>` area",
+        "Fix .claude/alpha/project.json",
+        "Any other refusal",
+    ):
+        assert refusal in reading, refusal
+    for title in ("1. Target and checks", "5. Preview and confirm"):
+        assert 'as "Reading a dry run" says' in _section("update/SKILL.md", title)
+    start = _section("update/SKILL.md", "1. Target and checks")
+    assert "applied together with the request" in start
+    assert "apply them first" not in start
+    assert "an area or a component name is never the target" in start
+    preview = _section("update/SKILL.md", "5. Preview and confirm")
+    assert "unless step 4 just ran it" not in preview
+    assert "On a no" in preview
+    assert "git show HEAD:.claude/alpha/project.json" in preview
+    assert "check they say what the user settled" in preview
+    merge = _section("update/SKILL.md", "6. Apply and merge")
+    assert "check they say what the user settled" not in merge
+    bootstrap = _section("update/SKILL.md", "7. Bootstrap")
+    assert "`path` differs from its `path` in `git show HEAD:" in bootstrap
 
 
 def test_R11_4_update_routes_each_kind_of_request() -> None:
@@ -408,7 +445,7 @@ def test_no_kit_file_names_a_removed_doc_or_skill() -> None:
         p
         for folder in ("skills", "project-files", "recipes", "src", "defaults")
         for p in (PLUGIN_ROOT / folder).rglob("*")
-        if p.is_file() and p.suffix in (".md", ".py", ".toml")
+        if p.is_file() and "__pycache__" not in p.parts
     ]
     assert len(shipped) > 50
     named = [str(p) for p in shipped if REMOVED.search(p.read_text())]
