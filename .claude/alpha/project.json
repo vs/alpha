@@ -99,7 +99,8 @@
             "run": "uv run pytest tests/unit/test_kit.py::test_every_alpha_command_named_in_a_message_exists"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-messages-name-real-commands"
       },
       {
         "id": "p4-guard-fails-closed",

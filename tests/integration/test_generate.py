@@ -735,7 +735,7 @@ def test_cli_bootstrap_without_principles_exits_1(tmp_path: Path):
     out = run_cli("bootstrap", str(tmp_path))
     assert out.returncode == 1
     assert "docs/alpha/principles.toml" in out.stderr
-    assert "alpha generate" in out.stderr
+    assert "alpha apply" in out.stderr
 
 
 def test_cli_commit_with_trailers(

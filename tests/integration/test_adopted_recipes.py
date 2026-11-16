@@ -218,7 +218,7 @@ def test_try_adopted_component_without_a_folder(tmp_path: Path, git_env: None):
     problem = _try(root)
     assert problem is not None
     assert "planned has no committed files, so there are no tools to adopt" in problem
-    assert "alpha adopt apply then writes its skeleton" in problem
+    assert "alpha apply then writes its skeleton" in problem
     assert _worktrees(root) == 1
 
 

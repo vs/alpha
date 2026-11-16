@@ -332,9 +332,7 @@ def _adopt_gaps(target: Path, save: bool, source: defaults.Source) -> None:
         print(f"Added {len(steps) - len(before)} steps to adoption.steps.")
 
 
-_RECORD = (
-    "Then run alpha update and alpha commit-update so docs/alpha/adoption.md shows it."
-)
+_RECORD = "Then run alpha update and alpha commit so docs/alpha/adoption.md shows it."
 
 
 def _adopt_step(args: argparse.Namespace) -> str:
