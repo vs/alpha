@@ -10,6 +10,8 @@
 run_auto_install = false  # don't install missing tools of the global config
 
 [tools]
+python = "3.14.9"  # the same as .python-version, which uv reads
+uv = "0.13.7"
 jactionlint = "2.5.0"
 "github:betterleaks/betterleaks" = "1.10.0"
 osv-scanner = "2.7.0"

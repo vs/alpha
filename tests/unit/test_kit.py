@@ -5,6 +5,7 @@ import contextlib
 import functools
 import io
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -123,3 +124,12 @@ def test_every_alpha_command_named_in_a_message_exists():
                 elif second and _invalid(first, second):
                     wrong.append(f"{path.name}: alpha {first} {second}")
     assert wrong == []
+
+
+def test_dev_python_is_pinned_once_for_mise_and_uv():
+    """mise installs the Python in mise.toml; uv, locally and in CI, runs on
+    the one in .python-version. They must be the same."""
+    tools = tomllib.loads((PLUGIN_ROOT / "mise.toml").read_text("utf-8"))["tools"]
+    pinned = (PLUGIN_ROOT / ".python-version").read_text("utf-8").strip()
+    assert tools["python"] == pinned
+    assert "uv" in tools
