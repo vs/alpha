@@ -93,6 +93,8 @@ GitHub Actions runs `.github/workflows/ci.yml` on every push to main and every p
 |---|---|
 | alpha | `uv sync`, `uv run ruff format --check --extend-exclude .claude`, `uv run ruff check --extend-exclude .claude`, `uv run pyright`, `uv run deptry . --extend-exclude .claude`, `uv run pytest` |
 
+A `slow` job also runs `uv run pytest -m slow`: the end-to-end tests the default run leaves out, which bootstrap real projects with uv, pnpm, mise and cargo and need the network.
+
 ### Artifacts and hosting
 
 | Component | Artifact | Hosting |
