@@ -190,6 +190,8 @@ def test_R5_2_install_offers_each_product_area_defaulting_to_skip() -> None:
     listed = re.findall(r"`(\w+)\.md`", rules)
     assert listed == list(areas.INSTALL_AREAS)
     assert "settle one only when the user picks it" in rules
+    assert "covers only the install areas" not in rules
+    assert "In the install areas, what the project is about may be asked" in rules
     interview = _section("install/new-project.md", "3. Interview, area by area")
     offer = interview.split("Then offer the product areas")[1]
     assert "one question per area" in offer
