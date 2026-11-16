@@ -290,7 +290,8 @@
             "run": "for d in deptry pyright pytest pytest-xdist pyyaml ruff types-pyyaml; do grep -q \"$d\" docs/alpha/dependencies.md || exit 1; done"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-log-dev-dependencies"
       },
       {
         "id": "p4-readme-python-requirement",
