@@ -1,6 +1,5 @@
 """Adopting an existing repo: the survey of what's already there."""
 
-import json
 import os
 import posixpath
 import re
@@ -19,7 +18,7 @@ from alpha.answers import (
     describe_condition,
     load_answers,
     read_project_json,
-    write_answers,
+    write_json,
 )
 from alpha.defaults import Source, load_defaults, load_survey
 from alpha.gitops import HOOKS_PATH, status_paths
@@ -585,7 +584,11 @@ def _save_step(
     for entry in raw:
         if entry.get("id") == sid:
             entry.update(fields)
-    write_answers(target, json.dumps({"adoption": {**saved, "steps": raw}}))
+    # Not write_answers: it refuses a step's status and branch, which only
+    # these commands set.
+    data = read_project_json(target) or {}
+    data["adoption"] = {**saved, "steps": raw}
+    write_json(target / PROJECT_JSON, data)
 
 
 def start(target: Path, sid: str) -> Step:
