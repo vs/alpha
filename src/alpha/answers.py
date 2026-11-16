@@ -1345,23 +1345,7 @@ def write_answers(target: Path, text: str) -> Path:
                 f"{', '.join(sorted(_TOP_KEYS - {'installed'}))}",
             )
     path = target / PROJECT_JSON
-    data: dict[str, Any] = {}
-    if path.exists():
-        try:
-            current: object = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as e:  # ValueError: bad JSON or not UTF-8
-            raise fail(
-                str(path),
-                f"can't merge into it, it's not valid JSON ({e})",
-                "Fix the file by hand, or delete it to start the interview over",
-            ) from None
-        if not isinstance(current, dict):
-            raise fail(
-                str(path),
-                "can't merge into it, it's not a JSON object",
-                "Fix the file by hand, or delete it to start the interview over",
-            )
-        data = cast(dict[str, Any], current)
+    data = read_project_json(target) or {}
     data.update(cast(dict[str, Any], update))
     try:
         write_json(path, data)
