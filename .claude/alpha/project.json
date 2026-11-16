@@ -82,7 +82,8 @@
             "run": "uv run pytest tests/integration/test_adopt.py::test_a_non_utf8_repo_file_is_named_in_the_error"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-name-bad-file-in-errors"
       },
       {
         "id": "p4-messages-name-real-commands",

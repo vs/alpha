@@ -149,6 +149,15 @@ def test_R2_2_a_chained_repo_keeps_its_hooks_path(chained: Path) -> None:
     assert status(chained).name == "hooks-off"
 
 
+def test_uninstall_names_a_hook_file_that_isnt_utf8(chained: Path) -> None:
+    hook = chained / ".husky/commit-msg"
+    hook.write_bytes(hook.read_bytes() + b"# caf\xe9\n")
+    done = run_cli("uninstall", str(chained))
+    assert done.returncode == 1
+    assert "Traceback" not in done.stderr
+    assert done.stderr.startswith(f"{hook} isn't UTF-8 text")
+
+
 def test_R2_2_an_unmarked_chained_call_is_left_to_the_user(chained: Path) -> None:
     unmarked = "".join(
         line for line in CHAINED.splitlines(keepends=True) if "alpha:" not in line

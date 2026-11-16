@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from alpha.generate import GenerateError
+from alpha.generate import GenerateError, read_text
 from alpha.gitops import set_hooks_path, unset_hooks_path
 from alpha.merge import merge_settings, strip_alpha_hooks
 from alpha.render.claude_settings import alpha_hooks
@@ -93,7 +93,7 @@ def unmarked_calls(files: list[HookFile]) -> list[str]:
     """`file:line` of each call of alpha's check outside the marks."""
     found: list[str] = []
     for hook in files:
-        lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
+        lines = (read_text(hook.path) or "").splitlines(keepends=True)
         block = marked_block(lines)
         for n, line in enumerate(lines, 1):
             inside = block is not None and block[0] <= n - 1 <= block[1]
@@ -181,7 +181,7 @@ def _chain_off(target: Path) -> list[str]:
         return []
     files = hook_files(target)
     for hook in files:
-        lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
+        lines = (read_text(hook.path) or "").splitlines(keepends=True)
         found = marked_block(lines)
         if found is None:
             continue
@@ -234,14 +234,14 @@ def _chain_on(target: Path) -> list[str]:
             f'"alpha hooks on {target}".'
         )
     path = target / rel
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    except FileNotFoundError:
+    text = read_text(path)
+    if text is None:
         raise GenerateError(
             f"{path} is gone, so alpha can't put its commit check back into it. "
             "Set your hook manager's commit-msg hook up again, then rerun "
             f'"alpha hooks on {target}".'
-        ) from None
+        )
+    lines = text.splitlines(keepends=True)
     if lines and not lines[-1].endswith("\n"):
         lines[-1] += "\n"
     at = min(at, len(lines))

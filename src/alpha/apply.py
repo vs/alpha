@@ -25,6 +25,7 @@ from alpha.generate import (
     GenerateError,
     Rendered,
     copied_files,
+    read_text,
     render_project,
 )
 from alpha.gitops import (
@@ -78,10 +79,6 @@ class Plan:
     notes: tuple[str, ...] = ()
     upgraded_from: str | None = None
     git_hooks: str = "alpha"
-
-
-def _read(path: Path) -> str | None:
-    return path.read_bytes().decode("utf-8") if path.is_file() else None
 
 
 def _project_json(target: Path) -> dict[str, Any]:
@@ -371,7 +368,7 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Plan:
             path in owned or path.startswith(OWNED_DIRS) or path in RETIRED
         ) and path not in keep
         before = base.texts.get(_written_as(path, after, moves)) if base else None
-        disk = _read(target / path)
+        disk = read_text(target / path)
         change = _change(path, before, texts.get(path), disk, is_owned, notes)
         if change is not None and (change.text is None or change.text != disk):
             changes.append(change)
@@ -507,7 +504,7 @@ def plan_diff(p: Plan, target: Path) -> str:
     for c in p.changes:
         if c.kind not in ("new", "change", "merge") or c.text is None:
             continue
-        disk = _read(target / c.path) or ""
+        disk = read_text(target / c.path) or ""
         out += difflib.unified_diff(
             disk.splitlines(keepends=True),
             c.text.splitlines(keepends=True),

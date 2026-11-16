@@ -21,7 +21,6 @@ from alpha import (
 )
 from alpha.areas import AREAS
 from alpha.generate import (
-    PRINCIPLES_TOML,
     PROJECT_JSON,
     GenerateError,
     bootstrap,
@@ -513,9 +512,6 @@ def _project(args: argparse.Namespace) -> int:
         adopt.AdoptError,
     ) as e:
         print(e, file=sys.stderr)
-        return 1
-    except ValueError as e:
-        print(f"{PRINCIPLES_TOML}: {e}", file=sys.stderr)
         return 1
     except OSError as e:
         print(
