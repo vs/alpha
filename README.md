@@ -247,7 +247,7 @@ What alpha does, in full: [docs/specification.md](docs/specification.md)
 cd .
 uv sync
 uv run pytest
-# run: add the command once the entry point exists
+bin/alpha --help
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before your first commit.

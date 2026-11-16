@@ -4,7 +4,7 @@ alpha is a Claude Code plugin that puts a development process into a project: pr
 
 ## Dev commands
 
-- `mise install`, then `mise run check`: every check the kit runs on itself (typos, rumdl and agnix on the docs and skills, then pytest, ruff and pyright).
+- `mise install`, then `mise run check`: every check the kit runs on itself: the repository checks CI runs (`mise run ci`: secrets, vulnerabilities, typos, Markdown, links, agent config, action pins, review dates; the vulnerability scan needs the network), then the component's format, lint, types, deptry and tests.
 - `uv run pytest`, `uv run ruff check`, `uv run ruff format`, `uv run pyright`.
 - `bin/alpha status <folder>`: the folder's state, which `/alpha:install` routes on (empty, interview, existing, adopting, uncommitted, not-a-repo, old-kit, hooks-off, installed).
 - `bin/alpha apply <folder> [--dry-run]`, then `bin/alpha bootstrap <folder> [--component …] [--capture-baselines]` and `bin/alpha commit <folder> [--trailer …]`: writes alpha's files from finished answers (`answers check` first; `answers write <target> --json '…'` saves an area). On an empty folder it sets up a new project; on an existing repo it adopts it on `alpha/adopt`, where every file the repo already has becomes a proposal; on an installed project it is `bin/alpha update <project> [--dry-run]`. Changes merge three ways against the render alpha last committed, kept in git (commits under `refs/alpha/rendered`, named by notes under `refs/notes/alpha-rendered`), never in project.json; alpha's own files (hooks, checks, the git hook, the copied agents and skills) are always replaced.
@@ -121,7 +121,7 @@ Code: `**/*.py`. Tests: `tests/**/*.py`, `**/test_*.py`, `**/*_test.py`, `**/con
 | format_check | `uv run ruff format --check --extend-exclude .claude` |
 | typecheck | `uv run pyright` |
 | structure | `uv run deptry . --extend-exclude .claude` |
-| run | add when the entry point exists |
+| run | `bin/alpha <command>` (`bin/alpha --help` lists them) |
 
 Run every check: `mise run check` (CI runs the same checks).
 
