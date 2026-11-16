@@ -27,15 +27,11 @@ dev = [
     "deptry>=0.25.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
-    "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
     "pyyaml>=6.0.3",
     "ruff>=0.17.1",
     "types-pyyaml>=6.0.12.20260906",
 ]
-
-[tool.ruff]
-extend-exclude = ["docs", ".superpowers"]
 
 [tool.deptry]
 # The kit's packages, and the hook and check modules that import each other.
@@ -47,6 +43,3 @@ known_first_party = [
     "stop_checks",
     "untested",
 ]
-
-[tool.coverage.run]
-source = ["src", "project-files"]

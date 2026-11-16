@@ -2,6 +2,7 @@
 §8b), on a project whose check is a fake tool."""
 
 import json
+import os
 import shutil
 import tomllib
 from pathlib import Path
@@ -165,9 +166,12 @@ def test_bootstrap_names_a_missing_baseline(tmp_path: Path):
     assert not (root / "setup.marker").exists()  # stopped before any step
 
 
-def test_bootstrap_captures_after_setup(tmp_path: Path):
+def test_bootstrap_captures_after_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     # The fake tool fails unless setup ran first: capture needs the toolchain.
     root = _project(tmp_path, [_component("touch ../setup.marker")])
+    _fake_mise(root, monkeypatch)
     _with_recipe(root)
     data = _principles(root)
     data["baselines"][0]["command"] = (
@@ -176,6 +180,16 @@ def test_bootstrap_captures_after_setup(tmp_path: Path):
     (root / "docs" / "alpha" / "principles.toml").write_text(render_principles(data))
     bootstrap(root, data, capture_baselines=True)
     assert _counts(root) == {"api/src/app.py": {"E1": 2}}
+
+
+def _fake_mise(root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The repository checks pass: an empty mise.toml and a mise that succeeds."""
+    (root / "mise.toml").write_text("")
+    bin_dir = root.parent / "fakebin"
+    bin_dir.mkdir()
+    (bin_dir / "mise").write_text("#!/bin/sh\nexit 0\n")
+    (bin_dir / "mise").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
 
 
 def _principles(root: Path) -> dict[str, Any]:
@@ -194,8 +208,11 @@ def test_capture_needs_a_row_new_to_the_branch(tmp_path: Path, git_env: None):
     assert done.returncode == 1 and "would grow its baseline" in done.stderr
 
 
-def test_bootstrap_runs_a_just_captured_check_once(tmp_path: Path):
+def test_bootstrap_runs_a_just_captured_check_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     root = _project(tmp_path, [_component("true")])
+    _fake_mise(root, monkeypatch)
     _with_recipe(root)
     data = _principles(root)
     data["baselines"][0]["command"] = (

@@ -127,7 +127,7 @@ def scenario_with_shell(target: Path, recipe: dict[str, Any]) -> None:
 
 
 def test_an_unproven_recipe_is_refused(tmp_path: Path):
-    """R6: a drafted recipe is refused until alpha recipe try proves it."""
+    """A drafted recipe is refused until alpha recipe try proves it."""
     scenario_with_shell(tmp_path, shell_recipe())
     with pytest.raises(
         GenerateError, match=r"recipes\.shell: not proven.*alpha recipe try"
@@ -136,7 +136,7 @@ def test_an_unproven_recipe_is_refused(tmp_path: Path):
 
 
 def test_a_recipe_edited_after_try_is_refused(tmp_path: Path):
-    """R6: an edit after the proof makes the recipe unproven again."""
+    """An edit after the proof makes the recipe unproven again."""
     recipe = shell_recipe()
     edited = {**recipe, "commands": {**recipe["commands"], "lint": "true"}}
     scenario_with_shell(tmp_path, edited)

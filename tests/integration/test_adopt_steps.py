@@ -299,7 +299,7 @@ def test_done_confirm_needs_the_flag(tmp_path: Path, git_env: None):
 
 
 def test_drop_needs_a_reason_and_keeps_it(tmp_path: Path, git_env: None):
-    """F4: a dropped step keeps the reason the user agreed to."""
+    """A dropped step keeps the reason the user agreed to."""
     root = plan_repo(tmp_path, [ok("p2-a")])
     with pytest.raises(AdoptError, match="--reason"):
         drop(root, "p2-a", "  ")

@@ -290,7 +290,7 @@ def test_growth_needs_an_exception(baselined: Path, counts: dict[str, dict[str, 
 
 
 def test_an_exception_needs_a_row_in_contributing(baselined: Path):
-    """F4: a baseline grows only with an Exceptions row naming its check."""
+    """A baseline grows only with an Exceptions row naming its check."""
     _baseline(baselined, {"api/a.py": {"E1": 3}})
     (baselined / "CONTRIBUTING.md").write_text(
         contributing("| `api/a.py` | `lint:api` | Another check. |")

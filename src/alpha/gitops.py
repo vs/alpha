@@ -284,7 +284,7 @@ def commit(
     for path, recorded in sorted(conflicts.items()):
         file = target / path
         now = digest(file.read_bytes()) if file.is_file() else None
-        unmerged = now is not None and recorded in (now, now.removeprefix("sha256:"))
+        unmerged = now is not None and recorded == now
         if unmerged:
             notes.append(
                 f"{path}: alpha's change wasn't merged in (proposal: "
