@@ -236,10 +236,11 @@
         ],
         "acceptance": [
           {
-            "run": "! grep -rnE \"type: ignore|pyright: ignore\" tests && uv run pyright"
+            "run": "uv run pytest tests/unit/test_kit.py::test_no_type_check_is_silenced_in_python && uv run pyright"
           }
         ],
-        "status": "pending"
+        "status": "done",
+        "branch": "alpha/p4-narrow-optionals-in-tests"
       },
       {
         "id": "p4-one-git-runner",

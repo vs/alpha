@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from helpers import SCENARIOS, single_component
 
+from alpha import core_areas
 from alpha.answers import AnswersError, load_answers
 from alpha.core_areas import DesignLanguage
 
@@ -20,6 +21,20 @@ def check(tmp_path: Path, data: dict[str, Any]):
     path = tmp_path / "project.json"
     path.write_text(json.dumps(data))
     return load_answers(path)
+
+
+def answered_testing(tmp_path: Path, data: dict[str, Any]) -> core_areas.Testing:
+    answer = check(tmp_path, data).testing
+    assert answer is not None
+    return answer
+
+
+def answered_dependencies(
+    tmp_path: Path, data: dict[str, Any]
+) -> core_areas.Dependencies:
+    answer = check(tmp_path, data).dependencies
+    assert answer is not None
+    return answer
 
 
 def test_fixture_loads_the_three_areas():
@@ -540,9 +555,9 @@ def test_cooldown_answer_validated(tmp_path: Path, value: object):
 def test_cooldown_answer_is_optional(tmp_path: Path):
     d = valid()
     d["dependencies"].pop("cooldown_days", None)
-    assert check(tmp_path, d).dependencies.cooldown_days is None  # type: ignore[union-attr]
+    assert answered_dependencies(tmp_path, d).cooldown_days is None
     d["dependencies"]["cooldown_days"] = 0
-    assert check(tmp_path, d).dependencies.cooldown_days == 0  # type: ignore[union-attr]
+    assert answered_dependencies(tmp_path, d).cooldown_days == 0
 
 
 @pytest.mark.parametrize("value", [101, -1, "80", True, 80.5])
@@ -564,18 +579,18 @@ def test_removed_testing_fields_are_refused(tmp_path: Path, key: str):
 def test_diff_coverage_answer_is_optional(tmp_path: Path):
     d = valid()
     d["testing"].pop("diff_coverage", None)
-    assert check(tmp_path, d).testing.diff_coverage is None  # type: ignore[union-attr]
+    assert answered_testing(tmp_path, d).diff_coverage is None
     for value in (0, 100):
         d["testing"]["diff_coverage"] = value
-        assert check(tmp_path, d).testing.diff_coverage == value  # type: ignore[union-attr]
+        assert answered_testing(tmp_path, d).diff_coverage == value
 
 
 def test_exhaustive_answer_is_optional(tmp_path: Path):
     d = valid()
-    assert check(tmp_path, d).testing.exhaustive is None  # type: ignore[union-attr]
+    assert answered_testing(tmp_path, d).exhaustive is None
     for value in (True, False):
         d["testing"]["exhaustive"] = value
-        assert check(tmp_path, d).testing.exhaustive is value  # type: ignore[union-attr]
+        assert answered_testing(tmp_path, d).exhaustive is value
 
 
 def test_exhaustive_answer_must_be_a_boolean(tmp_path: Path):

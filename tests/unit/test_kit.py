@@ -5,6 +5,7 @@ import contextlib
 import functools
 import io
 import re
+import tokenize
 import tomllib
 from pathlib import Path
 
@@ -133,3 +134,28 @@ def test_dev_python_is_pinned_once_for_mise_and_uv():
     pinned = (PLUGIN_ROOT / ".python-version").read_text("utf-8").strip()
     assert tools["python"] == pinned
     assert "uv" in tools
+
+
+def _comments(path: Path) -> list[tuple[int, str]]:
+    """(line, text) of each comment, read as Python reads the file: by
+    readline, since str.splitlines also breaks at U+2028 inside strings."""
+    with tokenize.open(path) as source:
+        return [
+            (token.start[0], token.string)
+            for token in tokenize.generate_tokens(source.readline)
+            if token.type == tokenize.COMMENT
+        ]
+
+
+def test_no_type_check_is_silenced_in_python():
+    """never-weaken-checks: narrow an Optional or fix the type instead. Only
+    real comments count, not the strings tests use to prove the guard
+    blocks such comments."""
+    silenced = [
+        f"{path.relative_to(PLUGIN_ROOT)}:{line}"
+        for folder in ("src", "project-files", "tests")
+        for path in (PLUGIN_ROOT / folder).rglob("*.py")
+        for line, text in _comments(path)
+        if "type: ignore" in text or "pyright: ignore" in text
+    ]
+    assert silenced == []

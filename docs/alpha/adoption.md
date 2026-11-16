@@ -7,7 +7,7 @@ alpha adopted this repo. These steps bring its code up to the principles in [pri
 | Phase | Done | Steps |
 | --- | --- | --- |
 | P2 Close tool gaps | 1 | 1 |
-| P4 Rework | 8 | 13 |
+| P4 Rework | 9 | 13 |
 | P6 Traceability | 0 | 1 |
 
 ## P2 Close tool gaps
@@ -38,7 +38,7 @@ Done when:
 | `p4-pin-python-and-uv` | alpha | done |
 | `p4-test-min-python` | alpha | done |
 | `p4-record-test-skips` | alpha | done |
-| `p4-narrow-optionals-in-tests` | alpha | pending |
+| `p4-narrow-optionals-in-tests` | alpha | done |
 | `p4-one-git-runner` | alpha | pending |
 | `p4-parse-project-json-once` | alpha | pending |
 | `p4-log-dev-dependencies` | alpha | pending |
@@ -132,7 +132,7 @@ Serves `never-weaken-checks`.
 
 Done when:
 
-- `! grep -rnE "type: ignore|pyright: ignore" tests && uv run pyright` passes
+- `uv run pytest tests/unit/test_kit.py::test_no_type_check_is_silenced_in_python && uv run pyright` passes
 
 ### `p4-one-git-runner`: Share one timed git runner in src
 
