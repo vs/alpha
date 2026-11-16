@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import subprocess
 import tomllib
 from pathlib import Path
@@ -21,10 +20,6 @@ from alpha.generate import bootstrap, project_book
 from alpha.gitops import commit
 from alpha.registry import load_registry
 
-NEEDS_CARGO = pytest.mark.skipif(
-    shutil.which("cargo") is None, reason="needs the Rust toolchain (cargo)"
-)
-
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
@@ -32,7 +27,7 @@ NEEDS_CARGO = pytest.mark.skipif(
     [
         "python-ml-single",
         "web-ts-plus-python-api",
-        pytest.param("rust-cli", marks=NEEDS_CARGO),
+        "rust-cli",
     ],
 )
 def test_bootstrap_runs_green(
@@ -125,7 +120,7 @@ def mise_run(cwd: Path, task: str) -> subprocess.CompletedProcess[str]:
     [
         "python-ml-single",
         "web-ts-plus-python-api",
-        pytest.param("rust-cli", marks=NEEDS_CARGO),
+        "rust-cli",
     ],
 )
 def test_scenarios_pass_repo_checks(
@@ -406,7 +401,6 @@ def test_exhaustive_gate_catches_a_half_tested_branch(tmp_path: Path, git_env: N
 
 
 @pytest.mark.slow
-@NEEDS_CARGO
 def test_rust_checks_fail_on_their_violations(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
@@ -447,7 +441,6 @@ def test_rust_checks_fail_on_their_violations(
 
 
 @pytest.mark.slow
-@NEEDS_CARGO
 def test_diff_cover_catches_untested_rust_line(
     tmp_path: Path, generate_scenario: GenerateScenario, git_env: None
 ):
@@ -563,7 +556,6 @@ def _add_side(crate: Path) -> None:
 
 
 @pytest.mark.slow
-@NEEDS_CARGO
 def test_exhaustive_gate_catches_a_half_tested_rust_branch(
     tmp_path: Path, git_env: None
 ):
@@ -610,7 +602,6 @@ def test_exhaustive_gate_catches_a_half_tested_rust_branch(
 
 
 @pytest.mark.slow
-@NEEDS_CARGO
 def test_rust_workspace_monorepo_holds_its_gates(tmp_path: Path, git_env: None):
     """Two Rust components in one Cargo workspace beside a Python one, with
     exhaustive testing, on real tools."""

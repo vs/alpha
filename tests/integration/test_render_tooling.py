@@ -2,7 +2,6 @@ import json
 import os
 import re
 import secrets
-import shutil
 import string
 import subprocess
 import sys
@@ -222,7 +221,6 @@ def test_secrets_check_reads_the_config(tmp_path: Path):
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(shutil.which("mise") is None, reason="mise is not installed")
 def test_real_betterleaks_passes_ignored_secrets_only(tmp_path: Path, git_env: None):
     project = tmp_path / "project"
     out = texts(tmp_path, "web-ts-plus-python-api")

@@ -39,7 +39,7 @@ Recipes, defaults and the tool registry come from the plugin itself: the install
 
 The user's own layer is `~/.config/alpha/` (`ALPHA_CONFIG_DIR` overrides it; the tests point it at a temp folder): `overrides.toml` and `CHANGELOG.md` from `alpha defaults set`, and `recipes/` from `alpha recipe save`. It applies on top of the kit, and the kit's recipe wins for a stack both have. Nothing there is committed.
 
-Kit tests: `uv run pytest` runs the fast suite. `uv run pytest -m slow` also bootstraps real projects with uv and pnpm (needs both installed and network access); CI's `slow` job runs it on every pull request.
+Kit tests: `uv run pytest` runs the fast suite. `uv run pytest -m slow` also bootstraps real projects (needs uv, pnpm, mise and cargo installed, and network access); CI's `slow` job runs it on every pull request.
 
 ## Principles
 

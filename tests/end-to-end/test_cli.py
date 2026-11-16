@@ -6,6 +6,8 @@ import time
 import tomllib
 from pathlib import Path
 
+from helpers import uv_python
+
 from alpha import pyguard
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,33 +34,10 @@ def test_unknown_command_explains_usage():
     assert "usage" in out.stderr.lower()
 
 
-def min_python() -> str:
-    """An interpreter of the Python version alpha supports at least: uv finds
-    an installed one or downloads it once."""
-    version = ".".join(str(n) for n in pyguard.MIN_PYTHON)
-    done = subprocess.run(
-        [
-            "uv",
-            "run",
-            "--python",
-            version,
-            "--no-project",
-            "python",
-            "-c",
-            "import sys; print(sys.executable)",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=600,
-    )
-    assert done.returncode == 0, done.stderr
-    return done.stdout.strip()
-
-
 def test_every_module_imports_and_the_cli_runs_on_python_3_11():
     # The dev venv may run a newer Python whose lazy annotations hide names
     # used only under TYPE_CHECKING; users run alpha on 3.11 too.
-    python = min_python()
+    python = uv_python(".".join(str(n) for n in pyguard.MIN_PYTHON))
     load_all = (
         "import importlib, pkgutil, alpha; "
         "[importlib.import_module(f'alpha.{m.name}') "

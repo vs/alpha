@@ -149,8 +149,6 @@ def test_old_python_is_silent_outside_alpha_projects(project: Project) -> None:
 
 def test_real_old_python_warns_that_hooks_are_off(project: Project) -> None:
     exe = old_python()
-    if exe is None:
-        pytest.skip("no python3 older than 3.11 on this machine")
     result = project.run_hook("session_start.py", {}, python=[exe])
     assert result.returncode == 0, result.stderr
     text = json.loads(result.stdout)["systemMessage"]
