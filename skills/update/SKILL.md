@@ -16,15 +16,21 @@ Ask one question at a time, as the `alpha:grilling` skill's "Rounds" says: a cho
 
 ## 1. Target and checks
 
-`<target>` is the current working directory; a folder in `$ARGUMENTS` is the target, not the request. Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" status <target>`:
+`<target>` is the current working directory; a folder path in `$ARGUMENTS` (absolute, `~/…` or `./…`) is the target, not the request, and an area or a component name is never the target, even where a folder has that name. Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" status <target>`:
 
 - `installed` or `hooks-off`: go on.
 - Any other state: alpha isn't installed there, or its install isn't finished. Point to `/alpha:install`, and stop.
 
-With a request, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` before changing any answer:
+With a request, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` before changing any answer, and read it as "Reading a dry run" says. When it lists changes, an earlier change was never applied or this kit is newer: tell the user they are applied together with the request, and step 5 shows them all. If the user doesn't want an earlier answer change, save the earlier answers back as step 5 says for a no, then go on.
 
-- It refuses because an update is waiting to be committed: that update is applied already. Merge its proposals as step 6 says, commit as step 8 says, then go on with the request.
-- It lists changes: an earlier change was never applied, or this kit is newer. Show them and ask whether to apply them first; on yes, run steps 5 to 9 for them, then go on with the request; on no, stop.
+## Reading a dry run
+
+Each `update <target> --dry-run` in this skill lists the changes, prints that there is nothing to change, or refuses. Read the first line it prints:
+
+- It refuses because an update is waiting to be committed: that update is applied already. Merge its proposals as step 6 says, commit as step 8 says, then go on where you were.
+- "Revisit the `<area>` area: …": read that area's guide for this change, then rerun. If the same message comes back twice, show it to the user and ask what to change instead of revisiting the area again.
+- "Fix .claude/alpha/project.json: …": fix it with one one-line `answers write` call (ask the user when the fix needs a decision; an area left `in_progress` is finished from its guide first), then rerun.
+- Any other refusal (such as files to commit first): show it to the user and do what it says, then rerun.
 
 ## 2. Route the request
 
@@ -53,20 +59,14 @@ Pick the install area: `components` to add, remove, rename or move a component; 
 - Keep every existing entry of `overrides` unchanged. `answers write` replaces each top-level key, so send the whole `overrides` array: every existing entry verbatim, plus any new one. An override for a removed or renamed component stops applying; if it should carry over, add a new override for the new name, with its reason. Say why the change was made in the message of the commit step 8 makes.
 - Moving a component's folder (e.g. a root CLI moving to `cli/` so a second component can be added) means moving app code, which alpha doesn't do. The user moves it with `git mv` and commits (you can do that as ordinary work), then continues.
 
-Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` and read the first line it prints, until it lists the changes with no problem:
-
-- "Revisit the `<area>` area: …": read that area's guide for this change, then rerun. If the same message comes back twice, show it to the user and ask what to change instead of revisiting the area again.
-- "Fix .claude/alpha/project.json: …": fix it with one one-line `answers write` call (ask the user when the fix needs a decision), then rerun.
-- Any other refusal (such as files to commit first): show it to the user and do what it says, then rerun.
-- After a component change, also offer the git area, so the commit scopes cover the component.
+Then run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` until it lists the changes with no problem, handling each refusal as "Reading a dry run" says. After a component change, also offer the git area, so the commit scopes cover the component.
 
 ## 5. Preview and confirm
 
-Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run` (unless step 4 just ran it).
+Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target> --dry-run`, and read it as "Reading a dry run" says.
 
 - It prints nothing to change: tell the user the project is up to date, and stop.
-- It refuses because an update is waiting to be committed: that update is applied already. Merge its proposals as step 6 says, then commit as step 8 says.
-- Otherwise summarize the list: the upgrade its first line names (e.g. `(kit 1.0.0 to 1.1.0)`), the files alpha adds, changes, merges and deletes, and each `conflict  <path>` that needs a hand merge. Show the diffs of `CLAUDE.md`, `CONTRIBUTING.md`, `docs/alpha/principles.toml` and `docs/alpha/specification.md`: for a settled area, the sections and principles it changes. When a request comes with an upgrade, say that the list holds files the request doesn't touch. Ask whether to apply it, and wait for a clear yes. Write nothing to alpha's files before it; the answers in project.json are already saved.
+- Otherwise summarize the list: the upgrade its first line names (e.g. `(kit 1.0.0 to 1.1.0)`), the files alpha adds, changes, merges and deletes, and each `conflict  <path>` that needs a hand merge. Show the diffs of `CLAUDE.md`, `CONTRIBUTING.md`, `docs/alpha/principles.toml` and `docs/alpha/specification.md`: for a settled area, the sections and principles it changes: read them and check they say what the user settled, and when they don't, revise the answers and preview again before asking. When a request comes with an upgrade, say that the list holds files the request doesn't touch. Ask whether to apply it, and wait for a clear yes. Write nothing to alpha's files before it; the answers in project.json are already saved. On a no, ask what to change: revise the answers with `answers write` and preview again, or put the earlier answers back, reading them from `git show HEAD:.claude/alpha/project.json` and sending each changed top-level key with one `answers write`, so the next request doesn't find them waiting.
 
 ## 6. Apply and merge
 
@@ -77,7 +77,7 @@ Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" update <target>`.
 
 ## 7. Bootstrap
 
-For each component the update lists as new or moved, run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --component <name>` (`git mv` leaves ignored env folders such as node_modules or .venv behind). Tell the user first that this installs the component's toolchain, runs its tests, then runs the whole-repo checks (`mise run ci`), and can take a few minutes. Those checks can fail on the user's own files; show the message (it names `mise run check:<id>` to rerun one check), fix the cause with them, and rerun the step.
+For each new component the update lists, and each component whose `path` differs from its `path` in `git show HEAD:.claude/alpha/project.json` (moved by this request or by an earlier run step 1 picked up), run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" bootstrap <target> --component <name>` (`git mv` leaves ignored env folders such as node_modules or .venv behind). Tell the user first that this installs the component's toolchain, runs its tests, then runs the whole-repo checks (`mise run ci`), and can take a few minutes. Those checks can fail on the user's own files; show the message (it names `mise run check:<id>` to rerun one check), fix the cause with them, and rerun the step.
 
 ## 8. Commit
 
@@ -85,4 +85,4 @@ Run `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" commit <target> --trailer "<line>"` with 
 
 ## 9. Report
 
-Say what changed and which commits were made. For a settled area, read its new sections in `docs/alpha/specification.md` and the principles it switched on in `docs/alpha/principles.toml`, and check they say what the user settled; name the product areas still open, each with its `/alpha:update <area>` request. Tell the user to start a new Claude Code session (or run `/clear`) so Claude loads the updated hooks and rules. If a recipe was drafted, offer to save it: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe save <target> <stack>`.
+Say what changed and which commits were made. Name the product areas still open, each with its `/alpha:update <area>` request. Tell the user to start a new Claude Code session (or run `/clear`) so Claude loads the updated hooks and rules. If a recipe was drafted, offer to save it: `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" recipe save <target> <stack>`.

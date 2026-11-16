@@ -4,7 +4,7 @@ Bring an existing repo up to alpha's principles without stopping its work: alpha
 
 ## 1. Resume
 
-When `<target>/.claude/alpha/project.json` has an `adoption` key, an adoption is under way: report which areas are done, then go on at the first step not finished (step 4 while an install area is pending, else step 5). Otherwise start at step 2.
+When `<target>/.claude/alpha/project.json` has an `adoption` key, an adoption is under way: report which areas are done, then go on at the first step not finished (step 4 while an install area is pending, else step 5). When every install area is done, finish a product area marked `in_progress`, then offer the ones after the last product area settled, in `new-project.md` step 3's order (all of them when none is settled); an area before it was already offered. Then go on to step 5. Otherwise start at step 2.
 
 ## 2. Survey
 

@@ -370,7 +370,7 @@ def _workflow_section(a: Answers) -> list[str]:
     install = (
         "- `/alpha:install` adopted this repo on `alpha/adopt`; run again, it "
         "carries out the next step of `docs/alpha/adoption.md` while one is left."
-        if area_docs.adoption_doc(a) is not None
+        if a.steps
         else "- `/alpha:install` set up this process once."
     )
     return [
