@@ -112,6 +112,16 @@ def test_R3_3_no_kept_file_names_a_deleted_path(project: Path) -> None:
         assert not any(d in text for d in deleted if "/" in d), rel
 
 
+def test_purge_names_a_kept_file_that_isnt_utf8(project: Path) -> None:
+    readme = project / "README.md"
+    readme.write_bytes(readme.read_bytes() + b"caf\xe9\n")
+    git(project, "commit", "-qam", "docs: Add a Latin-1 line")
+    done = run_cli("purge", str(project))
+    assert done.returncode == 1
+    assert "Traceback" not in done.stderr
+    assert done.stderr.startswith(f"{readme} isn't UTF-8 text")
+
+
 def test_R3_3_an_uncleanable_file_stops_purge(project: Path) -> None:
     mise = project / "mise.toml"
     text = mise.read_text()

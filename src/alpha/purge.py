@@ -27,6 +27,7 @@ from alpha.generate import (
     copied_files,
     load_project_principles,
     project_book,
+    read_text,
     render_project,
 )
 from alpha.gitops import PROPOSALS, UPDATE_STATE, status_paths
@@ -482,12 +483,8 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
     principles = load_project_principles(target)
     edits: dict[str, str] = {}
 
-    def read(rel: str) -> str | None:
-        path = target / rel
-        return path.read_text(encoding="utf-8") if path.is_file() else None
-
     gone: list[str] = []
-    text = read(MISE)
+    text = read_text(target / MISE)
     if text is not None:
         kept = unwrapped_secret_scan(unratcheted(text, plain, MISE))
         edits[MISE], gone = clean_mise(kept, removed)
@@ -500,24 +497,24 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
             )
     checks = tuple(t.removeprefix("check:") for t in gone)
     for rel in MARKDOWN:
-        text = read(rel)
+        text = read_text(target / rel)
         if text is not None:
             edits[rel] = clean_markdown(
                 text, removed, checks if rel == "CONTRIBUTING.md" else ()
             )
     for rel in TOOL_CONFIGS:
-        text = read(rel)
+        text = read_text(target / rel)
         if text is not None:
             edits[rel] = clean_toml_arrays(text, removed)
-    text = read(GITIGNORE)
+    text = read_text(target / GITIGNORE)
     if text is not None:
         edits[GITIGNORE] = clean_lines(text, removed)
     for rel in tracked:
         if rel.startswith(WORKFLOWS) and rel.endswith((".yml", ".yaml")):
-            text = read(rel)
+            text = read_text(target / rel)
             if text is not None:
                 edits[rel] = clean_workflow(unratcheted(text, plain, rel), gone)
-    text = read(SETTINGS)
+    text = read_text(target / SETTINGS)
     if text is not None:
         try:
             settings: object = json.loads(text)
@@ -546,14 +543,18 @@ def plan(target: Path, plugin_root: Path, source: Source, today: date) -> Purge:
         unmarked_calls(hook_files(target)) if _chained(top) and chain is None else []
     )
     edits = {
-        rel: new for rel, new in edits.items() if rel in tracked and new != read(rel)
+        rel: new
+        for rel, new in edits.items()
+        if rel in tracked and new != read_text(target / rel)
     }
     problems = calls + [
         found
         for rel in sorted(rendered_paths | set(edits))
         if rel not in deletions and not rel.startswith(REMOVED_DIRS)
         for found in leftovers(
-            rel, edits[rel] if rel in edits else (read(rel) or ""), removed
+            rel,
+            edits[rel] if rel in edits else (read_text(target / rel) or ""),
+            removed,
         )
     ]
     if problems:
@@ -586,7 +587,7 @@ def _chain_edit(target: Path, top: dict[str, Any]) -> tuple[str, str] | None:
     if not _chained(top):
         return None
     for hook in hook_files(target):
-        lines = hook.path.read_text(encoding="utf-8").splitlines(keepends=True)
+        lines = (read_text(hook.path) or "").splitlines(keepends=True)
         block = marked_block(lines)
         if block is not None:
             return hook.rel, "".join(lines[: block[0]] + lines[block[1] + 1 :])
