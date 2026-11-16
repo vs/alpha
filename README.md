@@ -236,7 +236,7 @@ alpha doesn't upgrade such a project on its own. By hand, in one sitting:
 git clone https://github.com/vs/alpha ~/workspace/alpha
 claude --plugin-dir ~/workspace/alpha   # this checkout, for this session only
 mise install && mise run check   # Python, uv, the tools; every check
-uv run pytest -m slow   # also bootstraps real projects; needs uv, pnpm, network
+uv run pytest -m slow   # real projects; needs pnpm, mise, cargo, network
 ```
 
 What alpha does, in full: [docs/specification.md](docs/specification.md)
