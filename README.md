@@ -238,3 +238,16 @@ uv run pytest -m slow   # also bootstraps real projects; needs uv, pnpm, network
 ```
 
 What alpha does, in full: [docs/specification.md](docs/specification.md)
+
+## Setup, test and run
+
+### alpha (`./`)
+
+```sh
+cd .
+uv sync
+uv run pytest
+bin/alpha --help
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before your first commit.

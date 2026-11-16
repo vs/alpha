@@ -8,6 +8,23 @@ exclude = [
   ".claude/worktrees", # other sessions' checkouts
   ".venv",
   "uv.lock",
+  # alpha's generated excludes
+  ".claude/alpha/state/",
+  ".claude/alpha/notes/",
+  ".claude/settings.local.json",
+  ".claude/worktrees/",
+  ".DS_Store",
+  ".claude/alpha/hooks/__pycache__/",
+  ".claude/alpha/checks/__pycache__/",
+  ".env",
+  ".env.*",
+  "**/.env",
+  "**/.env.*",
+  ".venv/",
+  "__pycache__/",
+  ".pytest_cache/",
+  "coverage.xml",
+  ".coverage",
 ]
 
 [MD013]

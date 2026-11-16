@@ -509,6 +509,21 @@ def test_bootstrap_install_failure_points_at_the_install(
     assert "mise run check" not in message
 
 
+def test_bootstrap_reads_the_answers_before_looking_for_mise(
+    tmp_path: Path, generate_scenario: GenerateScenario, monkeypatch: pytest.MonkeyPatch
+):
+    project = tmp_path / "proj"
+    project.mkdir()
+    generate_scenario(project, "python-ml-single")
+    principles = tomllib.loads((project / "docs/alpha/principles.toml").read_text())
+    answers = project / ".claude/alpha/project.json"
+    answers.write_text("{not json")
+    monkeypatch.setenv("PATH", str(tmp_path))  # no mise on it
+    with pytest.raises(GenerateError) as err:
+        bootstrap(project, principles)
+    assert str(err.value).startswith(f"{answers} can't be read")
+
+
 @pytest.mark.parametrize("text", ["{not json", "[1, 2]"])
 def test_bootstrap_names_unreadable_project_json(
     tmp_path: Path, generate_scenario: GenerateScenario, text: str

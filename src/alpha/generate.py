@@ -433,8 +433,8 @@ def bootstrap(
             f'Restore it with "git checkout -- {MISE}" or "alpha update {target}", '
             f'then rerun "alpha bootstrap {target}".'
         )
-    _require_mise(target)  # before the components' slow steps
     book = project_book(target)
+    plans: list[tuple[dict[str, Any], Path, list[tuple[str, str]]]] = []
     for c in principles["components"]:
         if only and c["name"] not in only:
             continue
@@ -448,6 +448,9 @@ def bootstrap(
             *(("bootstrap", command) for command in book.get(c["stack"]).bootstrap),
             *check_commands(c["commands"]),
         ]
+        plans.append((c, cwd, steps))
+    _require_mise(target)  # after the answers are read, before the slow steps
+    for c, cwd, steps in plans:
         own = [m for m in uncaptured if m.partition(":")[2] == c["name"]]
         captured: set[str] = set()
         for step, command in steps:

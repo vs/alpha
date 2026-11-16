@@ -107,7 +107,7 @@ class Project:
 @pytest.fixture
 def project(tmp_path: Path) -> Project:
     p = Project(tmp_path)
-    p.git("init", "-q")
+    p.git("init", "-q", "-b", "main")
     p.git("config", "user.name", "Test")
     p.git("config", "user.email", "test@example.com")
     defaults = load_defaults(Source(PLUGIN_ROOT, True))
