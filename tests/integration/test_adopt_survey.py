@@ -10,6 +10,7 @@ from helpers import PLUGIN_ROOT, git, run_cli
 
 from alpha import adopt
 from alpha.adopt import AdoptError, survey
+from alpha.answers import AnswersError
 from alpha.defaults import Source
 
 SOURCE = Source(PLUGIN_ROOT, True)
@@ -149,6 +150,16 @@ def test_survey_refusals(tmp_path: Path):
         survey(root, SOURCE)
     project.write_text(json.dumps({"installed": {}}))
     with pytest.raises(AdoptError, match="/alpha:extend"):
+        survey(root, SOURCE)
+
+
+def test_survey_stops_on_an_unreadable_project_json(tmp_path: Path):
+    """It used to read such a file as none and carry on."""
+    root = _repo(tmp_path, {"pyproject.toml": ""})
+    project = root / ".claude/alpha/project.json"
+    project.parent.mkdir(parents=True)
+    project.write_text("{not json")
+    with pytest.raises(AnswersError, match="can't be read as the interview answers"):
         survey(root, SOURCE)
 
 

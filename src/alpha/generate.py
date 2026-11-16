@@ -12,9 +12,9 @@ from typing import Any, cast
 
 from alpha import VERSION
 from alpha.answers import (
-    PROJECT_JSON,
     Answers,
     drafted_recipes,
+    read_project_json,
 )
 from alpha.baseline import BaselineError, baseline_file
 from alpha.baseline import capture as capture_baseline
@@ -201,25 +201,6 @@ def render_project(
     return Rendered(principles, texts, component_of)
 
 
-def _project_json(target: Path) -> dict[str, Any] | None:
-    """project.json, or None when there is none; an unreadable one stops."""
-    path = target / PROJECT_JSON
-    try:
-        data: object = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError) as e:
-        problem: object = e
-    else:
-        if isinstance(data, dict):
-            return cast(dict[str, Any], data)
-        problem = "it isn't a JSON object"
-    raise GenerateError(
-        f"{path} can't be read as the interview answers ({problem}). Restore it "
-        f"with git checkout {PROJECT_JSON}, or fix it by hand, then retry."
-    )
-
-
 def load_project_principles(target: Path) -> dict[str, Any]:
     path = target / PRINCIPLES_TOML
     try:
@@ -298,7 +279,7 @@ def _principles_problem(data: dict[str, Any]) -> str | None:
 
 
 def project_book(target: Path) -> RecipeBook:
-    data = _project_json(target)
+    data = read_project_json(target)
     if data is None:
         return RecipeBook()
     raw: object = data.get("recipes", {})

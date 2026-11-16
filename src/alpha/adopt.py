@@ -18,6 +18,7 @@ from alpha.answers import (
     Step,
     describe_condition,
     load_answers,
+    read_project_json,
     write_answers,
 )
 from alpha.defaults import Source, load_defaults, load_survey
@@ -42,13 +43,9 @@ def _out(target: Path, *args: str) -> str | None:
 
 
 def _refuse_alpha(target: Path) -> None:
-    try:
-        data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    top = read_project_json(target)
+    if top is None:
         return
-    if not isinstance(data, dict):
-        return
-    top = cast(dict[str, Any], data)
     if "manifest" in top and "installed" not in top:
         raise AdoptError(
             f"An older alpha set {target} up (its {PROJECT_JSON} has a manifest). "
@@ -200,13 +197,7 @@ def survey(
 
 def saved_adoption(target: Path) -> dict[str, Any]:
     """The `adoption` object project.json holds now, or an empty one."""
-    try:
-        data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    adoption: object = cast(dict[str, Any], data).get("adoption", {})
+    adoption: object = (read_project_json(target) or {}).get("adoption", {})
     return cast(dict[str, Any], adoption) if isinstance(adoption, dict) else {}
 
 

@@ -1062,6 +1062,28 @@ def _steps(
     return tuple(steps)
 
 
+def read_project_json(target: Path) -> dict[str, Any] | None:
+    """`target`'s project.json as it is, for a reader that needs more or less
+    than finished answers (an interview under way, the installed record), or
+    None when there is none. One that isn't a readable JSON object stops."""
+    path = target / PROJECT_JSON
+    try:
+        data: object = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:  # ValueError: bad UTF-8 or bad JSON
+        problem: object = e
+    else:
+        if isinstance(data, dict):
+            return cast(dict[str, Any], data)
+        problem = "it isn't a JSON object"
+    raise AnswersError(
+        f"{path} can't be read as the interview answers ({problem}). Restore it "
+        f"with git checkout {PROJECT_JSON}, or fix it by hand, then retry.",
+        str(path),
+    )
+
+
 def load_answers(path: Path, require_areas: Sequence[str] = AREAS) -> Answers:
     try:
         text = path.read_text(encoding="utf-8")

@@ -110,6 +110,8 @@ docs/alpha/
 
 `.claude/alpha/project.json`, parsed at the boundary into frozen dataclasses, with a message per error naming the field and the fix.
 
+Code that needs the file as it is, rather than finished answers (an interview under way, the `installed` record, an older kit's `manifest`), reads it through `answers.read_project_json`, the only other reader: it says which file can't be read and how to restore it.
+
 - **Install areas:** `identity` (name, slug, one-line purpose, license or license file, copyright holder), `components`, `testing` (levels, diff coverage, exhaustive), `documentation` (where user docs live, docs map, existing docs per area), `build`, `security` (secret store, extra protected paths), `dependencies`, `releases`, `git`, `agent_workflow` (extra risk paths only).
 - **Product areas** (start `open`; only `specify` settles them): `requirements` (target users, requirements with acceptance checks, domain jargon), `architecture` (with the glossary), `errors`, `design_language`, `ui`, `accessibility`, `observability`, `data`, `performance`, `auth`.
 - `installed` = `{kit_version, mode: "new" | "adopted", on: <date>, components: {<name>: <date added>}, preexisting: [<path>]}`, written by `alpha apply`. The component dates keep the dependency log's entries stable across updates.

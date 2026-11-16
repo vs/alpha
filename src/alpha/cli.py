@@ -19,9 +19,9 @@ from alpha import (
     registry,
     toml_write,
 )
+from alpha.answers import PROJECT_JSON
 from alpha.areas import AREAS
 from alpha.generate import (
-    PROJECT_JSON,
     GenerateError,
     bootstrap,
     load_project_principles,

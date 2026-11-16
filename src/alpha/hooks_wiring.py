@@ -12,13 +12,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from alpha.answers import read_project_json
 from alpha.generate import GenerateError, read_text
 from alpha.gitops import set_hooks_path, unset_hooks_path
 from alpha.merge import merge_settings, strip_alpha_hooks
 from alpha.render.claude_settings import alpha_hooks
 from alpha.render.docs import CHAIN_BEGIN, CHAIN_END, CHAINED_COMMIT_MSG
 from alpha.shell import git_output
-from alpha.status import CHAIN_STATE, HOOKS_PATH, SETTINGS, read_answers
+from alpha.status import CHAIN_STATE, HOOKS_PATH, SETTINGS
 
 HOOKS_STATE = ".claude/alpha/state/hooks.json"
 
@@ -32,7 +33,7 @@ class HookFile:
 
 
 def _installed(target: Path, command: str) -> dict[str, Any]:
-    answers = read_answers(target)
+    answers = read_project_json(target)
     if answers is None or "installed" not in answers:
         raise GenerateError(
             f"alpha isn't installed in {target}, so it has no hooks to switch. "

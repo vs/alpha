@@ -1,4 +1,3 @@
-import json
 import re
 import shutil
 import subprocess
@@ -8,7 +7,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from alpha import toml_write
-from alpha.answers import PROJECT_JSON, AnswersError, drafted_recipes
+from alpha.answers import (
+    PROJECT_JSON,
+    AnswersError,
+    drafted_recipes,
+    read_project_json,
+)
 from alpha.baseline import Baseline, findings
 from alpha.defaults import USER_RECIPES, DefaultsError, Source
 from alpha.recipes import (
@@ -46,17 +50,13 @@ def list_recipes() -> list[str]:
 
 
 def _drafted(target: Path) -> dict[str, Any]:
-    path = target / PROJECT_JSON
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
+    data = read_project_json(target)
+    if data is None:
         raise AnswersError(
-            f"{path}: can't read the interview answers ({e}). Run the interview "
-            "there first, or pass the project folder."
-        ) from None
-    if not isinstance(data, dict):
-        return {}
-    raw: object = cast(dict[str, Any], data).get("recipes", {})
+            f"{target / PROJECT_JSON} not found. Run the interview there first, "
+            "or pass the project folder."
+        )
+    raw: object = data.get("recipes", {})
     return cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
 
 
@@ -148,13 +148,7 @@ def _baseline_problem(
 
 def _users(target: Path, stack: str) -> list[str]:
     """The folders of the components project.json gives the stack."""
-    try:
-        data: object = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    comps: object = (
-        cast(dict[str, Any], data).get("components") if isinstance(data, dict) else None
-    )
+    comps: object = (read_project_json(target) or {}).get("components")
     paths: list[str] = []
     for entry in cast(list[object], comps) if isinstance(comps, list) else []:
         if not isinstance(entry, dict):
@@ -380,7 +374,7 @@ def save_recipe(target: Path, stack: str, source: Source) -> Path:
             f"recipes.{stack}: the kit already has a {stack} recipe. Keep using it, "
             "or change the kit's recipe by hand."
         )
-    answers = json.loads((target / PROJECT_JSON).read_text(encoding="utf-8"))
+    answers = read_project_json(target) or {}
     slug = str(answers.get("identity", {}).get("slug") or target.name)
     templates: dict[str, str] = dict(data["templates"])
     fields = {k: v for k, v in data.items() if k not in ("templates", "proven")}
