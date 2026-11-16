@@ -319,6 +319,33 @@ def test_a_doc_under_a_mapped_path_is_not_code(project: Project) -> None:
     assert proc.returncode == 0 and proc.stdout == "", proc.stdout
 
 
+def test_a_docs_note_holds_until_the_file_changes(project: Project) -> None:
+    """A mapped change that alters no documented behavior (an internal
+    refactor) needs no doc change: Claude says why once, instead of being
+    blocked at every Stop."""
+    guide_mapped(project)
+    text = reason(run(project))
+    assert "api/src/a.py changed but docs/guide/** did not." in text
+    assert "untested.py --docs" in text
+    done = run_untested(project, "--docs", "moves dispatch only", "api/src/a.py")
+    assert done.returncode == 0, done.stderr
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    assert (
+        "## Changes Claude says need no doc update (check each reason)\n\n"
+        "- api/src/a.py: moves dispatch only" in review.brief(project.root)
+    )
+    project.write("api/src/a.py", "y\n")
+    assert "api/src/a.py changed but docs/guide/** did not." in reason(run(project))
+
+
+def test_a_test_note_is_not_a_docs_note(project: Project) -> None:
+    guide_mapped(project)
+    run_untested(project, "renames a constant only", "api/src/a.py")
+    assert "api/src/a.py changed but docs/guide/** did not." in reason(run(project))
+    assert untested.notes(project.root, "docs") == {}
+
+
 def test_docs_drift_with_hand_set_docs_map(project: Project) -> None:
     data = project.principles()
     data["docs_map"] = {"api/src/**/*.py": ["docs/api.md"]}
