@@ -166,12 +166,14 @@ GIT_ARGV = re.compile(r'\[\s*"git"\s*,')
 
 def test_every_git_call_in_src_goes_through_the_runner():
     """shell.git runs git under GIT_TIMEOUT and reports a stuck or missing git
-    the same way; a direct call can hang a command or end in a traceback."""
+    the same way; a direct call can hang a command or end in a traceback. The
+    whole text is searched, since the formatter puts a long argv's "git" on
+    the line after its bracket."""
     direct = sorted(
-        f"{path.relative_to(PLUGIN_ROOT)}:{n}"
+        f"{path.relative_to(PLUGIN_ROOT)}:{text.count(chr(10), 0, m.start()) + 1}"
         for path in (PLUGIN_ROOT / "src" / "alpha").rglob("*.py")
         if path.name != "shell.py"
-        for n, line in enumerate(path.read_text("utf-8").splitlines(), 1)
-        if GIT_ARGV.search(line)
+        for text in [path.read_text("utf-8")]
+        for m in GIT_ARGV.finditer(text)
     )
     assert direct == []

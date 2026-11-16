@@ -20,6 +20,9 @@ class Change:
 
 
 def merge3(base: str, ours: str, theirs: str) -> tuple[str, bool]:
+    """git merge-file of the three texts. The result is read back from the
+    file git writes, as bytes: captured output would have its CRLFs turned
+    into LFs."""
     with tempfile.TemporaryDirectory() as tmp:
         paths: dict[str, Path] = {}
         for name, text in (("ours", ours), ("base", base), ("theirs", theirs)):
@@ -28,15 +31,15 @@ def merge3(base: str, ours: str, theirs: str) -> tuple[str, bool]:
         try:
             done = git(
                 Path(tmp),
-                "merge-file", "-p", "--diff3",
+                "merge-file", "--diff3",
                 "-L", "yours", "-L", "before", "-L", "alpha",
                 str(paths["ours"]), str(paths["base"]), str(paths["theirs"]),
             )  # fmt: skip
         except GitError as e:
             raise _git_error(str(e)) from e
-    if done.returncode < 0 or done.returncode == 255 or done.returncode > 127:
-        raise _git_error(done.stderr.strip() or f"exit {done.returncode}")
-    return done.stdout, done.returncode > 0
+        if done.returncode < 0 or done.returncode == 255 or done.returncode > 127:
+            raise _git_error(done.stderr.strip() or f"exit {done.returncode}")
+        return paths["ours"].read_bytes().decode("utf-8"), done.returncode > 0
 
 
 def _git_error(detail: str) -> GenerateError:

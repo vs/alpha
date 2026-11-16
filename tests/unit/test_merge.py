@@ -200,3 +200,14 @@ def test_union_lines_keeps_alphas_negations_last() -> None:
     assert merged.startswith(disk)
     tail = merged.split("# alpha\n", 1)[1].splitlines()
     assert tail == [".env", ".env.*", "**/.env.*", "!.env.example"]
+
+
+def test_crlf_line_endings_survive() -> None:
+    """A file a user keeps with CRLF endings must come back with them, or the
+    merge rewrites every line."""
+    base = BASE.replace("\n", "\r\n")
+    ours = base.replace("one", "ONE")
+    theirs = base.replace("five", "FIVE")
+    text, conflicted = merge3(base, ours, theirs)
+    assert not conflicted
+    assert text == base.replace("one", "ONE").replace("five", "FIVE")
