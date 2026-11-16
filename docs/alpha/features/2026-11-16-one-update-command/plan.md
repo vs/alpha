@@ -11,7 +11,7 @@ Tasks run in order; each is one commit that passes `mise run check`. Tasks 1 to 
 - Delete `skills/extend/` and `skills/specify/`.
 - `skills/install/SKILL.md` (the `installed` row's pointers), `skills/install/adopt.md` (the "add it later" pointer), `skills/install/areas/components.md` and the other install guides' start lines, `skills/do/SKILL.md`, `skills/do/playbooks/feature.md`: name `/alpha:update`.
 - `docs/specification.md`: Commands table, R4.1, R7.1, R7.2, R11.3, the extend/specify/do design, the area-guide paragraph, the skills line of the source tree, the Decisions that name specify. README's command sections.
-- Tests: `tests/unit/test_skills.py` (ENTRY, PRODUCT_GUIDES, R11_3, R4_1 and R7_1 skill tests replacing the extend and specify tests, `test_update_routes_each_kind_of_request`, R7_2, the guide start-line test, the one-question and answers-write tests), `tests/unit/test_do_skill.py::test_open_product_areas_are_named_not_settled`.
+- Tests: `tests/unit/test_skills.py` (ENTRY, PRODUCT_GUIDES, R11_3, R4_1 and R7_1 skill tests replacing the extend and specify tests, `test_R11_4_update_routes_each_kind_of_request`, R7_2, the guide start-line test, the one-question and answers-write tests), `tests/unit/test_do_skill.py::test_open_product_areas_are_named_not_settled`.
 - Makes pass: F1, F2, F3, F4, F7.
 
 ## 2. Install offers each product area, defaulting to skip

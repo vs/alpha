@@ -2,7 +2,7 @@
 
 ## Before you start
 
-`/alpha:specify` reads this guide when the user asks to settle this area; it's a product area, which install leaves open. `<target>` is its target folder; the answers live in `<target>/.claude/alpha/project.json`. Its rules win over this guide's where they differ. Only `/alpha:specify` settles a product area: when the user asks for it elsewhere, point to `/alpha:specify <area>`.
+`/alpha:update` reads this guide when the user asks to settle this area; it's a product area, which install leaves open. `<target>` is its target folder; the answers live in `<target>/.claude/alpha/project.json`. Its rules win over this guide's where they differ. Only `/alpha:update` settles a product area: when the user asks for it elsewhere, point to `/alpha:update <area>`.
 
 ## Purpose
 

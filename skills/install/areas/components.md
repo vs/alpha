@@ -2,7 +2,7 @@
 
 ## Before you start
 
-`/alpha:install` reads this guide for a new project's or an adoption's interview, and `/alpha:extend` when a change revisits this area. `<target>` is their target folder; the answers live in `<target>/.claude/alpha/project.json`. Their rules win over this guide's where they differ. When the user asks to revisit this area outside them, run `/alpha:extend` with the request.
+`/alpha:install` reads this guide for a new project's or an adoption's interview, and `/alpha:update` when a change revisits this area. `<target>` is their target folder; the answers live in `<target>/.claude/alpha/project.json`. Their rules win over this guide's where they differ. When the user asks to revisit this area outside them, run `/alpha:update` with the request.
 
 ## Purpose
 
@@ -39,14 +39,14 @@ Round 2 (needs the component list):
 
 - **Layout** - with one component, recommend `single`; with more, `monorepo` is required. Rule: `single` means exactly one component, at path `"."`.
 - **Stack per component** - recommend `defaults.stacks[kind]`. The user may pick any stack. Say which stacks the kit has proven recipes for (from `recipe list`); for any other, explain in one line that a recipe will be drafted and proven for this project, and that it's less proven.
-- **Talk to each other** - ask only when there is more than one component: "Do these components call each other?" Explain: once the architecture area is settled with `/alpha:specify`, yes means the "Contracts are the source of truth" principle applies, so their interfaces are defined once (e.g. OpenAPI) and checked. With one component, set `components_talk` to `false` without asking.
+- **Talk to each other** - ask only when there is more than one component: "Do these components call each other?" Explain: once the architecture area is settled with `/alpha:update`, yes means the "Contracts are the source of truth" principle applies, so their interfaces are defined once (e.g. OpenAPI) and checked. With one component, set `components_talk` to `false` without asking.
 
 Round 3 (needs the layout):
 
 - **Workspace** - only when a `monorepo` has a Rust component: say in one line that its Rust components form one Cargo workspace at the root (one lockfile, toolchain and build folder, dependencies pinned once), and recommend it. Save `"workspace": false` only when the user wants separate crates, through the grilling skill's override protocol (key `components.workspace`).
 - **Path per component** - with `single`, the path is `"."` (don't ask). With `monorepo`, recommend the component's name as its folder; folders must not be nested in each other.
 - **Traits per component** - ask all six for each component in one question, recommending answers from its kind and what the user said. Explain each in one sentence:
-  - *Has a UI* - the visual-system and accessibility principles apply once the ui and accessibility areas are settled with `/alpha:specify`. (The design language is separate: any project may define one, with or without a UI.)
+  - *Has a UI* - the visual-system and accessibility principles apply once the ui and accessibility areas are settled with `/alpha:update`. (The design language is separate: any project may define one, with or without a UI.)
   - *Deployed* - turns on config from the environment; observability (structured logs) applies once that area is settled.
   - *Makes network calls* - every external call then needs a timeout and a failure path.
   - *Stores data* - once the data area is settled, every schema change must be a migration, reversible where possible.

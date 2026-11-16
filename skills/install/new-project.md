@@ -24,7 +24,7 @@ Run the install areas in `SKILL.md`'s order, one at a time, never skipping one a
 
 ## 4. Summary and confirmation
 
-Show a summary of every answer in plain words, grouped by area: identity (name, value proposition, license), components (kind, stack, path, traits; layout; whether they talk), testing (levels per component), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, extra protected paths), dependencies (updates and schedule), releases (scheme, changelog, scope, process), git history, agent workflow, and any overrides and defaults wishes. Then list the open product areas in one line, saying `/alpha:specify` settles each. Ask: "Generate the project with these answers?" and wait.
+Show a summary of every answer in plain words, grouped by area: identity (name, value proposition, license), components (kind, stack, path, traits; layout; whether they talk), testing (levels per component), documentation (where user docs live; each mapping), build (CI, environments, each component's artifact and hosting), security (secret store, extra protected paths), dependencies (updates and schedule), releases (scheme, changelog, scope, process), git history, agent workflow, and any overrides and defaults wishes. Then list the open product areas in one line, each with the `/alpha:update <area>` request that settles it. Ask: "Generate the project with these answers?" and wait.
 
 If the user wants a change, save it with `answers write` (with the grilling skill's override protocol where a default changes), re-run that area's check, and show the summary again. Continue only on a clear yes.
 
@@ -55,5 +55,5 @@ Tell the user, briefly:
   - Each session starts with a warning if the project setup is broken.
 - **Reports on request:** `/review-change` (a change) and `/audit` (the whole repo); each changes no code.
 - **Drafted recipes:** name each stack whose recipe was drafted in this interview, say it's less proven than the kit's own, and whether it was saved.
-- **Not settled yet:** the open product areas, each with the `/alpha:specify` request that settles it (`docs/alpha/specification.md` lists them); their principles stay off until then.
+- **Not settled yet:** the open product areas, each with the `/alpha:update <area>` request that settles it (`docs/alpha/specification.md` lists them); their principles stay off until then.
 - **Next:** open `<target>` in Claude Code so the project's own hooks and settings load, and start building with `/alpha:do <task>`.

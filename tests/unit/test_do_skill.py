@@ -108,8 +108,8 @@ def test_open_product_areas_are_named_not_settled():
     areas = next(
         line for line in feature.splitlines() if line.startswith("3. Find the product")
     )
-    assert "`/alpha:specify` request; don't settle it here" in areas
-    assert "Only `/alpha:specify` settles one" in _router()
+    assert "`/alpha:update <area>` request; don't settle it here" in areas
+    assert "Only `/alpha:update` settles one" in _router()
 
 
 def test_a_feature_offers_native_and_subagent_builds():

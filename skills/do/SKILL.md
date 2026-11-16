@@ -41,7 +41,7 @@ Task: `$ARGUMENTS`
 
 - No `<root>/.claude/alpha/project.json` with an `installed` key: alpha isn't installed in this repo, or its install isn't finished, so there are no principles to follow. Point to `/alpha:install`, and stop.
 - With `installed`, read before the first step:
-  - project.json's `areas`: a product area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/alpha/specification.md lists them under "Not settled yet". Only `/alpha:specify` settles one, when the user asks: a task that needs one names it to the user with its `/alpha:specify` request, and keeps its own choices in its own spec.
+  - project.json's `areas`: a product area marked `open` isn't settled yet, so its section is missing and the principles it gates are off; docs/alpha/specification.md lists them under "Not settled yet". Only `/alpha:update` settles one, when the user asks: a task that needs one names it to the user with its `/alpha:update <area>` request, and keeps its own choices in its own spec.
   - `docs/alpha/principles.toml`: the active principles and their parameters. Use the ids it gives (`fix-at-the-root`, `smallest-change`) when you name one.
   - The parts of `docs/alpha/specification.md` and `CONTRIBUTING.md` that bear on the task, including CONTRIBUTING's Overrides and Exceptions.
   - CLAUDE.md: each component's commands, the definition of done, the commit convention and how to talk to the user.
