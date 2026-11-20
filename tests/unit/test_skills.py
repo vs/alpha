@@ -22,8 +22,9 @@ CLI = '"${CLAUDE_PLUGIN_ROOT}/bin/alpha"'
 ALLOWED_CLI = 'Bash("${CLAUDE_PLUGIN_ROOT}/bin/alpha" *)'
 ENTRY = ["install", "update", "uninstall", "purge"]
 USER_ONLY = ["install", "uninstall", "purge"]
-ALL_SKILLS = ["grilling", "stack-recipe", *ENTRY, "do"]
-CLI_SKILLS = [s for s in ALL_SKILLS if s != "do"]
+TASK_SKILLS = ["do", "brainstorm", "plan", "execute"]
+ALL_SKILLS = ["grilling", "stack-recipe", *ENTRY, *TASK_SKILLS]
+CLI_SKILLS = [s for s in ALL_SKILLS if s not in TASK_SKILLS]
 INSTALL_PATHS = ["install/new-project.md", "install/adopt.md"]
 INSTALL_GUIDES = [f"install/areas/{a}.md" for a in areas.INSTALL_AREAS]
 PRODUCT_GUIDES = [f"install/areas/{a}.md" for a in areas.PRODUCT_AREAS]

@@ -42,7 +42,7 @@ it; what you skip stays open until you ask.
 | `CLAUDE.md`, `README.md` | the rules Claude follows, and how to set up, test and run each component |
 | `docs/alpha/principles.toml` | the one file CLAUDE.md, the hooks and the reviewer read |
 | `docs/alpha/specification.md` | what the product does: the parts settled so far, the rest listed as open, each with the request that settles it |
-| `docs/alpha/features/` | a folder per feature built with `/alpha:do`: its research, spec and plan |
+| `docs/alpha/features/`, `bug-fixes/`, `refactorings/`, `perf/` | a folder per full-track task (`/alpha:brainstorm`): its research, spec and plan |
 | `.claude/` | permissions, hooks, the principles reviewer, and skills to commit, record a decision in the docs, and review a change or the whole repo |
 | each component | strict lint, types and tests, wired up with no `src/`; a monorepo's Rust components form one Cargo workspace at the root |
 | `mise.toml` | the repository checks, tools pinned: `mise run ci` runs them (secrets, vulnerabilities, typos, markdown, links, action pins, agent config) |
@@ -141,15 +141,26 @@ step at a time, each step done only when its check passes.
 
 alpha picks a playbook for the task (investigation, feature, bug fix,
 refactoring, perf, prototype, session pickup or pause) and follows it step by
-step, keeping the project's principles, docs and checks. A feature starts with
-research into the code and into how other projects build it, then a
-brainstorm with you, one question at a time, then a spec and a plan in
-`docs/alpha/features/<date>-<feature>/` that name a test for each acceptance
-check. Nothing is built until you approve it and choose how: native, where
-Claude builds every task, or with subagents, where a fresh one builds each
-task and another reviews it. Each task's tests are written first and fail
-before the code makes them pass. A part of the product the feature needs that
-is still open is named with its `/alpha:update <area>` request.
+step, keeping the project's principles, docs and checks. This is the light
+track: straight into the work, with a short design said in chat and no spec
+files. Tests are written first and fail before the code makes them pass. A
+part of the product the task needs that is still open is named with its
+`/alpha:update <area>` request.
+
+```text
+/alpha:brainstorm add CSV export to the report command
+```
+
+The full track, for a feature, bug fix, refactoring or perf task you want
+thought through first. `/alpha:brainstorm` researches the code and how other
+projects solve it, brainstorms with you one question at a time, and writes a
+spec that names a test for each acceptance check, in a folder named by the
+playbook: `docs/alpha/features/`, `bug-fixes/`, `refactorings/` or `perf/`.
+Once you approve it, `/alpha:plan` writes the plan and asks how to build it:
+native, where Claude builds every task, or with subagents, where a fresh one
+builds each task and another reviews it. Then `/alpha:execute` builds it
+without stopping to check in, keeps a ledger it resumes from, lists every
+call it made on your behalf, and runs the principles review once at the end.
 
 ## Change it later
 

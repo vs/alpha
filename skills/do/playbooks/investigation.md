@@ -4,7 +4,7 @@ You own the answer. The work is read-only: a cited explanation or a recommendati
 
 1. Pin the question in one sentence. When it's really "should we do X or Y", the answer is a recommendation with its tradeoffs.
 2. Map how it works. Find the entry points, then trace the real flow end to end: where data comes in, what it passes through, what is stored, what goes out. Cite `file:line` for every step. For a wide area, give each subagent one slice and merge their maps yourself.
-3. Find why it's built this way, when the question asks: `docs/alpha/specification.md`, `CONTRIBUTING.md` and `docs/alpha/features/` first, then `git log -S <symbol>`, `git blame` on the lines that matter, and the pull requests behind those commits (`gh pr view`). Cite the doc, commit or pull request.
+3. Find why it's built this way, when the question asks: `docs/alpha/specification.md`, `CONTRIBUTING.md` and `docs/alpha/features/`, `bug-fixes/`, `refactorings/` and `perf/` first, then `git log -S <symbol>`, `git blame` on the lines that matter, and the pull requests behind those commits (`gh pr view`). Cite the doc, commit or pull request.
 4. Check the answer against the running code where a claim is cheap to run: call the function, run the command, print the value.
 5. Write it up, sized to the question: a walkthrough of how something works as Overview, Key concepts, How it works, Where things live, Gotchas; a narrow question as a direct answer with its evidence. A recommendation gets a table of the options, what each costs and breaks, and your pick with its reason.
 
