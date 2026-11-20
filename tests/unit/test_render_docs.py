@@ -636,3 +636,20 @@ def test_R6_4_root_docs_are_generated(tmp_path: Path):
     assert "# run: add the command once the entry point exists" in readme
     assert out["LICENSE"].startswith("MIT License")
     assert out["CLAUDE.md"].startswith("# Pico Trust")
+
+
+def test_R17_1_docs_name_the_not_code_folders(tmp_path: Path):
+    plain = render(load(tmp_path / "plain"))
+    assert "Not code" not in plain["CLAUDE.md"]
+    assert "Not code" not in plain["CONTRIBUTING.md"]
+
+    def with_not_code(data: dict[str, Any]) -> None:
+        data["not_code"] = ["examples", "fixtures"]
+
+    out = render(load(tmp_path / "with", with_not_code))
+    commands = out["CLAUDE.md"].split("## Commands")[1].split("\n## ")[0]
+    components = out["CONTRIBUTING.md"].split("## Components\n")[1].split("\n## ")[0]
+    for section in (commands, components):
+        line = next(x for x in section.splitlines() if x.startswith("Not code:"))
+        assert "`examples/`, `fixtures/`" in line
+        assert "principles review" in line and "secrets" in line

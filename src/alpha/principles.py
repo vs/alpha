@@ -392,6 +392,7 @@ def build_principles(
             **({"exhaustive": True} if project["exhaustive_testing"] else {}),
         },
         "components": components,
+        "not_code": list(a.not_code),
         "principles": principles,
     }
     if visuals:

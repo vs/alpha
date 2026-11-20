@@ -66,6 +66,7 @@ A test that proves an acceptance check names its ID. Checks on a skill's text te
 | R14.1 | The mutation-testing gate, `/debt` with the `shortcut:` ledger check, and the interview evals are gone. | Given the kit's shipped files (`src/`, `project-files/`, `skills/`, `recipes/`, `defaults/`, `registry/`, `bin/`, `pyproject.toml`), then none names `cargo-mutants`, `ci:mutants`, `check:shortcuts`, the `debt` skill or `alpha-evals`, and `src/alpha_evals`, `bin/alpha-evals` and `evals/` don't exist. | `tests/unit/test_kit.py::test_R14_1_dropped_features_are_gone` (unit) |
 | R15.1 | There are no decision records in any form. | Given the kit's shipped files, then none writes or reads `docs/decisions/` or a decision record, and the answers refuse a `decisions` key. | `tests/unit/test_kit.py::test_R15_1_no_decision_records` (unit) |
 | R16.1 | No committed file alpha writes holds file hashes or a tree snapshot. | Given a generated, updated and adopted project with a drafted recipe, then no file in the tree alpha wrote, `project.json` included, holds a `sha256:` digest, a 40- or 64-hex digest, a `proven_hash`, or a list of the project's files with hashes; alpha's render lives in git objects. | `tests/integration/test_apply.py::test_R16_1_no_committed_file_holds_file_hashes` (integration) |
+| R17.1 | Folders the answers list as not code (examples, fixtures, reference data) are left out of alpha's code checks and review, but not of the secrets scan. | Given `not_code = ["examples"]`, then an entry that is absolute or holds a component's folder fails `answers check`, and principles.toml, CLAUDE.md and CONTRIBUTING.md name the folders. | `tests/unit/test_answers.py::test_R17_1_not_code_folders_are_checked` (unit); `tests/unit/test_principles.py::test_R17_1_not_code_reaches_the_principles` (unit); `tests/unit/test_render_docs.py::test_R17_1_docs_name_the_not_code_folders` (unit) |
 
 ## Design
 
@@ -111,11 +112,12 @@ docs/alpha/
 
 Code that needs the file as it is, rather than finished answers (an interview under way, the `installed` record, an older kit's `manifest`), reads it through `answers.read_project_json`, the only other reader: it says which file can't be read and how to restore it.
 
-- **Install areas:** `identity` (name, slug, one-line purpose, license or license file, copyright holder), `components`, `testing` (levels, diff coverage, exhaustive), `documentation` (where user docs live, docs map, existing docs per area), `build`, `security` (secret store, extra protected paths), `dependencies`, `releases`, `git`, `agent_workflow` (extra risk paths only).
+- **Install areas:** `identity` (name, slug, one-line purpose, license or license file, copyright holder), `components` (with `not_code`, the folders that hold no code of the project), `testing` (levels, diff coverage, exhaustive), `documentation` (where user docs live, docs map, existing docs per area), `build`, `security` (secret store, extra protected paths), `dependencies`, `releases`, `git`, `agent_workflow` (extra risk paths only).
 - **Product areas** (start `open`; only `update`, or `install` when the user picks one, settles them): `requirements` (target users, requirements with acceptance checks, domain jargon), `architecture` (with the glossary), `errors`, `design_language`, `ui`, `accessibility`, `observability`, `data`, `performance`, `auth`.
 - `installed` = `{kit_version, mode: "new" | "adopted", on: <date>, components: {<name>: <date added>}, preexisting: [<path>]}`, written by `alpha apply`. The component dates keep the dependency log's entries stable across updates.
 - A drafted recipe's proof is a hash of the recipe in `.claude/alpha/state/proofs.json` (gitignored); another clone runs `recipe try` once before alpha uses that recipe there.
 - A principle with `settled_by = "<area>"` stays inactive while that area is open.
+- `not_code`: folders relative to the root, `*` matching within one segment; none may hold a component's folder. principles.toml carries them as a top-level `not_code`, and CLAUDE.md and CONTRIBUTING.md name them with what still checks them.
 
 ### Writing files: one pipeline
 

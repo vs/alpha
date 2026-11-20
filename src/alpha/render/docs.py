@@ -201,6 +201,19 @@ def _ticked(globs: list[str]) -> str:
     return ", ".join(f"`{g}`" for g in globs)
 
 
+def _not_code(a: Answers) -> list[str]:
+    if not a.not_code:
+        return []
+    folders = ", ".join(f"`{f}/`" for f in a.not_code)
+    return [
+        f"Not code: {folders}: examples, fixtures and reference data. No format, "
+        "lint, test or docs rule and no principles review applies there; the "
+        "secrets scan and the repository's text checks (spelling, Markdown, links) "
+        "still do.",
+        "",
+    ]
+
+
 def _command_table(c: Component, comp: dict[str, Any]) -> list[str]:
     commands: dict[str, str] = comp["commands"]
     rows = [
@@ -271,6 +284,7 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
     for comp in principles["components"]:
         c = next(x for x in a.components if x.name == comp["name"])
         lines += _command_table(c, comp) + [""]
+    lines += _not_code(a)
     lines += [
         "Run every check: `mise run check`"
         + (" (CI runs the same checks)." if has_ci else "."),
@@ -570,7 +584,7 @@ def _components_section(a: Answers, principles: dict[str, Any]) -> list[str]:
         if a.components_talk
         else "Components do not communicate with each other."
     )
-    lines += ["", talk, "", "### Tool choices", ""]
+    lines += ["", talk, "", *_not_code(a), "### Tool choices", ""]
     book = a.book()
     for stack in dict.fromkeys(c.stack for c in a.components):
         recipe = book.get(stack)
