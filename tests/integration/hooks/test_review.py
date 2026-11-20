@@ -271,3 +271,21 @@ def test_R10_2_a_merged_branch_note_carries_nothing_into_its_next_work(
     project.git("update-ref", "refs/remotes/origin/main", "HEAD")  # merged
     commit(project, "api/src/c.py")
     assert review.last_review(project.root) is None
+
+
+def test_R17_1_the_review_leaves_out_not_code(project: Project) -> None:
+    project.set_not_code("examples")
+    on_a_branch(project)
+    commit(project, "examples/app.py")
+    assert gate(project) is None  # only not-code changes: nothing to review
+    commit(project, "api/src/a.py")
+    text = review.brief(project.root)
+    changed = text.split("## Changed files\n\n")[1].split("\n\n")[0]
+    assert changed.splitlines() == ["- api/src/a.py"]
+    skipped = text.split("## Not code (not reviewed)\n\n")[1].split("\n\n")[0]
+    assert skipped.splitlines() == ["- examples/app.py"]
+    assert "examples/app.py" not in text.split("## Diff")[1]
+    rules = text.split("## Stack rules\n\n")[1].split("\n\n")[0]
+    assert "python:" in rules and "typescript:" not in rules
+    blocked = gate(project)
+    assert blocked is not None and "(1 file changed since" in blocked
