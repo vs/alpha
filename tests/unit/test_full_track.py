@@ -7,7 +7,7 @@ import pytest
 from alpha.cli import PLUGIN_ROOT
 
 SKILLS = PLUGIN_ROOT / "skills"
-FULL_TRACK = ["brainstorm"]
+FULL_TRACK = ["brainstorm", "plan"]
 
 
 def _skill(name: str) -> str:
@@ -68,6 +68,30 @@ def test_R8_3_the_folder_is_named_by_the_playbook():
     assert "`/alpha:do <task>`" in back
     for mode in ("investigation", "prototype", "pause", "session pickup"):
         assert mode in back.lower(), mode
+
+
+def test_R8_4_plan_has_interfaces_expected_output_and_review_focus():
+    text = _skill("plan")
+    template = text.split("```markdown")[1].split("```")[0]
+    for part in ("Spec: specification.md", "## Global constraints", "## Review Focus"):
+        assert part in template, part
+    task = template.split("## Task <N>:")[1]
+    for part in ("Files:", "Interfaces:", "Expected:", "commit skill"):
+        assert part in task, part
+    assert "git commit -m" not in text
+    review = text.split("## 3. Self-review")[1].split("\n## ")[0]
+    checks = re.findall(r"^\d+\. \*\*(.+?)\*\*", review, re.M)
+    assert checks == [
+        "Spec coverage.",
+        "Step scan.",
+        "Consistency.",
+        "Review Focus.",
+        "Proportion.",
+    ]
+    assert "**Native**" in text and "**Subagents**" in text
+    assert "with your recommendation" in text
+    assert "`/alpha:brainstorm`" in text.split("## 1. ")[1].split("\n## ")[0]
+    assert "Hand off to `/alpha:execute`" in text
 
 
 @pytest.mark.parametrize("name", FULL_TRACK)
