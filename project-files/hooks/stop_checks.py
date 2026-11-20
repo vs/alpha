@@ -22,7 +22,6 @@ MAX_BLOCKS = 3
 MAX_SCAN_BYTES = 1_000_000
 SNIFF_BYTES = 8192
 DEPENDENCY_LOG = "docs/alpha/dependencies.md"
-# Lockfiles that also hold the project's own version, which a release bumps.
 PARSED_LOCKFILES = ("uv.lock", "Cargo.lock")
 HASH_CONTENT_BYTES = 1_000_000
 BASELINE_DIR = _common.BASELINE_DIR
