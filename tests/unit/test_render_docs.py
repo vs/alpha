@@ -215,6 +215,21 @@ def workflow(contributing: str) -> str:
     return contributing.split("## Working with alpha\n")[1].split("\n## ")[0]
 
 
+def test_R8_3_the_docs_name_both_tracks(tmp_path: Path):
+    out = render(load(tmp_path))
+    section = workflow(out["CONTRIBUTING.md"])
+    light = next(line for line in section.splitlines() if "`/alpha:do <task>`" in line)
+    assert "light track" in light
+    full = next(
+        line for line in section.splitlines() if "`/alpha:brainstorm <task>`" in line
+    )
+    assert "`/alpha:plan`" in full and "`/alpha:execute`" in full
+    docs = out["CLAUDE.md"].split("## Docs\n")[1].split("\n## ")[0]
+    spec = next(line for line in docs.splitlines() if "[Specification]" in line)
+    for folder in ("features", "bug-fixes", "refactorings", "perf"):
+        assert f"`docs/alpha/{folder}/`" in spec, folder
+
+
 def test_R6_1_contributing_describes_the_alpha_workflow(tmp_path: Path):
     """The first section tells a reader how alpha runs the project; every
     line names an /alpha: command, so purge's line remover takes it out."""

@@ -315,8 +315,9 @@ def _claude_md(a: Answers, principles: dict[str, Any]) -> str:
         "",
         "- [Principles](docs/alpha/principles.toml)",
         "- [Specification](docs/alpha/specification.md): what the product does; "
-        "`/alpha:update <area>` settles each open part, and each feature gets a folder "
-        "in `docs/alpha/features/`",
+        "`/alpha:update <area>` settles each open part, and each full-track task gets "
+        "a folder in `docs/alpha/features/`, `docs/alpha/bug-fixes/`, "
+        "`docs/alpha/refactorings/` or `docs/alpha/perf/`",
         "- [Contributing](CONTRIBUTING.md): how the project is built, checked, "
         "released and kept secure",
         "- [Dependencies](docs/alpha/dependencies.md)",
@@ -395,8 +396,11 @@ def _workflow_section(a: Answers) -> list[str]:
         "alpha's files to the installed kit; with one it adds or changes a "
         "component or a setup answer, or settles a product area "
         "(`/alpha:update performance`).",
-        "- `/alpha:do <task>` works each task by a playbook; a feature goes through "
-        "research, a spec and a plan the user approves before any code.",
+        "- `/alpha:do <task>` works a task on the light track: by a playbook, straight "
+        "into the work, with no spec files.",
+        "- `/alpha:brainstorm <task>` starts the full track: research and a design "
+        "spec the user approves, then `/alpha:plan` writes the plan and "
+        "`/alpha:execute` builds it and runs the principles review.",
         "- `/alpha:uninstall` switches alpha's hooks off and `/alpha:install` "
         "switches them back on; `/alpha:purge` removes alpha in one commit.",
     ]
@@ -489,8 +493,8 @@ def _contributing(
 
 
 def _specification(a: Answers) -> str:
-    """What the product does, in one file; features add their own specs in
-    docs/alpha/features/."""
+    """What the product does, in one file; full-track tasks add their own specs
+    in docs/alpha/<features|bug-fixes|refactorings|perf>/."""
     ident = _identity(a)
     req = a.requirements
     linked = (

@@ -47,7 +47,7 @@ Each `update <target> --dry-run` in this skill lists the changes, prints that th
 For each area the request names, in the order given (an area that is `done` is revisited: its answers are the recommendations):
 
 1. Read its guide, `${CLAUDE_PLUGIN_ROOT}/skills/install/areas/<area>.md`, with the Read tool.
-2. Research first: what the project's code and docs already imply for it (a doc the project has for the area, the stack's usual choice, an approved feature spec under `docs/alpha/features/`), and the kit default from `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show --json`. Answers a feature spec already records are the user's: save them without asking again.
+2. Research first: what the project's code and docs already imply for it (a doc the project has for the area, the stack's usual choice, an approved spec under `docs/alpha/features/`, `bug-fixes/`, `refactorings/` or `perf/`), and the kit default from `"${CLAUDE_PLUGIN_ROOT}/bin/alpha" defaults show --json`. Answers a feature spec already records are the user's: save them without asking again.
 3. Lay out two or three options for its main decision, each in a line with its trade-off, recommending one.
 4. Settle the guide's questions with `alpha:grilling`, save with `answers write`, mark the area `done`, and run the guide's check until it prints `ok`.
 
