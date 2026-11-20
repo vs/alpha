@@ -112,7 +112,9 @@ def test_R8_5_execute_keeps_a_ledger_and_rules_on_deviations():
 
 def test_R8_6_execute_ends_with_one_principles_review():
     text = _skill("execute")
-    review = text.split("## 4. ")[1].split("\n## ")[0]
+    sync = text.split("## 4. ")[1].split("\n## ")[0]
+    assert "`decision` skill" in sync and "Commit" in sync
+    review = text.split("## 5. ")[1].split("\n## ")[0]
     steps = _steps(review)
     found = _in_order(
         steps,
@@ -123,8 +125,6 @@ def test_R8_6_execute_ends_with_one_principles_review():
     assert "one pass" in fixes and "fail first" in fixes
     assert "fix check" in next(s for s in steps if s.startswith("Run a fresh"))
     assert "third review" in review
-    finish = text.split("## 5. ")[1].split("\n## ")[0]
-    assert "`decision` skill" in finish
     reply = text.strip().splitlines()[-1]
     assert reply.startswith("**Reply:**")
     assert "every ruling" in reply and "deferred" in reply

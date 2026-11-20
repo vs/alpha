@@ -37,7 +37,7 @@ Folder: `$ARGUMENTS`
 
 ## 1. Check the project, the plan and the ledger
 
-Run section 1 of `${CLAUDE_PLUGIN_ROOT}/skills/do/SKILL.md`, and keep its section 3 rules throughout; section 4 here replaces Done's step 4. The folder is the one named, else the newest under `docs/alpha/{features,bug-fixes,refactorings,perf}/` with an approved `plan.md`. With no `plan.md`, or one whose Status isn't `approved by the user on <date>`, say which and that `/alpha:plan` makes it, and stop. Work on the branch the spec was committed on (`do`'s section 3, Branch).
+Run section 1 of `${CLAUDE_PLUGIN_ROOT}/skills/do/SKILL.md`, and keep its section 3 rules throughout; section 5 here replaces Done's step 4. The folder is the one named, else the newest under `docs/alpha/{features,bug-fixes,refactorings,perf}/` with an approved `plan.md`. With no `plan.md`, or one whose Status isn't `approved by the user on <date>`, say which and that `/alpha:plan` makes it, and stop. Work on the branch the spec was committed on (`do`'s section 3, Branch).
 
 The ledger is `.claude/alpha/notes/<slug>/progress.md`, `<slug>` the folder's name: gitignored, and the one place under `.claude/alpha/` the hooks let you write. Your conversation doesn't survive compaction; the ledger and `git log` do, so trust them over what you remember.
 
@@ -49,7 +49,7 @@ Read the plan and the spec once and open a todo per task. The spec is the author
 
 ## 2. Rulings, not stalls
 
-Build every task without stopping to check in: the user chose the mode at the plan's approval. Conflicts, ambiguities and plan defects are yours to decide, the spec binding and your judgment settling what neither answers. Write each as `Task <N>: Ruling: <what you decided> — <why> — <cost if wrong>` in the ledger, in the same step as the work it changes; a deviation with no ruling is a decision made in secret. A ruling that changes what the spec says gets built goes back to the user at the end (section 5).
+Build every task without stopping to check in: the user chose the mode at the plan's approval. Conflicts, ambiguities and plan defects are yours to decide, the spec binding and your judgment settling what neither answers. Write each as `Task <N>: Ruling: <what you decided> — <why> — <cost if wrong>` in the ledger, in the same step as the work it changes; a deviation with no ruling is a decision made in secret. A ruling that changes what the spec says gets built is recorded in the spec in section 4 and asked about in the reply.
 
 Four things stop you, and only these: an irreversible or destructive operation; a security-sensitive action; a side effect outside the checkout that needs asking first (a push, a merge, a deploy, a message to people); a plan so broken that every path forward is a guess. Ask about those, as `do`'s section 3 says.
 
@@ -64,20 +64,25 @@ Four things stop you, and only these: an irreversible or destructive operation; 
 
 **Subagents.** You are the controller: one task at a time, never two at once. Give a fresh implementer subagent the folder, the task's section from `plan.md` verbatim, the rulings that touch its Interfaces, BASE, and `do`'s section 3 brief; it works the task as Native steps 2 and 3 say, asks you instead of guessing (your answers are rulings), and reports its commits and test output. Then give a fresh reviewer subagent the spec, the task's section and `git diff <BASE>..HEAD`; it runs the `review-change` skill on that diff and says whether the task meets the spec, nothing missing and nothing extra, and what it found. Send the findings back to the same implementer; after five fix rounds, rule on what is still open and go on. Run the task's tests yourself and read its diff before Native step 4's ledger line: a subagent's report proves nothing.
 
-## 4. The principles review, once
+## 4. Bring the docs in line
 
-After the last task, the review the merge guard asks for runs here, once (`docs/alpha/specification.md`, Review), not again at the push.
-
-1. Run the full suites: `python3 .claude/alpha/hooks/stop_checks.py tests`. Fix what fails as section 3 does.
-2. Run the principles-reviewer agent once over the branch: a fresh one, from a session started in the checkout that holds the branch, since the hook records only such a run.
-3. Fix its findings in one pass. Re-grade each by what a user gets if it ships, not by its label. Each fix gets a test written to fail first, then the fix, then the component's checks, then a commit; write `Final: fixed <id> — <test>` in the ledger. A finding that stands gets a commit trailer `Accepts: <id> <reason>` and a ruling; only the user accepts one on a risk path, by replying `accept <id>`.
-4. Run a fresh principles-reviewer as the fix check: it judges those findings and the files changed since. What it leaves open goes to the user in the reply, with its fix or the case for accepting it; never start a third review yourself.
-
-## 5. Finish
+After the last task, and before the review, so the review covers the final tree:
 
 1. Bring the spec and the plan in line with what was built. A ruling that changes how it's built goes into `plan.md`; one that changes what it does is recorded in the spec's Decisions with the `decision` skill and needs the user's yes, asked in the reply. Commit both as one `docs` commit.
 2. Verify: every test in the spec passes, and each acceptance check is exercised on the real thing where you can (run the CLI, the app, the endpoint) with what happened pasted. A check you couldn't exercise is unverified, not passed.
-3. Finish with Done (`do`'s section 3) steps 1 to 3.
-4. Copy every `Ruling:` and `Final:` line into the reply, then delete the ledger's folder: the git history is the record now.
+3. Check Done (`do`'s section 3) steps 1 to 3 hold: everything is committed before the review starts.
+
+## 5. The principles review, once
+
+The review the merge guard asks for runs here, once (`docs/alpha/specification.md`, Review), not again at the push; nothing but a review fix is committed after it.
+
+1. Run the full suites: `python3 .claude/alpha/hooks/stop_checks.py tests`. Fix what fails as section 3 does.
+2. Run the principles-reviewer agent once over the branch: a fresh one, from a session started in the checkout that holds the branch, since the hook records only such a run.
+3. Fix its findings in one pass. Re-grade each by what a user gets if it ships, not by its label. Each fix gets a test written to fail first, then the fix, then the component's checks, then a commit with the docs it moves; write `Final: fixed <id> — <test>` in the ledger. A finding that stands gets a commit trailer `Accepts: <id> <reason>` and a ruling; only the user accepts one on a risk path, by replying `accept <id>`.
+4. Run a fresh principles-reviewer as the fix check: it judges those findings and the files changed since. What it leaves open goes to the user in the reply, with its fix or the case for accepting it; never start a third review yourself.
+
+## 6. Finish
+
+Copy every `Ruling:` and `Final:` line into the reply, then delete the ledger's folder: the git history is the record now.
 
 **Reply:** the folder and the mode, each acceptance check with its test and result, every ruling with what it costs if wrong, the findings fixed and the deferred ones, what the fix check left open, the rulings that change the spec and wait for the user's yes, and what is still ahead before main (the push or pull request).
