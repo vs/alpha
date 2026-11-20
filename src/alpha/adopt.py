@@ -26,6 +26,7 @@ from alpha.principles import diff_coverage
 from alpha.recipes import RecipeBook, matches
 from alpha.render.docs import CHAIN_BEGIN, CHAIN_END, CHAINED_COMMIT_MSG
 from alpha.shell import git, run_command
+from alpha.validate import strings
 
 CAP = 50  # entries per list; the rest are counted
 SUBJECTS = 50  # recent commits checked against the convention
@@ -171,13 +172,21 @@ def _components(files: list[str], book: RecipeBook) -> list[dict[str, Any]]:
     return out
 
 
+def _saved_not_code(target: Path) -> list[str]:
+    """The `<folder>/**` globs of the not-code folders an interview saved."""
+    top = read_project_json(target) or {}
+    folders = strings(top, "not_code", "") if "not_code" in top else ()
+    return [f"{folder}/**" for folder in folders]
+
+
 def survey(
     target: Path, source: Source, book: RecipeBook | None = None
 ) -> dict[str, Any]:
-    """What the repo already has, in facts."""
+    """What the repo already has, in facts, leaving out not-code folders."""
     _refuse_alpha(target)
     _repo(target)
-    files = _tracked(target)
+    not_code = _saved_not_code(target)
+    files = [f for f in _tracked(target) if not matches(f, not_code)]
     globs = load_survey(source)
     git = _git_facts(target, load_defaults(source))
     managers = [p for p in files if matches(p, globs.get(HOOK_MANAGERS, []))]

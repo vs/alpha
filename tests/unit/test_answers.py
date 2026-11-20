@@ -878,3 +878,22 @@ def test_answers_write_keeps_a_steps_status_as_saved(tmp_path: Path):
     plan["adoption"]["steps"][0]["title"] = "Retitled"
     plan["adoption"]["steps"].append({"id": "p4-b", "phase": "P4", "status": "pending"})
     write_answers(tmp_path, json.dumps(plan))
+
+
+def test_R17_1_not_code_folders_are_checked(tmp_path: Path):
+    d = valid()
+    assert check(tmp_path, d).not_code == ()
+    d["not_code"] = ["examples/report-jobs", "docs/research/*/experiments"]
+    a = check(tmp_path, d)
+    assert a.not_code == ("examples/report-jobs", "docs/research/*/experiments")
+    assert area_of("not_code[0]") == "components"
+    for bad in ("/abs", "../x", "", "a//b"):
+        d["not_code"] = ["examples", bad]
+        with pytest.raises(AnswersError, match=r"not_code\[1\].*relative"):
+            check(tmp_path, d)
+    for covering in ("api", "*", "."):
+        d["not_code"] = [covering]
+        with pytest.raises(AnswersError, match=r"not_code\[0\].*component api"):
+            check(tmp_path, d)
+    d["not_code"] = ["api/tests/fixtures"]
+    assert check(tmp_path, d).not_code == ("api/tests/fixtures",)

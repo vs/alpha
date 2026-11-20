@@ -50,6 +50,7 @@ from alpha.validate import (
     paths,
     per_component,
     prefixed,
+    relative,
     sample,
     string,
     strings,
@@ -62,7 +63,14 @@ PRINCIPLES_FILE = "docs/alpha/principles.toml"
 DEPENDENCY_LOG = "docs/alpha/dependencies.md"
 DESIGN_LANGUAGE_DOC = "docs/alpha/design-language.md"
 _DESIGN = "design_language"
-_COMPONENTS_FIELDS = ("layout", "workspace", "components_talk", "components", "recipes")
+_COMPONENTS_FIELDS = (
+    "layout",
+    "workspace",
+    "components_talk",
+    "components",
+    "not_code",
+    "recipes",
+)
 
 
 def area_of(where: str) -> str | None:
@@ -109,6 +117,7 @@ _TOP_KEYS = frozenset(
         "workspace",
         "components_talk",
         "components",
+        "not_code",
         "git",
         "agent_workflow",
         "architecture",
@@ -341,6 +350,9 @@ class Answers:
     workspace: bool | None = None
     requirements: ProductRequirements | None = None
     auth: Auth | None = None
+    # Folders that hold no code of the project (examples, fixtures, reference
+    # data): the hooks, the review and the survey leave them out.
+    not_code: tuple[str, ...] = ()
 
     def book(self) -> RecipeBook:
         return RecipeBook(self.recipes)
@@ -586,6 +598,28 @@ def _components(raw: object, layout: str, book: RecipeBook) -> tuple[Component, 
                     "Give each component its own folder, not nested in another",
                 )
     return tuple(comps)
+
+
+def _not_code(top: Mapping[str, Any], comps: tuple[Component, ...]) -> tuple[str, ...]:
+    folders = strings(top, "not_code", "") if "not_code" in top else ()
+    for i, folder in enumerate(folders):
+        where = f"not_code[{i}]"
+        if folder == ".":
+            folder_parts = ["**"]
+        else:
+            relative(folder, where)
+            folder_parts = folder.split("/")
+        for c in comps:
+            parts = [] if c.path == "." else c.path.split("/")
+            if any(match_parts(parts[:k], folder_parts) for k in range(len(parts) + 1)):
+                raise fail(
+                    where,
+                    f"{folder!r} holds component {c.name}'s folder {c.path!r}, so "
+                    "none of its code would be checked",
+                    "List a folder inside or beside the component, such as "
+                    f'"{prefixed(c.path, "tests/fixtures")}"',
+                )
+    return folders
 
 
 def _git_prefs(raw: object) -> GitPrefs:
@@ -1196,9 +1230,11 @@ def parse_answers(
     identity = _identity(get(top, "identity", ""), base) if active("identity") else None
     layout: str | None = None
     comps: tuple[Component, ...] = ()
+    not_code: tuple[str, ...] = ()
     if active("components"):
         layout = choice(top, "layout", "", _LAYOUTS)
         comps = _components(get(top, "components", ""), layout, RecipeBook(drafted))
+        not_code = _not_code(top, comps)
     git = _git_prefs(get(top, "git", "")) if active("git") else None
     workflow = (
         _workflow(get(top, "agent_workflow", "")) if active("agent_workflow") else None
@@ -1324,6 +1360,7 @@ def parse_answers(
         boolean(top, "workspace", "") if "workspace" in top else None,
         requirements,
         auth,
+        not_code,
     )
 
 

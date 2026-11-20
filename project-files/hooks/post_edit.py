@@ -40,7 +40,7 @@ def main() -> None:
     if isinstance(agent, str) and agent:
         _common.record_agent_file(root, agent, rel)
     comp = _common.component_for(rel, principles)
-    if comp is None:
+    if comp is None or _common.not_code(rel, principles):
         sys.exit(0)
     if not (_common.is_source(rel, comp) or _common.is_test(rel, comp)):
         sys.exit(0)

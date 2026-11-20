@@ -358,3 +358,11 @@ def test_R2_3_a_new_permission_passes(project: Project) -> None:
         },
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_R17_1_not_code_may_suppress_checks(project: Project) -> None:
+    project.set_not_code("api/examples")
+    proc = edit(project, "api/examples/a.py", "x = f()", "x = f()  # type: ignore")
+    assert proc.returncode == 0 and proc.stderr == ""
+    blocked = edit(project, "api/src/a.py", "x = f()", "x = f()  # type: ignore")
+    assert "never-weaken-checks" in reason(blocked)

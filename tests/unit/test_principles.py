@@ -672,3 +672,16 @@ def test_defaults_without_the_visuals_list_say_how_to_proceed():
 def test_a_single_component_is_no_workspace_member(tmp_path: Path):
     out = build_principles(D, variant(tmp_path, _exhaustive), "0.1.0")
     assert all("workspace" not in c for c in out["components"])
+
+
+def test_R17_1_not_code_reaches_the_principles(tmp_path: Path):
+    assert build_principles(D, A, "0.1.0")["not_code"] == []
+    folders = ["examples/report-jobs", "docs/research/*/experiments"]
+
+    def with_not_code(data: dict[str, Any]) -> None:
+        data["not_code"] = folders
+
+    a = variant(tmp_path, with_not_code)
+    out = build_principles(D, a, "0.1.0")
+    assert out["not_code"] == folders
+    assert tomllib.loads(render_principles(out))["not_code"] == folders

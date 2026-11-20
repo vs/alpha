@@ -195,3 +195,26 @@ def test_survey_save_keeps_other_adoption_keys(tmp_path: Path):
 def test_survey_cli_refusal_exit_code(tmp_path: Path):
     done = run_cli("adopt", "survey", str(tmp_path))
     assert done.returncode == 1 and "git init" in done.stderr
+
+
+def test_R17_1_the_survey_skips_not_code(tmp_path: Path):
+    root = _repo(
+        tmp_path,
+        {
+            "pyproject.toml": "",
+            "src/app.py": "",
+            "examples/report-jobs/pyproject.toml": "",
+            "examples/report-jobs/src/api.py": "",
+            "examples/report-jobs/src/tasks.py": "",
+        },
+    )
+    both = {c["path"]: c["sources"] for c in survey(root, SOURCE)["components"]}
+    assert both == {".": 1, "examples/report-jobs": 2}
+    answers = root / ".claude" / "alpha" / "project.json"
+    answers.parent.mkdir(parents=True)
+    answers.write_text(json.dumps({"not_code": ["examples"]}))
+    found = [(c["path"], c["sources"]) for c in survey(root, SOURCE)["components"]]
+    assert found == [(".", 1)]
+    answers.write_text(json.dumps({"not_code": [3]}))
+    with pytest.raises(AnswersError, match=r"not_code\[0\]"):
+        survey(root, SOURCE)
