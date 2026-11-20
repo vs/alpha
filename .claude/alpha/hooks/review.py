@@ -276,6 +276,14 @@ def files_to_review(root: Path, last_tree: str | None) -> list[str]:
     return files
 
 
+def without_not_code(
+    files: list[str], principles: dict[str, Any]
+) -> tuple[list[str], list[str]]:
+    """The files to review, and those in not-code folders, which aren't."""
+    skipped = [f for f in files if _common.not_code(f, principles)]
+    return [f for f in files if f not in skipped], skipped
+
+
 def dirty(root: Path) -> list[str]:
     out = _git(root, "status", "--porcelain", "--untracked-files=no") or ""
     return [line[3:] for line in out.splitlines() if line.strip()]
@@ -505,7 +513,9 @@ def brief(root: Path) -> str:
     head = tree_of(root, "HEAD")
     last = last_review(root)
     previous = open_findings(last[1]) if last else []
-    files = files_to_review(root, last[0] if last else None)
+    files, skipped = without_not_code(
+        files_to_review(root, last[0] if last else None), principles
+    )
     named = {str(f["file"]) for f in previous}
     fresh = [f for f in files if f not in named]
     base = last[0] if last else tree_of(root, main_base(root))
@@ -573,6 +583,9 @@ def brief(root: Path) -> str:
         lines += [f"- {path}: {reason}" for path, reason in sorted(no_docs.items())]
     lines += ["", "## Review afresh" if previous else "## Changed files", ""]
     lines += [f"- {path}" for path in fresh] or ["(none)"]
+    if skipped:
+        lines += ["", "## Not code (not reviewed)", ""]
+        lines += [f"- {path}" for path in skipped]
     lines += _changed_visuals(root, base, head, principles, fresh)
     lockfiles = {
         str(lock)
@@ -617,7 +630,9 @@ def gate(root: Path, principles: dict[str, Any]) -> str | None:
     head = tree_of(root, "HEAD")
     if last is not None and last[0] == head:
         return None
-    files = files_to_review(root, last[0] if last else None)
+    files, _ = without_not_code(
+        files_to_review(root, last[0] if last else None), principles
+    )
     if not files:
         return None
     noun = "file" if len(files) == 1 else "files"

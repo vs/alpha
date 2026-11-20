@@ -296,6 +296,12 @@ def matches(rel_path: str, globs: list[str]) -> bool:
     return any(_match_parts(parts, g.split("/")) for g in globs)
 
 
+def not_code(rel_path: str, principles: dict[str, Any]) -> bool:
+    """Whether the file is in a folder the answers list as holding no code."""
+    folders = [str(f) for f in principles.get("not_code", [])]
+    return matches(rel_path, [*folders, *(f"{f}/**" for f in folders)])
+
+
 def _globs(comp: dict[str, Any], key: str) -> list[str]:
     return [str(g) for g in comp.get(key, [])]
 
