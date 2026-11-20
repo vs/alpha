@@ -31,7 +31,7 @@ GUIDES = INSTALL_GUIDES + PRODUCT_GUIDES
 DOCS = [f"{s}/SKILL.md" for s in ALL_SKILLS] + INSTALL_PATHS + GUIDES
 # The answers each guide owns, beyond its area's own status.
 OWNED: dict[str, tuple[str, ...]] = {
-    "components": ("layout", "components_talk", "components[]"),
+    "components": ("layout", "components_talk", "components[]", "not_code"),
 }
 AREA_SECTIONS = [
     "Before you start",
@@ -576,6 +576,18 @@ def test_data_guide_explains_the_append_only_rule() -> None:
 def test_components_offers_any_stack() -> None:
     text = _text("install/areas/components.md")
     assert f"{CLI} recipe list" in text and "`alpha:stack-recipe`" in text
+
+
+def test_R17_1_components_guide_asks_for_not_code() -> None:
+    questions = _section("install/areas/components.md", "Questions")
+    asked = next(x for x in questions.splitlines() if "**Not code**" in x)
+    for kind in ("examples", "fixtures", "reference data", "research"):
+        assert kind in asked
+    assert "survey" in asked and "secrets" in asked
+    assert "`not_code`" in _section(
+        "install/areas/components.md", "Writing the answers"
+    )
+    assert "`not_code`" in _text("install/adopt.md")
 
 
 def test_agent_workflow_says_the_reviewer_runs_before_main() -> None:
