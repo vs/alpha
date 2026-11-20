@@ -3,8 +3,9 @@
 # hooks and reviewers read this file.
 
 schema = 1
-kit_version = "2.0.1"
+kit_version = "2.1.0"
 dependency_log = "docs/alpha/dependencies.md"
+not_code = []
 
 [project]
 name = "alpha"

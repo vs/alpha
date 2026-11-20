@@ -358,6 +358,8 @@ def components_to_test(root: Path, principles: dict[str, Any]) -> list[dict[str,
     by_comp: dict[str, list[str]] = {}
     found: dict[str, dict[str, Any]] = {}
     for rel in names:
+        if _common.not_code(rel, principles):
+            continue
         for comp in _common.components_for(rel, principles):
             name = component_label(comp)
             found[name] = comp
@@ -669,7 +671,7 @@ def dependencies_changed(root: Path, ref: str | None, rel: str) -> bool:
 
 
 def is_behavior(rel: str, principles: dict[str, Any], docs: list[str]) -> bool:
-    if _common.matches(rel, docs):
+    if _common.matches(rel, docs) or _common.not_code(rel, principles):
         return False
     comp = _common.component_for(rel, principles)
     if comp is None:
@@ -689,6 +691,8 @@ def find_problems(
     components: list[dict[str, Any]] = []
     by_comp: dict[str, list[str]] = {}
     for rel in changed:
+        if _common.not_code(rel, principles):
+            continue
         for comp in _common.components_for(rel, principles):
             key = str(comp.get("name"))
             if key not in by_comp:
