@@ -22,7 +22,7 @@ The user prefers superpowers' way of working: research, then a design spec, then
 | F7 | `/alpha:execute` ends with the principles review, once, and lists its rulings. | Given the execute skill, then after the last task it runs the principles-reviewer agent once over the branch, fixes the findings in one pass with each fix's test failing first, runs the principles-reviewer again as the fix check, records rulings that change what is built in the spec's Decisions with the `decision` skill, and its reply lists every ruling and every deferred finding. | `tests/unit/test_full_track.py::test_R8_6_execute_ends_with_one_principles_review` (unit) |
 | F8 | Session pickup resumes a full-track task from its ledger; Pause points to it. | Given the session-pickup playbook, then when a `.claude/alpha/notes/*/progress.md` ledger exists it hands the work to `/alpha:execute`; given the pause playbook, then its resume note names the ledger when there is one. | `tests/unit/test_do_skill.py::test_pause_and_pickup_share_the_resume_note` (unit, extended) |
 | F9 | The full-track skills credit superpowers. | Given each of the brainstorm, plan and execute skills, then an HTML comment names superpowers and holds its MIT license in full (`Copyright (c) 2025 Jesse Vincent`). | `tests/unit/test_full_track.py::test_full_track_credits_superpowers_with_the_full_license` (unit) |
-| F10 | A project's CLAUDE.md names both tracks and the folders. | Given rendered answers, then CLAUDE.md's skills list says `/alpha:do <task>` works a task straight through and `/alpha:brainstorm <task>` starts the full track (research, a spec and a plan the user approves, then `/alpha:plan` and `/alpha:execute`), and its Docs list names the four folders. | `tests/unit/test_render_docs.py::test_R8_3_claude_md_names_both_tracks` (unit) |
+| F10 | A project's docs name both tracks and the folders. | Given rendered answers, then CONTRIBUTING.md's "Working with alpha" says `/alpha:do <task>` works a task on the light track and `/alpha:brainstorm <task>` starts the full track (research and a spec the user approves, then `/alpha:plan` and `/alpha:execute`), and CLAUDE.md's Docs list names the four folders. | `tests/unit/test_render_docs.py::test_R8_3_the_docs_name_both_tracks` (unit) |
 
 ## Design
 
@@ -63,6 +63,7 @@ All three keep `do`'s section 3 rules (questions, evidence, subagents, branch, w
 - No helper scripts: the ledger is written by hand and the Stop hook already blocks failing checks; a tested `alpha plan` CLI can follow if hand-written ledgers drift (Claude's call, `smallest-change`).
 - Subagents mode runs one task at a time, as superpowers does; `feature.md`'s side-by-side worktrees and cherry-picks go, since one ledger can't track parallel tasks (Claude's call).
 - Subagents run on the chat's model, as `do`'s section 3 says (Claude's call).
+- The rendered `/alpha:do` line is in CONTRIBUTING.md's "Working with alpha", not CLAUDE.md, so F10 checks it there; CLAUDE.md carries only the Docs line (ruling while building).
 - superpowers' finishing-a-development-branch is not ported: CONTRIBUTING.md's Branching, the merge guard and Done already end a branch, and alpha leaves worktree removal to the user (Claude's call).
 
 ## Out of scope

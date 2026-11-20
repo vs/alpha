@@ -80,3 +80,8 @@ Review Focus (what the text tests can't see, for the review to check):
   4. Commit (a `feat` if the render change is judged behavior; the commit skill decides).
 
 This repo's own `.claude/` copies and rendered CLAUDE.md lines follow in the release PR's `alpha update`, as earlier changes did.
+
+## As built
+
+- Task 3 also added `test_principles_the_full_track_names_exist_in_the_kit`, the Global constraint's check for the new skills; `tests/unit/test_skills.py` keeps the model-invocable, CLI-free skills in one `TASK_SKILLS` list.
+- Task 5: the rendered `/alpha:do` line lives in CONTRIBUTING.md, so the test is `test_R8_3_the_docs_name_both_tracks` and checks CONTRIBUTING.md and CLAUDE.md; R8.3's row names it. This repo's own rendered lines (CLAUDE.md's Docs line, CONTRIBUTING.md's workflow) and `.claude/skills/decision/` follow in the release's `alpha update`; `alpha update . --dry-run` shows those three changes.
