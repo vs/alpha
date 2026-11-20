@@ -68,6 +68,11 @@ class Project:
             text=True,
         )
 
+    def set_not_code(self, *folders: str) -> None:
+        data = self.principles()
+        data["not_code"] = list(folders)
+        self.write_principles(data)
+
     def drop_principle(self, principle: str, component: str | None = None) -> None:
         data = self.principles()
         found = [p for p in data["principles"] if p["id"] == principle]

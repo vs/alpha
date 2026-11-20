@@ -1249,3 +1249,36 @@ def test_R9_1_stop_never_asks_for_a_review(project: Project) -> None:
     proc = run(project)
     assert proc.returncode == 0, proc.stderr
     assert "principles-reviewer" not in proc.stdout + proc.stderr
+
+
+def test_R17_1_not_code_needs_no_tests_or_docs(project: Project) -> None:
+    project.set_not_code("api/examples", "docs/research/*/experiments")
+    project.set_commands("api", typecheck=FAIL, structure=FAIL)
+    map_docs(project, {"api/**": ["docs/guide/**"], "docs/research/**": ["x.md"]})
+    project.write("api/examples/app.py", "x = 1\n")
+    project.write("docs/research/r1/experiments/run.py", "x = 1\n")
+    proc = run(project)
+    assert proc.returncode == 0 and proc.stdout == "", proc.stdout
+    project.write("api/src/app.py", "x = 1\n")
+    text = reason(run(project))
+    assert "api: source changed (api/src/app.py) but no tests" in text
+    assert "api/src/app.py changed but docs/guide/** did not." in text
+    assert "api: typecheck failed" in text
+    assert "examples" not in text and "experiments" not in text
+
+
+def test_R17_1_secrets_are_found_in_not_code(project: Project) -> None:
+    project.set_not_code("api/examples")
+    commit_all(project)
+    project.write("api/examples/settings.py", f"KEY = '{AWS_KEY}'\n")
+    assert "api/examples/settings.py:1" in reason(run(project))
+
+
+def test_R17_1_not_code_runs_no_test_suite(project: Project) -> None:
+    project.set_not_code("api/examples")
+    project.set_commands("api", test=FAIL)
+    commit_all(project)
+    project.write("api/examples/app.py", "x\n")
+    proc = project.run_tests()
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "tests passed: no component changed\n"

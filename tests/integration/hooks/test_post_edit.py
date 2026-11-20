@@ -168,3 +168,17 @@ def test_post_edit_records_subagent_files(project: Project) -> None:
 def test_main_session_edits_are_not_recorded(project: Project) -> None:
     run(project, "api/src/x.py")
     assert not list((project.root / ".claude/alpha/state").glob("agent-*"))
+
+
+def test_R17_1_a_not_code_file_is_left_alone(project: Project) -> None:
+    project.set_not_code("api/examples")
+    project.set_commands(
+        "api",
+        format_file=marker_cmd("fmt.marker") + " {file}",
+        lint_file=LINT_FAIL,
+    )
+    proc = run(project, "api/examples/app.py")
+    assert proc.returncode == 0 and proc.stderr == ""
+    assert not (project.root / "api" / "fmt.marker").exists()
+    assert run(project, "api/src/app.py").returncode == 2
+    assert (project.root / "api" / "fmt.marker").read_text() == "src/app.py|"
