@@ -1,6 +1,6 @@
 {
   "name": "alpha",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "A development process for new and existing projects: principles, docs, hooks, CI and checks that agents follow",
   "author": {"name": "Semyon Vadishev"}
 }
