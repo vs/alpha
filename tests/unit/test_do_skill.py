@@ -63,31 +63,22 @@ def test_principles_the_skill_names_exist_in_the_kit():
     assert named <= _kit_principle_ids(), named - _kit_principle_ids()
 
 
-def test_R8_1_a_feature_gets_research_spec_and_plan():
-    text = _playbook("feature.md")
-    steps = re.findall(r"^(\d+)\. (.*)$", text, re.M)
-
-    def step(start: str) -> int:
-        return next(int(n) for n, s in steps if s.startswith(start))
-
-    folder = "docs/alpha/features/<YYYY-MM-DD>-<feature-slug>/research.md"
-    deep = next(s for _, s in steps if s.startswith("Deep research."))
-    assert "subagents" in deep and folder in deep and "sources" in deep
-    brainstorm = next(s for _, s in steps if s.startswith("Brainstorm"))
-    assert "one question at a time" in brainstorm
-    assert "two or three approaches with their trade-offs" in brainstorm
-    assert "show the design in sections" in brainstorm
-    writing = next(s for _, s in steps if s.startswith("Write `specification.md`"))
-    assert "`plan.md`" in writing and "the test that proves it" in writing
+def test_R8_1_do_is_the_light_track():
+    for path in [DO / "SKILL.md", *PLAYBOOKS.glob("*.md")]:
+        text = path.read_text()
+        for written in ("`research.md`", "`plan.md`", "Write `specification.md`"):
+            assert written not in text, (path.name, written)
+    assert "`/alpha:brainstorm <task>`" in _router()
+    steps = re.findall(r"^\d+\. (.*)$", _playbook("feature.md"), re.M)
     order = [
-        "Research the code",
-        "Deep research",
-        "Brainstorm",
-        "Write `specification.md`",
+        "Research the code.",
+        "State the design in chat",
+        "Write the tests",
+        "Write the smallest code",
+        "Finish with Done",
     ]
-    order += ["Get the user's approval", "Build the tasks"]
-    assert [step(s) for s in order] == sorted(step(s) for s in order)
-    assert "Nothing but the feature folder is written until they approve" in text
+    found = [next(i for i, s in enumerate(steps) if s.startswith(x)) for x in order]
+    assert found == sorted(found)
 
 
 def test_R8_2_do_runs_no_whole_branch_review():
@@ -106,16 +97,10 @@ def test_open_product_areas_are_named_not_settled():
     assert not (PLAYBOOKS / "specify.md").exists()
     feature = _playbook("feature.md")
     areas = next(
-        line for line in feature.splitlines() if line.startswith("3. Find the product")
+        line for line in feature.splitlines() if line.startswith("2. Find the product")
     )
     assert "`/alpha:update <area>` request; don't settle it here" in areas
     assert "Only `/alpha:update` settles one" in _router()
-
-
-def test_a_feature_offers_native_and_subagent_builds():
-    text = _playbook("feature.md")
-    assert "**Native**" in text and "**Subagents**" in text
-    assert "with your recommendation" in text
 
 
 def test_tests_fail_first_but_are_committed_with_their_code():
@@ -123,15 +108,6 @@ def test_tests_fail_first_but_are_committed_with_their_code():
         text = _playbook(name)
         assert "must fail" in text, name
         assert "`clean-history`" in text, name
-
-
-def test_the_spec_template_traces_each_check_to_a_test():
-    template = _playbook("feature.md").split("```markdown")[1].split("```")[0]
-    assert "| ID | Requirement | Acceptance check | Test |" in template
-    for heading in ("## Why", "## Requirements", "## Design", "## Decisions"):
-        assert heading in template
-    assert "Serves: R<n> in docs/alpha/specification.md" in template
-    assert "Research: research.md · Plan: plan.md" in template
 
 
 def test_worktrees_prefer_the_harness_tool_and_an_ignored_folder():
@@ -146,3 +122,7 @@ def test_pause_and_pickup_share_the_resume_note():
     assert note in _playbook("pause.md")
     assert note in _playbook("session-pickup.md")
     assert "git worktree list" in _playbook("session-pickup.md")
+    ledger = ".claude/alpha/notes/<slug>/progress.md"
+    assert ledger in _playbook("pause.md")
+    pickup = _playbook("session-pickup.md")
+    assert ledger in pickup and "`/alpha:execute`" in pickup

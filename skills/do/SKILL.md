@@ -1,6 +1,6 @@
 ---
 name: do
-description: Do a task in a project alpha installed, by a playbook that keeps the project's principles, docs and checks - investigation, feature (research, deep research, brainstorming, a spec and a plan in its own folder, approval, tests first, code), bug fix, refactoring, perf, prototype, session pickup, pause. Use for /alpha:do [task], or when the user asks for rigorous work on a feature, bug, refactor, slowness or question in such a project.
+description: Do a task in a project alpha installed on the light track, straight into the work with no spec files, by a playbook that keeps the project's principles, docs and checks - investigation, feature (research the code, a short design in chat, tests first, code), bug fix, refactoring, perf, prototype, session pickup, pause. Use for /alpha:do [task], or when the user asks for rigorous work on a feature, bug, refactor, slowness or question in such a project; the full track with a spec and a plan is /alpha:brainstorm.
 ---
 
 <!--
@@ -33,6 +33,8 @@ SOFTWARE.
 
 Do one task in a project alpha installed, step by step, by the playbook that fits it. The playbooks say how to work; the project says what is right. Its principles, docs and checks win over anything written here.
 
+This is the light track: no research, spec or plan file, straight into the work. The full track, research and a design spec and a plan the user approves, then the build, starts with `/alpha:brainstorm <task>` and goes on with `/alpha:plan` and `/alpha:execute`. The command the user types picks the track; when they ask `/alpha:do` for a brainstorm, a spec or a plan, point them to `/alpha:brainstorm <task>`.
+
 Task: `$ARGUMENTS`
 
 ## 1. Check the project
@@ -55,12 +57,12 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 | Playbook | File | For |
 |---|---|---|
 | Investigation | `investigation.md` | A read-only question: how does X work, why is Y built this way, are we sure, X or Y. |
-| Feature | `feature.md` | New or changed behavior: research, deep research, brainstorming, a spec and a plan in its own folder, approval, tests first, code. |
+| Feature | `feature.md` | New or changed behavior: research the code, a short design in chat, tests first, code. |
 | Bug fix | `bug-fix.md` | A defect to reproduce, trace to its root cause and fix with a test that fails without the fix. |
 | Refactoring | `refactoring.md` | A change to structure that keeps behavior: rename, extract, inline, merge, move. |
 | Perf | `perf.md` | A measured slowness, or a push on one metric, against a baseline. |
 | Prototype | `prototype.md` | A throwaway sketch to settle a design question by looking at it instead of asking. |
-| Session pickup | `session-pickup.md` | Resuming work an earlier session left: a branch, a resume note, a spec. |
+| Session pickup | `session-pickup.md` | Resuming work an earlier session left: a branch, a resume note, a full-track ledger or spec. |
 | Pause | `pause.md` | Stopping work cleanly so a later session can resume it. |
 
 - Open a todo list whose first items are the playbook's steps, copied in as written, before any task-specific items. A step you skip stays in the list as `skip: <reason>`.
@@ -90,6 +92,6 @@ Match the task to one playbook and read its file in this skill's `playbooks/` fo
 1. The checks of every component you changed pass (the commands in CLAUDE.md, or `mise run check`), and the tests your change touches run green. A source change that needs no test gets its reason recorded with `python3 .claude/alpha/hooks/untested.py "<why>" <path>…` (`tests-first-class`); the reviewer checks each reason.
 2. The docs that move with the changed paths (the table in CONTRIBUTING.md) are updated in the same change; a mapped path that needs no doc change gets `untested.py --docs "<why>" <path>…`. A new dependency gets its reason in the dependency log, the file `dependency_log` in `docs/alpha/principles.toml` names (`dependency-reasons`).
 3. Commit by following the commit skill (`.claude/skills/commit/SKILL.md`; it runs only when the user types it, so read the file), one logical change per commit, each passing the checks on its own.
-4. Don't run the principles reviewer or review the whole branch yourself: the principles review runs once, when the work reaches main, as the merge guard asks, and its findings are fixed or accepted there.
+4. Don't run the principles reviewer or review the whole branch yourself: the principles review runs once, when the work reaches main, as the merge guard asks, and its findings are fixed or accepted there. On the full track, `/alpha:execute` runs it at the end.
 
 **Reply.** Follow CLAUDE.md's communication rules and the playbook's reply line. Name each principle that changed a choice, and the choice. When the work is committed, say what is still ahead before it reaches main: the push or pull request, the full test suites (`python3 .claude/alpha/hooks/stop_checks.py tests`) and the principles review. End with what you skipped or couldn't check, and any risk the user must know.
