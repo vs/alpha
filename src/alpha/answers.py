@@ -190,6 +190,7 @@ class Component:
     kind: str
     stack: str
     traits: Traits
+    run: str | None = None
 
     @property
     def has_ui(self) -> bool:
@@ -552,7 +553,22 @@ def _component(raw: object, i: int, stacks: set[str], drafted: set[str]) -> Comp
     tw = f"{where}.traits"
     t = obj(get(d, "traits", where), tw)
     traits = Traits(**{k: boolean(t, k, tw) for k in _TRAITS})
-    return Component(name, path, choice(d, "kind", where, sorted(KINDS)), stack, traits)
+    kind = choice(d, "kind", where, sorted(KINDS))
+    return Component(name, path, kind, stack, traits, _run(d, where))
+
+
+def _run(d: Mapping[str, Any], where: str) -> str | None:
+    if "run" not in d:
+        return None
+    run: object = d["run"]
+    if not isinstance(run, str) or not run.strip() or "\n" in run or "\r" in run:
+        raise fail(
+            f"{where}.run",
+            "must be one line of shell, the command that starts the component",
+            'Write it on one line, e.g. "cargo run -p mentalc -- build", or '
+            'leave "run" out until the component has an entry point',
+        )
+    return run
 
 
 def _components(raw: object, layout: str, book: RecipeBook) -> tuple[Component, ...]:

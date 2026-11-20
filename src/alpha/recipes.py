@@ -84,7 +84,8 @@ class RecipeError(AnswersError):
     pass
 
 
-COMMAND_KEYS = (*CHECK_STEPS, "format", "format_file", "lint_file")
+COMMAND_KEYS = (*CHECK_STEPS, "format", "format_file", "lint_file", "run")
+_OPTIONAL_COMMANDS = OPTIONAL_STEPS | {"run"}
 _RECIPE_KEYS = frozenset(
     {
         "stack",
@@ -455,7 +456,7 @@ def recipe_from_data(
     commands: dict[str, str] = {}
     for key in COMMAND_KEYS:
         here = f"{where}.commands.{key}"
-        if key not in commands_in and key in OPTIONAL_STEPS:
+        if key not in commands_in and key in _OPTIONAL_COMMANDS:
             commands[key] = ""
             continue
         if key not in commands_in:

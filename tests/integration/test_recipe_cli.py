@@ -181,7 +181,11 @@ def test_save_writes_the_recipe_to_your_folder(
     saved = RecipeBook().get("shell")
     assert saved.proven is False
     assert saved.templates == shell_recipe()["templates"]
-    assert saved.commands == {**shell_recipe()["commands"], "structure": ""}
+    assert saved.commands == {
+        **shell_recipe()["commands"],
+        "structure": "",
+        "run": "",
+    }
     assert not (src.path / "recipes").exists()
 
 

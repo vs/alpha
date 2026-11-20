@@ -28,6 +28,16 @@ def test_adopted_needs_its_own_name():
         load(adopted(), name="python")
 
 
+def test_R17_2_a_recipe_may_name_one_run_command():
+    assert load(shell_recipe(), "sh").commands["run"] == ""
+    raw = copy.deepcopy(shell_recipe())
+    raw["commands"]["run"] = "sh bin/serve.sh"
+    assert load(raw, "sh").commands["run"] == "sh bin/serve.sh"
+    raw["commands"]["run"] = "sh a.sh\nsh b.sh"
+    with pytest.raises(AnswersError, match=r"commands\.run"):
+        load(raw, "sh")
+
+
 def test_adopted_may_have_no_templates():
     raw = shell_recipe()
     raw["templates"] = {}

@@ -215,6 +215,24 @@ def workflow(contributing: str) -> str:
     return contributing.split("## Working with alpha\n")[1].split("\n## ")[0]
 
 
+def test_R17_2_the_docs_show_the_run_command_or_the_placeholder(tmp_path: Path):
+    def api_runs(data: dict[str, Any]) -> None:
+        data["components"][0]["run"] = "uv run api serve"
+
+    out = render(load(tmp_path, api_runs))
+    claude = out["CLAUDE.md"]
+    api = claude.split("### api (")[1].split("\n### ")[0]
+    web = claude.split("### web (")[1].split("\n## ")[0]
+    assert "| run | `uv run api serve` |" in api
+    assert "add when the entry point exists" not in api
+    assert "| run | add when the entry point exists |" in web
+    readme = out["README.md"]
+    api_block = readme.split("### api (")[1].split("```\n\n")[0]
+    web_block = readme.split("### web (")[1].split("```\n\n")[0]
+    assert api_block.rstrip().endswith("uv run api serve")
+    assert "# run: add the command once the entry point exists" in web_block
+
+
 def test_R8_3_the_docs_name_both_tracks(tmp_path: Path):
     out = render(load(tmp_path))
     section = workflow(out["CONTRIBUTING.md"])

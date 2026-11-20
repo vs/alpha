@@ -38,7 +38,7 @@ Each `update <target> --dry-run` in this skill lists the changes, prints that th
 |---|---|
 | Empty | Sync: go to step 5. |
 | A product area: requirements (target users, requirements with acceptance checks, domain jargon), architecture (with the glossary), errors, design language, UI, accessibility, observability, data, performance, auth; e.g. "let's specify performance" | Settle it: step 3. |
-| A component or an install answer: add, remove, rename or move a component, or an answer of identity, components, testing, documentation, build, security, dependencies, releases, git or agent workflow; e.g. "add a worker component", "test exhaustively" | Change it: step 4. |
+| A component or an install answer: add, remove, rename or move a component, or an answer of identity, components, testing, documentation, build, security, dependencies, releases, git or agent workflow; e.g. "add a worker component", "set mentalc's run command to `cargo run -p mentalc -- build`", "test exhaustively" | Change it: step 4. |
 | Several of these | Each job in turn, in the order given; then steps 5 to 9 once. |
 | Unclear | Ask one question: which area it belongs to, recommending one. Then route the answer. |
 

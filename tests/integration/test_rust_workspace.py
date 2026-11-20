@@ -74,6 +74,27 @@ def test_rust_components_of_a_monorepo_form_one_workspace(tmp_path: Path):
     assert 'include_str!("../Cargo.toml")' in setup  # its own [lints]
 
 
+def test_R17_2_a_workspace_member_runs_by_its_answer_and_keeps_its_workspace(
+    tmp_path: Path,
+):
+    answers = place_rust_monorepo(tmp_path)
+    data = json.loads(answers.read_text())
+    run = "cargo run -p tidy-cli -- build"
+    data["components"][0]["run"] = run
+    answers.write_text(json.dumps(data))
+    install(tmp_path)
+    components = by_name(load_project_principles(tmp_path))
+    assert components["cli"]["commands"]["run"] == run
+    assert components["core"]["commands"]["run"] == ""
+    assert components["cli"]["workspace"] == sorted(ROOT_FILES)
+    root = tomllib.loads((tmp_path / "Cargo.toml").read_text())
+    assert root["workspace"]["members"] == ["cli", "core"]
+    assert f"| run | `{run}` |" in (tmp_path / "CLAUDE.md").read_text()
+    assert run in (tmp_path / "README.md").read_text()
+    for never in (".github/workflows/ci.yml", "mise.toml"):
+        assert "cargo run" not in (tmp_path / never).read_text(), never
+
+
 def generate_files(target: Path) -> set[str]:
     place_rust_monorepo(target)
     return set(install(target))

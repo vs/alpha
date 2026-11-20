@@ -591,6 +591,17 @@ def test_R17_1_components_guide_asks_for_not_code() -> None:
     assert "`not_code`" in _text("install/adopt.md")
 
 
+def test_R17_2_components_guide_asks_for_the_run_command() -> None:
+    guide = _text("install/areas/components.md")
+    assert "`components[].run`" in guide
+    question = next(
+        line for line in guide.splitlines() if line.startswith("- **Run command**")
+    )
+    assert "entry point" in question and "`cargo run -p <name>`" in question
+    assert "CI never runs it" in question
+    assert "set mentalc's run command to" in _text("update/SKILL.md")
+
+
 def test_agent_workflow_says_the_reviewer_runs_before_main() -> None:
     purpose = _section("install/areas/agent_workflow.md", "Purpose")
     assert "principles-reviewer" in purpose and "before work reaches main" in purpose

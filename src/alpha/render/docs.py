@@ -231,7 +231,10 @@ def _command_table(c: Component, comp: dict[str, Any]) -> list[str]:
         for s in _STEPS
         if commands.get(s) or s not in OPTIONAL_STEPS
     ]
-    rows.append("| run | add when the entry point exists |")
+    run = commands["run"]
+    rows.append(
+        row("run", f"`{run}`") if run else "| run | add when the entry point exists |"
+    )
     return rows
 
 
@@ -349,7 +352,7 @@ def _readme(a: Answers, principles: dict[str, Any]) -> str:
     ]
     for comp in principles["components"]:
         cmds = comp["commands"]
-        run = cmds.get("run") or "# run: add the command once the entry point exists"
+        run = cmds["run"] or "# run: add the command once the entry point exists"
         lines += [
             f"### {comp['name']} (`{comp['path']}/`)",
             "",

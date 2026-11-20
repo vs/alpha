@@ -212,6 +212,20 @@ def test_bad_component_path(tmp_path: Path, path: str):
         check(tmp_path, d)
 
 
+def test_R17_2_a_component_s_run_command_is_one_line(tmp_path: Path):
+    d = valid()
+    assert check(tmp_path, d).components[0].run is None
+    d["components"][0]["run"] = "uv run api serve"
+    assert check(tmp_path, d).components[0].run == "uv run api serve"
+    for bad in ("", "  ", "uv sync\nuv run api", 3):
+        d["components"][0]["run"] = bad
+        with pytest.raises(AnswersError) as e:
+            check(tmp_path, d)
+        message = str(e.value)
+        assert "components[0].run" in message
+        assert "one line" in message and 'leave "run" out' in message
+
+
 def test_nested_paths(tmp_path: Path):
     d = valid()
     d["components"][1]["path"] = "api/web"
