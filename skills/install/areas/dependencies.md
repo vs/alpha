@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Two dependency rules are always on and need no answers: every new dependency gets a row in `docs/alpha/dependencies.md` with the reason (the Stop hook blocks a lockfile change without one), and lockfiles pin every version (only the package manager changes them; Claude can't edit them by hand). This area decides how upgrades happen, so pinned versions don't quietly rot.
+Two dependency rules are always on and need no answers: every new dependency gets a row in `docs/alpha/dependencies.md` with the reason (the Stop hook blocks a lockfile change that adds a direct dependency without one; upgrades need none), and lockfiles pin every version (only the package manager changes them; Claude can't edit them by hand). This area decides how upgrades happen, so pinned versions don't quietly rot.
 
 ## Fields this area settles
 

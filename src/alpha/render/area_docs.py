@@ -222,9 +222,10 @@ def dependency_policy(a: Answers) -> list[str]:
         "## Policy",
         "",
         "- Adding: every new dependency gets a row in the log below, with the "
-        "reason. The Stop hook blocks a lockfile change without one; a release "
-        "that only bumps the project's own version in uv.lock or Cargo.lock "
-        "needs none.",
+        "reason. The Stop hook blocks a lockfile change that adds a direct "
+        "dependency without one (it reads uv.lock and Cargo.lock; in any other "
+        "lockfile every change counts); upgrades, removals and the packages they "
+        "pull in need none.",
         "- Pinning: lockfiles pin every version. Only the package manager changes "
         "them; Claude can't edit them by hand.",
         f"- Upgrading: {upgrading}",
