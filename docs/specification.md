@@ -9,6 +9,7 @@ What alpha does, for whoever changes it. alpha is a Claude Code plugin with a Py
 | `install` | skill | Puts alpha into a folder: a new project in an empty folder, an adoption in an existing repo, or the hooks back on where they were switched off. In an adopted repo with plan steps left, it carries out the next one. |
 | `update` | skill and CLI | With no request, brings alpha's files in line with the answers and the installed kit; with one, first changes a component or an install area's answer, or settles the product areas it names. The CLI merges, the skill resolves conflicts. |
 | `do` | skill | Works a task by a playbook; a feature goes through research, brainstorming, a spec and a plan. |
+| `brainstorm` | skill | Starts the full track of a feature, bug fix, refactoring or perf task: research, a brainstorm with the user and a design spec the user approves, then hands off to `plan`. |
 | `uninstall` | skill and CLI | Removes alpha's hooks; deletes no file, commits nothing. |
 | `purge` | skill and CLI | Uninstalls, deletes alpha's files, and commits the removal as one commit. |
 
@@ -43,6 +44,7 @@ A test that proves an acceptance check names its ID. Checks on a skill's text te
 | R7.2 | Only `install` and `update` work on the product layer, and only when the user picks or asks for an area. | Given the kit's skills, then `skills/install/areas/` holds every area guide, no skill but `install` and `update` names one, each product guide says only `/alpha:install` and `/alpha:update` settle it, and `do` points to `/alpha:update <area>` instead of settling one. | `tests/unit/test_skills.py::test_R7_2_only_install_and_update_settle_product_areas` (unit) |
 | R8.1 | `do` works a task by a playbook; a feature goes through research, brainstorming, a spec and a plan in its own folder. | Given the do skill, then its feature playbook runs deep research into how other projects build the feature, brainstorms with the user one question at a time with two or three approaches, and writes `research.md`, `specification.md` and `plan.md` into `docs/alpha/features/<date>-<feature>/`, the spec naming a test per acceptance check and approved before code. | `tests/unit/test_do_skill.py::test_R8_1_a_feature_gets_research_spec_and_plan` (unit) |
 | R8.2 | `do` runs no whole-branch review. | Given the do skill and its playbooks, then none asks for a review of the whole branch; the principles review happens at merge. | `tests/unit/test_do_skill.py::test_R8_2_do_runs_no_whole_branch_review` (unit) |
+| R8.3 | `brainstorm` researches, brainstorms with the user and gets a written design approved before anything is built, in a folder named by the task's playbook. | Given the brainstorm skill, then in order it researches the code and runs the playbook's research steps (a bug's repro and root cause, perf's measurement and baseline, a refactoring's pin), dispatches deep-research subagents into `research.md`, asks what the user wants before how one question at a time, lays out the approaches in a message of their own, plays the design back in sections, writes `specification.md` (a test per acceptance check), runs a builder-check subagent, gets the approval and hands off to `plan`; it writes into `docs/alpha/features/`, `bug-fixes/`, `refactorings/` or `perf/` by playbook and sends an investigation, prototype, pause or session pickup to `do`. | `tests/unit/test_full_track.py::test_R8_3_brainstorm_designs_before_anything_is_built` (unit); `tests/unit/test_full_track.py::test_R8_3_the_folder_is_named_by_the_playbook` (unit) |
 | R9.1 | The principles review never runs at Stop or after a task. | Given a project with 2,000 unreviewed lines on a branch, when the Stop hook runs, then it doesn't ask for a review. | `tests/integration/hooks/test_stop_checks.py::test_R9_1_stop_never_asks_for_a_review` (integration) |
 | R9.2 | Nothing reaches main before its tree is reviewed with no open findings. | Given a branch whose files to review (Review section) aren't empty and whose HEAD tree has no note, when Claude runs `git push origin main` or `gh pr merge`, then the command guard blocks it and says to run the principles-reviewer; given a clean note on HEAD's tree and a recorded test pass, it passes; given nothing to review (a fresh install's first push), it passes; given uncommitted changes to tracked files, the brief and the gate refuse; given a PR whose head on GitHub isn't the local HEAD, `gh pr merge` is blocked until it is pushed; given `gh` that can't report the PR's head (offline, signed out, timed out), it is blocked too. | `tests/integration/hooks/test_review.py::test_R9_2_merge_waits_for_a_review_of_the_head_tree` (integration); `tests/integration/hooks/test_worktrees.py::test_R9_2_a_pr_head_that_differs_from_local_head_blocks_the_merge` (integration) |
 | R9.3 | A review never loops: after a review with findings, a fix check judges those findings and reviews only files no finding names that changed since. | Given a reviewed tree whose note holds open findings F-1 (in `a.py`) and F-2, when commits fix F-1, accept F-2 with an `Accepts:` trailer and add `c.py`, then the next brief is a fix check listing F-1 and F-2 and reviewing `c.py` only; its record may add findings on `c.py` and none on `a.py`; once F-1 and F-2 are resolved and `c.py` has none, the merge passes. | `tests/integration/hooks/test_review.py::test_R9_3_a_fix_check_reviews_only_whats_new` (integration) |
@@ -90,6 +92,7 @@ docs/alpha/
   design-language.md      once the design language is settled
   adoption.md             an adopted repo's compliance plan
   features/<date>-<feature>/  research.md, specification.md, plan.md
+  bug-fixes/, refactorings/, perf/  the same, for a full-track task
 .claude/
   settings.json           permissions and alpha's hook entries
   agents/                 principles-reviewer.md, committer.md
@@ -170,7 +173,7 @@ The area guides, install and product areas alike, are files under `skills/instal
 
 In an adopted repo with baselines, the checks that ran through the ratchet run plain afterwards, so they report the legacy findings again; purge names those checks in its output. The build and the tests pass.
 
-### update, do
+### update, do and the full track
 
 - **update** routes its request (R11.4). None: sync. A component or an install answer: re-ask only what the change affects, `answers write`, `alpha update --dry-run` until it lists the changes. A product area, one or several: research what the code and docs already imply and the kit default, lay out two or three options, settle the questions with `grilling`, save with `answers write`, mark the area `done`. Then, once for every job, with changes an earlier run left unapplied: `alpha update --dry-run` (every refusal it prints read one way), for a settled area verify its sections and principles in the preview, confirm (a no revises the answers or puts the earlier ones back), `alpha update`, merge proposals, `alpha bootstrap --component` for a new or moved component, `alpha commit`.
 - **do** works a task by a playbook adapted from pstack (investigation, feature, bug fix, refactoring, perf, prototype, session pickup, pause). The feature playbook:
@@ -182,6 +185,7 @@ In an adopted repo with baselines, the checks that ran through the ratchet run p
   6. Build tests first, verify, finish with the definition of done.
   An open product area the feature needs is named to the user with `/alpha:update <area>`; the feature's own choices stay in its spec. `do` asks for no whole-branch review and no principles review. In subagent mode, a reviewer subagent checks each task against the spec before the next starts, as the pstack playbook does and as the user picks that mode; the principles review runs at merge.
   Every playbook says when the hooks are off (`alpha status` prints `hooks-off`), skips a step whose principle the project dropped, commits on the branch CONTRIBUTING.md's Branching names, and ends with the definition of done: an `untested` note for a change that needs no test or doc, a dependency-log entry for a new dependency, and a reply that names what is still ahead before main (the push or pull request, the full suites, the principles review).
+- **brainstorm** starts the full track (`brainstorm`, `plan`, `execute`, adapted from superpowers) for a feature, bug fix, refactoring or perf task; an investigation, prototype, pause or session pickup goes to `do`. It runs `do`'s project check and keeps its rules, reads the task's playbook for what research means (a bug's repro and root cause, perf's measurement and baseline, a refactoring's pin, a feature's open areas and data shape), dispatches deep research into `research.md`, brainstorms what before how one question at a time, lays out two or three approaches in a message of their own, plays the design back in sections, writes `specification.md`, has a fresh subagent ask what a builder would still have to guess, gets the user's approval, commits the folder as a `docs` commit and hands off to `plan`. Nothing but the folder is written before the approval.
 
 ### Review
 
@@ -249,8 +253,8 @@ project-files/hooks/     _common.py, guard_bash.py, guard_paths.py, post_edit.py
                          commit_msg.py
 project-files/checks/    secret_scan.py, diff_checks.py, ratchet.py,
                          review_dates.py, palette.py
-skills/                  install, update, do, uninstall, purge, grilling,
-                         stack-recipe
+skills/                  install, update, do, brainstorm, uninstall, purge,
+                         grilling, stack-recipe
 ```
 
 ### How information is stored
