@@ -35,7 +35,7 @@ A project can hold files in a component's language that aren't its code: mental,
 - `guard_paths.py`: skips the weaken check for a not-code file; every other guard (protected paths, `.claude/alpha/`, the settings wiring) is unchanged.
 - `review.py`: `brief` and `gate` split `files_to_review` into reviewable and not-code files. Not-code files leave the changed files, the diff and the principle choice; the brief lists them under `## Not code (not reviewed)`. A branch with only not-code changes needs no review.
 
-**Survey.** `adopt.survey` reads `not_code` from the project's `project.json` when the interview has saved one (`read_project_json`), and drops tracked files under those folders before detecting components. A survey before the answer exists lists everything, as today.
+**Survey.** `adopt.survey` reads `not_code` from the project's `project.json` when the interview has saved one (`read_project_json`), and drops tracked files under those folders before anything else, so neither the candidates nor the listed files hold them. A survey before the answer exists lists everything, as today.
 
 **Docs.** CLAUDE.md's Commands section, after the component tables, and CONTRIBUTING.md's Components section get one line when `not_code` is set: "Not code: `examples/report-jobs/`, …: examples, fixtures and reference data. No format, lint, test or docs rule and no principles review applies there; the secrets scan and the repository's text checks (spelling, Markdown, links) still do." The components area guide asks for the list. `docs/specification.md` gets R17.1, the field in the Answers section, and the not-code behavior in Hooks and checks and Review.
 
