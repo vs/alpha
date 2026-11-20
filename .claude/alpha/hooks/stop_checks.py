@@ -22,8 +22,7 @@ MAX_BLOCKS = 3
 MAX_SCAN_BYTES = 1_000_000
 SNIFF_BYTES = 8192
 DEPENDENCY_LOG = "docs/alpha/dependencies.md"
-# Lockfiles that also hold the project's own version, which a release bumps.
-SELF_VERSIONED = ("uv.lock", "Cargo.lock")
+PARSED_LOCKFILES = ("uv.lock", "Cargo.lock")
 HASH_CONTENT_BYTES = 1_000_000
 BASELINE_DIR = _common.BASELINE_DIR
 SECRET_PATTERNS = [
@@ -635,39 +634,67 @@ def _own(package: dict[str, Any]) -> bool:
     return bool({"virtual", "editable"} & set(cast("dict[str, Any]", source)))
 
 
-def _unversioned(package: object) -> object:
-    if not isinstance(package, dict):
-        return package
-    entry = cast("dict[str, Any]", package)
-    return {k: v for k, v in entry.items() if k != "version"} if _own(entry) else entry
+def _names(entries: object) -> set[str]:
+    """The names in a dependency list: uv.lock lists tables
+    (`{ name = "httpx" }`), Cargo.lock strings (`"serde 1.0.1"`)."""
+    if not isinstance(entries, list):
+        return set()
+    names: set[str] = set()
+    for entry in cast("list[object]", entries):
+        name: object = None
+        if isinstance(entry, dict):
+            name = cast("dict[str, Any]", entry).get("name")
+        elif isinstance(entry, str):
+            name = entry.split(" ")[0]
+        if isinstance(name, str):
+            names.add(name)
+    return names
 
 
-def _pinned(text: str) -> object:
-    """The lockfile with the project's own versions left out, or the text
-    itself when it doesn't parse."""
+def _direct_dependencies(text: str) -> set[str] | None:
+    """What the project's own packages depend on directly, dev and optional
+    groups included, or None when the lockfile doesn't parse."""
     import tomllib  # noqa: PLC0415 - absent on 3.9; check_python() has exited by then
 
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
-        return text
+        return None
     packages: object = data.get("package")
-    if isinstance(packages, list):
-        data["package"] = [_unversioned(p) for p in cast("list[object]", packages)]
-    return data
+    if not isinstance(packages, list):
+        return set()
+    own = [
+        cast("dict[str, Any]", p)
+        for p in cast("list[object]", packages)
+        if isinstance(p, dict) and _own(cast("dict[str, Any]", p))
+    ]
+    names: set[str] = set()
+    for package in own:
+        names |= _names(package.get("dependencies"))
+        for table in ("optional-dependencies", "dev-dependencies"):
+            groups: object = package.get(table)
+            if isinstance(groups, dict):
+                for entries in cast("dict[str, object]", groups).values():
+                    names |= _names(entries)
+    return names - {package.get("name") for package in own}
 
 
-def dependencies_changed(root: Path, ref: str | None, rel: str) -> bool:
-    """Whether a lockfile change touches a dependency: bumping the project's
-    own version in uv.lock or Cargo.lock doesn't."""
-    if ref is None or Path(rel).name not in SELF_VERSIONED:
+def dependencies_added(root: Path, ref: str | None, rel: str) -> bool:
+    """Whether a lockfile change gives the project a new direct dependency:
+    a version move, a removal or a new transitive package doesn't. A
+    lockfile the hook can't read counts every change."""
+    if ref is None or Path(rel).name not in PARSED_LOCKFILES:
         return True
     before = git_lines(root, "show", f"{ref}:{rel}")
     try:
         now = (root / rel).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return True
-    return before is None or _pinned("\n".join(before)) != _pinned(now)
+    if before is None:
+        return True
+    old = _direct_dependencies("\n".join(before))
+    new = _direct_dependencies(now)
+    return old is None or new is None or bool(new - old)
 
 
 def is_behavior(rel: str, principles: dict[str, Any], docs: list[str]) -> bool:
@@ -727,14 +754,14 @@ def find_problems(
             lockfiles = [str(lock) for lock in comp.get("lockfiles", [])]
             for rel in by_comp[str(comp.get("name"))]:
                 problem = (
-                    f"Dependencies changed ({rel}) without an entry in "
+                    f"Dependencies added ({rel}) without an entry in "
                     f"{log}. Record what was added and why."
                 )
                 # A workspace's lockfile is every member's: report it once.
                 if (
                     rel in lockfiles
                     and problem not in problems
-                    and dependencies_changed(root, since, rel)
+                    and dependencies_added(root, since, rel)
                 ):
                     problems.append(problem)
 

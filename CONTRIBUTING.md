@@ -4,7 +4,8 @@
 
 - `/alpha:install` adopted this repo on `alpha/adopt`; run again, it carries out the next step of `docs/alpha/adoption.md` while one is left.
 - `/alpha:update [request]` keeps it current: with no request it brings alpha's files to the installed kit; with one it adds or changes a component or a setup answer, or settles a product area (`/alpha:update performance`).
-- `/alpha:do <task>` works each task by a playbook; a feature goes through research, a spec and a plan the user approves before any code.
+- `/alpha:do <task>` works a task on the light track: by a playbook, straight into the work, with no spec files.
+- `/alpha:brainstorm <task>` starts the full track: research and a design spec the user approves, then `/alpha:plan` writes the plan and `/alpha:execute` builds it and runs the principles review.
 - `/alpha:uninstall` switches alpha's hooks off and `/alpha:install` switches them back on; `/alpha:purge` removes alpha in one commit.
 
 ## One-time setup

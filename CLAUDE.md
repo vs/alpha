@@ -142,7 +142,7 @@ Follow the commit skill (`.claude/skills/commit/SKILL.md`, which the user runs a
 ## Docs
 
 - [Principles](docs/alpha/principles.toml)
-- [Specification](docs/alpha/specification.md): what the product does; `/alpha:update <area>` settles each open part, and each feature gets a folder in `docs/alpha/features/`
+- [Specification](docs/alpha/specification.md): what the product does; `/alpha:update <area>` settles each open part, and each full-track task gets a folder in `docs/alpha/features/`, `docs/alpha/bug-fixes/`, `docs/alpha/refactorings/` or `docs/alpha/perf/`
 - [Contributing](CONTRIBUTING.md): how the project is built, checked, released and kept secure
 - [Dependencies](docs/alpha/dependencies.md)
 - [Adoption plan](docs/alpha/adoption.md): the steps that bring this repo's code up to the principles; `/alpha:install` resumes it
