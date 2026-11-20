@@ -161,7 +161,7 @@ def test_lockfile_without_dependency_log_blocks(project: Project) -> None:
     project.write("api/uv.lock", "version = 1\n")
     text = reason(run(project))
     assert (
-        "Dependencies changed (api/uv.lock) without an entry in "
+        "Dependencies added (api/uv.lock) without an entry in "
         "docs/alpha/dependencies.md." in text
     )
     project.write("docs/alpha/dependencies.md", "- httpx\n")
@@ -194,15 +194,31 @@ version = "{own}"
 source = {{ editable = "." }}
 dependencies = [{deps}]
 
+[package.dev-dependencies]
+dev = [{dev}]
+
 [[package]]
 name = "httpx"
 version = "{httpx}"
 source = {{ registry = "https://pypi.org/simple" }}
+{extra}"""
+
+IDNA = """
+[[package]]
+name = "idna"
+version = "3.10"
+source = { registry = "https://pypi.org/simple" }
 """
 
 
-def uv_lock(own: str = "0.1.0", httpx: str = "0.27.0", deps: str = "") -> str:
-    return UV_LOCK.format(own=own, httpx=httpx, deps=deps)
+def uv_lock(
+    own: str = "0.1.0",
+    httpx: str = "0.27.0",
+    deps: str = "",
+    dev: str = "",
+    extra: str = "",
+) -> str:
+    return UV_LOCK.format(own=own, httpx=httpx, deps=deps, dev=dev, extra=extra)
 
 
 def test_own_version_bump_in_a_lockfile_needs_no_dependency_entry(
@@ -211,23 +227,46 @@ def test_own_version_bump_in_a_lockfile_needs_no_dependency_entry(
     project.write("api/uv.lock", uv_lock())
     commit_all(project)
     project.write("api/uv.lock", uv_lock(own="0.2.0"))
-    assert "Dependencies changed" not in run(project).stdout
+    assert "without an entry in" not in run(project).stdout
 
 
 @pytest.mark.parametrize(
     "changed",
     [
-        {"httpx": "0.28.0"},  # a pin moves
         {"deps": '{ name = "httpx" }'},  # a direct dependency, already pinned
+        {"dev": '{ name = "httpx" }'},  # a dev dependency
     ],
 )
-def test_a_lockfile_change_beyond_the_own_version_needs_an_entry(
+def test_a_new_direct_dependency_needs_an_entry(
     project: Project, changed: dict[str, str]
 ) -> None:
     project.write("api/uv.lock", uv_lock())
     commit_all(project)
     project.write("api/uv.lock", uv_lock(own="0.2.0", **changed))
-    assert "Dependencies changed (api/uv.lock)" in reason(run(project))
+    assert "Dependencies added (api/uv.lock)" in reason(run(project))
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"httpx": "0.28.0"},  # a pin moves, as a Dependabot update does
+        {"extra": IDNA},  # an upgrade pulls in a transitive package
+    ],
+)
+def test_upgrades_need_no_dependency_entry(
+    project: Project, changed: dict[str, str]
+) -> None:
+    project.write("api/uv.lock", uv_lock(deps='{ name = "httpx" }'))
+    commit_all(project)
+    project.write("api/uv.lock", uv_lock(deps='{ name = "httpx" }', **changed))
+    assert "without an entry in" not in run(project).stdout
+
+
+def test_a_removed_dependency_needs_no_entry(project: Project) -> None:
+    project.write("api/uv.lock", uv_lock(deps='{ name = "httpx" }'))
+    commit_all(project)
+    project.write("api/uv.lock", uv_lock())
+    assert "without an entry in" not in run(project).stdout
 
 
 def test_a_dependency_logged_before_the_last_clean_stop_is_not_asked_for_again(
@@ -244,9 +283,10 @@ def test_a_dependency_logged_before_the_last_clean_stop_is_not_asked_for_again(
     proc = run(project)
     assert proc.returncode == 0 and proc.stdout == ""
     project.write("api/uv.lock", uv_lock(own="0.2.0", deps=with_httpx))
-    assert "Dependencies changed" not in run(project).stdout
-    project.write("api/uv.lock", uv_lock(own="0.2.0", httpx="0.28.0", deps=with_httpx))
-    assert "Dependencies changed (api/uv.lock)" in reason(run(project))
+    assert "without an entry in" not in run(project).stdout
+    with_idna = uv_lock(deps=with_httpx, dev='{ name = "idna" }', extra=IDNA)
+    project.write("api/uv.lock", with_idna)
+    assert "Dependencies added (api/uv.lock)" in reason(run(project))
 
 
 def test_own_version_bump_in_cargo_lock_needs_no_dependency_entry(
@@ -261,7 +301,37 @@ def test_own_version_bump_in_cargo_lock_needs_no_dependency_entry(
     project.write_principles(data)
     commit_all(project)
     project.write("api/Cargo.lock", lock.format("0.2.0"))
-    assert "Dependencies changed" not in run(project).stdout
+    assert "without an entry in" not in run(project).stdout
+
+
+CARGO_LOCK = """version = 4
+
+[[package]]
+name = "api"
+version = "0.1.0"
+dependencies = [{deps}]
+
+[[package]]
+name = "serde"
+version = "{serde}"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+"""
+
+
+def test_cargo_lock_needs_an_entry_only_for_a_new_direct_dependency(
+    project: Project,
+) -> None:
+    data = project.principles()
+    next(c for c in data["components"] if c["name"] == "api")["lockfiles"] = [
+        "api/Cargo.lock"
+    ]
+    project.write_principles(data)
+    project.write("api/Cargo.lock", CARGO_LOCK.format(deps="", serde="1.0.0"))
+    commit_all(project)
+    project.write("api/Cargo.lock", CARGO_LOCK.format(deps="", serde="1.0.1"))
+    assert "without an entry in" not in run(project).stdout
+    project.write("api/Cargo.lock", CARGO_LOCK.format(deps='"serde"', serde="1.0.1"))
+    assert "Dependencies added (api/Cargo.lock)" in reason(run(project))
 
 
 def test_manifest_config_change_needs_no_dependency_entry(project: Project) -> None:
@@ -1233,7 +1303,7 @@ def test_workspace_lockfile_needs_one_dependency_entry(project: Project) -> None
     commit_all(project)
     project.write("shared.lock", "version = 1\n")
     text = reason(run(project))
-    problem = "Dependencies changed (shared.lock) without an entry in"
+    problem = "Dependencies added (shared.lock) without an entry in"
     assert text.count(problem) == 1  # once, not once per member
     project.write("docs/alpha/dependencies.md", "- httpx\n")
     proc = run(project)

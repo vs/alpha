@@ -155,6 +155,8 @@ def test_dependency_policy_precedes_the_log(tmp_path: Path):
     policy = section(doc, "Policy")
     assert "Adding:" in policy and "Pinning:" in policy
     assert "Dependabot opens weekly update pull requests" in policy
+    assert "adds a direct dependency without one" in policy
+    assert "upgrades, removals and the packages they pull in need none" in policy
     assert doc.index("## Policy") < doc.index("## Log") < doc.index("| Dependency |")
 
 
