@@ -11,7 +11,7 @@ This project keeps no separate record of decisions: a decision changes the docs 
 
 | The decision | Where it goes | Who agrees |
 |---|---|---|
-| What the product does: a requirement, a user-facing behavior, a product area's answer | `docs/alpha/specification.md`, through the answers when alpha writes that part (`/alpha:update <area>`), else by editing it; a feature's own choices go in its spec in `docs/alpha/features/<date>-<feature>/` | The user, always |
+| What the product does: a requirement, a user-facing behavior, a product area's answer | `docs/alpha/specification.md`, through the answers when alpha writes that part (`/alpha:update <area>`), else by editing it; a full-track task's own choices go in its spec in `docs/alpha/<features|bug-fixes|refactorings|perf>/<date>-<slug>/` | The user, always |
 | How the work is done: a tool, a convention, a process step | `CONTRIBUTING.md`, through the answers when alpha writes that part (`/alpha:update <change>`), else by editing it | Claude, with the reason in the commit message |
 | A principle tightened, loosened or dropped | An override in the answers (below), which alpha lists in CONTRIBUTING.md's Overrides | The user, always |
 | A check skipped or loosened in one place, or a baseline loosened | A row in CONTRIBUTING.md's Exceptions table (below) | The user for a risk path, else Claude with the reason |
