@@ -133,6 +133,7 @@ def test_command_keys_complete():
             "structure",
             "format_file",
             "lint_file",
+            "run",
         }
 
 

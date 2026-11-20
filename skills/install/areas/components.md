@@ -25,6 +25,7 @@ Any stack works. The kit has proven recipes for some (`"${CLAUDE_PLUGIN_ROOT}/bi
 - `components[].traits.persisted_data` - it stores data that must survive restarts.
 - `components[].traits.ml` - it trains or runs machine-learning models.
 - `components[].traits.nontrivial_logic` - it holds real business rules, not just plumbing.
+- `components[].run` - optional: the one-line command that starts the component once it has an entry point, e.g. `cargo run -p mentalc -- build`. Leave it out while there is none; the recipe's run command, if it has one, then fills CLAUDE.md and the README, else they say to add it.
 - `not_code` - optional list of folders relative to the root that hold files which aren't the project's code (examples, fixtures, reference data, research scripts), e.g. `["examples/report-jobs", "docs/research/*/experiments"]`; `*` matches within one folder name. None may hold a component's folder.
 - `areas.components` - `"in_progress"` while you work, `"done"` at the end.
 
@@ -53,6 +54,7 @@ Round 3 (needs the layout):
   - *Stores data* - once the data area is settled, every schema change must be a migration, reversible where possible.
   - *Machine learning* - adds reproducibility rules for seeds, data versions and experiment configs.
   - *Non-trivial logic* - keeps business rules pure, with side effects at the edges, so they're easy to test.
+- **Run command** - for each component with an entry point (a CLI, a server, an app; not a library), ask how it starts, recommending the stack's usual form: `cargo run -p <name>` for a Rust workspace member (`cargo run` for a single crate), `uv run <name>` for a Python script entry point, the `dev` or `start` script for TypeScript. Add the arguments it needs, e.g. `cargo run -p mentalc -- build`. Explain in one line: it goes into CLAUDE.md's and the README's commands, so Claude and people can launch the component; CI never runs it. A component with no entry point yet leaves `run` out without asking again.
 - **Not code** - ask whether the repo holds examples, fixtures, reference data or research scripts that aren't the project's code, such as a sample app with deliberate bugs or golden files the tests compare against. Recommend listing each such folder, and every survey candidate that sits in one instead of making it a component. Explain in one line: alpha's hooks don't format, lint or ask for tests and docs there and the principles review leaves those files out, but the secrets scan and the spelling, Markdown and link checks still read them. A folder inside a component of the same stack also needs that tool's own exclude (e.g. ruff's `extend-exclude`) for CI. With nothing to list, leave `not_code` out without asking again.
 
 When a stack differs from `defaults.stacks[kind]`, follow the grilling skill's override protocol (key `stacks.<kind>`, e.g. `stacks.backend`).
@@ -67,7 +69,7 @@ Each top-level key you send replaces that key in project.json; the others stay a
 
 1. Read `<target>/.claude/alpha/project.json`.
 2. When you start asking, save `areas` with `components` set to `"in_progress"`.
-3. When the user confirms the area, save `layout`, `components_talk` and the `components` list, plus `"workspace": false` only when the user declined the workspace, and `not_code` when the user listed folders. Each component is `{"name", "path", "kind", "stack", "traits": {"has_ui", "deployed", "network_calls", "persisted_data", "ml", "nontrivial_logic"}}`, with every trait `true` or `false`. Keep the exact field names.
+3. When the user confirms the area, save `layout`, `components_talk` and the `components` list, plus `"workspace": false` only when the user declined the workspace, and `not_code` when the user listed folders. Each component is `{"name", "path", "kind", "stack", "traits": {"has_ui", "deployed", "network_calls", "persisted_data", "ml", "nontrivial_logic"}}`, with every trait `true` or `false`, plus `"run"` for a component that has a run command. Keep the exact field names.
 4. For each stack that `recipe list` doesn't name, invoke `alpha:stack-recipe` with the Skill tool for it before marking the area done.
 5. In the same call as step 3 (or after the recipes are proven), save `areas` with `components` set to `"done"`.
 

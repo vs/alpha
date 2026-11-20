@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import SCENARIOS, single_component
+from helpers import SCENARIOS, prove, shell_recipe, single_component
 
 from alpha.answers import Answers, AnswersError, load_answers
 from alpha.cli import PLUGIN_ROOT
@@ -685,3 +685,45 @@ def test_R17_1_not_code_reaches_the_principles(tmp_path: Path):
     out = build_principles(D, a, "0.1.0")
     assert out["not_code"] == folders
     assert tomllib.loads(render_principles(out))["not_code"] == folders
+
+
+def _shell_project(tmp_path: Path, recipe_run: str | None, run: str | None) -> Answers:
+    """A single component on a drafted shell recipe, with the recipe's
+    commands.run and the component's run answer as given."""
+    data = copy.deepcopy(json.loads(FIXTURE.read_text()))
+    comp = {**data["components"][0], "stack": "shell", "path": "."}
+    if run is not None:
+        comp["run"] = run
+    single_component(data, comp)
+    data["layout"] = "single"
+    recipe = shell_recipe()
+    if recipe_run is not None:
+        recipe["commands"]["run"] = recipe_run
+    data["recipes"] = {"shell": recipe}
+    path = tmp_path / ".claude" / "alpha" / "project.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(data))
+    prove(tmp_path)
+    return load_answers(path)
+
+
+@pytest.mark.parametrize(
+    ("recipe_run", "run", "expected"),
+    [
+        (None, None, ""),  # neither: no entry point yet
+        ("sh bin/serve.sh", None, "sh bin/serve.sh"),  # the recipe's
+        (
+            "sh bin/serve.sh",
+            "sh bin/serve.sh --port 8000",
+            "sh bin/serve.sh --port 8000",
+        ),
+        (None, "sh bin/serve.sh --port 8000", "sh bin/serve.sh --port 8000"),
+    ],
+)
+def test_R17_2_the_run_command_comes_from_the_answer_then_the_recipe(
+    tmp_path: Path, recipe_run: str | None, run: str | None, expected: str
+):
+    out = build_principles(D, _shell_project(tmp_path, recipe_run, run), "0.1.0")
+    assert out["components"][0]["commands"]["run"] == expected
+    saved = tomllib.loads(render_principles(out))["components"][0]["commands"]
+    assert saved["run"] == expected
