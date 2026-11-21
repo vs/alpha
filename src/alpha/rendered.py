@@ -118,7 +118,9 @@ def find_base(target: Path) -> Base | None:
         for parts in (line.split() for line in listed.stdout.splitlines())
         if len(parts) == 2
     }
-    history = git(target, "log", "--topo-order", "--format=%H %T", "HEAD")
+    history = git(
+        target, "log", "--no-show-signature", "--topo-order", "--format=%H %T", "HEAD"
+    )
     if history.returncode != 0:
         return None
     by_tree = _notes_by_tree(target, noted)

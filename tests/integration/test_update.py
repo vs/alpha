@@ -1,5 +1,6 @@
 import hashlib
 import json
+import subprocess
 from datetime import date
 from pathlib import Path
 from typing import Any, cast
@@ -729,6 +730,28 @@ def test_R11_1_the_base_survives_a_squash(tmp_path: Path, git_env: None):
     base = find_base(target)
     assert base is not None and base.commit == render
     assert kinds(plan(target)) == {}
+
+
+def test_R11_1_the_base_is_found_when_git_shows_signatures(
+    tmp_path: Path, git_env: None
+):
+    """With log.showSignature on, git log prints a verification line for a
+    signed commit (a GitHub squash merge is one) beside its own output."""
+    target = generated_repo(tmp_path, SCENARIO)
+    key = tmp_path / "signing-key"
+    subprocess.run(
+        ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True
+    )
+    git(target, "config", "log.showSignature", "true")
+    git(target, "config", "gpg.format", "ssh")
+    git(target, "config", "user.signingkey", str(key))
+    signers = tmp_path / "allowed-signers"
+    public = key.with_suffix(".pub").read_text()
+    signers.write_text(f'test@example.com namespaces="git" {public}')
+    git(target, "config", "gpg.ssh.allowedSignersFile", str(signers))
+    git(target, "commit", "-q", "--allow-empty", "-S", "-m", "chore: Sign a commit")
+    base = find_base(target)
+    assert base is not None and "CLAUDE.md" in base.texts
 
 
 def test_R11_1_the_base_is_the_render_alpha_last_committed(
