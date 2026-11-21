@@ -3,7 +3,7 @@
 # hooks and reviewers read this file.
 
 schema = 1
-kit_version = "2.2.0"
+kit_version = "2.3.0"
 dependency_log = "docs/alpha/dependencies.md"
 not_code = []
 
@@ -57,6 +57,7 @@ test = "uv run pytest"
 format = "uv run ruff format --extend-exclude .claude"
 format_file = "uv run ruff format {file}"
 lint_file = "uv run ruff check {file}"
+run = ""
 
 [[components.rules]]
 id = "alpha-python:uv-for-dependencies"
