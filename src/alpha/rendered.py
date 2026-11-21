@@ -4,8 +4,9 @@
 commit, chained under `refs/alpha/rendered` so every render stays reachable,
 and adds a note under `refs/notes/alpha-rendered` to its own last commit,
 naming that render. The next update finds its base by walking HEAD's history
-for the first commit with such a note, so a discarded update, another branch
-or another worktree never hides a change. Nothing here is committed to the
+for the first commit with such a note, or with a noted commit's tree (a
+squash of alpha's commits), so a discarded update, another branch or another
+worktree never hides a change. Nothing here is committed to the
 project's files; the refs and notes stay local, and another clone has none.
 """
 
@@ -104,8 +105,11 @@ class Base:
 
 
 def find_base(target: Path) -> Base | None:
-    """The render the latest commit in HEAD's history with a render note names,
-    or None (a new project, or a clone that never ran alpha)."""
+    """The render named by the latest commit in HEAD's history that has a
+    render note, or whose tree is a noted commit's: squashing alpha's commits
+    (a reset, a squash merge) makes a commit with the same tree that git
+    copies no note to. None for a new project, or a clone that never ran
+    alpha."""
     listed = git(target, "notes", f"--ref={NOTES_REF}", "list")
     if listed.returncode != 0 or not listed.stdout.strip():
         return None
@@ -114,17 +118,39 @@ def find_base(target: Path) -> Base | None:
         for parts in (line.split() for line in listed.stdout.splitlines())
         if len(parts) == 2
     }
-    history = git(target, "rev-list", "--topo-order", "HEAD")
+    history = git(target, "log", "--topo-order", "--format=%H %T", "HEAD")
     if history.returncode != 0:
         return None
-    for commit in history.stdout.split():
-        if commit not in noted:
+    by_tree = _notes_by_tree(target, noted)
+    for line in history.stdout.splitlines():
+        commit, tree = line.split()
+        note = noted.get(commit) or by_tree.get(tree)
+        if note is None:
             continue
-        render = _must(target, "cat-file", "blob", noted[commit]).strip()
+        render = _must(target, "cat-file", "blob", note).strip()
         if git(target, "cat-file", "-e", f"{render}^{{tree}}").returncode != 0:
             return None  # the render was pruned; behave as a fresh clone
         return Base(render, _read_tree(target, render))
     return None
+
+
+def _notes_by_tree(target: Path, noted: Mapping[str, str]) -> dict[str, str]:
+    """Each noted commit's tree and its note; a commit git has pruned since
+    is left out."""
+    if not noted:
+        return {}
+    done = git(
+        target,
+        "cat-file",
+        "--batch-check=%(objectname) %(objecttype)",
+        stdin="".join(f"{commit}^{{tree}}\n" for commit in noted),
+    )
+    by_tree: dict[str, str] = {}
+    for commit, row in zip(noted, done.stdout.splitlines(), strict=False):
+        parts = row.split()
+        if len(parts) == 2 and parts[1] == "tree":
+            by_tree.setdefault(parts[0], noted[commit])
+    return by_tree
 
 
 def _read_tree(target: Path, commit: str) -> dict[str, str]:

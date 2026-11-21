@@ -710,6 +710,27 @@ def test_an_open_design_language_area_can_be_settled_later(
     assert '"docs/alpha/design-language.md"' in text_of(p, "docs/alpha/principles.toml")
 
 
+def test_R11_1_the_base_survives_a_squash(tmp_path: Path, git_env: None):
+    """Squashing alpha's commits with a reset or a squash merge makes a new
+    commit that git copies no note to; its tree is the noted commit's."""
+    target = generated_repo(tmp_path, SCENARIO)
+    start = git(target, "rev-parse", "HEAD")
+    data = answers(target)
+    add_a_risk_path(data)
+    save(target, data)
+    apply.write(target, plan(target))
+    hashes, _ = commit_the_update(target)
+    assert len(hashes) == 2  # the docs and the chore commit
+    render = git(target, "rev-parse", "refs/alpha/rendered")
+    git(target, "reset", "-q", "--soft", start)
+    commit(target, "chore(alpha): Add a risk path")
+    head = git(target, "rev-parse", "HEAD")
+    assert head not in git(target, "notes", "--ref=alpha-rendered", "list")
+    base = find_base(target)
+    assert base is not None and base.commit == render
+    assert kinds(plan(target)) == {}
+
+
 def test_R11_1_the_base_is_the_render_alpha_last_committed(
     tmp_path: Path, git_env: None
 ):
