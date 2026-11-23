@@ -54,8 +54,16 @@ def _run(
     root: Path, *args: str, stdin: str | None = None, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str] | None:
     try:
-        return subprocess.run(  # quotepath off: non-ASCII names as they are
-            ["git", "-c", "core.quotepath=false", *args],
+        return subprocess.run(  # quotepath off: non-ASCII names as they are;
+            # showSignature off: no signature checks in log output
+            [
+                "git",
+                "-c",
+                "core.quotepath=false",
+                "-c",
+                "log.showSignature=false",
+                *args,
+            ],
             cwd=root,
             input=stdin,
             capture_output=True,

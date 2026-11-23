@@ -35,6 +35,27 @@ def install(target: Path, today: date = TODAY) -> list[str]:
     return sorted({*(c.path for c in p.changes), PROJECT_JSON})
 
 
+def show_signatures(repo: Path, keys: Path) -> None:
+    """Sign every later commit in `repo` with a throwaway SSH key that git can
+    verify, and turn on log.showSignature: git log then prints a verification
+    line beside its own output, as it does for a GitHub squash merge."""
+    key = keys / "signing-key"
+    subprocess.run(
+        ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True
+    )
+    signers = keys / "allowed-signers"
+    public = key.with_suffix(".pub").read_text()
+    signers.write_text(f'* namespaces="git" {public}')
+    for name, value in (
+        ("gpg.format", "ssh"),
+        ("user.signingkey", str(key)),
+        ("gpg.ssh.allowedSignersFile", str(signers)),
+        ("commit.gpgSign", "true"),
+        ("log.showSignature", "true"),
+    ):
+        git(repo, "config", name, value)
+
+
 def place_answers(target: Path, scenario: str) -> Path:
     dest = target / ".claude" / "alpha" / "project.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
