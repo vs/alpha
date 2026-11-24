@@ -3,7 +3,7 @@
 # hooks and reviewers read this file.
 
 schema = 1
-kit_version = "2.3.1"
+kit_version = "2.3.2"
 dependency_log = "docs/alpha/dependencies.md"
 not_code = []
 
