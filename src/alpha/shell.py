@@ -21,10 +21,17 @@ def git(
     env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """git `args` in `target`, under GIT_TIMEOUT, with paths in its output
-    left unquoted."""
+    left unquoted and no signature checks mixed into log or show output."""
     try:
         return subprocess.run(
-            ["git", "-c", "core.quotepath=false", *args],
+            [
+                "git",
+                "-c",
+                "core.quotepath=false",
+                "-c",
+                "log.showSignature=false",
+                *args,
+            ],
             cwd=target,
             input=stdin,
             capture_output=True,

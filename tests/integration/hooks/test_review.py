@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 import review
+from helpers import show_signatures
 
 from .conftest import Project
 
@@ -163,6 +164,23 @@ def test_a_risk_path_finding_isnt_accepted_by_the_fix_check(project: Project) ->
     assert recorded is not None and recorded["findings"][0]["status"] == "open"
     blocked = gate(project)
     assert blocked is not None and 'replying "accept F-000000"' in blocked
+
+
+def test_accepts_stop_at_the_reviewed_tree_when_git_shows_signatures(
+    project: Project, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    on_a_branch(project)
+    show_signatures(project.root, tmp_path_factory.mktemp("keys"))
+    trailer = "chore: Keep {0}\n\nAccepts: F-0000{0} Reads are bounded."
+    project.git("commit", "-q", "--allow-empty", "-m", trailer.format("aa"))
+    commit(project, "api/src/a.py")
+    tree = reviewed(project)
+    project.write("api/src/b.py", "x = 1\n")
+    project.git("add", "-A")
+    project.git("commit", "-q", "-m", trailer.format("bb"))
+    assert review.accepts_since(project.root, tree) == [
+        "Accepts: F-0000bb Reads are bounded."
+    ]
 
 
 def test_R10_2_the_last_reviewed_tree_is_found_in_history(project: Project) -> None:

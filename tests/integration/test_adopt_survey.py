@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import PLUGIN_ROOT, git, run_cli
+from helpers import PLUGIN_ROOT, git, run_cli, show_signatures
 
 from alpha import adopt
 from alpha.adopt import AdoptError, survey
@@ -128,6 +128,19 @@ def test_survey_git_facts(tmp_path: Path):
     assert facts["hooks_path"] == ".githooks"
     assert facts["branch"] == "main" and facts["default_branch"] == "main"
     assert facts["commits"] == 3
+
+
+def test_survey_reads_subjects_when_git_shows_signatures(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+):
+    root = _repo(tmp_path, {"a.txt": "x"}, ["feat: Add a"])
+    show_signatures(root, tmp_path_factory.mktemp("keys"))
+    git(root, "commit", "-q", "--allow-empty", "-m", "fix(api): Mend b")
+    assert survey(root, SOURCE)["git"]["conventional"] == {
+        "checked": 2,
+        "matching": 2,
+        "others": [],
+    }
 
 
 def test_survey_refusals(tmp_path: Path):
